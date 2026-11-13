@@ -1,6 +1,6 @@
 import { createApiClient, ApiError } from '@water-erp/client';
 import type { ExpertMemo } from '@water-erp/shared';
-import { showSessionReplacedOverlay, showFrozenOverlay, showTempExpiredOverlay, showPasswordChangedOverlay } from '@/lib/session-kick';
+import { showSessionReplacedOverlay, showFrozenOverlay, showTempExpiredOverlay, showPasswordChangedOverlay, showPairingRevokedOverlay } from '@/lib/session-kick';
 
 /**
  * expert-portal 专家门户 API 客户端 —— 基于 @water-erp/client 统一封装。
@@ -20,13 +20,16 @@ const client = createApiClient({
   //  - 其余（JWT 过期 / cookie 被清）→ 直接跳登录页
   // 登录页自身的 401（口令错误）由表单 catch 呈现，不做全局兜底。
   on401: (error) => {
-    if (window.location.pathname === '/login' || window.location.pathname === '/tablet/claim') return; // claim 页的密码错 401 由表单就地呈现
+    if (window.location.pathname === '/login' || window.location.pathname === '/tablet/pair') return; // 配对页的密码错 401 由表单就地呈现
     if (error.code === 'SESSION_REPLACED') { showSessionReplacedOverlay(error.message); return; }
     if (error.code === 'ACCOUNT_FROZEN') { showFrozenOverlay(error.message); return; }
     // 2026-11-05：临时账号随项目终态失效 / 密码变更吊销旧会话——此前落入兜底静默跳登录，
     // 后端文案丢失（用户须再试一次登录才知道原因）；同遮罩口径就地说明
     if (error.code === 'TEMP_ACCOUNT_EXPIRED') { showTempExpiredOverlay(error.message); return; }
     if (error.code === 'PASSWORD_CHANGED') { showPasswordChangedOverlay(error.message); return; }
+    // TAB-SYNC-01 平板配对：配对被桌面端解除/过期（或桌面登出卫生吊销）→ 遮罩指引回
+    // 桌面重新生成配对码，不落通用「会话过期」静默跳转（重新登录救不活配对）
+    if (error.code === 'PAIRING_REVOKED') { showPairingRevokedOverlay(error.message); return; }
     // EXP-P3-05：携带 redirect——会话过期后从深链（如通知里的 /invitation/:id）进来，
     // 登录成功应回原页而非落首页（proxy 层页面级 redirect 已保留，此处为 API 层 401 补齐）
     window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;

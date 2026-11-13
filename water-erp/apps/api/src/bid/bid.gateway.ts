@@ -5,10 +5,11 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 import { PORTS, portalFromHostname } from '@water-erp/config';
 import {
   BID_EVENT,
@@ -177,6 +178,10 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    // TAB-SYNC-01（Task 6）：平板配对登记存活校验。@Optional 同 auth.guard.ts /
+    // expert-pairing.registry 的 REDIS_CLIENT 模式，仅防测试直构；生产经 BidModule
+    // imports ExpertPairingModule 解析。缺失时 scoped token 一律 fail closed 拒连。
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
   ) {}
 
   // ── Connection lifecycle: JWT auth + role flag ──
@@ -194,8 +199,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     let role: string | undefined;
     let userId: string | undefined;
+    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string } | undefined;
     try {
-      const payload = await this.jwt.verifyAsync(token);
+      payload = await this.jwt.verifyAsync(token);
       role = payload?.role;
       userId = payload?.sub;
     } catch (err) {
@@ -207,6 +213,58 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.warn('WS 拒绝连接：JWT 载荷缺 role/sub');
       socket.disconnect(true);
       return;
+    }
+    // ── TAB-SYNC-01（Task 6，spec §10）：握手期会话/配对校验 ──
+    // 存量缺口（评审事实更正）：此前 handleConnection 只验 JWT 签名，桌面登出/会话轮换后
+    // 旧设备 socket 仍可凭未过期 JWT 自由重连（HTTP 面 AuthGuard 已拦、WS 面漏）。
+    // ① sid 一致：带 sid 的 token（web/supplier/expert 单设备命名空间 + 平板配对令牌）与
+    //    库中 User.webSessionId 对账（notification.gateway 同款先例）。无 sid 的 token
+    //    （token_bid 等旧命名空间）不受影响，照常放行。
+    if (payload?.sid) {
+      // fail closed：@nestjs/websockets 订阅 handleConnection 无错误回调、返回 promise 被
+      // 丢弃——findUnique 上抛 = socket 悬挂未认证 + unhandled rejection（默认 Node 语义
+      // 终止进程；DB 瞬断 + WS 客户端自动重连 = API 崩溃向量）。异常一律拒连（fix round 1）。
+      let su: { webSessionId: string | null } | null = null;
+      try {
+        su = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { webSessionId: true },
+        });
+      } catch (err) {
+        this.logger.warn(
+          `WS 拒绝连接：会话校验异常（fail closed）userId=${userId}（${(err as Error).message}）`,
+        );
+        socket.disconnect(true);
+        return;
+      }
+      if (payload.sid !== su?.webSessionId) {
+        this.logger.warn(`WS 拒绝连接：会话已轮换或登出（sid 失配）userId=${userId}`);
+        socket.disconnect(true);
+        return;
+      }
+    }
+    // ② 配对存活：scope=tablet-pairing 受限令牌逐连接核对 Redis 登记（解绑/过期/被新配对
+    //    单飞替换即拒——AuthGuard 逐请求口径的 WS 面）。fail closed：registry 缺失（测试
+    //    直构防御位）或 Redis 故障（isAlive 抛 ServiceUnavailableException）一律拒连——
+    //    Redis 不可用不得放进未校验的配对 socket。
+    if (payload?.scope === 'tablet-pairing') {
+      let alive = false;
+      try {
+        alive = this.pairingRegistry
+          ? await this.pairingRegistry.isAlive(payload.jti as string, userId)
+          : false;
+      } catch (err) {
+        this.logger.warn(
+          `WS 拒绝连接：配对登记校验异常（fail closed）userId=${userId}（${(err as Error).message}）`,
+        );
+        socket.disconnect(true);
+        return;
+      }
+      if (!alive) {
+        this.logger.warn(`WS 拒绝连接：配对已解除或过期（pairingId=${payload.jti}）`);
+        socket.disconnect(true);
+        return;
+      }
     }
     (socket.data as any).userId = userId;
     (socket.data as any).role = role;
@@ -639,16 +697,42 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`host:${projectId}`).emit(BID_EVENT.SCORES_SUBMITTED, payload);
   }
 
-  /** 草稿保存限流：键 `${projectId}:${expertId}`，3s 内不重复发送 */
-  private draftSavedThrottle = new Map<string, number>();
+  /** 草稿保存限流窗口（ms）——类字段便于测试缩短（终审 Fix1） */
+  private DRAFT_SAVED_THROTTLE_MS = 3000;
 
-  /** 草稿保存通知：广播到专家房（仅同项目其他专家），不含草稿内容 */
+  /** 草稿保存限流：键 `${projectId}:${expertId}` → 窗口起点 + 挂起的尾沿发射器 */
+  private draftSavedThrottle = new Map<string, { last: number; timer?: ReturnType<typeof setTimeout> }>();
+
+  /** 草稿保存通知：广播到专家房（仅同项目其他专家），不含草稿内容。
+   *  前沿节流 + 尾沿补发（终审 Fix1）：窗口内被压下的保存不再静默丢弃——若无尾沿补发，
+   *  突发编辑的【末笔】被吞后，对端（仅凭 DRAFT_SAVED 拉取）永远看不到该笔，桌面可能
+   *  漏掉平板最后一次微调就提交。窗口内连续压下只保留一个挂起发射（最新 device 获胜），
+   *  发射时刻锚定窗口起点（last + 窗口），补发后窗口随之推进——≤1 发射/3s 窗口的
+   *  节流语义不变；尾沿发射仅在确有被压下保存时存在。 */
   notifyDraftSaved(projectId: string, expertId: string, device: 'tablet' | 'desktop') {
     const key = `${projectId}:${expertId}`;
-    const last = this.draftSavedThrottle.get(key) ?? 0;
-    if (Date.now() - last < 3000) return;
-    this.draftSavedThrottle.set(key, Date.now());
-    const payload: DraftSavedPayload = { projectId, expertId, device, timestamp: Date.now() };
-    this.server.to(`experts:${projectId}`).emit(BID_EVENT.DRAFT_SAVED, payload);
+    const now = Date.now();
+    const entry = this.draftSavedThrottle.get(key);
+    const last = entry?.last ?? 0;
+    const emit = (device2: 'tablet' | 'desktop') => {
+      const payload: DraftSavedPayload = { projectId, expertId, device: device2, timestamp: Date.now() };
+      this.server.to(`experts:${projectId}`).emit(BID_EVENT.DRAFT_SAVED, payload);
+    };
+    if (now - last < this.DRAFT_SAVED_THROTTLE_MS) {
+      // 压下：清旧挂起、以本笔 device 重挂（最新获胜）；delay 锚定窗口起点，不随补发顺延
+      if (entry?.timer) clearTimeout(entry.timer);
+      const timer = setTimeout(
+        () => {
+          this.draftSavedThrottle.set(key, { last: Date.now() }); // 窗口推进（防补发后紧邻笔连发）
+          emit(device);
+        },
+        Math.max(0, last + this.DRAFT_SAVED_THROTTLE_MS - now),
+      );
+      this.draftSavedThrottle.set(key, { last, timer });
+      return;
+    }
+    if (entry?.timer) clearTimeout(entry.timer); // 防御：新窗口首笔到达时清残留挂起（时钟边界竞态）
+    this.draftSavedThrottle.set(key, { last: now });
+    emit(device);
   }
 }

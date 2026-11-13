@@ -52,7 +52,7 @@ export class ExpertPairingRegistry {
   /** 登记新配对。同 expert+project 已有旧配对时单飞替换（旧 jti 条目即删，旧平板令牌随之失效）。
    *  并发互斥（评审 F1 裁定）：GET active → DEL → SET → SET 非原子，并发 register 会留下双活动
    *  条目（败者 jti 经 isAlive 存活 12h）——按 expert+project 短锁串行化，锁获取失败 409 让
-   *  调用方稍候重试（沿用 expert-transfer 票据锁模式，auth.service claimExpertTransfer）。 */
+   *  调用方稍候重试（沿用 expert-transfer 票据锁模式，auth.service claimExpertPairing）。 */
   async register(args: {
     userId: string;
     expertId: string;

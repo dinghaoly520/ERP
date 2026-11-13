@@ -32,10 +32,12 @@ export interface PairingAllowEntry {
 export const PAIRING_ALLOWED: ReadonlyArray<PairingAllowEntry> = [
   // 草稿写（核心写面；服务层 saveScoreDraft 对 scoped 请求强制 device='tablet'）
   { method: 'POST', path: /^\/expert\/projects\/[^/]+\/score-draft$/ },
-  // 备忘全 CRUD（平板手写备忘是核心价值）；墨迹 PNG 走 memos multipart 本体，不经 /upload
-  { method: 'POST', path: /^\/expert\/projects\/[^/]+\/memos/ },
-  { method: 'PATCH', path: /^\/expert\/projects\/[^/]+\/memos/ },
-  { method: 'DELETE', path: /^\/expert\/projects\/[^/]+\/memos/ },
+  // 备忘全 CRUD（平板手写备忘是核心价值）；墨迹 PNG 走 memos multipart 本体，不经 /upload。
+  // 写面段边界锚（终审 Fix4）：`(\/|$)` 限定 /memos 与 /memos/* 子树——裸前缀会把未来的
+  // 兄弟路由（如 /memos-export）一并误放行；GET 列表走下方只读全集面、GET ink 单列不改
+  { method: 'POST', path: /^\/expert\/projects\/[^/]+\/memos(\/|$)/ },
+  { method: 'PATCH', path: /^\/expert\/projects\/[^/]+\/memos(\/|$)/ },
+  { method: 'DELETE', path: /^\/expert\/projects\/[^/]+\/memos(\/|$)/ },
   { method: 'GET', path: /^\/expert\/projects\/[^/]+\/memos\/[^/]+\/ink$/ },
   // 配对留档照（claim 成功后拍照发生在 scoped 态——漏配会把强制留档照死锁在配对流程内）
   { method: 'GET', path: /^\/expert\/projects\/[^/]+\/pairing-photo-status$/ },

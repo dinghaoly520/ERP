@@ -64,6 +64,7 @@ import { buildClarificationReplyCanonical } from '../supplier-portal/clarificati
 import { buildClarificationNotice } from './clarification-notify.util';
 import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
 import { BidIntentOversightService } from '../supplier/bid-intent-oversight.service';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -105,6 +106,9 @@ export class BidService {
     private readonly moduleRef: ModuleRef,
     @Optional() private readonly clarificationAi?: ClarificationAiService,
     @Optional() private readonly gateway?: BidGateway,
+    // TAB-SYNC-01（2026-11-12 spec §9.3）：主持端核验矩阵平板配对可见性——BidModule imports
+    // ExpertPairingModule（Task 6）解析；@Optional 与 gateway 同款（单测直构/独立 worker 降级）
+    @Optional() private readonly pairingRegistry?: ExpertPairingRegistry,
     @Optional()
     @InjectQueue(QUEUE_NAMES.TENDER_PROCESSING)
     private readonly tenderQueue?: Queue,
@@ -2120,7 +2124,26 @@ export class BidService {
           this.logger.error(`确认超时闭环失败 ${s.supplierName}`, err as Error);
           return { count: 0 };
         });
-        if (r.count > 0) closed.push(s.supplierName);
+        if (r.count > 0) {
+          closed.push(s.supplierName);
+          // #61b：记录层终局性镜像——闭包翻供应商态的同时翻 BidOpeningRecord（纸面证据不自相矛盾）。
+          // 镜像 overrideDispute exception 出口样式：中文终局态 + handleResult 前置标签 + handledAt；
+          // 记录侧 CAS（仅待确认态可翻）——异议/终局态记录不覆盖，同供应商侧防窄窗口并发双写。
+          await this.prisma.bidOpeningRecord.updateMany({
+            where: {
+              projectId, bidSupplierId: s.id,
+              confirmStatus: { in: ['待供应商确认', '待确认'] },
+            },
+            data: {
+              confirmStatus: '逾期未确认-异常',
+              handleResult: `[确认超时闭环] 解密窗口结束已超 ${hours} 小时仍未确认唱标，视同放弃确认自动置异常`,
+              handledAt: new Date(),
+              handledBy: null,
+            },
+          }).catch(err => {
+            this.logger.error(`确认超时闭环记录镜像失败 ${s.supplierName}`, err as Error);
+          });
+        }
       }
       if (closed.length === 0) return; // 全被并发路径处理（供应商刚确认/已闭）→ 零写零日志
       await this.prisma.bidSupervisionLog.create({
@@ -3489,6 +3512,20 @@ export class BidService {
         result: l.result,
       });
     }
+    // TAB-SYNC-01（2026-11-12 spec §9.3）：平板配对快照（Redis 登记键 expertId= BidExpert.id）。
+    // 并行查（本端点 30s 轮询）；registry 抛错（Redis 挂）或未注入（单测直构）一律降级 null——
+    // 配对可见性缺失不得连坐整个核验矩阵。
+    const tabletPairedByExpert = new Map<
+      string,
+      { device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null } | null
+    >(
+      await Promise.all(
+        experts.map(async (e) => {
+          const active = await this.pairingRegistry?.getActive(e.id, projectId).catch(() => null);
+          return [e.id, active ? { device: active.device, pairedAt: active.pairedAt } : null] as const;
+        }),
+      ),
+    );
     return {
       projectId,
       mode: resolveIdentityVerifyMode(),
@@ -3501,6 +3538,8 @@ export class BidService {
           id: e.id, expertName: e.expertName, major: e.major, expertRole: e.expertRole,
           // 当前在线设备（null=无活动会话）；签到设备由 signInMeta.userAgent 即时分类
           onlineDevice: su?.webSessionId ? (sm ?? { deviceClass: 'unknown', uaSummary: '未记录' }) : null,
+          // TAB-SYNC-01：当前活跃平板配对（null=未配对或登记不可用——监督侧双设备视图的第二行）
+          tabletPaired: tabletPairedByExpert.get(e.id) ?? null,
           signInDevice: meta.userAgent ? classifyUserAgent(meta.userAgent) : null,
           isLead: e.isLead, isPurchaserRepresentative: e.isPurchaserRepresentative,
           signedIn: e.signedIn, signInIp: e.signInIp,
@@ -3647,8 +3686,9 @@ export class BidService {
     return { ok: true, expertId: expert.id, expertName: expert.expertName };
   }
 
-  /** 主持人确认迁移留档照豁免（严版 2026-09-23）：摄像头不可用等现场判定，理由必填+监督留痕（中风险） */
-  async confirmTransferPhotoExemption(projectId: string, expertId: string, actor: { id: string; username: string }, reason: string) {
+  /** 主持人确认配对留档照豁免（严版 2026-09-23；TAB-SYNC-01 配对制沿用——2026-11-12 随端点
+   *  由迁移改名）：摄像头不可用等现场判定，理由必填+监督留痕（中风险） */
+  async confirmPairingPhotoExemption(projectId: string, expertId: string, actor: { id: string; username: string }, reason: string) {
     if (!reason?.trim() || reason.trim().length > 200) {
       throw new BadRequestException({ error: '豁免理由必填（≤200 字）', code: 'REASON_REQUIRED' });
     }
@@ -3667,8 +3707,8 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: '主持人', target: expert.expertName,
-        action: '迁移留档照豁免',
-        result: `确认人 ${actorName}；理由：${reason.trim()}${expert.transferPhotoPendingAt ? '' : '（当前无待补拍迁移照）'}`,
+        action: '配对留档照豁免',
+        result: `确认人 ${actorName}；理由：${reason.trim()}${expert.transferPhotoPendingAt ? '' : '（当前无待补拍配对照）'}`,
         riskFlag: '中',
       },
     }).catch(() => {});
@@ -4510,6 +4550,13 @@ export class BidService {
 
     const winner = project.evaluationResults.find(r => r.rank === 1);
     const candidates = project.evaluationResults.filter(r => r.recommended);
+    // #151b（#151 评审 F2）：全废标时 rank1 行是废标家——裸取会把废标家写成「预成交供应商」。
+    // 预成交公示的前提是有预成交对象：无合格首名（winner 缺席或未推荐）整份跳过，
+    // 不生成「预成交供应商：—」的无对象公示（同文件其余 rank1 检测点均有 recommended 守卫）。
+    if (!winner?.recommended) {
+      this.logger.warn(`项目 ${project.projectCode} 无合格预成交对象（全废标/首名未推荐），跳过预成交公示草稿`);
+      return;
+    }
 
     // A4: 中标价格从评标结果直接获取（不再通过 supplierName 模糊匹配开标记录）
     const winnerPrice = winner?.bidPrice ? String(winner.bidPrice) : null;
@@ -5548,7 +5595,9 @@ export class BidService {
             amount,
             amountUnit,
             period: '', qualityTarget: '', bondStatus: '',
-            confirmStatus: 'PENDING', decryptResult: 'SUCCESS',
+            // #61c（61b 评审 F3）：记录侧状态为中文文本域——对齐其余三方写点（主持唱标/解密即唱标/异议退回），
+            // 英文双轨会漏出 61b 闭包镜像 CAS（in ['待供应商确认','待确认']）的覆盖面
+            confirmStatus: '待供应商确认', decryptResult: '解密成功',
           },
           update: { amount, amountUnit },
         });

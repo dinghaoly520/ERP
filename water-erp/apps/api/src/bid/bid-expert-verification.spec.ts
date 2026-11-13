@@ -89,6 +89,115 @@ describe('BidService.getExpertVerification（核验矩阵）', () => {
   });
 });
 
+// TAB-SYNC-01（2026-11-12 spec §9.3）：核验矩阵平板配对可见性——registry 并行查+降级铁律
+describe('BidService.getExpertVerification（TAB-SYNC-01 平板配对可见性）', () => {
+  let svc: any;
+  let prisma: any;
+  let registry: { getActive: jest.Mock };
+
+  const EXPERT_ROW = (id: string) => ({
+    id, expertName: `专家${id}`, major: '水利', expertRole: '正选', isLead: false, isPurchaserRepresentative: false,
+    signedIn: true, signInIp: null, signInMeta: null,
+    identityVerified: false, identityVerifiedByName: null, identityDocType: null,
+    transferPhotoPendingAt: null, transferPhotoExemptAt: null, transferPhotoExemptByName: null,
+  });
+
+  beforeEach(() => {
+    prisma = {
+      bidExpert: { findMany: jest.fn().mockResolvedValue([EXPERT_ROW('e1'), EXPERT_ROW('e2')]) },
+      bidSupervisionLog: { findMany: jest.fn().mockResolvedValue([]) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    registry = { getActive: jest.fn() };
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    instance.pairingRegistry = registry;
+    svc = instance;
+  });
+
+  it('活跃配对 → tabletPaired 携带设备摘要/配对时间（pairingId 不外泄）；未配对专家为 null', async () => {
+    registry.getActive.mockImplementation(async (expertId: string) =>
+      expertId === 'e1'
+        ? { pairingId: 'jti-1', device: { uaSummary: 'Safari·iPadOS', ip: '10.0.0.9' }, pairedAt: 1760000000000 }
+        : null);
+
+    const r = await svc.getExpertVerification('proj-1');
+
+    // 登记键 expertId= BidExpert.id（claimExpertPairing 入键口径）
+    expect(registry.getActive).toHaveBeenCalledWith('e1', 'proj-1');
+    expect(registry.getActive).toHaveBeenCalledWith('e2', 'proj-1');
+    expect(r.experts[0].tabletPaired).toEqual({
+      device: { uaSummary: 'Safari·iPadOS', ip: '10.0.0.9' }, pairedAt: 1760000000000,
+    });
+    expect(r.experts[0].tabletPaired).not.toHaveProperty('pairingId');
+    expect(r.experts[1].tabletPaired).toBeNull();
+  });
+
+  it('registry 抛错（Redis 不可用）→ 降级 tabletPaired=null，核验矩阵不受连坐', async () => {
+    registry.getActive.mockRejectedValue(new Error('Redis down'));
+    const r = await svc.getExpertVerification('proj-1');
+    expect(r.experts.map((e: any) => e.tabletPaired)).toEqual([null, null]);
+  });
+
+  it('registry 未注入（单测直构/独立 worker）→ 同样降级 null', async () => {
+    const bare: any = Object.create(BidService.prototype);
+    bare.prisma = prisma;
+    const r = await bare.getExpertVerification('proj-1');
+    expect(r.experts.every((e: any) => e.tabletPaired === null)).toBe(true);
+  });
+});
+
+// TAB-SYNC-01（2026-11-12）：主持人豁免端点随配对制由旧「迁移」名改为「配对」名——
+// 监督日志文案同步迁移→配对
+describe('BidService.confirmPairingPhotoExemption（豁免端点改名回归）', () => {
+  let svc: any;
+  let prisma: any;
+  const ACTOR = { id: 'host-1', username: '陈源远' };
+
+  beforeEach(() => {
+    prisma = {
+      bidExpert: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'e1', expertName: '刘苡池', transferPhotoPendingAt: new Date() }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      user: { findUnique: jest.fn().mockResolvedValue({ displayName: '陈源远' }) },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const instance: any = Object.create(BidService.prototype);
+    instance.prisma = prisma;
+    svc = instance;
+  });
+
+  it('豁免成功 → 监督日志 配对留档照豁免（不再写迁移文案）', async () => {
+    const r = await svc.confirmPairingPhotoExemption('proj-1', 'e1', ACTOR, '平板无摄像头');
+    expect(r.ok).toBe(true);
+    expect(prisma.bidExpert.update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: expect.objectContaining({ transferPhotoExemptAt: expect.any(Date), transferPhotoExemptByName: '陈源远' }),
+    });
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        projectId: 'proj-1', role: '主持人', target: '刘苡池',
+        action: '配对留档照豁免',
+        result: expect.stringContaining('平板无摄像头'),
+        riskFlag: '中',
+      }),
+    });
+  });
+
+  it('理由必填 → 400 REASON_REQUIRED', async () => {
+    await expect(svc.confirmPairingPhotoExemption('proj-1', 'e1', ACTOR, '  '))
+      .rejects.toMatchObject({ response: { code: 'REASON_REQUIRED' } });
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+  });
+
+  it('专家不在项目 → 403 NOT_PROJECT_EXPERT', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue(null);
+    await expect(svc.confirmPairingPhotoExemption('proj-1', 'e9', ACTOR, 'x'))
+      .rejects.toMatchObject({ response: { code: 'NOT_PROJECT_EXPERT' } });
+  });
+});
+
 // R9 主持人手动确认（2026-09-20 spec §4.6）——摄像头故障等现场降级
 describe('BidService.manualConfirmExpertVerification（R9）', () => {
   let svc: any;

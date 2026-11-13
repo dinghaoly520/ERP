@@ -9,7 +9,7 @@ import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
 import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
-import { markTransferClaimed } from '@/lib/transfer-claimed-flag';
+import { threeWayMerge, normalizeDraftEntries } from '@/lib/draft-merge';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
 import { SigninCamera } from '@/components/signin-camera';
@@ -46,6 +46,15 @@ const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: numb
   { key: 'verify-score', label: '核对', Icon: CheckCircle },
   { key: 'report', label: '评审报告', Icon: BarChart3 },
 ];
+
+/** TAB-SYNC-01：draft-merge 的 ScoreEntry.passed 允许 null（服务端形状），本页
+ *  ScoreEntry.passed 只认 boolean/缺省——归一 null→undefined（页面判空一律走
+ *  typeof === 'boolean'，语义不变；JSON 序列化天然丢弃 undefined 键） */
+const toPageScores = (m: Record<string, { score: number; reason: string; passed?: boolean | null; points?: Record<string, { checked: boolean; awardedScore: number }>; savedAt?: number }>): Record<string, ScoreEntry> => {
+  const out: Record<string, ScoreEntry> = {};
+  for (const [k, v] of Object.entries(m)) out[k] = { ...v, passed: v.passed ?? undefined };
+  return out;
+};
 
 export default function ExpertEvaluatePage() {
   const router = useRouter();
@@ -216,27 +225,38 @@ export default function ExpertEvaluatePage() {
     },
     onDraftSaved: (d) => {
       if (d.device === 'desktop') return;
-      api.get<{ scores: Record<string, { score: number; reason: string; passed?: boolean; points?: Record<string, { checked: boolean; awardedScore: number }> }>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
+      // 跨专家噪音过滤：draft:saved 按项目房间广播，只响应本人草稿（他人保存不触发本端拉取）
+      if (!project?.myExpertRecord?.id || d.expertId !== project.myExpertRecord.id) return;
+      // TAB-SYNC-01（T8 接线契约②）：冲突未裁决期间暂停拉取合并——冲突键 baseline 已前移到
+      // local，此时拉取会把同一远端分歧静默接受为「远端未变」（评审 Minor#1）
+      if (conflictModalOpen || draftConflicts.length > 0) return;
+      api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=desktop`)
         .then(draft => {
           if (!draft?.scores) return;
-          const newItems: string[] = [];
-          const conflicts: typeof draftConflicts = [];
-          for (const [key, remoteVal] of Object.entries(draft.scores)) {
-            if (!(key in scores)) {
-              newItems.push(key);
-            } else if (JSON.stringify(scores[key]) !== JSON.stringify(remoteVal)) {
-              const itemName = project?.scoreItems.find(si => key.endsWith(`:${si.id}`))?.name ?? key;
-              conflicts.push({ key, scoreItemName: itemName, localVal: scores[key], remoteVal });
+          // TAB-SYNC-01 §4.1：last-synced 基线三方合并——本端未动的键接受远端（含新增键静默
+          // 并入）、双端并发分歧进横幅/裁决弹窗（next 对冲突键保留本端）；baseline 推进为本次
+          // 接受后的快照。scoresRef 读当前值（事件闭包里的 scores 可能滞后于最近编辑）。
+          // 归一先行（终审 Fix3，与平板端对齐）：服务端形状 passed=null 先剥为缺省再进
+          // threeWayMerge——JSON.stringify 深比较视 null≠缺省，数值项会整批假冲突；
+          // 输出侧 toPageScores 本就归一，此处补输入侧。
+          const remote = normalizeDraftEntries(draft.scores);
+          const result = threeWayMerge(scoresRef.current, baselineRef.current, remote);
+          const nextScores = toPageScores(result.next);
+          setScores(prev => {
+            let changed = false;
+            for (const k of new Set([...Object.keys(prev), ...Object.keys(nextScores)])) {
+              if (JSON.stringify(prev[k]) !== JSON.stringify(nextScores[k])) { changed = true; break; }
             }
-          }
-          if (newItems.length > 0) {
-            setScores(prev => {
-              const next = { ...prev };
-              for (const k of newItems) next[k] = draft.scores![k];
-              return next;
-            });
-          }
-          if (conflicts.length > 0) {
+            return changed ? nextScores : prev;
+          });
+          baselineRef.current = toPageScores(result.baseline);
+          if (result.conflicts.length > 0) {
+            const conflicts: typeof draftConflicts = result.conflicts.map(c => ({
+              key: c.key,
+              scoreItemName: project?.scoreItems.find(si => c.key.endsWith(`:${si.id}`))?.name ?? c.key,
+              localVal: c.local,
+              remoteVal: c.remote,
+            }));
             setDraftConflicts(prev => [...prev, ...conflicts]);
           }
         })
@@ -343,6 +363,13 @@ export default function ExpertEvaluatePage() {
   // 未落盘评分改动标记（断点续评加固）：驱动 beforeunload 原生防误关——关页/刷新弹浏览器确认，
   // 回调内同步补写 localStorage（beforeunload 无异步机会，服务端槽位由 2s 防抖兜底）
   const scoresRef = useRef<Record<string, ScoreEntry>>({});
+  // TAB-SYNC-01：scoresRef 恒随最新 scores（三方合并拉取须读当前值而非事件闭包快照；
+  // beforeunload 同步补写同源）——纯重渲染 scores 引用未变不触发
+  useEffect(() => { scoresRef.current = scores; }, [scores]);
+  // TAB-SYNC-01 §4.1 last-synced 基线：草稿三方合并的「本页起点」——恢复草稿/服务端数据
+  // 合并落定后初始化为当时快照；此后 pull 接受（onDraftSaved）与 push 推进
+  // （advanceBaselineAfterPush）逐键更新。savedAt 不参与内容相等（draft-merge 契约）
+  const baselineRef = useRef<Record<string, ScoreEntry>>({});
   const unflushedRef = useRef(false);
   const [hasUnflushed, setHasUnflushed] = useState(false);
 
@@ -379,6 +406,9 @@ export default function ExpertEvaluatePage() {
             points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
           };
         }
+        // TAB-SYNC-01：服务端已提交数据合并落定 → 快照即新的 last-synced 基线
+        //（提交分/点决策非本端未同步分歧，后续 WS pull 与此对表）
+        baselineRef.current = { ...next };
         return next;
       });
     } catch { /* my-scores optional — ignore */ }
@@ -493,11 +523,20 @@ export default function ExpertEvaluatePage() {
     return pending;
   }, [project]);
 
+  // TAB-SYNC-01（T8 接线契约①）：本端推送成功后对「本次推送的键」推进 baseline——
+  // 推送值即双端共同所见，不推进则平板后续对同键的编辑会被误判为双端分歧（假冲突）。
+  // 只并入本端推送键、不整表重拉：GET score-draft 返回双槽逐键取新的合并视图，会把平板
+  // 尚未拉取合并的新值提为基线，随后 pull 判其「远端未变」而静默丢弃平板编辑。
+  // 有未裁决冲突时跳过（T8 契约②同源：冲突键 baseline 已前移到 local）。
+  const advanceBaselineAfterPush = (pending: Record<string, ScoreEntry>) => {
+    if (conflictModalOpen || draftConflicts.length > 0) return;
+    for (const [k, v] of Object.entries(pending)) baselineRef.current[k] = v;
+  };
+
   // debounced autosave whenever scores change (only while scoring).
   // E4/G3: 双写 localStorage（快速离线恢复）+ 服务端 scoreDraft API（跨设备持久化）
   useEffect(() => {
     if (!draftStorageKey || step !== 'scoring') return;
-    scoresRef.current = scores; // beforeunload 同步补写取最新值
     // 草稿检查未完成或仍有待处理草稿横幅时，暂停自动保存（防止进入
     // 打分步以空/旧 scores 覆写待恢复草稿）；悬置期间清掉已排定的定时器（A3）
     if (!draftCheckDone || draftAvailable !== null) {
@@ -523,8 +562,10 @@ export default function ExpertEvaluatePage() {
       try {
         localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
       } catch { /* quota / private mode — ignore */ }
-      // E4/G3: 同步到服务端（失败静默降级到 localStorage）
-      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() }).catch(() => {});
+      // E4/G3: 同步到服务端（失败静默降级到 localStorage）；成功后推进 last-synced 基线（T8 契约①）
+      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() })
+        .then(() => advanceBaselineAfterPush(pending))
+        .catch(() => {});
     }, 2000);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
   }, [scores, draftStorageKey, step, projectId, draftAvailable, draftCheckDone, buildPendingDraft]);
@@ -539,7 +580,9 @@ export default function ExpertEvaluatePage() {
         try {
           localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
         } catch { /* quota / private mode — ignore */ }
-        api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() }).catch(() => {});
+        api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() })
+          .then(() => advanceBaselineAfterPush(pending))
+          .catch(() => {});
       }
       unflushedRef.current = false;
       setHasUnflushed(false);
@@ -609,7 +652,11 @@ export default function ExpertEvaluatePage() {
       }
       norm[k] = { ...v, points, ...(typeof passed === 'boolean' ? { passed } : {}) };
     }
-    setScores(prev => ({ ...prev, ...norm }));
+    // TAB-SYNC-01：恢复落定即本页起点——以合并后快照初始化 last-synced 基线
+    //（scoresRef 在本点击前已同步提交态，等效于 setScores 的 prev）
+    const merged = { ...scoresRef.current, ...norm };
+    setScores(merged);
+    baselineRef.current = merged;
     toast.success(`已恢复 ${Object.keys(norm).length} 项评分草稿`);
     setDraftAvailable(null);
     setDraftDismissed(true);
@@ -641,7 +688,7 @@ export default function ExpertEvaluatePage() {
       localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
     } catch { /* quota — ignore */ }
     api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: pending, savedAt: Date.now() })
-      .then(() => toast.success('草稿已保存，可换设备继续评审'))
+      .then(() => { advanceBaselineAfterPush(pending); toast.success('草稿已保存，可换设备继续评审'); })
       .catch(() => toast.success('草稿已保存在本机（未同步）'));
   };
 
@@ -661,7 +708,7 @@ export default function ExpertEvaluatePage() {
       const objectivePts = (si.points ?? []).filter(p => p.objective);
       passed = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
     }
-    const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed } };
+    const next = { ...scores, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed, savedAt: Date.now() } };
     setScores(next);
     saveDraftNow(next);
     // undo toast for modifications (not new items)
@@ -710,7 +757,7 @@ export default function ExpertEvaluatePage() {
     setScores(prev => {
       const cur = prev[k] ?? { score: 0, reason: '' };
       const prevReason = cur.reason ?? '';
-      return { ...prev, [k]: { ...cur, reason: prevReason ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text) : text } };
+      return { ...prev, [k]: { ...cur, reason: prevReason ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text) : text, savedAt: Date.now() } };
     });
   }, [activeSupplier, project, handlePointChange, disputeText]);
 
@@ -724,7 +771,7 @@ export default function ExpertEvaluatePage() {
     setScores(prev => {
       const cur = prev[k] ?? { score: 0, reason: '' };
       const prevReason = cur.reason ?? '';
-      return { ...prev, [k]: { ...cur, reason: prevReason ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text) : text } };
+      return { ...prev, [k]: { ...cur, reason: prevReason ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text) : text, savedAt: Date.now() } };
     });
   }, [activeSupplier, project, disputeText]);
 
@@ -736,7 +783,7 @@ export default function ExpertEvaluatePage() {
     const points = { ...(cur.points ?? {}) };
     const existing = points[pointId] ?? { checked: false, awardedScore: 0 };
     points[pointId] = { ...existing, note };
-    const next = { ...scores, [k]: { ...cur, points } };
+    const next = { ...scores, [k]: { ...cur, points, savedAt: Date.now() } };
     setScores(next);
     saveDraftNow(next);
   }, [activeSupplier, scores, project]); // A4：saveDraftNow 的 pending 过滤读 project.myScores
@@ -865,50 +912,76 @@ export default function ExpertEvaluatePage() {
     }
   }, [step, expert?.signedIn, expert?.avoidanceConfirmed, expert?.aiConsentConfirmed, expert?.reportConfirmed, expert?.progress, confidentialityAgreed, disciplineAgreed]);
 
-  // ── 工位迁移码（2026-09-22 修正方案）：核验全齐后可签发，QR 短时效单次 ──
-  // 领取需票据+登录密码重证（防专家互扫冒名评分）；状态轮询走 @Public 端点——
-  // 领取成功瞬间桌面 sid 已轮换，带 token 的请求会 401 触发全局遮罩，故轮询不带凭证。
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [transferTicket, setTransferTicket] = useState<{ ticket: string; ticketId: string; expiresInSeconds: number } | null>(null);
-  const [transferStatus, setTransferStatus] = useState<'pending' | 'claimed' | 'expired'>('pending');
-  // EXP-P2-07：平板领取成功即打模块级标志——桌面 SessionWatchdog 停跳、SESSION_REPLACED
-  // 呈中性「会话已移交」终态（claimExpertTransfer 成功即轮换会话，桌面旧 token 必失效，
-  // 属自家迁移的预期结果，不该弹「异地登录疑似冒用」+虚假管理员反馈+20s 强跳）
-  useEffect(() => {
-    if (transferStatus === 'claimed') markTransferClaimed();
-  }, [transferStatus]);
-  const [transferBusy, setTransferBusy] = useState(false);
-  const [transferCountdown, setTransferCountdown] = useState(0);
-  const openTransferDialog = async () => {
-    setTransferBusy(true);
+  // ── 平板配对码（TAB-SYNC-01，2026-09-22 迁移制演进为配对制）：核验全齐后可签发，QR 短时效单次 ──
+  // 配对需票据+登录密码重证+留档照（防专家互扫冒名评分）；状态轮询走 @Public 端点
+  // （ticketId 随机短时效仅暴露 pending/paired/expired）。配对制下桌面会话不轮换——
+  // 平板以受限 scoped 令牌并行评分草稿，本页可继续工作；解除配对（DELETE pairing）后
+  // 平板下一请求 401 PAIRING_REVOKED，桌面会话不受影响。
+  const [pairingOpen, setPairingOpen] = useState(false);
+  const [pairingTicket, setPairingTicket] = useState<{ ticket: string; ticketId: string; expiresInSeconds: number } | null>(null);
+  const [pairingStatus, setPairingStatus] = useState<'pending' | 'paired' | 'expired'>('pending');
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [pairingCountdown, setPairingCountdown] = useState(0);
+  // 当前活动配对（GET pairing）：配对弹窗 paired 态与打分步常驻徽章共用数据源
+  const [pairingInfo, setPairingInfo] = useState<{ device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null } | null>(null);
+  const [unpairBusy, setUnpairBusy] = useState(false);
+  const refreshPairing = useCallback(() => {
+    api.get<{ device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null }>(`/expert/projects/${projectId}/pairing`)
+      .then(setPairingInfo)
+      .catch(() => {});
+  }, [projectId]);
+  const openPairingDialog = async () => {
+    setPairingBusy(true);
     try {
-      const r = await api.post<{ ticket: string; ticketId: string; expiresInSeconds: number }>(`/expert/projects/${projectId}/transfer-ticket`, {});
-      setTransferTicket(r);
-      setTransferStatus('pending');
-      setTransferCountdown(r.expiresInSeconds);
-      setTransferOpen(true);
+      const r = await api.post<{ ticket: string; ticketId: string; expiresInSeconds: number }>(`/expert/projects/${projectId}/pairing-ticket`, {});
+      setPairingTicket(r);
+      setPairingStatus('pending');
+      setPairingCountdown(r.expiresInSeconds);
+      setPairingOpen(true);
     } catch (e: any) {
-      toast.error(e?.message || '迁移码签发失败');
+      toast.error(e?.message || '配对码签发失败');
     } finally {
-      setTransferBusy(false);
+      setPairingBusy(false);
     }
   };
-  // 倒计时 + 3s 状态轮询（不带凭证）
+  // 倒计时 + 3s 状态轮询（@Public 免 token）
   useEffect(() => {
-    if (!transferOpen || !transferTicket) return;
-    const tick = setInterval(() => setTransferCountdown((c) => Math.max(0, c - 1)), 1000);
+    if (!pairingOpen || !pairingTicket) return;
+    const tick = setInterval(() => setPairingCountdown((c) => Math.max(0, c - 1)), 1000);
     const poll = setInterval(() => {
-      if (!transferTicket) return;
-      fetch(`/api/expert/transfer-ticket/${transferTicket.ticketId}/status`, { headers: { 'X-Portal': 'expert' } })
+      if (!pairingTicket) return;
+      fetch(`/api/expert/pairing-ticket/${pairingTicket.ticketId}/status`, { headers: { 'X-Portal': 'expert' } })
         .then((r) => (r.ok ? r.json() : null))
-        .then((d) => { if (d?.status === 'claimed') setTransferStatus('claimed'); })
+        .then((d) => { if (d?.status === 'paired') setPairingStatus('paired'); })
         .catch(() => {});
     }, 3000);
     return () => { clearInterval(tick); clearInterval(poll); };
-  }, [transferOpen, transferTicket]);
+  }, [pairingOpen, pairingTicket]);
   useEffect(() => {
-    if (transferCountdown === 0 && transferOpen && transferStatus === 'pending') setTransferStatus((s) => (s === 'claimed' ? s : 'expired'));
-  }, [transferCountdown, transferOpen, transferStatus]);
+    if (pairingCountdown === 0 && pairingOpen && pairingStatus === 'pending') setPairingStatus((s) => (s === 'paired' ? s : 'expired'));
+  }, [pairingCountdown, pairingOpen, pairingStatus]);
+  // paired 瞬间拉活动配对（弹窗 paired 态展示设备摘要+配对时间）
+  useEffect(() => {
+    if (pairingStatus === 'paired') refreshPairing();
+  }, [pairingStatus, refreshPairing]);
+  /** 徽章/弹窗共用：解除配对（幂等）——平板下一请求 401 PAIRING_REVOKED；成功后关弹窗+刷新徽章数据源 */
+  const handleUnpair = async () => {
+    setUnpairBusy(true);
+    try {
+      await api.delete<{ ok: boolean }>(`/expert/projects/${projectId}/pairing`);
+      toast.success('已解除配对');
+      setPairingOpen(false);
+      refreshPairing();
+    } catch (e: any) {
+      toast.error(e?.message || '解除配对失败');
+    } finally {
+      setUnpairBusy(false);
+    }
+  };
+  // 进打分步拉活动配对——已配对则在头部渲染常驻徽章（设备摘要+解除配对）
+  useEffect(() => {
+    if (step === 'scoring') refreshPairing();
+  }, [step, refreshPairing]);
 
   // ── 评标室口令门页（2026-09-20 spec §4）──
   const [roomCodeInput, setRoomCodeInput] = useState('');
@@ -1417,7 +1490,7 @@ export default function ExpertEvaluatePage() {
       const newReason = prevReason
         ? (prevReason.endsWith('\n') ? prevReason + text : prevReason + '\n' + text)
         : text;
-      return { ...prev, [k]: { score: cur?.score ?? 0, reason: newReason, passed: cur?.passed } };
+      return { ...prev, [k]: { score: cur?.score ?? 0, reason: newReason, passed: cur?.passed, savedAt: Date.now() } };
     });
     setInsertedKeys(prev => { const n = new Set(prev); n.add(id); return n; });
     if (missingReasons.has(itemId)) setMissingReasons(prev => { const n = new Set(prev); n.delete(itemId); return n; });
@@ -2023,8 +2096,8 @@ export default function ExpertEvaluatePage() {
                     进入标书获取 →
                   </button>
                   {project.stage === 'EVALUATING' && (
-                    <button onClick={() => void openTransferDialog()} disabled={transferBusy} className="neu-btn-soft ml-2 !h-[38px]">
-                      <Smartphone size={15} strokeWidth={1.5} className="mr-1.5" />迁移到打分平板
+                    <button onClick={() => void openPairingDialog()} disabled={pairingBusy} className="neu-btn-soft ml-2 !h-[38px]">
+                      <Smartphone size={15} strokeWidth={1.5} className="mr-1.5" />配对打分平板
                     </button>
                   )}
                 </div>
@@ -2164,7 +2237,27 @@ export default function ExpertEvaluatePage() {
                   <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">请根据您的专业判断进行客观评分</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {/* #100（2026-11-12）：迁移入口补位到评分步头部——原唯一入口在 verify 步
+                  {/* 已配对常驻徽章（TAB-SYNC-01）：设备摘要+配对时间+解除配对——进打分步拉
+                      GET pairing，配对弹窗 paired 态经 refreshPairing 即时点亮 */}
+                  {pairingInfo?.device && (
+                    <span
+                      className="inline-flex max-w-[300px] items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent-strong)]"
+                      title={`配对于 ${pairingInfo.pairedAt ? new Date(pairingInfo.pairedAt).toLocaleString('zh-CN') : '—'}${pairingInfo.device.ip ? ` · ${pairingInfo.device.ip}` : ''}`}
+                    >
+                      <Smartphone size={12} strokeWidth={1.7} className="shrink-0" />
+                      <span className="truncate">已配对平板 · {pairingInfo.device.uaSummary}</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleUnpair()}
+                        disabled={unpairBusy}
+                        className="neu-btn-xs !h-[22px] !px-2 !text-[10px]"
+                        aria-label="解除平板配对"
+                      >
+                        {unpairBusy ? '解除中…' : '解除配对'}
+                      </button>
+                    </span>
+                  )}
+                  {/* #100（2026-11-12）：配对入口补位到评分步头部——原唯一入口在 verify 步
                       「核验完成」横幅，而 progress>0 自动跳 scoring 步后不可见（b0f7eccdd 智能初始步
                       与 verify-only 入口的组合盲区）；条件与 verify 步同款（stage EVALUATING+核验五项齐），
                       服务端签发闸（核验全齐+口令已验+活动会话）不感知调用步骤，零新增 API */}
@@ -2173,12 +2266,12 @@ export default function ExpertEvaluatePage() {
                     && expert?.signedIn && expert?.avoidanceConfirmed && expert?.aiConsentConfirmed && (
                     <button
                       type="button"
-                      onClick={() => void openTransferDialog()}
-                      disabled={transferBusy}
+                      onClick={() => void openPairingDialog()}
+                      disabled={pairingBusy}
                       className="neu-btn-xs"
-                      aria-label="生成工位迁移二维码"
+                      aria-label="生成平板配对二维码"
                     >
-                      <Smartphone size={14} strokeWidth={1.7} /> 迁移到打分平板
+                      <Smartphone size={14} strokeWidth={1.7} /> 配对打分平板
                     </button>
                   )}
                   {/* 评分历史入口（替代备忘按钮） */}
@@ -2303,12 +2396,12 @@ export default function ExpertEvaluatePage() {
                                     {!hasPoints && (
                                       <div className="mb-3 flex items-center gap-3">
                                         <button type="button"
-                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: true } }))}
+                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: true, savedAt: Date.now() } }))}
                                           className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
                                           {verdict === true && <Check size={14} strokeWidth={2.5} />}通过
                                         </button>
                                         <button type="button"
-                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: false } }))}
+                                          onClick={() => setScores(prev => ({ ...prev, [k]: { score: 0, reason: prev[k]?.reason || '', passed: false, savedAt: Date.now() } }))}
                                           className={`neu-btn-soft is-danger ${verdict === false ? '!bg-[oklch(0.96_0.05_27/0.5)]' : ''}`}>
                                           {verdict === false && <X size={14} strokeWidth={2.5} />}不通过
                                         </button>
@@ -2332,7 +2425,7 @@ export default function ExpertEvaluatePage() {
                                                   const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
                                                   points[p.id] = { ...base, checked: p.objective ? true : base.checked, awardedScore: Number(p.fullScore) };
                                                 }
-                                                return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true } };
+                                                return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: true, savedAt: Date.now() } };
                                               })}
                                               className={`neu-btn-soft is-success ${verdict === true ? '!bg-[oklch(0.96_0.05_164/0.5)]' : ''}`}>
                                               {verdict === true && <Check size={14} strokeWidth={2.5} />}通过
@@ -2346,7 +2439,7 @@ export default function ExpertEvaluatePage() {
                                                     const base = pfValueMap[p.id] ?? { checked: false, awardedScore: 0 };
                                                     points[p.id] = { ...base, checked: false, awardedScore: 0 };
                                                   }
-                                                  return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false } };
+                                                  return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: false, savedAt: Date.now() } };
                                                 });
                                                 setTimeout(() => {
                                                   const el = document.querySelector<HTMLTextAreaElement>(`[aria-label="${CSS.escape(item.name)} 不通过理由"]`);
@@ -2368,7 +2461,7 @@ export default function ExpertEvaluatePage() {
                                             // auto-compute passed: 所有客观分点全勾选 = 通过
                                             const objectivePts = pfPoints.filter(p => p.objective);
                                             const allChecked = objectivePts.length > 0 && objectivePts.every(p => points[p.id]?.checked === true);
-                                            return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked } };
+                                            return { ...prev, [k]: { ...cur, points, score: 0, reason: cur.reason ?? '', passed: allChecked, savedAt: Date.now() } };
                                           })}
                                           selectedPointId={activePointId}
                                           onPointClick={handlePointClickDesk}
@@ -2385,7 +2478,7 @@ export default function ExpertEvaluatePage() {
                                         onBlur={onReasonBlur}
                                         onChange={e => {
                                           const v = e.target.value;
-                                          setScores(prev => ({ ...prev, [k]: { score: 0, reason: v, passed: false, points: prev[k]?.points } }));
+                                          setScores(prev => ({ ...prev, [k]: { score: 0, reason: v, passed: false, points: prev[k]?.points, savedAt: Date.now() } }));
                                           if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                         }}
                                         className="neu-input !min-h-[64px] !text-sm"
@@ -2432,7 +2525,7 @@ export default function ExpertEvaluatePage() {
                                         const points = { ...buildFullPoints(item, cur, committedScore), [pid]: pv };
                                         // rollup: Σ awardedScore → item.score（类别小计 + submit payload 都读 score）
                                         const score = itemPoints.reduce((s, p) => s + (points[p.id]?.awardedScore ?? 0), 0);
-                                        return { ...prev, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed } };
+                                        return { ...prev, [k]: { ...cur, points, score, reason: cur.reason ?? '', passed: cur.passed, savedAt: Date.now() } };
                                       })}
                                       selectedPointId={activePointId}
                                       onPointClick={handlePointClickDesk}
@@ -2448,7 +2541,7 @@ export default function ExpertEvaluatePage() {
                                         const v = e.target.value;
                                         setScores(prev => {
                                           const cur = prev[k] ?? { score: 0, reason: '' };
-                                          return { ...prev, [k]: { ...cur, score: cur.score ?? 0, reason: v, points: cur.points, passed: cur.passed } };
+                                          return { ...prev, [k]: { ...cur, score: cur.score ?? 0, reason: v, points: cur.points, passed: cur.passed, savedAt: Date.now() } };
                                         });
                                         if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                       }}
@@ -2471,13 +2564,13 @@ export default function ExpertEvaluatePage() {
                                   </div>
                                   <div className="mb-3 flex items-center gap-4">
                                     <input type="range" min={0} max={max} step={0.5} value={currentScore}
-                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '' } }))}
+                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: parseFloat(e.target.value), reason: prev[k]?.reason || '', savedAt: Date.now() } }))}
                                       className="h-2 flex-1 cursor-pointer appearance-none rounded-full bg-[linear-gradient(to_right,var(--fill)_var(--pct),oklch(0.96_0.01_258)_var(--pct))] accent-[var(--accent-strong)] focus:outline-none"
                                       style={{ '--fill': catColor, '--pct': `${pct}%` } as React.CSSProperties}
                                       aria-label={`${item.name} 评分`} aria-valuemin={0} aria-valuemax={max} aria-valuenow={currentScore} aria-valuetext={`${currentScore} / ${max} 分`} tabIndex={0} />
                                     <input type="number" inputMode="decimal" min={0} max={max} step={0.5} value={currentScore}
-                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), reason: prev[k]?.reason || '' } }))}
-                                      onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '' } })); } handleScoringKeyDown(e, isLastItem); }}
+                                      onChange={e => setScores(prev => ({ ...prev, [k]: { score: Math.max(0, Math.min(parseFloat(e.target.value) || 0, max)), reason: prev[k]?.reason || '', savedAt: Date.now() } }))}
+                                      onKeyDown={e => { if (e.key === 'ArrowUp') { e.preventDefault(); const v = Math.min((currentScore || 0) + 0.5, max); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '', savedAt: Date.now() } })); } else if (e.key === 'ArrowDown') { e.preventDefault(); const v = Math.max((currentScore || 0) - 0.5, 0); setScores(prev => ({ ...prev, [k]: { score: v, reason: prev[k]?.reason || '', savedAt: Date.now() } })); } handleScoringKeyDown(e, isLastItem); }}
                                       className="exp-score-input"
                                       aria-label={`${item.name} 数值输入`} tabIndex={0} />
                                   </div>
@@ -2486,7 +2579,7 @@ export default function ExpertEvaluatePage() {
                                     onBlur={onReasonBlur}
                                     onChange={e => {
                                       const v = e.target.value;
-                                      setScores(prev => ({ ...prev, [k]: { score: prev[k]?.score ?? 0, reason: v } }));
+                                      setScores(prev => ({ ...prev, [k]: { score: prev[k]?.score ?? 0, reason: v, savedAt: Date.now() } }));
                                       if (v.trim() && missingReasons.has(item.id)) setMissingReasons(prev => { const n = new Set(prev); n.delete(item.id); return n; });
                                     }}
                                     onKeyDown={e => handleScoringKeyDown(e, isLastItem)}
@@ -2661,10 +2754,16 @@ export default function ExpertEvaluatePage() {
             setScores(prev => {
               const next = { ...prev };
               for (const c of draftConflicts) {
-                if (resolved[c.key] === 'remote') next[c.key] = c.remoteVal;
+                // adopted=toPageScores 同款归一：draft-merge 的 passed 允许 null，本页形状只认 boolean/缺省
+                if (resolved[c.key] === 'remote') next[c.key] = { ...c.remoteVal, passed: c.remoteVal?.passed ?? undefined };
               }
               return next;
             });
+            // TAB-SYNC-01（draft-merge 契约）：裁决后同步 last-synced 基线——被采纳值成为该键
+            // 新基线，平板后续对同键的编辑不再误报冲突（'local' 裁决键 baseline 已=local 无需动）
+            for (const c of draftConflicts) {
+              if (resolved[c.key] === 'remote') baselineRef.current[c.key] = { ...c.remoteVal, passed: c.remoteVal?.passed ?? undefined };
+            }
             setDraftConflicts([]);
             setConflictModalOpen(false);
           }}
@@ -2692,48 +2791,59 @@ export default function ExpertEvaluatePage() {
             />
           );
         })()}
-        {/* ── 工位迁移码弹窗（2026-09-22）：QR + 倒计时 + 领取状态 ── */}
-        {transferOpen && transferTicket && (
+        {/* ── 平板配对码弹窗（TAB-SYNC-01）：QR + 倒计时 + 配对状态 ── */}
+        {pairingOpen && pairingTicket && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--background)]/60 px-4 backdrop-blur-sm">
             <div className="wb-modal-shell relative overflow-hidden w-full max-w-sm p-6 text-center">
               <div className="mb-1 flex items-center justify-center gap-2">
                 <Smartphone size={17} strokeWidth={1.5} className="text-[var(--accent-strong)]" />
-                <h3 className="text-sm font-bold text-[var(--foreground)]">迁移到打分平板</h3>
+                <h3 className="text-sm font-bold text-[var(--foreground)]">配对打分平板</h3>
               </div>
               {/* 头部/内容隔离线（2026-11-11 用户裁定）：hairline，与内容区同缩进（壳 p-6） */}
               <div className="mx-6 mb-4 mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
-              {transferStatus === 'claimed' ? (
+              {pairingStatus === 'paired' ? (
                 <div className="exp-alert exp-alert--success mt-4 flex flex-col items-center gap-2 !p-4">
                   <CheckCircle size={26} strokeWidth={1.5} />
-                  <p className="text-sm font-semibold">已迁移至打分平板</p>
-                  <p className="text-xs opacity-80">本机评审会话已移交，可关闭本页</p>
-                  <button type="button" onClick={() => setTransferOpen(false)} className="neu-btn-soft mt-1 !h-[34px]">关闭</button>
+                  <p className="text-sm font-semibold">平板已配对，本页可继续工作</p>
+                  {pairingInfo?.device ? (
+                    <p className="text-xs opacity-80">
+                      {pairingInfo.device.uaSummary}{pairingInfo.device.ip ? ` · ${pairingInfo.device.ip}` : ''}
+                      {' · 配对于 '}
+                      {pairingInfo.pairedAt ? new Date(pairingInfo.pairedAt).toLocaleString('zh-CN') : '—'}
+                    </p>
+                  ) : (
+                    <p className="text-xs opacity-80">正在获取配对设备信息…</p>
+                  )}
+                  <div className="mt-1 flex items-center gap-2">
+                    <button type="button" onClick={() => void handleUnpair()} disabled={unpairBusy} className="neu-btn-soft !h-[34px]">{unpairBusy ? '解除中…' : '解除配对'}</button>
+                    <button type="button" onClick={() => setPairingOpen(false)} className="neu-btn-soft !h-[34px]">关闭</button>
+                  </div>
                 </div>
-              ) : transferStatus === 'expired' ? (
+              ) : pairingStatus === 'expired' ? (
                 <div className="mt-4 space-y-3">
-                  <p className="text-xs text-[var(--muted-foreground)]">迁移码已过期（{transferTicket.expiresInSeconds}s 有效）</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">配对码已过期（{pairingTicket.expiresInSeconds}s 有效）</p>
                   <div className="flex justify-center gap-2">
-                    <button type="button" onClick={() => void openTransferDialog()} className="neu-btn-primary !h-[38px]">重新生成</button>
-                    <button type="button" onClick={() => setTransferOpen(false)} className="neu-btn-soft !h-[38px]">取消</button>
+                    <button type="button" onClick={() => void openPairingDialog()} className="neu-btn-primary !h-[38px]">重新生成</button>
+                    <button type="button" onClick={() => setPairingOpen(false)} className="neu-btn-soft !h-[38px]">取消</button>
                   </div>
                 </div>
               ) : (
                 <>
                   <p className="mb-3 text-xs leading-relaxed text-[var(--muted-foreground)]">
-                    用平板相机扫描下方二维码，扫码后<strong className="text-[var(--foreground)]">需输入登录密码</strong>并拍摄留档照完成迁移
+                    用平板相机扫描下方二维码，扫码后<strong className="text-[var(--foreground)]">需输入登录密码</strong>并拍摄留档照完成配对；配对后平板与本页实时同步评分草稿，互不干扰
                   </p>
                   <div className="mx-auto flex w-fit rounded-2xl bg-[oklch(1_0_0/0.97)] p-3 shadow-[inset_0_0_0_1px_oklch(0.6_0.04_258/0.15)]">
                     <QRCodeSVG
-                      value={portalURL('expert', `/tablet/claim?tk=${encodeURIComponent(transferTicket.ticket)}&p=${projectId}`)}
+                      value={portalURL('expert', `/tablet/pair?tk=${encodeURIComponent(pairingTicket.ticket)}&projectId=${projectId}`)}
                       size={188}
                       level="M"
                     />
                   </div>
                   <p className="mt-3 font-mono text-xs font-semibold text-[var(--accent-strong)]">
-                    {String(Math.floor(transferCountdown / 60)).padStart(2, '0')}:{String(transferCountdown % 60).padStart(2, '0')}
+                    {String(Math.floor(pairingCountdown / 60)).padStart(2, '0')}:{String(pairingCountdown % 60).padStart(2, '0')}
                     <span className="ml-1.5 font-sans font-normal text-[var(--muted-foreground)]">后失效（单次使用）</span>
                   </p>
-                  <button type="button" onClick={() => setTransferOpen(false)} className="neu-btn-soft mt-3 !h-[34px]">取消</button>
+                  <button type="button" onClick={() => setPairingOpen(false)} className="neu-btn-soft mt-3 !h-[34px]">取消</button>
                 </>
               )}
             </div>

@@ -5706,6 +5706,47 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
+   * #121②：归档详情评分段——PMI→关联 BidProject（取有评标结果者；流标再采多 BP 时定位有效轮），
+   * 下发 评分项定义+得分点 / 专家评分记录（含 passed——通过性项表决口径）/ 评标结果名次。
+   * 前端归档弹窗「评分明细」卡片复用 handover-preview 的 ScoreSnapshotSection 渲染（数值+通过性双形态）。
+   * 无关联投标项目或无评标结果（如直接采购/终止）→ null，前端不渲染该卡。
+   */
+  private async buildArchiveScoreDetail(pmItemId: string) {
+    const bp = await this.prisma.bidProject.findFirst({
+      where: { projectManagementItemId: pmItemId, evaluationResults: { some: {} } },
+      orderBy: { updatedAt: 'desc' },
+      select: { id: true, projectCode: true, name: true, stage: true, procurementMethod: true },
+    });
+    if (!bp) return null;
+    const [items, records, results] = await Promise.all([
+      this.prisma.bidScoreItem.findMany({
+        where: { projectId: bp.id },
+        orderBy: { createdAt: 'asc' },
+        include: { points: { orderBy: { seq: 'asc' }, select: { id: true, name: true } } },
+      }),
+      this.prisma.bidScoreRecord.findMany({
+        where: { scoreItem: { projectId: bp.id } },
+        select: { expertId: true, supplierId: true, scoreItemId: true, score: true, passed: true },
+      }),
+      this.prisma.bidEvaluationResult.findMany({ where: { projectId: bp.id }, orderBy: { rank: 'asc' } }),
+    ]);
+    if (results.length === 0) return null;
+    // Decimal → number 归一（镜像 buildEvaluationPackage 口径：JSON 序列化为字符串会撒谎给前端 number 声明）
+    return {
+      bidProject: bp,
+      items: items.map((i) => ({
+        id: i.id, name: i.name, category: i.category, maxScore: Number(i.maxScore), points: i.points,
+      })),
+      records: records.map((r) => ({ ...r, score: Number(r.score) })),
+      results: results.map((r) => ({
+        supplierId: r.supplierId, supplierName: r.supplierName, totalScore: Number(r.totalScore),
+        averageScore: Number(r.averageScore), rank: r.rank, recommended: r.recommended,
+        disqualified: r.disqualified, bidPrice: r.bidPrice == null ? null : Number(r.bidPrice),
+      })),
+    };
+  }
+
+  /**
    * Get archive detail for a procurement round (from archived project management item)
    * Reads and parses the archived TXT file
    */
@@ -5740,6 +5781,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
       throw new NotFoundException('未找到对应的归档项目。');
     }
+
+    // #121②：评分段（正常/降级两路都带；终止详情不走此路——终止≠已评审）
+    const scoreDetail = await this.buildArchiveScoreDetail(pmItem.id);
 
     // Find the archive TXT file
     // Primary path: local archive (uploads/archive)
@@ -5808,7 +5852,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       // 不再硬 404——弹窗/步骤分析仍可用，逐文件 analysis 为空。补齐需重新生成归档文件。
       const fallback = this.buildFallbackArchiveDetail(pmItem);
       fallback.summary = `（归档文件缺失，以下信息由数据库组装）\n${fallback.summary}`;
-      return fallback;
+      return { ...fallback, scoreDetail };
     }
 
     // Read and parse the TXT file
@@ -5871,6 +5915,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       extractedInfo: parsed.extractedInfo,
       stages: stagesWithFiles,
       summary: parsed.summary,
+      scoreDetail,
     };
   }
 

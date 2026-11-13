@@ -194,4 +194,26 @@ describe('PairingScopeGuard', () => {
       expect(uploads[0].path.test('/upload/other')).toBe(false);
     });
   });
+
+  describe('memos 写面段边界锚（终审 Fix4：(\\/|$) 限定——兄弟路由不被裸前缀误放行）', () => {
+    it.each([
+      { method: 'POST', path: '/api/expert/projects/p1/memos-export' },
+      { method: 'PATCH', path: '/api/expert/projects/p1/memos-export' },
+      { method: 'DELETE', path: '/api/expert/projects/p1/memos-export' },
+    ])('$method $path → 403（裸前缀 \\/memos 曾会误放行未来兄弟路由）', (req) => {
+      expectForbidden(
+        { ...req, pairingScope: SCOPE },
+        'PAIRING_SCOPE_FORBIDDEN',
+        '平板配对身份无权执行此操作，请在桌面端操作',
+      );
+    });
+
+    it.each([
+      { method: 'POST', path: '/api/expert/projects/p1/memos' }, // 集合端点（$ 锚命中）
+      { method: 'PATCH', path: '/api/expert/projects/p1/memos/m1' }, // 子树（/ 锚命中，真路由）
+      { method: 'DELETE', path: '/api/expert/projects/p1/memos/m1' },
+    ])('$method $path 仍放行（真路由不受锚收紧影响）', (req) => {
+      expect(guard.canActivate(ctx({ ...req, pairingScope: SCOPE }))).toBe(true);
+    });
+  });
 });

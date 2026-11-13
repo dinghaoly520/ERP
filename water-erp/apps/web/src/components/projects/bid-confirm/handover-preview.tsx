@@ -45,7 +45,7 @@ interface FileRef {
   sha256?: string;
 }
 
-interface HandoverPackage {
+export interface HandoverPackage {
   packageType?: string;
   packageVersion?: number;
   generatedAt?: string;
@@ -364,7 +364,8 @@ function SignSection({ pkg }: { pkg: HandoverPackage }) {
   );
 }
 
-function ScoreSnapshotSection({ pkg }: { pkg: HandoverPackage }) {
+/** #121②：导出复用——归档详情弹窗「评分明细」卡以 Partial 载荷直引（快照段+结果即可） */
+export function ScoreSnapshotSection({ pkg }: { pkg: Partial<HandoverPackage> }) {
   const snap = pkg.evaluationSnapshot ?? {};
   const confirmations = snap.expertConfirmations ?? [];
   const defs = snap.scoreItemDefinitions ?? [];
@@ -382,13 +383,25 @@ function ScoreSnapshotSection({ pkg }: { pkg: HandoverPackage }) {
     ...[...new Set(records.map((r) => r.supplierId))].filter((id) => !supplierName.has(id)),
   ];
 
+  // 通过性项（资格/响应性）集合：格子走表决口径而非数值合计（#121①——后端 passed 早已下发，
+  // 此前聚合只算数值致通过性项恒显 0.00/0；写法镜像 evaluation-view 的 PASS_FAIL_CATEGORIES 分支）
+  const pfItemIds = new Set(
+    defs.filter((d) => d.category === 'QUALIFICATION' || d.category === 'RESPONSIVE').map((d) => d.id),
+  );
   // 供应商 × 评分项 聚合（各专家合计；expertId 包内无姓名映射源，故取此口径）
-  const cell = new Map<string, { sum: number; n: number }>();
+  // pf 项另计表决：votes=非空 passed 的记录数（专家未投票的 null 不计入分母）、pass=通过票数
+  const cell = new Map<string, { sum: number; n: number; votes?: number; pass?: number }>();
   for (const r of records) {
     const key = `${r.supplierId}|${r.scoreItemId}`;
     const c = cell.get(key) ?? { sum: 0, n: 0 };
     c.sum += Number(r.score) || 0;
     c.n += 1;
+    if (pfItemIds.has(r.scoreItemId) && (r.passed === true || r.passed === false)) {
+      c.votes = (c.votes ?? 0) + 1;
+      // 评审发现：pass 仅在投通过票时赋值 → 全票不通过时 undefined，着色判 c.pass === 0 永假、
+      // 「全否红」永不触发（恰是废标信号最重的一幕）。恒赋值保 0 基线。
+      c.pass = (c.pass ?? 0) + (r.passed ? 1 : 0);
+    }
     cell.set(key, c);
   }
   const resultBySupplier = new Map(results.map((r) => [r.supplierId, r]));
@@ -409,7 +422,7 @@ function ScoreSnapshotSection({ pkg }: { pkg: HandoverPackage }) {
         <span>
           评分项 <span className="font-semibold text-[var(--foreground)]">{defs.length}</span> 项 ·
           评分记录 <span className="font-semibold text-[var(--foreground)]">{records.length}</span> 条 ·
-          专家 <span className="font-semibold text-[var(--foreground)]">{confirmations.length}</span> 人
+          专家 <span className="font-semibold text-[var(--foreground)]">{confirmations.length > 0 ? confirmations.length : new Set(records.map((r) => r.expertId)).size}</span> 人
         </span>
         <span title={`完整指纹 ${snap.fingerprint ?? ''}`} className="font-mono">
           {shortHash(snap.fingerprint)}
@@ -464,22 +477,38 @@ function ScoreSnapshotSection({ pkg }: { pkg: HandoverPackage }) {
               </tr>
             </thead>
             <tbody>
-              {defs.map((d) => (
+              {defs.map((d) => {
+                const isPf = pfItemIds.has(d.id);
+                return (
                 <tr key={d.id}>
                   <td className="!text-left font-medium text-[var(--foreground)]">
                     {d.name}
-                    {d.maxScore != null && <span className="ml-1.5 font-mono text-[10px] text-[var(--muted-foreground)]">/{Number(d.maxScore)}</span>}
+                    {/* 通过性项 maxScore=0，/0 后缀是噪音——隐藏（镜像 evaluation-view 口径） */}
+                    {!isPf && d.maxScore != null && <span className="ml-1.5 font-mono text-[10px] text-[var(--muted-foreground)]">/{Number(d.maxScore)}</span>}
                   </td>
                   {suppliers.map((sid) => {
                     const c = cell.get(`${sid}|${d.id}`);
                     return (
-                      <td key={sid} className="!text-right font-mono tabular-nums" title={c ? `${c.n} 位专家合计` : undefined}>
-                        {c ? c.sum.toFixed(2) : '—'}
+                      <td key={sid} className="!text-right font-mono tabular-nums" title={
+                        isPf
+                          ? c?.votes ? `${c.votes} 位专家表决 · 通过 ${c.pass ?? 0}` : undefined
+                          : c ? `${c.n} 位专家合计` : undefined
+                      }>
+                        {isPf ? (
+                          c?.votes ? (
+                            <span className={c.pass === c.votes ? 'text-[var(--success)]' : c.pass === 0 ? 'text-[var(--danger)]' : ''}>
+                              通过 {c.pass ?? 0}/{c.votes}
+                            </span>
+                          ) : c ? '未表决' : '—'
+                        ) : (
+                          c ? c.sum.toFixed(2) : '—'
+                        )}
                       </td>
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
               <tr>
                 <td className="!text-left font-semibold text-[var(--foreground)]">专家合计（包内）</td>
                 {suppliers.map((sid) => {

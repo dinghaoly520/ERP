@@ -5,7 +5,7 @@ import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { ExpertTransferClaimDto } from '../expert/dto/expert-transfer.dto';
+import { ExpertPairingClaimDto } from '../expert/dto/expert-pairing.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -20,6 +20,7 @@ import { cookieNameForPortal, portalForRole, portalFromRequest, tokenFromRequest
 import { checkPortRole } from './port-roles';
 import { ROLE_PORTAL } from '@water-erp/config';
 import { normalizeCompanyName } from '../company/company-scope';
+import { ExpertPairingRegistry } from './expert-pairing.registry';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -45,6 +46,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly pairingRegistry: ExpertPairingRegistry,
   ) {}
 
   @Post('register')
@@ -204,7 +206,7 @@ export class AuthController {
           result.userId, result.username, seat.windows, getClientIp(req), (req.headers['user-agent'] as string) ?? null,
         );
         throw new ConflictException({
-          error: `评标期间账号已锁定（项目【${seat.projectNames.join('、')}】评标未结束），如需更换设备请联系主持人解除锁定`,
+          error: `评标期间账号已锁定（项目【${seat.projectNames.join('、')}】评标未结束），如需更换设备请联系主持人解除锁定；评标期间如需使用平板打分，请在桌面端「配对打分平板」生成配对码`,
           code: 'ACCOUNT_EVALUATING',
         });
       }
@@ -240,24 +242,25 @@ export class AuthController {
     return { access_token: result.access_token, role: result.role, username: result.username };
   }
 
-  /* ══ 工位迁移领取（2026-09-22 修正方案）：票据（免闸4）+ 密码重证 → 会话轮换到平板 ══
-   * 刻意不进 login 路径的闸4 工位锁定（同人迁移非新登录）；成功 Set-Cookie token_expert，
-   * 桌面旧 token 随 sid 轮换自然 401 SESSION_REPLACED。 */
-  @Post('expert-transfer/claim')
+  /* ══ 平板配对领取（TAB-SYNC-01；2026-09-22 迁移制演进为配对制）：票据（免闸4）+ 密码重证 → 受限令牌 ══
+   * 刻意不进 login 路径的闸4 工位锁定（同人配对非新登录）；成功 Set-Cookie token_expert
+   * （scoped 令牌，scope=tablet-pairing）——不轮换会话，桌面全量会话不受影响。 */
+  @Post('expert-pairing/claim')
   @Public()
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '工位迁移领取：迁移码（单次 90s）+ 登录密码重证 → 会话轮换至当前设备' })
-  async claimExpertTransfer(
-    @Body() dto: ExpertTransferClaimDto,
+  @ApiOperation({ summary: '平板配对领取：配对码（单次 90s）+ 登录密码重证 → 受限令牌（不轮换桌面会话）' })
+  async claimExpertPairing(
+    @Body() dto: ExpertPairingClaimDto,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.claimExpertTransfer(dto, {
+    const result = await this.authService.claimExpertPairing(dto, {
       ip: getClientIp(req),
       userAgent: (req.headers['user-agent'] as string) ?? null,
     }) as { access_token: string; role: string; username: string; projectId: string; photoRequired: boolean };
-    // 与登录同款 cookie 轨（命名空间 expert；localhost 各端口共享 cookie 域）
+    // 与登录同款 cookie 轨（命名空间 expert；localhost 各端口共享 cookie 域）——
+    // scoped 令牌同轨写入 token_expert，配对/全量身份仅靠 claims scope 区分（spec §5.2）
     res.cookie(cookieNameForPortal('expert'), result.access_token, COOKIE_OPTS);
     return { access_token: result.access_token, role: result.role, username: result.username, projectId: result.projectId, photoRequired: result.photoRequired };
   }
@@ -320,12 +323,38 @@ export class AuthController {
     // 登出即吊销（2026-09-18；X-P1-02 2026-09-29 修正）：仅带 sid 的 token（web/supplier/expert
     // 单设备命名空间）才清会话 ID——token_bid 无 sid 不清，:3007 登出若清此列会误杀同账号
     // :3005 会话（跨命名空间互杀）；无 sid 会话不校验此列，清 cookie 已阻断重放。
+    //
+    // TAB-SYNC-01 登出分流：平板配对受限令牌（scope=tablet-pairing）的 sid 是**桌面会话**的，
+    // 走下方 shouldRevokeSession 清 webSessionId 会误杀桌面登录——平板登出只吊销本配对
+    // （revoke→null=已被吊销，照常收尾）并写监督日志，cookie 照清。payload 由全局 AuthGuard
+    // 校验后挂 req.user（logout @AnyRole，必存在）。
+    const claims = (req as { user?: { scope?: string; jti?: string; username?: string } }).user;
     const revokeToken = tokenFromRequest(req);
-    if (revokeToken && (await this.authService.shouldRevokeSession(revokeToken))) {
+    if (revokeToken && claims?.scope === 'tablet-pairing') {
+      const revoked = await this.pairingRegistry.revoke(claims.jti ?? '').catch(() => null);
+      if (revoked) {
+        await this.prisma.bidSupervisionLog
+          .create({
+            data: {
+              projectId: revoked.projectId,
+              time: new Date(),
+              role: '评审专家',
+              target: claims.username ?? '平板端',
+              action: '平板解除配对',
+              result: '平板端登出解除配对；桌面会话不受影响',
+              riskFlag: '无',
+            },
+          })
+          .catch(() => {});
+      }
+    } else if (revokeToken && (await this.authService.shouldRevokeSession(revokeToken))) {
       await this.prisma.user.update({
         where: { id: userId },
         data: { webSessionId: null },
       });
+      // 登出卫生（TAB-SYNC-01）：桌面全量会话登出顺带吊销该专家名下全部平板配对
+      //（不阻塞登出——失败静默，配对 TTL 12h 兜底自清）。
+      await this.pairingRegistry.revokeForUser(userId).catch(() => {});
     }
 
     // 清除当前门户的 cookie（按 X-Portal / 来源端口），同时清除旧版 token。

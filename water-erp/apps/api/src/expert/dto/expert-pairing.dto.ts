@@ -1,8 +1,8 @@
 import { IsString, IsNotEmpty, IsOptional, IsBoolean, MaxLength, IsIn } from 'class-validator';
 import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
-/** 工位迁移领取（2026-09-22 修正方案）：票据（免闸4）+ 密码重证 */
-export class ExpertTransferClaimDto {
+/** 平板配对领取（TAB-SYNC-01，2026-09-22 迁移制演进）：票据（免闸4）+ 密码重证 */
+export class ExpertPairingClaimDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(128)
@@ -14,8 +14,8 @@ export class ExpertTransferClaimDto {
   password!: string;
 }
 
-/** 迁移后留档照登记（检测级证据；skipped=摄像头不可用跳过，如实留痕） */
-export class TransferPhotoDto {
+/** 配对后留档照登记（检测级证据；skipped=摄像头不可用跳过，如实留痕） */
+export class PairingPhotoDto {
   @IsOptional()
   @IsString()
   @MaxLength(64)

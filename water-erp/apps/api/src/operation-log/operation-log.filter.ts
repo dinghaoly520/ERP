@@ -35,6 +35,9 @@ export const DEFAULT_EXCLUDE_PATHS: ExcludePattern[] = [
   // ── dual-v3（评审修复）：解密上传 multipart 含 fieldsJson+nonce——nonce 为唱标承诺随机数，
   //    开标窗口内属敏感负载，请求体入 OperationLog 泄露面不必要（行为本身已有监督日志/审计双留痕）──
   { method: 'POST', path: /^\/api\/supplier-portal\/bid-submissions\/[^/]+\/decrypt-upload$/ },
+  // ── TAB-SYNC-01（spec §11.4）：评分草稿双端 2s 防抖自动保存噪音；真评分审计在
+  //    BidScoreRecordHistory 快照+监督日志，草稿写不承载审计职责 ──
+  { method: 'POST', path: /^\/api\/expert\/projects\/[^/]+\/score-draft$/ },
 ];
 
 /**

@@ -86,6 +86,7 @@ export type BidProjectDetail = Omit<SharedBidProjectDetail, 'openingSession' | '
     id: string; supplierId: string; supplierName: string;
     totalScore: number | string; averageScore: number | string;
     rank: number; recommended: boolean; disqualified: boolean;
+    disqualifiedReason?: string | null; // #151：废标原因随结果下发
     bidPrice?: number | string | null; generatedAt: string;
   }>;
   experts: (SharedBidExpert & {

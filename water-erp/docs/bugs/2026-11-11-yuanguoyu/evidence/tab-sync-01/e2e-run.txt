@@ -1,0 +1,6 @@
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        8.28 s, estimated 23 s
+Ran all test suites matching tab-sync-01.
+Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

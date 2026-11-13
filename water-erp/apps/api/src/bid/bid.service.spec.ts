@@ -2721,6 +2721,21 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
     prisma.announcement.create.mockRejectedValue(new Error('DB down'));
     await expect(service.archiveAll('p1', 'u1')).resolves.toBeDefined();
   });
+
+  it('#151b 全员废标（rank1 行废标未推荐）→ 跳过预成交公示草稿——不得把废标家写成预成交供应商', async () => {
+    prisma.bidProject.findUnique.mockImplementation(({ where }: any) =>
+      where?.id === 'p1'
+        ? Promise.resolve({
+            id: 'p1', projectCode: 'BID-1', stage: 'EVALUATING', name: '项目',
+            evaluationResults: [
+              { rank: 1, supplierName: '废标家甲', totalScore: 40, averageScore: 40, recommended: false },
+              { rank: 2, supplierName: '废标家乙', totalScore: 30, averageScore: 30, recommended: false },
+            ],
+          })
+        : Promise.resolve(null));
+    await service.archiveAll('p1', 'u1');
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
 });
 
 
@@ -6620,6 +6635,7 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
       bidSupplier: { findMany: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       supplierBidSubmission: { findMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidOpeningRecord: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) }, // #61b 记录镜像
     };
     const mod = await Test.createTestingModule({
       providers: [
@@ -6673,6 +6689,45 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
     expect(log.target).toBe('失联公司');  // 只记真正闭环的家（未投递/被并发处理者不虚报）
   });
 
+  it('#61b 记录层终局性镜像：CAS 成功家同步翻 BidOpeningRecord「逾期未确认-异常」（记录侧 CAS 仅待确认态）', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 'bs1', supplierName: '失联公司', supplierId: 's1', submitStatus: '已提交' },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+
+    await service.autoCloseExpiredConfirmations('p1');
+
+    expect(prisma.bidOpeningRecord.updateMany).toHaveBeenCalledTimes(1);
+    const [args] = prisma.bidOpeningRecord.updateMany.mock.calls[0];
+    expect(args.where).toEqual({
+      projectId: 'p1', bidSupplierId: 'bs1',
+      confirmStatus: { in: ['待供应商确认', '待确认'] },  // 记录侧 CAS——异议/终局态不覆盖
+    });
+    expect(args.data.confirmStatus).toBe('逾期未确认-异常');
+    expect(args.data.handleResult).toMatch(/^\[确认超时闭环\] 解密窗口结束已超 2 小时/);
+    expect(args.data.handledAt).toBeInstanceOf(Date);
+    expect(args.data.handledBy).toBeNull(); // 系统动作无 actor（评审 F2：镜像样式契约含此字段）
+  });
+
+  it('#61b 镜像失败不阻塞闭环（铁则：闭包异常只留日志）+ CAS 抢占失败家不镜像', async () => {
+    prisma.bidSupplier.findMany.mockResolvedValue([
+      { id: 'bs1', supplierName: '失联公司', supplierId: 's1', submitStatus: '已提交' },
+    ]);
+    prisma.supplierBidSubmission.findMany.mockResolvedValue([{ supplierId: 's1', status: 'submitted' }]);
+    prisma.bidOpeningRecord.updateMany.mockRejectedValue(new Error('record-lock'));
+    prisma.bidSupplier.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+
+    await service.autoCloseExpiredConfirmations('p1');
+    // 镜像失败但供应商侧闭环与监督日志照常
+    expect(prisma.bidSupervisionLog.create).toHaveBeenCalledTimes(1);
+
+    // CAS 抢占失败（count=0）→ 该家零镜像
+    prisma.bidOpeningRecord.updateMany.mockClear();
+    prisma.bidSupplier.updateMany.mockResolvedValue({ count: 0 });
+    await service.autoCloseExpiredConfirmations('p1');
+    expect(prisma.bidOpeningRecord.updateMany).not.toHaveBeenCalled();
+  });
+
   it('CAS 抢占失败（供应商迟来刚确认，count=0）→ 不写该家、全零时零日志（防双路径双写）', async () => {
     prisma.bidSupplier.findMany.mockResolvedValue([
       { id: 'bs1', supplierName: '刚确认公司', supplierId: 's1', submitStatus: '已提交' },
@@ -6709,5 +6764,24 @@ describe('BidService — autoCloseExpiredConfirmations（#61回归A）', () => {
       where: { id: 'bs1', confirmStatus: 'PENDING' },
       data: { confirmStatus: 'EXCEPTION' },
     });
+  });
+
+  it('#61c syncMultiRoundPrices 补建记录=中文正源（待供应商确认/解密成功）——英文双轨漏闭包镜像 CAS', async () => {
+    // 本 describe 的闭包向 mock 无报价轮模型——用例内自备
+    prisma.bidRound = { findFirst: jest.fn().mockResolvedValue({ id: 'rd1', roundNo: 2, status: 'closed' }) };
+    prisma.bidQuote = { findMany: jest.fn().mockResolvedValue([{ bidSupplierId: 'bs1', quotePrice: 1539500 }]) };
+    prisma.bidSupplier.findUnique = jest.fn().mockResolvedValue({ supplierName: '甲' });
+    prisma.bidOpeningRecord.findMany = jest.fn().mockResolvedValue([]); // 单位图为空 → 元轨直存
+    prisma.bidOpeningRecord.upsert = jest.fn().mockResolvedValue({});
+    prisma.$transaction = jest.fn(async (cb: any) => cb(prisma));
+
+    await service.syncMultiRoundPrices('p1');
+
+    const create = prisma.bidOpeningRecord.upsert.mock.calls[0]?.[0]?.create;
+    expect(create).toMatchObject({
+      confirmStatus: '待供应商确认',   // 61b 镜像 CAS 覆盖面内的唯一合法待确认态
+      decryptResult: '解密成功',
+    });
+    expect(create.confirmStatus).not.toBe('PENDING');
   });
 });

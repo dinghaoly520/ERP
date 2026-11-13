@@ -24,6 +24,9 @@ import { ExpertPairingModule } from './expert-pairing.module';
   ],
   controllers: [AuthController, AccountAdminController, PasswordRequestsController, SupplierPasswordResetController],
   providers: [AuthService, AuthGuard, PasswordRequestsService],
-  exports: [AuthService, AuthGuard, JwtModule],
+  // ExpertPairingModule 须随 JwtModule 一同 re-export：AuthGuard 经 APP_GUARD 在 AppModule
+  // scope 实例化（jwt-module-not-dead-in-audit-user-settings 教训——全局守卫的构造依赖只在
+  // 其注册模块 scope 解析），配对 registry 不入 exports 则该处解析不到。
+  exports: [AuthService, AuthGuard, JwtModule, ExpertPairingModule],
 })
 export class AuthModule {}

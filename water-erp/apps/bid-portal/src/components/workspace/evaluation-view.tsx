@@ -24,7 +24,7 @@ import {
   listEvaluationResults,
   listExpertMemosForAdmin,
   manualConfirmExpertVerification,
-  confirmTransferPhotoExemption,
+  confirmPairingPhotoExemption,
   rejectExpertVerification,
   retractExpertVerification,
   unverifyExpertIdentity,
@@ -393,13 +393,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     }
   };
 
-  // 严版（2026-09-23）：主持人确认迁移留档照豁免——摄像头不可用等现场判定，理由必填留痕
-  const handleTransferExempt = async () => {
+  // 严版（2026-09-23；TAB-SYNC-01 配对制沿用）：主持人确认配对留档照豁免——摄像头不可用等现场判定，理由必填留痕
+  const handlePairingPhotoExempt = async () => {
     if (!exemptFor || !exemptReason.trim()) return;
     setExemptBusy(true);
     try {
-      await confirmTransferPhotoExemption(projectId, exemptFor.id, { reason: exemptReason.trim() });
-      showToast(`已豁免 ${exemptFor.expertName} 的迁移留档照（已记入监督日志）`, 'ok');
+      await confirmPairingPhotoExemption(projectId, exemptFor.id, { reason: exemptReason.trim() });
+      showToast(`已豁免 ${exemptFor.expertName} 的配对留档照（已记入监督日志）`, 'ok');
       setExemptFor(null);
       setExemptReason('');
       getExpertVerification(projectId).then(setVerification).catch(() => {});
@@ -1009,7 +1009,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                   )}
                 </span>
-                <span className="flex flex-1 items-center justify-center">
+                <span className="flex flex-1 flex-col items-center justify-center gap-0.5">
                   {row.onlineDevice ? (
                     <span
                       className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -1026,6 +1026,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     </span>
                   ) : (
                     <span className="text-[10px] text-[var(--muted-foreground)]" title={row.signedIn ? '无活动会话（已解锁或未登录）' : '未登录'}>离线</span>
+                  )}
+                  {/* TAB-SYNC-01（spec §9.3）：监督可见第二行——活跃平板配对（设备摘要+配对时间） */}
+                  {row.tabletPaired && (
+                    <span
+                      className="max-w-full text-center text-[9px] font-semibold leading-tight text-[var(--accent-strong)]"
+                      title={`平板配对：${row.tabletPaired.device?.uaSummary ?? '未记录'}${row.tabletPaired.device?.ip ? ` · ${row.tabletPaired.device.ip}` : ''}${row.tabletPaired.pairedAt ? ` · 配对于 ${new Date(row.tabletPaired.pairedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}`}
+                    >
+                      平板（配对）· {row.tabletPaired.device?.uaSummary ?? '未记录'}
+                      {row.tabletPaired.pairedAt ? ` · 配对于 ${new Date(row.tabletPaired.pairedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}
+                    </span>
                   )}
                 </span>
                 <span
@@ -1068,9 +1078,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setExemptFor({ id: row.id, expertName: row.expertName }); setExemptReason(''); }}
                       className="neu-btn-xs"
-                      title="该专家迁移工位后需补拍留档照；摄像头不可用等情形经现场确认可豁免（登记理由）"
+                      title="该专家配对平板时需补拍留档照；摄像头不可用等情形经现场确认可豁免（登记理由）"
                     >
-                      豁免迁移照
+                      豁免配对照
                     </button>
                   )}
                   {row.expertRole === EXPERT_ROLE.REGULAR && !row.anomaly && (
@@ -1439,8 +1449,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     <span
                       className="eval-rank-badge flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black tabular-nums"
                       data-rank={rank === 1 && !disqualified ? 'first' : undefined}
+                      // #151：废标家名次「—」不占名次——排序已保证合格家 1..N 连续（废标恒置尾），rank 列保留尾部定位值仅作序
+                      title={disqualified ? '废标不占名次' : undefined}
                     >
-                      {rank}
+                      {disqualified ? '—' : rank}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                       {s.supplierName}
@@ -1450,7 +1462,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                           中标候选人
                         </span>
                       )}
-                      {disqualified && <span className="bid-pill bid-pill--danger ml-2">废标</span>}
+                      {disqualified && <span className="bid-pill bid-pill--danger ml-2" title={official?.disqualifiedReason || undefined}>废标</span>}
                     </span>
                     {official?.bidPrice && (
                       <span className="font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">
@@ -1474,6 +1486,19 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               })}
             </div>
           )}
+
+          {/* #151：废标决议块——原因随结果下发后集中展示（pill 悬停为简版；live 预览无原因时不渲染） */}
+          {(() => { const dq = results.filter(r => r.disqualified); return dq.length > 0 ? (
+            <div className="mt-1 space-y-1 border-t border-[oklch(0.6_0.04_258/0.08)] px-3.5 py-2">
+              <div className="text-[10px] font-semibold text-[var(--muted-foreground)]">废标决议</div>
+              {dq.map(r => (
+                <div key={r.supplierId} className="flex items-start gap-2 text-[11px] leading-5">
+                  <span className="shrink-0 font-semibold text-[var(--foreground)]">{r.supplierName}</span>
+                  <span className="min-w-0 flex-1 text-[var(--muted-foreground)]">{r.disqualifiedReason || '（原因未记录）'}</span>
+                </div>
+              ))}
+            </div>
+          ) : null; })()}
         </div>
       </div>
 
@@ -1815,19 +1840,19 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
       )}
 
-      {/* ── 严版（2026-09-23）：迁移留档照豁免 ── */}
+      {/* ── 严版（2026-09-23）：配对留档照豁免（TAB-SYNC-01 配对制沿用） ── */}
       {exemptFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />
           <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
             <div className="flex items-center justify-between px-6 pb-4 pt-5">
-              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">豁免迁移留档照</h2>
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">豁免配对留档照</h2>
               <button type="button" onClick={() => setExemptFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
             </div>
             <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
               <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
-                <span>专家「{exemptFor.expertName}」签到未留档照，迁移后<strong className="text-[var(--foreground)]">本应强制补拍</strong>。仅在摄像头确实不可用时，请<span className="font-semibold text-[var(--warning)]">现场核实</span>后豁免。</span>
+                <span>专家「{exemptFor.expertName}」签到未留档照，配对平板后<strong className="text-[var(--foreground)]">本应强制补拍</strong>。仅在摄像头确实不可用时，请<span className="font-semibold text-[var(--warning)]">现场核实</span>后豁免。</span>
                 <HelpTip text="豁免操作将记入监督日志（中等风险）并显示在监督时间线；专家平板随后解锁进入评审。" className="mt-px shrink-0" />
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">豁免理由（必填）</label>
@@ -1845,7 +1870,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <button type="button" onClick={() => setExemptFor(null)} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
               <button
                 type="button"
-                onClick={() => void handleTransferExempt()}
+                onClick={() => void handlePairingPhotoExempt()}
                 disabled={exemptBusy || !exemptReason.trim()}
                 className="neu-btn-primary is-water !h-[36px] !text-xs"
               >

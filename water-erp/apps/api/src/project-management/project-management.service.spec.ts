@@ -2610,5 +2610,58 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
       expect(prisma.bidProject.findMany).not.toHaveBeenCalled();
     });
   });
+
+  describe('getArchiveDetail 评分段 buildArchiveScoreDetail（#121②：归档详情补评分明细）', () => {
+    const mkModels = (over: Record<string, any> = {}) => ({
+      bidProject: { findFirst: jest.fn().mockResolvedValue(over.bp ?? null) },
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue(over.items ?? []) },
+      bidScoreRecord: { findMany: jest.fn().mockResolvedValue(over.records ?? []) },
+      bidEvaluationResult: { findMany: jest.fn().mockResolvedValue(over.results ?? []) },
+    });
+
+    it('关联 BP 有结果 → 下发 评分项(category/得分点透传)+记录(passed 透传)+名次结果', async () => {
+      const { service, prisma } = makeService();
+      Object.assign(prisma, mkModels({
+        bp: { id: 'bp1', projectCode: 'BID-1', name: '项目', stage: 'ARCHIVED', procurementMethod: '公开招标' },
+        items: [
+          { id: 'si1', name: '资格性审查', category: 'QUALIFICATION', maxScore: 0, points: [{ id: 'p1', name: '执照' }] },
+          { id: 'si2', name: '商务评分', category: 'BUSINESS', maxScore: 20, points: [] },
+        ],
+        records: [
+          { expertId: 'e1', supplierId: 's1', scoreItemId: 'si1', score: 0, passed: true },
+          { expertId: 'e1', supplierId: 's1', scoreItemId: 'si2', score: 15, passed: null },
+        ],
+        results: [{ supplierId: 's1', supplierName: '甲', totalScore: 15, averageScore: 15, rank: 1, recommended: true, disqualified: false, bidPrice: 100 }],
+      }));
+
+      const detail = await (service as any).buildArchiveScoreDetail('pmi-1');
+
+      expect(prisma.bidProject.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ projectManagementItemId: 'pmi-1', evaluationResults: { some: {} } }),
+      }));
+      expect(detail).toMatchObject({
+        bidProject: { id: 'bp1', projectCode: 'BID-1' },
+        items: [
+          // category 透传——前端 ScoreSnapshotSection 通过性分支（通过 n/N 表决口径）依赖
+          { id: 'si1', category: 'QUALIFICATION', points: [{ id: 'p1', name: '执照' }] },
+          { id: 'si2', maxScore: 20 },
+        ],
+        records: [
+          { scoreItemId: 'si1', passed: true },
+          { scoreItemId: 'si2', score: 15 },
+        ],
+        results: [{ supplierName: '甲', rank: 1, recommended: true, disqualified: false, bidPrice: 100 }],
+      });
+    });
+
+    it('无关联 BP / BP 无评标结果 → null（前端不渲染评分明细卡）', async () => {
+      const { service, prisma } = makeService();
+      Object.assign(prisma, mkModels({ bp: null }));
+      await expect((service as any).buildArchiveScoreDetail('pmi-1')).resolves.toBeNull();
+
+      Object.assign(prisma, mkModels({ bp: { id: 'bp1' }, results: [] }));
+      await expect((service as any).buildArchiveScoreDetail('pmi-1')).resolves.toBeNull();
+    });
+  });
 });
 
