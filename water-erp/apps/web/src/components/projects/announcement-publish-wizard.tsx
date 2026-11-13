@@ -559,17 +559,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [sunshineModalOpen, setSunshineModalOpen] = useState(false);
   const [publishTiming, setPublishTiming] = useState<'now' | 'scheduled' | 'announcement_start'>('now');
   const [scheduledDate, setScheduledDate] = useState('');
-  // 公示期限（止）（从公告制作提取到发布配置）+ 标书投递截止时间
-  const [announcementEndDate, setAnnouncementEndDate] = useState('');
+  // 公示期限（止）不再独立存 state（2026-11-13 用户裁定「按公告编写中的实施公示期」）：
+  // 旧双源（announcementEndDate || draft.announcementEnd）中 state 在挂载时被初值固化
+  // （默认 3 天止），此后 Step1 公告编写改起止只更新 draft——state 旧值永远压住新值，
+  // 实测「无论怎么填都是 3 天」。现 draft.announcementEnd 为唯一事实源，各消费点直读。
   const [bidSubmissionDeadline, setBidSubmissionDeadline] = useState('');
-  // 自愈：发布配置状态为空（如 localStorage 缓存存了空值）而公告制作草稿已填公示期限（止）时回填，
-  // 避免发布时把正确日期覆盖成空。date-only（YYYY-MM-DD）补 23:59 以符合 datetime-local 输入。
-  useEffect(() => {
-    if (announcementEndDate || !draft) return;
-    const fromDraft = (draft as Record<string, string>).announcementEnd?.trim();
-    if (!fromDraft) return;
-    setAnnouncementEndDate(fromDraft.length <= 10 ? `${fromDraft}T23:59` : fromDraft);
-  }, [announcementEndDate, draft]);
   // 采购文件下载方式：免费 / 解密密码 / 付费（占位）
   const [downloadMode, setDownloadMode] = useState<'free'>('free');
   const [attachOn, setAttachOn] = useState(false);
@@ -726,7 +720,6 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       }
       setPublishTiming(cachedWiz.publishTiming === 'scheduled' ? 'scheduled' : 'now'); // 旧缓存的 announcement_start 已废弃，归一到 now
       setScheduledDate(cachedWiz.scheduledDate ?? '');
-      setAnnouncementEndDate(cachedWiz.announcementEndDate ?? '');
       setBidSubmissionDeadline(cachedWiz.bidSubmissionDeadline ?? '');
       setDownloadMode('free');
       setAttachOn(cachedWiz.attachOn ?? false);
@@ -884,18 +877,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
     // ★ 引用采购文件（2026-09-26 起不再走开关/多选）：采购公告固定引用 03 步标记的
     // 正式盖章版（officialTender 派生值，见 memo）；中标/流标公告不挂采购文件
-    // 默认截止时间：优先取公示期限（止）→ 兜底按采购方式给默认
-    const isQuickDeadlineCategory = project.procurementMethod === '询比采购' || project.procurementMethod === '竞价采购';
-    const inheritEnd = (filledDraft as Record<string, string>).announcementEnd ?? '';
-    if (inheritEnd) {
-      // 转换为 ISO 格式（datetime-local input 需要）
-      const isoEnd = isSingleSource ? toDatetimeLocalValue(inheritEnd) : (inheritEnd.length <= 10 ? `${inheritEnd}T23:59` : inheritEnd);
-      setAnnouncementEndDate(isoEnd);
-    } else {
-      setAnnouncementEndDate(deadlineAfterDays(isQuickDeadlineCategory ? 3 : 5));
-    }
     // 标书投递截止时间 = 开标时间前 BID_DEADLINE_BEFORE_OPENING_MS 毫秒（10 分钟，源自共享常量）
     if (!isSingleSource) {
+      const isQuickDeadlineCategory = project.procurementMethod === '询比采购' || project.procurementMethod === '竞价采购';
       const openTime = (filledDraft as Record<string, string>).bidOpeningTime?.trim()
         || project.bidOpeningTime?.trim()
         || (filledDraft as Record<string, string>).procurementTime?.trim()
@@ -1129,7 +1113,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setBusy(true);
     try {
       // 与 handlePublish 同口径合并公示期限（止）——预览所见即发布所得
-      const effectiveAnnouncementEnd = announcementEndDate || ((draft as Record<string, string>).announcementEnd ?? '');
+      const effectiveAnnouncementEnd = ((draft as Record<string, string>).announcementEnd ?? '');
       const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
       const built = await buildAnnouncement({
         tenderType,
@@ -1244,7 +1228,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 1. 用公告模板渲染生成 docx + 提取公告全文（mammoth）
       // 公示期限（止）合并进 draft：发布配置状态优先，为空（如缓存恢复存了空值）时回落草稿值——
       // 此前裸用状态会把公告制作里已填的正确日期覆盖成空 → docx 渲染成「请填写公示期限（止）」
-      const effectiveAnnouncementEnd = announcementEndDate || ((draft as Record<string, string>).announcementEnd ?? '');
+      const effectiveAnnouncementEnd = ((draft as Record<string, string>).announcementEnd ?? '');
       const finalDraft = { ...(draft as Record<string, string>), announcementEnd: effectiveAnnouncementEnd } as AnnouncementDraft;
       // 复用「预览并发布」生成的 docx（同一 draft 构建，预览即所得）；直接调用兜底重建
       const built = preview ?? await buildAnnouncement({
@@ -1572,7 +1556,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
             preview ? (() => {
               const dr = (draft ?? {}) as Record<string, string>;
               const pubStart = dr.announcementStart || '';
-              const pubEnd = announcementEndDate || dr.announcementEnd || '';
+              const pubEnd = dr.announcementEnd || '';
               const summaryRows: Array<[string, React.ReactNode]> = [
                 ['公告范围', '全部可见'],
                 ['发布时间', publishTiming === 'now' ? '确认后立即发布' : `定时 ${formatDateTimeDisplay(scheduledDate)}`],
@@ -1854,7 +1838,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               {categoryConfig.showKeyTime && (() => {
                 const dr = (draft ?? {}) as Record<string, string>;
                 const pubStart = dr.announcementStart || '';
-                const pubEnd = announcementEndDate || dr.announcementEnd || '';
+                const pubEnd = dr.announcementEnd || '';
                 // 来源序与 buildCanonicalMeta 同口径（procurementTime 可能存过期推导值）
                 const openTime = dr.bidOpeningTime || project?.bidOpeningTime || dr.procurementTime || '';
                 const openTimeIso = openTime ? toDatetimeLocalValue(openTime) : '';
