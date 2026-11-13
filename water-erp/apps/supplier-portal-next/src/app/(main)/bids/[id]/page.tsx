@@ -509,7 +509,7 @@ function BidDetailInner() {
                 <span className="bid-act-note">
                   {canSubmit ? (
                     <>
-                      投标截止 <strong>{dayjs(project.deadline).format("MM-DD HH:mm")}</strong>
+                      投标截止 <strong>{dayjs(project.deadline).format("YYYY-MM-DD HH:mm")}</strong>
                       <CountdownTimer deadline={project.deadline} />
                     </>
                   ) : (
