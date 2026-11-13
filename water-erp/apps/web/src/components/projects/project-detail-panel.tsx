@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -37,7 +37,7 @@ import {
   type ProjectManagementStage,
   type ProjectWorkflowStageKey,
 } from '@/lib/types/project-management';
-import { ProjectTimelineStrip } from './project-timeline-strip';
+import { ProjectTimelineDialog } from './project-timeline-dialog';
 import { ProjectChangeEntry } from './project-change-entry';
 import { bindChangeAnnouncement, registerChange } from '@/lib/api/project-changes';
 import { roundBidOpened, latestBidOpened } from '@/lib/bid-lock';
@@ -986,6 +986,9 @@ export function ProjectDetailPanel({
     }
   };
 
+  // 时间轴弹窗（2026-11-13）：refreshKey=timelineVersion 与原横条同刷新契约
+  const [timelineOpen, setTimelineOpen] = useState(false);
+
   // 项目终止：填终止原因，项目进「已终止」只读列表 + 台账 CANCELLED 轮次
   //（2026-11-12 §9：终止是详情面板唯一收尾动作；移除改在已终止卡片上操作）
   const [terminateOpen, setTerminateOpen] = useState(false);
@@ -1165,8 +1168,7 @@ export function ProjectDetailPanel({
       <section className={`absolute inset-0 z-[121] overflow-y-auto wb-modal-shell${actionsDisabled ? ' pm-archived-readonly' : ''}`}>
         {/* page-hero: 标题 + 简报 + 流程 */}
         <div className="page-hero">
-          {/* B3（A-204）时间信息轴 */}
-          <ProjectTimelineStrip pmiId={item.id} refreshKey={timelineVersion} />
+          {/* 时间轴（2026-11-13 用户裁定）：横条退场——改由标题栏「时间轴」按钮弹窗展示（见 page-hero__right） */}
           <div style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)', paddingTop: '0.75rem', marginBottom: '0.75rem' }} />
           {/* row 1: 标题 + meta + 操作按钮 */}
           <div className="page-hero__row">
@@ -1218,6 +1220,10 @@ export function ProjectDetailPanel({
                   setAnnouncementPublishOpen(true);
                 }}
               />
+              {/* 时间轴按钮（2026-11-13 用户裁定）：置于项目终止左侧，弹窗展示十节点垂直时间轴 */}
+              <button type="button" onClick={() => setTimelineOpen(true)} className="neu-btn-soft">
+                <Clock3 size={16} />时间轴
+              </button>
               {!actionsDisabled && (
                 <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft is-danger">
                   <Ban size={16} />项目终止
@@ -2302,6 +2308,9 @@ export function ProjectDetailPanel({
         message={errorMessage ?? ''}
         onClose={() => setErrorMessage(null)}
       />
+
+      {/* 时间轴弹窗（2026-11-13）：按钮入口在标题栏项目终止左侧 */}
+      <ProjectTimelineDialog open={timelineOpen} onClose={() => setTimelineOpen(false)} pmiId={item.id} refreshKey={timelineVersion} />
 
       {/* 项目终止对话框：填终止原因，快照当前步骤与已有资料 */}
       {terminateOpen && (
