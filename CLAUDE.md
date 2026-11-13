@@ -419,6 +419,8 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 `POST /api/upload?category=...`（单文件统一 500MB，2026-11-05）, `GET /api/upload/files/:id`, `DELETE /api/upload/:key`. Files stored in MinIO, metadata in `FileAsset` model. 双信封新轨类目（2026-08）：`bid_inner_ciphertext`（解外层产物 C_inner，归属链=`SupplierBidSubmission.innerAssets`）与 `bid_decrypted`（供应商解密上传明文，归属链=`decryptedAssets`）——下载授权按 submission 四列+两 Json 列反查（C_outer 本人下载拒收、C_inner 成员放行、bid_decrypted 指派给 SUCCESS 家/staff/专家）；`bid_inner_ciphertext`/`bid_decrypted`/`bid_document` 三类目删除硬保护（永久不可删）。
 
+**multipart 文件名 latin1 铁律（2026-11-13）**：multer 2.2/busboy ^1.6.0 栈对普通 `filename=` 参数恒以 latin1 形态交付 `file.originalname`（浏览器/undici 的原始 UTF-8 中文名必变 `æŠ€æœ¯`，ASCII 无恙）——**任何新的 multer 上传端点写 `originalName` 前必须过 `common/filename-encoding.util.ts` 的 `normalizeMultipartFilename`（条件式安全版）**；勿用无条件 `Buffer.from(s,'latin1').toString('utf8')`——对 `filename*` 扩展参数来的干净 UTF-8 名会二次毁伤（bid-document.service 注释曾踩过认知）。沿革：2026-07-16 曾修 /upload 等三处（97dea7740），2026-11 dual-v3 `ca/encrypted-asset.controller` 漏接复发（生产专家端标书获取乱码，#150 反显真实名后暴露）；存量修复脚本 `apps/api/scripts/fix-filename-mojibake.ts`（dry-run 默认、--execute 回填）。
+
 ### Frontend Conventions
 
 - 门户无共享组件包（见 Shared Packages 表末注）——workbench 组件、`cn`、小工具在各门户 `src/components`/`src/lib` 本地维护；跨门户通用小工具（如剪贴板）按门户自包含各放一份，勿抽进 `@water-erp/shared`。

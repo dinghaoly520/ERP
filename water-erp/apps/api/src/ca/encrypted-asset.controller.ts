@@ -14,6 +14,7 @@ import { Request } from 'express';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { normalizeMultipartFilename } from '../common/filename-encoding.util';
 
 // 500MiB + 32B（两层 CBC padding 余量）——对齐全库单文件 500MB 统一口径（upload/attachment-rules.ts ATTACHMENT_MAX_BYTES）
 const MAX_OUTER_BYTES = 500 * 1024 * 1024 + 32;
@@ -64,10 +65,12 @@ export class EncryptedAssetController {
     }
 
     // 暂存记录落库（key=MinIO 对象键——decryptOuterOneV3 读取锚点）
+    // originalName：multipart 文件名 latin1 误读归一化（2026-11-13 生产乱码根治——
+    // 此名经 #150 继承进 bid_decrypted 后由专家端标书获取直接反显，裸存即乱码）
     const asset = await this.prisma.fileAsset.create({
       data: {
         key: objectKey,
-        originalName: file.originalname,
+        originalName: normalizeMultipartFilename(file.originalname),
         mimeType: 'application/octet-stream',
         size: outerBytes,
         sha256: outerSha256,

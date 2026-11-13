@@ -4,7 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { fileCategoryDefaults } from '@water-erp/shared';
 import { minioClient, MINIO_BUCKET, ensureBucket } from './minio.client';
 import { BID_FILE_ROLES } from '@water-erp/shared';
-import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
+import { convertOfficeToPdf } from '../common/office-to-pdf.util';
+import { normalizeMultipartFilename } from '../common/filename-encoding.util';
 import { unwrapKey, wrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { createDecryptStream, encryptBuffer } from '../announcement/bid-document.crypto';
 import { UPLOAD_CATEGORIES, UPLOAD_SERVER_SEAL_CATEGORIES } from './upload-categories';
@@ -157,8 +158,9 @@ export class UploadService implements OnModuleInit {
       this.validateFile(file, category);
     }
 
-    // ① 文件名从 multer 的 latin1 还原为 utf8（中文不乱码）
-    const originalName = sanitizeFileName(file.originalname);
+    // ① multipart 文件名 latin1 误读归一化（中文不乱码；2026-11-13 换条件式安全版——
+    //    无条件 latin1→utf8 对 filename* 扩展参数来的干净名会二次毁伤，见 filename-encoding.util）
+    const originalName = normalizeMultipartFilename(file.originalname);
 
     // ② Office Word 文档自动转 PDF（预览统一，转换失败降级存原始文件）
     //    clientEncrypted 时跳过——文件已是密文，无法识别为 Office 文档
