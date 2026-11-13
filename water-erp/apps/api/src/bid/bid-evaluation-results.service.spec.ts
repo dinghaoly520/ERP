@@ -233,6 +233,63 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       expect(results[0].supplierName).toBe('甲');
     });
 
+    it('#151：表决废标 → disqualifiedReason 落列（多项失败 join「；」）+ 监督日志同源同文', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
+        experts: [
+          { id: 'e1', expertRole: '正选', reportConfirmed: true },
+          { id: 'e2', expertRole: '正选', reportConfirmed: true },
+        ],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      });
+      // 通过性项两个（资格+响应性）——乙在两项均 2/2 不通过（严格过半）
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'pf1', category: 'QUALIFICATION' },
+        { id: 'pf2', category: 'RESPONSIVE' },
+      ]);
+      // allScoreRecords 为单次批查（supplierId: { in }）——记录须自带 supplierId（分组 key）
+      prisma.bidScoreRecord.findMany.mockImplementation((args: any) => {
+        const ids: string[] = args.where?.supplierId?.in ?? ['s1', 's2'];
+        const all = [
+          { supplierId: 's1', expertId: 'e1', scoreItemId: 'pf1', score: 0, passed: true },
+          { supplierId: 's1', expertId: 'e2', scoreItemId: 'pf1', score: 0, passed: true },
+          { supplierId: 's1', expertId: 'e1', scoreItemId: 'num1', score: 90, passed: null },
+          { supplierId: 's1', expertId: 'e2', scoreItemId: 'num1', score: 80, passed: null },
+          { supplierId: 's2', expertId: 'e1', scoreItemId: 'pf1', score: 0, passed: false },
+          { supplierId: 's2', expertId: 'e2', scoreItemId: 'pf1', score: 0, passed: false },
+          { supplierId: 's2', expertId: 'e1', scoreItemId: 'pf2', score: 0, passed: false },
+          { supplierId: 's2', expertId: 'e2', scoreItemId: 'pf2', score: 0, passed: false },
+          { supplierId: 's2', expertId: 'e1', scoreItemId: 'num1', score: 70, passed: null },
+          { supplierId: 's2', expertId: 'e2', scoreItemId: 'num1', score: 60, passed: null },
+        ];
+        return Promise.resolve(all.filter(r => ids.includes(r.supplierId)));
+      });
+      prisma.bidEvaluationResult.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.bidEvaluationResult.createMany.mockResolvedValue({ count: 2 });
+      prisma.bidEvaluationResult.findMany.mockResolvedValue([]);
+
+      await service.generateEvaluationResults('p1');
+
+      const rows = prisma.bidEvaluationResult.createMany.mock.calls[0][0].data as any[];
+      const ok = rows.find((r: any) => r.supplierId === 's1');
+      const bad = rows.find((r: any) => r.supplierId === 's2');
+      expect(ok.disqualified).toBe(false);
+      expect(ok.disqualifiedReason).toBeNull(); // 未废标家恒 null（非 undefined——列存在性稳定）
+      expect(bad.disqualified).toBe(true);
+      // 多项失败 join「；」——资格在前（items 顺序）
+      expect(bad.disqualifiedReason).toBe(
+        '经评审委员会表决，资格审查不通过（不通过 2/2 票），依据招标文件规定予以废标；经评审委员会表决，响应性审查不通过（不通过 2/2 票），依据招标文件规定予以废标',
+      );
+      // 监督日志同源同文（两条废标决议，文本与落列逐字一致）
+      const logs = prisma.bidSupervisionLog.create.mock.calls.map((c: any[]) => c[0].data).filter((d: any) => d.action === '废标决议');
+      expect(logs).toHaveLength(2);
+      const joined = [logs[0].result, logs[1].result].join('；');
+      expect(joined).toBe(bad.disqualifiedReason);
+    });
+
     it('N3：结果重生成时评标快照 fileAsset 走 upsert（不再 create 撞 key 被 catch 吞）', async () => {
       // 沿用上方成功用例的 mock 前置（复制自包含）
       prisma.bidProject.findUnique.mockResolvedValue({

@@ -61,6 +61,7 @@ export interface BidEvaluationResultInfo {
   rank: number;
   recommended: boolean;
   disqualified: boolean;
+  disqualifiedReason?: string | null; // #151：废标原因（生成时自表决/超限价组装；live 预览无此字段）
   bidPrice?: string | null; // A4: 供应商报价（从评标结果流入）
   generatedAt: string;
 }

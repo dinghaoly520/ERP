@@ -1439,8 +1439,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     <span
                       className="eval-rank-badge flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black tabular-nums"
                       data-rank={rank === 1 && !disqualified ? 'first' : undefined}
+                      // #151：废标家名次「—」不占名次——排序已保证合格家 1..N 连续（废标恒置尾），rank 列保留尾部定位值仅作序
+                      title={disqualified ? '废标不占名次' : undefined}
                     >
-                      {rank}
+                      {disqualified ? '—' : rank}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--foreground)]">
                       {s.supplierName}
@@ -1450,7 +1452,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                           中标候选人
                         </span>
                       )}
-                      {disqualified && <span className="bid-pill bid-pill--danger ml-2">废标</span>}
+                      {disqualified && <span className="bid-pill bid-pill--danger ml-2" title={official?.disqualifiedReason || undefined}>废标</span>}
                     </span>
                     {official?.bidPrice && (
                       <span className="font-mono text-[11px] tabular-nums text-[var(--muted-foreground)]">
@@ -1472,6 +1474,19 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* #151：废标决议块——原因随结果下发后集中展示（pill 悬停为简版；live 预览无原因时不渲染） */}
+          {results.filter(r => r.disqualified).length > 0 && (
+            <div className="mt-1 space-y-1 border-t border-[oklch(0.6_0.04_258/0.08)] px-3.5 py-2">
+              <div className="text-[10px] font-semibold text-[var(--muted-foreground)]">废标决议</div>
+              {results.filter(r => r.disqualified).map(r => (
+                <div key={r.supplierId} className="flex items-start gap-2 text-[11px] leading-5">
+                  <span className="shrink-0 font-semibold text-[var(--foreground)]">{r.supplierName}</span>
+                  <span className="min-w-0 flex-1 text-[var(--muted-foreground)]">{r.disqualifiedReason || '（原因未记录）'}</span>
+                </div>
+              ))}
             </div>
           )}
         </div>
