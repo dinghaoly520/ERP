@@ -14,7 +14,7 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { isOverdueScheduledDraft } from '@/lib/notice/schedule';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
+import { ANNOUNCEMENT_TYPE_ORDER, STAGE_LABEL } from '@water-erp/shared';
 import {
   FileText, Megaphone as MegaphoneIcon, PlusCircle, Search,
   ChevronUp, ChevronDown, ChevronsUpDown,
@@ -637,7 +637,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                     <h3 className="text-[15px] font-bold leading-snug text-[var(--foreground)]">{result.project.name}</h3>
                     <span className="text-[11px] font-medium text-[var(--muted-foreground)] tabular-nums">
                       项目编号 {result.project.projectCode || '—'}
-                      {result.project.stage && <> · {result.project.stage}</>}
+                      {result.project.stage && <> · {STAGE_LABEL[result.project.stage] ?? result.project.stage}</>}
                     </span>
                   </div>
                   {result.project.deadline && (
@@ -648,28 +648,25 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                 </div>
               )}
 
-              {/* 提交进度条 */}
+              {/* 投标提交进度（含参与/意向/下载计数——2026-11-13 用户裁定：KPI 瓷片行并入此处） */}
               {result.stats.total > 0 && (
                 <div className="mt-1">
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="text-xs font-semibold text-[var(--foreground)]">投标提交进度</span>
                     <span className="text-xs tabular-nums font-semibold text-[var(--accent)]">
-                      {result.stats.submitted}/{result.stats.total} 已提交
+                      已提交 {result.stats.submitted}/{result.stats.total}
                     </span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-[var(--muted)]">
                     <div className="h-full rounded-full bg-[var(--success)] transition-all duration-600" style={{ width: `${pct}%` }} />
                   </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums text-[var(--muted-foreground)]">
+                    <span>已确认意向 <strong className="text-[var(--accent)]">{result.stats.intentConfirmed}</strong></span>
+                    <span className="text-[var(--muted-foreground)]/50">·</span>
+                    <span>已下载文件 <strong className="text-[var(--foreground)]">{downloadCount}</strong></span>
+                  </div>
                 </div>
               )}
-
-              {/* KPI 行 */}
-              <div className="mt-1 grid grid-cols-4 gap-2">
-                <KpiTile label="参与供应商" value={result.stats.total} />
-                <KpiTile label="已确认意向" value={result.stats.intentConfirmed} accent="accent" />
-                <KpiTile label="已提交标书" value={result.stats.submitted} accent="success" />
-                <KpiTile label="已下载文件" value={downloadCount} />
-              </div>
             </div>
           </div>
 
@@ -758,17 +755,6 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
         </div>
       )}
     </Modal>
-  );
-}
-
-function KpiTile({ label, value, accent }: { label: string; value: number; accent?: 'success' | 'accent' }) {
-  return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</div>
-      <div className={`mt-0.5 text-lg font-black tabular-nums tracking-[-0.03em] ${
-        accent === 'success' ? 'text-[var(--success)]' : accent === 'accent' ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'
-      }`}>{value}</div>
-    </div>
   );
 }
 
