@@ -160,15 +160,16 @@ function extractDnCn(dn: string): string | null {
   return m ? m[1].trim() : null;
 }
 
-/** 采购方式三分类（2026-09-04 可见性/投递准入统一口径）：
- *  - 公告公开型（询比采购 / 竞价采购 / 邀请招标 / 公开招标等，默认）：
+/** 采购方式三分类（2026-09-04 立制；2026-11-12 流程互换后口径更新）：
+ *  - 公告公开型（询比采购 / 竞价采购 / 谈判采购 / 公开招标等，默认）：
  *    无供应商候选，公告发布 → 全体供应商可见、可投递；公告发布前不可见。
- *  - 邀请型（谈判采购）：仅受邀供应商（BidSupplier / InvitationRsvp）可见、可投递，
- *    时间窗口由 sendNegotiationConfig 下发，不经公告。
- *  - 邀请+公告型（直接采购）：会邀请供应商、也发布公告，但公告只作信息披露——
- *    仅受邀供应商在公告发布后可见/可投递，其他供应商不展示、不放行。
- *  以下集合 = 后两类（邀请域）方式。 */
-const INVITATION_SCOPED_METHODS = new Set(['直接采购', '谈判采购']);
+ *    （谈判采购 2026-11-12 互换改发公告——原「邀请型」席位让给邀请招标）
+ *  - 邀请型（邀请招标 / 直接采购）：仅受邀供应商（BidSupplier / InvitationRsvp）
+ *    可见、可投递，不经采购公告（公告创建侧 INVITED_NO_PROCUREMENT_NOTICE 硬闸）。
+ *  以下集合 = 邀请域方式——项目机会可见性与投递准入（assertCanSubmitBid）共用，
+ *  漏翻转实录：2026-11-13 邀请招标受邀确认后项目机会不可见（91eba6fd6 只翻了流程
+ *  与公告闸，未翻本集合）。 */
+const INVITATION_SCOPED_METHODS = new Set(['直接采购', '邀请招标']);
 
 @Injectable()
 export class SupplierPortalService {
@@ -1518,7 +1519,9 @@ export class SupplierPortalService {
     };
 
     // 可见性模型见文件顶部 INVITATION_SCOPED_METHODS 注释（三分类统一口径）。
-    const NOTICE_GATED_INVITED_METHODS = new Set(['直接采购']); // 受邀后仍须等公告发布的方式
+    // 受邀后仍须等公告发布的方式（2026-11-12 流程互换后无成员——直接采购已不发
+    // 采购公告，门控无公告可等会使受邀者永不可见；保留机制供将来「邀请+公告」方式）
+    const NOTICE_GATED_INVITED_METHODS = new Set<string>([]);
     let invitedIds: string[] = [];
     let openIds: string[] = [];
     if (supplierId) {
@@ -1554,7 +1557,7 @@ export class SupplierPortalService {
         invitedIds = invitedProjects
           .filter(p => {
             if (!INVITATION_SCOPED_METHODS.has(p.procurementMethod)) return false; // 公告公开型：不经邀请可见
-            if (!NOTICE_GATED_INVITED_METHODS.has(p.procurementMethod)) return true; // 谈判采购：确认参加即显示
+            if (!NOTICE_GATED_INVITED_METHODS.has(p.procurementMethod)) return true; // 邀请型：确认参加即显示
             // 直接采购：业务编号（PMI.projectCode）或内部编号命中已发布公告 → 视为公告已发布
             const bizCode = p.projectManagementItemId ? pmCodeMap.get(p.projectManagementItemId) : undefined;
             return (!!bizCode && publishedCodeSet.has(bizCode)) || publishedCodeSet.has(p.projectCode);
@@ -1581,8 +1584,9 @@ export class SupplierPortalService {
         openIds = [...new Set([...openIds, ...byCode.map(p => p.id)])];
       }
 
-      // 公开分支只承载公告公开型方式：直接采购（公告仅信息披露，只对受邀可见）与
-      // 谈判采购（纯邀请）不得经 OPEN 文档或公告桥接对全体供应商开放。
+      // 公开分支只承载公告公开型方式：邀请域（邀请招标/直接采购）不得经 OPEN 文档
+      // 或公告桥接对全体供应商开放（2026-11-12 流程互换后邀请招标入列；谈判采购
+      // 改发公告即在此分支对全体开放）。
       if (openIds.length > 0) {
         // 公司隔离收口：公告桥接腿与 OPEN 文档腿在此统一按归属公司过滤（单收口点）
         const scoped = await this.prisma.bidProject.findMany({
@@ -2324,10 +2328,11 @@ export class SupplierPortalService {
     if (project.deadline.getTime() < Date.now()) {
       throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
     }
-    // G3 权威兜底（放宽口径，2026-09-04 与门户可见性同口径）：公告公开型（询比/竞价/邀请招标/
-    // 公开招标等，默认）已发布招标公示 → 全体供应商可投递；邀请域方式（直接采购/谈判采购，见
-    // INVITATION_SCOPED_METHODS）公告仅信息披露——投递仍须「已接受邀请回执（InvitationRsvp ACCEPTED，
-    // projectId=PMI id）或已在候选名单（BidSupplier 行）」二者其一。
+    // G3 权威兜底（放宽口径，2026-09-04 与门户可见性同口径；2026-11-12 流程互换后口径）：
+    // 公告公开型（询比/竞价/谈判/公开招标等，默认）已发布招标公示 → 全体供应商可投递；
+    // 邀请域方式（邀请招标/直接采购，见 INVITATION_SCOPED_METHODS）不经公告——投递须
+    // 「已接受邀请回执（InvitationRsvp ACCEPTED，projectId=PMI id）或已在候选名单
+    // （BidSupplier 行）」二者其一。
     const invitationRequired = INVITATION_SCOPED_METHODS.has(project.procurementMethod);
     const noticeCodes = await this.resolveAnnouncementCodes(project);
     const notice = noticeCodes.length > 0

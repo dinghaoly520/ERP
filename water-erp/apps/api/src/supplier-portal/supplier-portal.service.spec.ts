@@ -936,7 +936,7 @@ describe('SupplierPortalService', () => {
       const queries: any[] = [];
       prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
         queries.push(where);
-        if (where?.id?.in?.includes('bp-inv')) return [{ id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-INV' }];
+        if (where?.id?.in?.includes('bp-inv')) return [{ id: 'bp-inv', procurementMethod: '邀请招标', projectManagementItemId: null, projectCode: 'BID-INV' }];
         if (where?.id?.in?.includes('bp-doc')) return [{ id: 'bp-doc', procurementMethod: '询比采购' }];
         if (where?.OR) return [{ id: 'bp-inv', projectCode: 'X', name: 'N', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), openTime: new Date(), createdAt: new Date() }];
         return [];
@@ -1012,6 +1012,70 @@ describe('SupplierPortalService', () => {
       for (const f of ['suppliers', 'openingRecords', 'openingSession', 'experts', 'scoreItems', 'supervisionLogs', 'archiveItems']) {
         expect(select[f]).toBeUndefined();
       }
+    });
+
+    /* ── 流程互换口径锁定（2026-11-13 漏翻转修复：91eba6fd6 翻了流程与公告闸，
+       未翻 INVITATION_SCOPED_METHODS——邀请招标受邀确认后项目机会不可见）── */
+    const mkInvited = (method: string) => {
+      prisma.supplier.findUnique.mockResolvedValueOnce({ status: 'APPROVED' });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ projectId: 'bp-inv' }]);
+      prisma.bidDocument.findMany.mockResolvedValue([]);
+      prisma.announcement.findMany.mockResolvedValue([]);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        if (where?.id?.in?.includes('bp-inv')) {
+          return [{ id: 'bp-inv', procurementMethod: method, projectManagementItemId: null, projectCode: 'BID-INV' }];
+        }
+        if (where?.OR) {
+          return [{ id: 'bp-inv', projectCode: 'BID-INV', name: '邀请项目', stage: 'SUBMIT', deadline: new Date(Date.now() + 3600_000), openTime: new Date(), createdAt: new Date() }];
+        }
+        return [];
+      });
+      prisma.bidProject.count.mockResolvedValue(1);
+      prisma.bidProject.groupBy.mockResolvedValue([]);
+      prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
+    };
+
+    it('流程互换：邀请招标·受邀确认 → 项目机会可见（确认参加即显示）', async () => {
+      mkInvited('邀请招标');
+      const result = await service.listBidProjects(1, 20, {}, 'sup-1');
+      expect(result.items.some((i: any) => i.id === 'bp-inv')).toBe(true);
+    });
+
+    it('流程互换：直接采购·受邀确认 → 立即可见（不再等公告——互换后无采购公告可等）', async () => {
+      mkInvited('直接采购');
+      const result = await service.listBidProjects(1, 20, {}, 'sup-1');
+      expect(result.items.some((i: any) => i.id === 'bp-inv')).toBe(true);
+    });
+
+    it('流程互换：谈判采购·存量受邀行·无公告 → 不可见（互换后为公告公开型，不经邀请可见）', async () => {
+      mkInvited('谈判采购');
+      // 受邀腿被方式过滤剔除、公开腿无公告 → 主查询的 OR 不含该项目
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        if (where?.id?.in?.includes('bp-inv')) {
+          return [{ id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-INV' }];
+        }
+        return [];
+      });
+      const result = await service.listBidProjects(1, 20, {}, 'sup-1');
+      expect(result.items.some((i: any) => i.id === 'bp-inv')).toBe(false);
+    });
+
+    it('流程互换：邀请招标·非受邀·OPEN 文档 → 不可见（邀请域不得经公开分支对全体开放）', async () => {
+      prisma.supplier.findUnique.mockResolvedValueOnce({ status: 'APPROVED' });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidDocument.findMany.mockResolvedValue([{ bidProjectId: 'bp-doc' }]);
+      prisma.announcement.findMany.mockResolvedValue([]);
+      prisma.projectManagementItem.findMany.mockResolvedValue([]);
+      // 公开分支收口查询：bp-doc 是邀请招标 → 被方式过滤剔除
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        if (where?.id?.in?.includes('bp-doc')) return [{ id: 'bp-doc', procurementMethod: '邀请招标' }];
+        return [];
+      });
+      prisma.bidProject.count.mockResolvedValue(0);
+      prisma.bidProject.groupBy.mockResolvedValue([]);
+      const result = await service.listBidProjects(1, 20, {}, 'sup-1');
+      expect(result.items.some((i: any) => i.id === 'bp-doc')).toBe(false);
     });
   });
 
@@ -1207,6 +1271,18 @@ describe('SupplierPortalService', () => {
       });
     });
 
+    it('流程互换（2026-11-13）：邀请招标·非受邀 → 拦截 INVITATION_REQUIRED（互换后为邀请域）', async () => {
+      prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
+      prisma.bidProject.findUnique.mockResolvedValue({ ...futureProject, procurementMethod: '邀请招标' });
+      prisma.announcement.findFirst.mockResolvedValue({ id: 'ann-1' }); // 即使存在存量公告亦不豁免
+      prisma.invitationRsvp = { findFirst: jest.fn().mockResolvedValue(null) };
+      prisma.bidSupplier.findFirst.mockResolvedValue(null);
+
+      await expect((service as any).assertCanSubmitBid('supplier-1', 'p1')).rejects.toMatchObject({
+        response: { code: 'INVITATION_REQUIRED' },
+      });
+    });
+
     it('直接采购·公告已发布·受邀（候选行）→ 放行投递', async () => {
       prisma.supplier.findUnique.mockResolvedValue(mockSupplier);
       prisma.bidProject.findUnique.mockResolvedValue({ ...futureProject, procurementMethod: '直接采购' });
@@ -1234,10 +1310,11 @@ describe('SupplierPortalService', () => {
       const finalQueries: any[] = [];
       prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
         finalQueries.push(where);
-        // top-level id.in 查询：受邀明细（bp-inv=谈判采购放行）与公开分支方式过滤（bp-doc/bp-ann=询比采购放行）
+        // top-level id.in 查询：受邀明细（bp-inv=邀请招标放行——2026-11-12 互换后邀请域）
+        // 与公开分支方式过滤（bp-doc/bp-ann=询比采购放行）
         if (where?.id?.in) {
           const known = [
-            { id: 'bp-inv', procurementMethod: '谈判采购', projectManagementItemId: null, projectCode: 'BID-INV' },
+            { id: 'bp-inv', procurementMethod: '邀请招标', projectManagementItemId: null, projectCode: 'BID-INV' },
             { id: 'bp-doc', procurementMethod: '询比采购' },
             { id: 'bp-ann', procurementMethod: '询比采购' },
           ];
@@ -1299,34 +1376,25 @@ describe('SupplierPortalService', () => {
       expect(scopeFilter).toBeDefined();
     });
 
-    it('listBidProjects：直接采购受邀供应商须等公告发布后才可见', async () => {
+    it('listBidProjects：直接采购受邀即显示（2026-11-12 流程互换推翻「须等公告」——互换后直接采购不发采购公告，无公告可等）', async () => {
       prisma.bidSupplier.findMany = jest.fn().mockResolvedValue([{ projectId: 'bp-direct' }]);
       prisma.bidDocument.findMany.mockResolvedValue([]);
-      let published: any[] = [];
-      prisma.announcement.findMany = jest.fn().mockImplementation(async () => published);
+      prisma.announcement.findMany = jest.fn().mockResolvedValue([]); // 公告未发布（互换后也不会发采购公告）
       prisma.projectManagementItem.findMany.mockResolvedValue([]);
       prisma.supplierBidSubmission.findMany.mockResolvedValue([]);
 
-      const runWithRoster = () => {
-        const listWheres: any[] = [];
-        prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
-          if (where?.OR) { listWheres.push(where); return []; }
-          if (where?.id?.in?.includes('bp-direct')) {
-            return [{ id: 'bp-direct', procurementMethod: '直接采购', projectManagementItemId: null, projectCode: 'ZJ-DIRECT-01' }];
-          }
-          return [];
-        });
-        prisma.bidProject.count.mockResolvedValue(0);
-        return service.listBidProjects(1, 20, {}, 'supplier-1').then(() => listWheres);
-      };
+      const listWheres: any[] = [];
+      prisma.bidProject.findMany.mockImplementation(async ({ where }: any) => {
+        if (where?.OR) { listWheres.push(where); return []; }
+        if (where?.id?.in?.includes('bp-direct')) {
+          return [{ id: 'bp-direct', procurementMethod: '直接采购', projectManagementItemId: null, projectCode: 'ZJ-DIRECT-01' }];
+        }
+        return [];
+      });
+      prisma.bidProject.count.mockResolvedValue(0);
 
-      // 公告未发布：受邀明细被门控（OR 分支不含 bp-direct → 或分支为空直接零返回）
-      let listWheres = await runWithRoster();
-      expect(listWheres.flatMap(w => w.OR ?? []).some((b: any) => b?.id?.in?.includes('bp-direct'))).toBe(false);
-
-      // 公告发布（内部编号直连）：受邀分支放行 bp-direct
-      published = [{ relatedProjectCode: 'ZJ-DIRECT-01' }];
-      listWheres = await runWithRoster();
+      await service.listBidProjects(1, 20, {}, 'supplier-1');
+      // 受邀分支不再被公告门控：确认参加（BidSupplier 行）即入可见集
       const invitedBranch = listWheres.flatMap(w => w.OR ?? []).find((b: any) => b?.id?.in?.includes('bp-direct'));
       expect(invitedBranch).toBeDefined();
       expect(invitedBranch!.stage).toEqual({ in: ['DOWNLOAD', 'SUBMIT'] });
