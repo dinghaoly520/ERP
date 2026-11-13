@@ -87,12 +87,11 @@ export class AnnouncementService {
     authorId?: string,
     companyStamp: { companyId?: string; companyName?: string } = {},
   ) {
+    // 摘要异步化（2026-11-13 生产实录：发布向导确认发布吃 504「15 秒代理超限」——同步
+    // LLM 摘要预算 90s 远超代理窗，而后端建行照常成功、用户重复点发布产重复公告）。
+    // 客户端直供摘要立即落库；缺省时建行返回后台补写（fire-and-forget，同 knowledge
+    // reindex 2026-11-11 异步化模式）——首页卡片摘要晚数十秒出现，不阻塞发布响应。
     const suppliedAi = this.sanitizeClientAiSummary(dto.aiSummary);
-    const aiSummary = suppliedAi ?? await this.announcementAi.summarize({
-      title: dto.title,
-      type: AnnouncementService.TYPE_LABELS[dto.type] ?? dto.type,
-      content: dto.content,
-    });
 
     const status = (dto.status as any) ?? 'DRAFT';
 
@@ -148,7 +147,7 @@ export class AnnouncementService {
         // 公司归属（写时快照）：管理端按公司隔离，公开端不受限
         companyId: companyStamp.companyId ?? null,
         companyName: companyStamp.companyName ?? null,
-        aiSummary,
+        ...(suppliedAi !== undefined && { aiSummary: suppliedAi }),
         type: dto.type as any,
         summary: dto.summary,
         publishDate: dto.publishDate ? new Date(dto.publishDate) : new Date(),
@@ -250,12 +249,37 @@ export class AnnouncementService {
         ? checkBidNoticeElements({ title: dto.title, content: dto.content, metadata: dto.metadata, relatedProjectCode: dto.relatedProjectCode })
         : [];
 
+    // 摘要后台补写（无直供时）——不阻塞响应，见 create 头注释；须置于
+    // isBidNoticePublish 的提前 return 之前（BID_NOTICE 发布走该分支，放后面永不触发）
+    if (suppliedAi === undefined) {
+      void this.backfillAiSummary(result.id, dto.title, dto.type, dto.content);
+    }
+
     if (isBidNoticePublish) {
       const detail = await this.get(result.id);
       return Object.assign(detail, { checklistWarnings });
     }
 
     return Object.assign(result, { checklistWarnings });
+  }
+
+  /** 摘要后台补写（2026-11-13）：LLM 慢（预算 90s）不挡发布/编辑响应——异步生成后回写；
+   * 公告已删（P2025）/LLM 失败静默留 null（下次编辑或详情页手动「生成摘要」可再触发）。 */
+  private async backfillAiSummary(id: string, title: string, rawType: string, content: string): Promise<void> {
+    try {
+      const summary = await this.announcementAi.summarize({
+        title,
+        type: AnnouncementService.TYPE_LABELS[rawType] ?? rawType,
+        content,
+      });
+      if (summary) {
+        await this.prisma.announcement
+          .update({ where: { id }, data: { aiSummary: summary } })
+          .catch(() => {/* 公告已删等写入失败无需留痕 */});
+      }
+    } catch (e) {
+      this.logger.warn(`公告 ${id} AI 摘要后台生成失败: ${(e as Error).message}`);
+    }
   }
 
   async list(
@@ -594,13 +618,13 @@ export class AnnouncementService {
     const title = dto.title ?? announcement.title;
     const type = dto.type ?? announcement.type;
     const content = dto.content ?? announcement.content;
+    // 摘要异步化（2026-11-13，同 create）：直供立即落库；标题/正文/类型变更需重生成时
+    // 保留旧摘要先返回、后台补写覆盖——不再同步 await LLM（曾穿 15s 代理窗致 504）
     const suppliedAi = this.sanitizeClientAiSummary(dto.aiSummary);
     const shouldRegenerateSummary = suppliedAi === undefined && (
       dto.title !== undefined || dto.content !== undefined || dto.type !== undefined
     );
-    const aiSummary = suppliedAi ?? (shouldRegenerateSummary
-      ? await this.announcementAi.summarize({ title, type: AnnouncementService.TYPE_LABELS[type] ?? type, content })
-      : undefined);
+    const aiSummary = suppliedAi;
 
     const targetStatus = dto.status ?? announcement.status;
     const isPublishTransition =
@@ -776,6 +800,12 @@ export class AnnouncementService {
           relatedProjectCode: dto.relatedProjectCode ?? announcement.relatedProjectCode,
         })
       : [];
+
+    // 摘要后台补写（标题/正文/类型变更且无直供时）——不阻塞响应，见 update 头注释；
+    // 置于 isBidNoticePublish 提前 return 之前（草稿转发布/定时发布走该分支）
+    if (shouldRegenerateSummary) {
+      void this.backfillAiSummary(id, title, type, content);
+    }
 
     if (isBidNoticePublish) {
       const detail = await this.get(id);

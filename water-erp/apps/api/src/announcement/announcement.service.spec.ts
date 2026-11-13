@@ -1660,7 +1660,12 @@ describe('AnnouncementService — 流标/中标公告公示期限直供与兜底
     await svc.create(dto('WIN_BID_NOTICE', { publicityEnd: chosen.toISOString() }), 'u1');
     const data = prisma.announcement.create.mock.calls[0][0].data;
     expect(data.publicityEnd?.getTime()).toBe(chosen.getTime());
-    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    // 摘要后台补写（2026-11-13 异步化）也会调 update（data.aiSummary）——本用例只断言
+    // 没有任何 update 写 publicityEnd（直供止点不被兜底顺延覆盖）
+    const publicityWrites = prisma.announcement.update.mock.calls.filter(
+      ([, args]: any[]) => args?.data && 'publicityEnd' in args.data,
+    );
+    expect(publicityWrites).toHaveLength(0);
   });
 
   it('流标公告：未直供发布 → 兜底顺延 3 日（与采购公告同口径）', async () => {

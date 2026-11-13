@@ -41,7 +41,9 @@ const UPSTREAM_SLOW_PATH_EXACT = [
 ];
 // 2026-11-09（慢路径审计·用户裁定）：动态 id 路径的同步 LLM 润色（/api/project-management/:id/attachment-ai-polish）
 // ——精确匹配不了带参路径，补后缀匹配层。
-const UPSTREAM_SLOW_PATH_SUFFIXES = ['/attachment-ai-polish'];
+// 2026-11-13：公告详情页手动「生成摘要」同族（/api/announcements/:id/generate-summary，
+// 同步 LLM 同预算）——公告创建/编辑的摘要已异步化不再挡响应，此为手动触发通道。
+const UPSTREAM_SLOW_PATH_SUFFIXES = ['/attachment-ai-polish', '/generate-summary'];
 // 2026-11-06（生产实录）：知识库上传 235MB 经门户 arrayBuffer 缓冲转发，body 传输逼近 15s
 // 临界带宽（~15MB/s）即被击穿 → API 侧 multer Request aborted——放大到 120s 覆盖大件传输窗。
 // 异步化（202）已消掉处理侧长等待，此窗口只需罩住 body 本身的搬运。
