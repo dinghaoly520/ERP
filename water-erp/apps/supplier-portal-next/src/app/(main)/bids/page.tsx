@@ -7,6 +7,7 @@ import { downloadNegotiationFilesGated, NegoPasswordDialog, type NegoFilesMeta }
 import dayjs from "dayjs";
 import {
   ArrowRight,
+  ChevronRight,
   ClipboardList,
   FileText,
   Search,
@@ -336,18 +337,20 @@ export default function BidListPage() {
                       </strong>
                       <CountdownTimer deadline={p.deadline} />
                     </div>
-                    {p.intentApplicable && (p.myIntent ? (
-                      <button type="button" className="neu-btn-xs row-action" disabled>已确认参与</button>
-                    ) : p.intentConfirmable ? (
-                      <button type="button" className="neu-btn-xs row-action" onClick={() => setIntentTarget(p)}>拟参与</button>
-                    ) : null)}
-                    <Link
-                      href={`/bids/${encodeURIComponent(p.id)}?from=list`}
-                      className="opportunity-detail-link neu-btn-xs row-action"
-                      aria-label={`查看项目 ${p.name}详情`}
-                    >
-                      详情<ArrowRight size={12} strokeWidth={1.75} className="ml-0.5" />
-                    </Link>
+                    <div className="row-actions">
+                      {p.intentApplicable && (p.myIntent ? (
+                        <button type="button" className="neu-btn-xs row-action" disabled>已确认参与</button>
+                      ) : p.intentConfirmable ? (
+                        <button type="button" className="neu-btn-xs row-action" onClick={() => setIntentTarget(p)}>拟参与</button>
+                      ) : null)}
+                      <Link
+                        href={`/bids/${encodeURIComponent(p.id)}?from=list`}
+                        className="opportunity-detail-link neu-btn-xs row-action"
+                        aria-label={`查看项目 ${p.name}详情`}
+                      >
+                        详情<ChevronRight size={13} strokeWidth={2} className="detail-chevron" aria-hidden="true" />
+                      </Link>
+                    </div>
                   </article>
                 );
               })}

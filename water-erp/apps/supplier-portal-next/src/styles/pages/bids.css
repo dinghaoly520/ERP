@@ -53,6 +53,23 @@
   outline-offset: 3px;
 }
 
+/* 行动作簇（2026-11-13）：拟参与 + 详情收拢为网格第三列的单一子项，右对齐、详情恒最右
+   ——此前意向按钮作为独立网格子项会溢出三列模板换行错位 */
+.row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+
+/* 详情箭头 — cgzxui chevron 语言（同 flow-back/announce-view-all）：hover/focus 右移微动效 */
+.opportunity-detail-link .detail-chevron {
+  margin-left: 1px;
+  transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.opportunity-detail-link:hover .detail-chevron,
+.opportunity-detail-link:focus-visible .detail-chevron {
+  transform: translateX(3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .opportunity-detail-link .detail-chevron { transition: none; }
+}
+
 /* Scope tag */
 .bid-tag {
   display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 4px;
@@ -105,6 +122,7 @@
 @media (max-width: 900px) {
   .opportunity-row { grid-template-columns: 1fr; }
   .row-deadline { padding-left: 0; border-left: 0; }
+  .row-actions { justify-content: flex-start; }
 }
 
 /* 手机端把项目行重排为单列摘要卡，保留截止时间、采购文件与详情入口。 */
