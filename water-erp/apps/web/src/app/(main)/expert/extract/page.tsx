@@ -2569,6 +2569,15 @@ export function ExpertExtractPage({
 
                 {preview.shortages.length > 0 && <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3 text-sm text-[var(--warning)]"><AlertTriangle size={16} className="inline mr-2" />专业候选人不足{preview.shortages.map(s => `：${s.specialty} 需${s.needed}人/仅${s.available}人`).join('')}</div>}
 
+                {/* 分层补位透明化（2026-11-13）：凑人优先裁定不变——本专业可用不足时按分层从其他专业
+                    补入，此处显式列出补入人员，避免「其他专业专家混入」无解释 */}
+                {(preview.backfills?.length ?? 0) > 0 && (
+                  <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-4 py-3 text-sm text-[var(--warning)]">
+                    <AlertTriangle size={16} className="inline mr-2" />
+                    以下 {preview.backfills!.length} 人为分层补位（配额专业可用候选不足，按同公司优先从其他专业补入）：{preview.backfills!.map(b => `${b.name}（配额 ${b.quota}·实际 ${b.actualSpecialty}）`).join('、')}。如需严格限定专业，请返回调整配额或公司后重新抽取。
+                  </div>
+                )}
+
                 {/* 抽取结果全信息表（2026-09-24 改版：表格式全量信息；配置已冻结不可回步骤1重抽（2026-11-02），个别调整走后续步骤补选，表内不提供单项添加/替换/移除） */}
                 <div className="neu-table-card p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-3">

@@ -95,6 +95,8 @@ export interface ExtractionPreview {
   selected: ExtractionSelected[];
   alternatives: ExtractionSelected[];
   shortages: { specialty: string; needed: number; available: number }[];
+  /** 分层补位明细（2026-11-13 透明化）：配额本专业可用不足时从其他专业补入的人员 */
+  backfills?: { quota: string; name: string; actualSpecialty: string }[];
   /** A-129：任一配额填了区域/等级过滤时返回（共享池按并集收窄；多值不一致时带 note 说明） */
   quotaFiltersApplied?: { regionCode: string[]; expertLevel: string[]; note?: string };
   suggestedLeaderId?: string | null;

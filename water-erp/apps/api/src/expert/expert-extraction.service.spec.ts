@@ -430,4 +430,36 @@ describe('ExpertExtractionService', () => {
       expect(prisma.$transaction).toHaveBeenCalled();
     });
   });
+
+  describe('previewExtraction（分层补位透明化，2026-11-13）', () => {
+    it('本专业可用不足→其他专业补位：选中人带补位理由，backfills 列出补位明细', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '测试项目', procurementMethod: '公开招标',
+        scope: '水利枢纽施工', qualification: '', qualityRequirement: '', riskNote: '', budget: null,
+        suppliers: [],
+      });
+      // 地质 1 人 + 施工 1 人（同公司）——配额要地质×2：第②层后仅 1 人，第③层补入施工
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', displayName: '地质甲', isActive: true, expertProfile: { specialty: '地质', availability: '可用', entryStatus: 'ACTIVE', title: '高工', employer: '设计院' }, bidExperts: [], _count: { bidExperts: 1 } },
+        { id: 'u2', displayName: '施工乙', isActive: true, expertProfile: { specialty: '施工', availability: '可用', entryStatus: 'ACTIVE', title: '工程师', employer: '设计院' }, bidExperts: [], _count: { bidExperts: 1 } },
+      ]);
+      prisma.expertEvaluation.groupBy = jest.fn().mockResolvedValue([]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      extractionAi.analyzeAndScore.mockRejectedValue(new Error('AI 不可用'));
+
+      const res = await service.previewExtraction('p1', {
+        projectId: 'p1', totalNeeded: 2, alternatives: 0, extractMode: 'random',
+        manualQuotas: [{ specialties: ['地质'], count: 2, companyIds: [] }],
+      } as never);
+
+      expect(res.selected).toHaveLength(2);
+      const backfilled = res.selected.find((s: any) => s.userId === 'u2');
+      expect(backfilled?.reason).toContain('分层补位');
+      expect(res.backfills).toEqual([
+        expect.objectContaining({ quota: '地质', name: '施工乙', actualSpecialty: '施工' }),
+      ]);
+    });
+  });
 });

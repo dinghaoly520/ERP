@@ -342,6 +342,9 @@ export class ExpertExtractionService {
     // 模式驱动抽取
     const selected: any[] = [];
     const shortages: { specialty: string; needed: number; available: number }[] = [];
+    // 分层补位明细（2026-11-13 透明化）：跨专业层（③/⑤）补入的人员——凑人优先裁定不变，
+    // 但结果显式列出，前端提示「配额可用不足已从其他专业补入」，不再悄无声息
+    const backfills: { quota: string; name: string; actualSpecialty: string }[] = [];
     const usedIds = new Set<string>();
 
     quotas.forEach((q, qi) => {
@@ -378,7 +381,12 @@ export class ExpertExtractionService {
         const drawn = this.drawByMode(lv, Math.min(q.count - drawnCount, lv.length), extractMode, scoreMap);
         for (const c of drawn) {
           usedIds.add(c.id); taken.add(c.id);
-          selected.push(this.toSelection(c, anySpecialty ? (c.specialty || '不限专业') : quotaLabel, '正选', scoreMap));
+          const sel = this.toSelection(c, anySpecialty ? (c.specialty || '不限专业') : quotaLabel, '正选', scoreMap);
+          if (!anySpecialty && !inBucket(c)) {
+            sel.reason = `${sel.reason ? sel.reason + '；' : ''}${quotaLabel}可用不足，分层补位（实际专业：${c.specialty || '—'}）`;
+            backfills.push({ quota: quotaLabel, name: c.displayName, actualSpecialty: c.specialty || '—' });
+          }
+          selected.push(sel);
         }
         drawnCount += drawn.length;
       }
@@ -441,6 +449,7 @@ export class ExpertExtractionService {
       model: engine === 'deepseek' ? process.env.DEEPSEEK_MODEL ?? 'deepseek-v4-flash' : 'WaterERP Rules Engine',
       extractMode,
       analysis,
+      backfills,
       requiredSpecialties: [
         ...quotas,
         ...employerQuotas.map(q => {
