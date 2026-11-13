@@ -4550,6 +4550,13 @@ export class BidService {
 
     const winner = project.evaluationResults.find(r => r.rank === 1);
     const candidates = project.evaluationResults.filter(r => r.recommended);
+    // #151b（#151 评审 F2）：全废标时 rank1 行是废标家——裸取会把废标家写成「预成交供应商」。
+    // 预成交公示的前提是有预成交对象：无合格首名（winner 缺席或未推荐）整份跳过，
+    // 不生成「预成交供应商：—」的无对象公示（同文件其余 rank1 检测点均有 recommended 守卫）。
+    if (!winner?.recommended) {
+      this.logger.warn(`项目 ${project.projectCode} 无合格预成交对象（全废标/首名未推荐），跳过预成交公示草稿`);
+      return;
+    }
 
     // A4: 中标价格从评标结果直接获取（不再通过 supplierName 模糊匹配开标记录）
     const winnerPrice = winner?.bidPrice ? String(winner.bidPrice) : null;

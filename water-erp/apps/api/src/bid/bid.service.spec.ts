@@ -2721,6 +2721,21 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
     prisma.announcement.create.mockRejectedValue(new Error('DB down'));
     await expect(service.archiveAll('p1', 'u1')).resolves.toBeDefined();
   });
+
+  it('#151b 全员废标（rank1 行废标未推荐）→ 跳过预成交公示草稿——不得把废标家写成预成交供应商', async () => {
+    prisma.bidProject.findUnique.mockImplementation(({ where }: any) =>
+      where?.id === 'p1'
+        ? Promise.resolve({
+            id: 'p1', projectCode: 'BID-1', stage: 'EVALUATING', name: '项目',
+            evaluationResults: [
+              { rank: 1, supplierName: '废标家甲', totalScore: 40, averageScore: 40, recommended: false },
+              { rank: 2, supplierName: '废标家乙', totalScore: 30, averageScore: 30, recommended: false },
+            ],
+          })
+        : Promise.resolve(null));
+    await service.archiveAll('p1', 'u1');
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
 });
 
 
