@@ -8,8 +8,10 @@ import { TimelineService } from './timeline.service';
  * 断言辅助 nodesOf() 取首轮节点（等价旧数组形态）。
  */
 describe('TimelineService（B3 A-204，按轮分组）', () => {
-  const mk = (pmi: any, bps: any[] = [], contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; rsvpRows?: any[]; packets?: any[]; assets?: any[] } = {}) => ({
+  const mk = (pmi: any, bps: any[] = [], contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; rsvpRows?: any[]; packets?: any[]; assets?: any[]; extractStamps?: string[] } = {}) => ({
     projectManagementItem: { findUnique: jest.fn().mockResolvedValue(pmi) },
+    // 专家抽取落戳（2026-11-13）：默认无戳=未登记；用例可经 extractStamps 注入
+    systemConfig: { findMany: jest.fn().mockResolvedValue((opts.extractStamps ?? []).map((v: string) => ({ key: v.split('|')[0], value: JSON.stringify({ at: v.split('|')[1] }) }))) },
     // 单次 findMany 取全部轮次 BidProject（round/projectCode/deadline/openTime/createdAt）
     bidProject: { findMany: jest.fn().mockResolvedValue(bps) },
     contract: { findFirst: jest.fn().mockResolvedValue(contract) },
@@ -48,7 +50,7 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     );
     const nodes = await nodesOf(prisma);
     expect(nodes.map(n => n.key)).toEqual([
-      'initiation', 'bidNoticePublish', 'documentAcquire', 'bidDeadline', 'bidOpening', 'evaluationEnd',
+      'initiation', 'bidNoticePublish', 'documentAcquire', 'bidDeadline', 'expertExtraction', 'bidOpening', 'evaluationEnd',
       'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived',
     ]);
     expect(nodes.every(n => n.label && n.source)).toBe(true);
@@ -65,7 +67,7 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     );
     const nodes = await nodesOf(prisma);
     // BP.deadline 未登记但有开标时间 → 投标截止按开标前间隔常量（10 分钟）自动推算，不再显示未登记
-    expect(nodes.filter(n => n.time).map(n => n.key)).toEqual(['initiation', 'bidDeadline', 'bidOpening']);
+    expect(nodes.filter(n => n.time).map(n => n.key)).toEqual(['initiation', 'bidDeadline', 'bidOpening']); // 未落戳的 expertExtraction 不在有时间集合中
     // Prisma DateTime 为 instant 锚定（timestamp without tz 由驱动按 UTC 读写）——
     // 时间轴 ISO 输出必须恒等。此前 toIsoFromBare 按「DB 裸值=本地时刻」假设 −8h 补偿，
     // 与写侧本地构造口径双重折算：立项 2026-10-08 显示成 10-07 16:00（2026-10-09 实录）
@@ -77,7 +79,7 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe(`按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）`);
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - BID_DEADLINE_BEFORE_OPENING_MS).getTime());
-    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'evaluationEnd', 'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived']);
+    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'expertExtraction', 'evaluationEnd', 'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived']);
   });
 
   it('兜底：立项缺 initiationDate → 建档时刻；合同缺 Contract 记录 → CONTRACT 阶段完成时刻', async () => {
