@@ -352,7 +352,15 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
     listAttachments(ann.id).then(setAttachments).catch(() => {});
     if (ann.type === 'BID_NOTICE' || ann.type === 'ADDENDUM') getBidDocument(ann.id).then(setBidDoc).catch(() => setBidDoc(null));
     // 投标情况：与公告列表「投标情况」同源同步（下载采购文件 ∪ 登记投标的供应商）
-    if (ann.type === 'BID_NOTICE') getParticipants(ann.id).then(setParticipants).catch(() => setParticipants(null));
+    // 30s 轮询 + 回前台即时刷新（2026-11-13，同列表弹窗口径）：供应商侧确认意向/下载/投递自动跟进
+    if (ann.type === 'BID_NOTICE') {
+      const loadParticipants = () => getParticipants(ann.id).then(setParticipants).catch(() => {});
+      loadParticipants();
+      const timer = setInterval(loadParticipants, 30_000);
+      const onVisible = () => { if (document.visibilityState === 'visible') loadParticipants(); };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+    }
   }, [ann.id, ann.type]);
 
   const aiSummary = localAiSummary ?? ann.aiSummary;

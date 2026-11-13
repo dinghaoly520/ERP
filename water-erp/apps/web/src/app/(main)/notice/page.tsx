@@ -581,12 +581,23 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
   const [result, setResult] = useState<ParticipantsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const loadReqIdRef = useRef(0); // R7 终审：接上守卫（此前声明未用）
+  const loadedOnceRef = useRef(false);
   useEffect(() => {
-    const rid = ++loadReqIdRef.current;
-    getParticipants(announcement.id)
-      .then(r => { if (rid === loadReqIdRef.current) setResult(r); })
-      .catch(() => { if (rid === loadReqIdRef.current) setResult(null); })
-      .finally(() => { if (rid === loadReqIdRef.current) setLoading(false); });
+    loadedOnceRef.current = false;
+    const load = () => {
+      const rid = ++loadReqIdRef.current;
+      getParticipants(announcement.id)
+        .then(r => { if (rid === loadReqIdRef.current) { setResult(r); loadedOnceRef.current = true; } })
+        // 轮询期失败保留最近数据（:3007 任务板同款）；仅首拉失败才落「加载失败」态
+        .catch(() => { if (rid === loadReqIdRef.current && !loadedOnceRef.current) setResult(null); })
+        .finally(() => { if (rid === loadReqIdRef.current) setLoading(false); });
+    };
+    load();
+    // 30s 轮询 + 回前台即时刷新（2026-11-13）：供应商侧确认意向/下载/投递后本弹窗自动跟进，无需手动刷新
+    const timer = setInterval(load, 30_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
   }, [announcement.id]);
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
   const downloadCount = result?.suppliers.filter(s => s.downloadCount > 0).length ?? 0;

@@ -681,19 +681,28 @@ export function ProjectDetailPanel({
       .catch(() => setProjectAttributions([]));
   }, []);
 
-  // 供应商参与：拉取公告自动收集的参与供应商（下载采购文件 ∪ 登记的项目供应商）。
+  // 供应商参与：拉取公告自动收集的参与供应商（下载采购文件 ∪ 登记的项目供应商 ∪ 确认意向）。
   // 发布公告的方式（询比/谈判/竞价）拉「参与的供应商」；邀请类（邀请招标/直接采购）
   // 走「邀请的供应商」手动维护，不覆盖（2026-11-12 流程互换）。
+  // 30s 轮询 + 回前台即时刷新（2026-11-13，同公告投标情况口径）：供应商确认意向后此处自动跟进
   useEffect(() => {
     setParticipantNames(null);
     if (!item?.projectCode || ['邀请招标', '直接采购'].includes(item.procurementMethod)) return;
     let alive = true;
-    getProjectParticipants(item.projectCode)
+    const loadParticipants = () => getProjectParticipants(item.projectCode!)
       .then((r) => {
         if (alive) setParticipantNames(r.suppliers.length > 0 ? r.suppliers.map((s) => s.supplierName).join('、') : null);
       })
       .catch(() => undefined); // 拉取失败静默回落手动值，不阻塞详情
-    return () => { alive = false; };
+    loadParticipants();
+    const timer = setInterval(loadParticipants, 30_000);
+    const onVisible = () => { if (document.visibilityState === 'visible') loadParticipants(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [item?.projectCode, item?.procurementMethod]);
 
   const filteredAttributions = projectAttributions.filter((attr) =>
