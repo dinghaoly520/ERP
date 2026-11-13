@@ -27,6 +27,9 @@ export interface TimelineNode {
   time: string | null; // ISO；null=尚未发生/未登记
   timeEnd?: string | null; // ISO；区间类节点（采购文件获取）的结束时刻
   source: string; // 来源模块（展示用）
+  tone?: 'danger'; // 红色警示节点（2026-11-13：资料变更）
+  /** 组合子项（2026-11-13：供应商参与=拟参与/回执+下载+投递合为一个整体） */
+  group?: { label: string; count: number; time: string | null }[];
 }
 
 /**
@@ -210,6 +213,73 @@ export class TimelineService {
       }
     }
 
+    // 供应商参与组合节点（2026-11-13 用户裁定：拟参与/回执、下载采购文件、提交标书合为一个整体）
+    // 两轨去重计数（意向优先，同 no-show 口径）；下载取 BidSupplier.lastDownloadAt、投递取
+    // SupplierBidSubmission.createdAt；各子项=家数+最近一次时刻；三源全空则整节点不出现
+    const bpIds0 = allBps.map((b) => b.id);
+    const [intents0, rsvps0, bidSups0, subs0, letters0, changes0] = await Promise.all([
+      bpIds0.length ? this.prisma.supplierBidIntent.findMany({
+        where: { projectId: { in: bpIds0 } }, select: { projectId: true, supplierId: true, confirmedAt: true },
+      }) : Promise.resolve([] as never[]),
+      this.prisma.invitationRsvp.findMany({
+        where: { projectId: { in: [pmiId, ...bpIds0] }, respondedAt: { not: null } },
+        select: { projectId: true, supplierId: true, respondedAt: true },
+      }),
+      bpIds0.length ? this.prisma.bidSupplier.findMany({
+        where: { projectId: { in: bpIds0 }, lastDownloadAt: { not: null } },
+        select: { projectId: true, lastDownloadAt: true },
+      }) : Promise.resolve([] as never[]),
+      bpIds0.length ? this.prisma.supplierBidSubmission.findMany({
+        where: { projectId: { in: bpIds0 } }, select: { projectId: true, createdAt: true },
+      }) : Promise.resolve([] as never[]),
+      bpIds0.length ? this.prisma.awardLetterDelivery.findMany({
+        where: { projectId: { in: bpIds0 } }, select: { projectId: true, deliveredAt: true, createdAt: true },
+      }) : Promise.resolve([] as never[]),
+      this.prisma.projectChangeRecord.findMany({
+        where: { projectManagementItemId: pmiId, type: 'CHANGE' }, select: { createdAt: true, type: true },
+      }),
+    ]);
+    const bpRoundOf = (pid: string | null): number =>
+      pid === pmiId || pid == null ? 1 : (allBps.find((b) => b.id === pid)?.round ?? 1);
+    const activityByRound = new Map<number, { suppliers: Set<string>; latest: string; dl: { n: number; t: string }; sb: { n: number; t: string } }>();
+    const touch = (r: number) => {
+      if (!activityByRound.has(r)) activityByRound.set(r, { suppliers: new Set(), latest: '', dl: { n: 0, t: '' }, sb: { n: 0, t: '' } });
+      return activityByRound.get(r)!;
+    };
+    const maxIso = (a: string, b: string) => (a >= b ? a : b);
+    for (const x of intents0 as Array<{ projectId: string; supplierId: string; confirmedAt: Date }>) {
+      const a = touch(bpRoundOf(x.projectId));
+      a.suppliers.add(x.supplierId);
+      a.latest = maxIso(a.latest, toIso(x.confirmedAt) ?? '');
+    }
+    for (const x of rsvps0 as Array<{ projectId: string | null; supplierId: string; respondedAt: Date | null }>) {
+      const a = touch(bpRoundOf(x.projectId));
+      a.suppliers.add(x.supplierId);
+      a.latest = maxIso(a.latest, toIso(x.respondedAt) ?? '');
+    }
+    for (const x of bidSups0 as Array<{ projectId: string; lastDownloadAt: Date | null }>) {
+      const a = touch(bpRoundOf(x.projectId));
+      if (x.lastDownloadAt) { a.dl.n += 1; a.dl.t = maxIso(a.dl.t, toIso(x.lastDownloadAt) ?? ''); }
+    }
+    for (const x of subs0 as Array<{ projectId: string; createdAt: Date }>) {
+      const a = touch(bpRoundOf(x.projectId));
+      a.sb.n += 1;
+      a.sb.t = maxIso(a.sb.t, toIso(x.createdAt) ?? '');
+    }
+    // 中标通知书发布（按轮）：deliveredAt 优先、缺则 createdAt 取最早一条（首次送达即发布）
+    const awardLetterByRound = new Map<number, string>();
+    for (const x of letters0 as Array<{ projectId: string; deliveredAt: Date | null; createdAt: Date }>) {
+      const t = toIso(x.deliveredAt ?? x.createdAt);
+      if (!t) continue;
+      const r = bpRoundOf(x.projectId);
+      const prev = awardLetterByRound.get(r);
+      if (!prev || t < prev) awardLetterByRound.set(r, t);
+    }
+    // 资料变更（项目级红色置顶，2026-11-13）：最近一次 CHANGE；补遗（ADDENDUM）不计；无记录不显示
+    const dataChangeAt = (changes0 as Array<{ createdAt: Date; type?: string }>)
+      .filter((c) => c.type === undefined || c.type === 'CHANGE') // 双保险：select 未含 type（真查询）恒过，全行 mock 再滤补遗
+      .reduce<string>((m, c) => maxIso(m, toIso(c.createdAt) ?? ''), '') || null;
+
     // 合同签订：合同登记优先，缺则 CONTRACT 阶段完成兜底（均为项目级 → 末轮）
     const contract = await this.prisma.contract.findFirst({
       where: { projectManagementItemId: pmiId },
@@ -253,11 +323,13 @@ export class TimelineService {
         ...(isLast
           ? [{ key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' } as TimelineNode]
           : []),
+        { key: 'supplierActivity', label: '供应商参与', time: null, source: '供应商参与' } as TimelineNode,
         { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
         { key: 'expertExtraction', label: '专家抽取', time: extractStampByRound.get(r) ?? null, source: '专家抽取' },
         { key: 'bidOpening', label: '开标', time: openingIso, source: '招标项目' },
         { key: 'evaluationEnd', label: '评标结束', time: evalEndByRound.get(r) || null, source: '评标回流包' },
         { key: 'winNoticePublish', label: '中标公告发布', time: publishTimeOf(r, ['WIN_BID_NOTICE', 'PRE_WIN_NOTICE', 'WIN_NOTICE']), source: '公告' },
+        { key: 'awardLetter', label: '中标通知书发布', time: awardLetterByRound.get(r) ?? null, source: '中标通知书' },
         { key: 'failedNoticePublish', label: '流标公告发布', time: publishTimeOf(r, ['FAILED_BID_NOTICE']), source: '公告' },
         ...(isLast
           ? [
@@ -266,6 +338,29 @@ export class TimelineService {
             ]
           : []),
       ];
+      // 供应商参与：注入组合子项（time=三源最近时刻；全空则整节点移除）
+      {
+        const a = activityByRound.get(r);
+        const hasA = a && (a.suppliers.size > 0 || a.dl.n > 0 || a.sb.n > 0);
+        const idx = nodes.findIndex((n) => n.key === 'supplierActivity');
+        if (hasA && a) {
+          const latestAll = [a.latest, a.dl.t, a.sb.t].filter(Boolean).sort().pop() ?? null;
+          nodes[idx] = {
+            key: 'supplierActivity', label: '供应商参与', time: latestAll, source: '供应商参与',
+            group: [
+              { label: '拟参与/回执', count: a.suppliers.size, time: a.latest || null },
+              { label: '下载采购文件', count: a.dl.n, time: a.dl.t || null },
+              { label: '提交标书', count: a.sb.n, time: a.sb.t || null },
+            ],
+          };
+        } else if (idx >= 0) {
+          nodes.splice(idx, 1);
+        }
+      }
+      // 资料变更：项目级红色置顶（首轮列表最前；无记录不显示）
+      if (r === roundList[0] && dataChangeAt) {
+        nodes.unshift({ key: 'dataChange', label: '资料变更', time: dataChangeAt, source: '变更登记', tone: 'danger' });
+      }
       return { round: r, nodes };
     });
 

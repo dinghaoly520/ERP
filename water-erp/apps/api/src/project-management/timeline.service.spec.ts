@@ -8,8 +8,16 @@ import { TimelineService } from './timeline.service';
  * 断言辅助 nodesOf() 取首轮节点（等价旧数组形态）。
  */
 describe('TimelineService（B3 A-204，按轮分组）', () => {
-  const mk = (pmi: any, bps: any[] = [], contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; rsvpRows?: any[]; packets?: any[]; assets?: any[]; extractStamps?: string[] } = {}) => ({
+  const mk = (pmi: any, bps: any[] = [], contract: any = null, stage: any = null, published: any[] = [], opts: { hasPublicStage?: boolean | null; rsvpRows?: any[]; packets?: any[]; assets?: any[]; extractStamps?: string[]; intents?: any[]; rsvpAll?: any[]; bidSuppliers?: any[]; submissions?: any[]; awardLetters?: any[]; changeRecords?: any[] } = {}) => ({
     projectManagementItem: { findUnique: jest.fn().mockResolvedValue(pmi) },
+    // 供应商参与组合节点（2026-11-13）：意向/回执/下载/投递四源，用例经 opts 注入
+    supplierBidIntent: { findMany: jest.fn().mockResolvedValue(opts.intents ?? []) },
+    bidSupplier: { findMany: jest.fn().mockResolvedValue(opts.bidSuppliers ?? []) },
+    supplierBidSubmission: { findMany: jest.fn().mockResolvedValue(opts.submissions ?? []) },
+    // 中标通知书发布（2026-11-13）：AwardLetterDelivery 推送时刻
+    awardLetterDelivery: { findMany: jest.fn().mockResolvedValue(opts.awardLetters ?? []) },
+    // 资料变更（2026-11-13，红色置顶）：CHANGE 记录（补遗不计）
+    projectChangeRecord: { findMany: jest.fn().mockResolvedValue(opts.changeRecords ?? []) },
     // 专家抽取落戳（2026-11-13）：默认无戳=未登记；用例可经 extractStamps 注入
     systemConfig: { findMany: jest.fn().mockResolvedValue((opts.extractStamps ?? []).map((v: string) => ({ key: v.split('|')[0], value: JSON.stringify({ at: v.split('|')[1] }) }))) },
     // 单次 findMany 取全部轮次 BidProject（round/projectCode/deadline/openTime/createdAt）
@@ -25,7 +33,8 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
         : stage) },
     announcement: { findMany: jest.fn().mockResolvedValue(published) },
     // 供应商邀请按轮：一次拉全量行，内存按 projectId 归轮
-    invitationRsvp: { findMany: jest.fn().mockResolvedValue(opts.rsvpRows ?? []) },
+    // invitationRsvp 双消费：供应商邀请（rsvpRows）与参与组合（rsvpAll）共用 mock
+    invitationRsvp: { findMany: jest.fn().mockResolvedValue(opts.rsvpAll ?? opts.rsvpRows ?? []) },
   });
 
   const nodesOf = async (prisma: any, pmiId = 'pmi-1') => {
@@ -51,7 +60,7 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     const nodes = await nodesOf(prisma);
     expect(nodes.map(n => n.key)).toEqual([
       'initiation', 'bidNoticePublish', 'documentAcquire', 'bidDeadline', 'expertExtraction', 'bidOpening', 'evaluationEnd',
-      'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived',
+      'winNoticePublish', 'awardLetter', 'failedNoticePublish', 'contractSign', 'archived',
     ]);
     expect(nodes.every(n => n.label && n.source)).toBe(true);
   });
@@ -79,7 +88,7 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe(`按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）`);
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - BID_DEADLINE_BEFORE_OPENING_MS).getTime());
-    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'expertExtraction', 'evaluationEnd', 'winNoticePublish', 'failedNoticePublish', 'contractSign', 'archived']);
+    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'expertExtraction', 'evaluationEnd', 'winNoticePublish', 'awardLetter', 'failedNoticePublish', 'contractSign', 'archived']);
   });
 
   it('兜底：立项缺 initiationDate → 建档时刻；合同缺 Contract 记录 → CONTRACT 阶段完成时刻', async () => {
@@ -358,4 +367,61 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     const tl = await new TimelineService(prisma as any).getTimeline('pmi-p');
     expect(tl.rounds[0].nodes.find(n => n.key === 'evaluationEnd')!.time).toMatch(/^2026-10-24/);
   });
+  describe('新增节点（2026-11-13 二轮：供应商参与组合/中标通知书/资料变更）', () => {
+    const basePmi = { id: 'pmi-1', initiationDate: new Date('2026-03-18') };
+    const baseBps = [{ id: 'bp-1', round: 1, createdAt: new Date('2026-11-01') }];
+
+    it('供应商参与=一个组合节点：位于采购文件获取后、投标截止前；三行子项=两轨去重计数+各最近时刻', async () => {
+      const prisma = mk(basePmi, baseBps, null, null, [], {
+        intents: [{ projectId: 'bp-1', supplierId: 's1', confirmedAt: new Date('2026-11-13T09:00:00Z') }],
+        rsvpAll: [{ projectId: 'bp-1', supplierId: 's1', respondedAt: new Date('2026-11-13T08:00:00Z') }, // 与意向同家去重
+                  { projectId: 'bp-1', supplierId: 's2', respondedAt: new Date('2026-11-14T10:00:00Z') }],
+        bidSuppliers: [{ projectId: 'bp-1', lastDownloadAt: new Date('2026-11-15T09:00:00Z') }, { projectId: 'bp-1', lastDownloadAt: null }],
+        submissions: [{ projectId: 'bp-1', supplierId: 's2', createdAt: new Date('2026-11-20T16:00:00Z') }],
+      });
+      const nodes = await nodesOf(prisma);
+      const g = nodes.find(n => n.key === 'supplierActivity');
+      expect(g?.label).toBe('供应商参与');
+      expect(g?.group).toEqual([
+        { label: '拟参与/回执', count: 2, time: new Date('2026-11-14T10:00:00Z').toISOString() },
+        { label: '下载采购文件', count: 1, time: new Date('2026-11-15T09:00:00Z').toISOString() },
+        { label: '提交标书', count: 1, time: new Date('2026-11-20T16:00:00Z').toISOString() },
+      ]);
+      const acq = nodes.findIndex(n => n.key === 'documentAcquire');
+      const dl = nodes.findIndex(n => n.key === 'bidDeadline');
+      expect(nodes.findIndex(n => n.key === 'supplierActivity')).toBeGreaterThan(acq);
+      expect(nodes.findIndex(n => n.key === 'supplierActivity')).toBeLessThan(dl);
+      // 全空 → 组合节点不出现
+      const empty = await nodesOf(mk(basePmi, baseBps));
+      expect(empty.some(n => n.key === 'supplierActivity')).toBe(false);
+    });
+
+    it('中标通知书发布：取该轮 AwardLetterDelivery.deliveredAt（缺则 createdAt），位于中标公告发布之后', async () => {
+      const prisma = mk(basePmi, baseBps, null, null, [], {
+        awardLetters: [{ projectId: 'bp-1', deliveredAt: new Date('2026-12-05T09:30:00Z'), createdAt: new Date('2026-12-05T09:00:00Z') }],
+      });
+      const nodes = await nodesOf(prisma);
+      const winIdx = nodes.findIndex(n => n.key === 'winNoticePublish');
+      const letter = nodes.find(n => n.key === 'awardLetter');
+      expect(letter?.time).toBe(new Date('2026-12-05T09:30:00Z').toISOString());
+      expect(letter?.label).toBe('中标通知书发布');
+      expect(nodes.findIndex(n => n.key === 'awardLetter')).toBe(winIdx + 1);
+    });
+
+    it('资料变更：有 CHANGE 记录 → 首节点 dataChange 红色（tone=danger）时间为最近一次；补遗不计；无记录不显示', async () => {
+      const withChange = mk(basePmi, baseBps, null, null, [], {
+        changeRecords: [
+          { type: 'CHANGE', createdAt: new Date('2026-11-12T08:00:00Z') },
+          { type: 'CHANGE', createdAt: new Date('2026-11-13T10:00:00Z') },
+          { type: 'ADDENDUM', createdAt: new Date('2026-11-14T10:00:00Z') },
+        ],
+      });
+      const nodes = await nodesOf(withChange);
+      expect(nodes[0]).toMatchObject({ key: 'dataChange', label: '资料变更', tone: 'danger', time: new Date('2026-11-13T10:00:00Z').toISOString() });
+
+      const none = await nodesOf(mk(basePmi, baseBps));
+      expect(none.some(n => n.key === 'dataChange')).toBe(false);
+    });
+  });
+
 });

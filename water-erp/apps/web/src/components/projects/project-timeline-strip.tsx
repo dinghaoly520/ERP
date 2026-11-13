@@ -15,7 +15,11 @@ import { apiFetch } from '@/lib/api/api-fetch';
  * 每轮一行完整十节点轴（当前轮高亮「当前」徽标）；单轮项目保持原单行形态。
  */
 
-type TimelineNode = { key: string; label: string; time: string | null; timeEnd?: string | null; source: string };
+type TimelineNode = {
+  key: string; label: string; time: string | null; timeEnd?: string | null; source: string;
+  tone?: 'danger'; // 红色警示节点（2026-11-13：资料变更）
+  group?: { label: string; count: number; time: string | null }[]; // 组合子项（供应商参与）
+};
 type TimelineRound = { round: number; nodes: TimelineNode[] };
 type TimelineData = { rounds: TimelineRound[]; currentRound: number };
 
@@ -91,15 +95,21 @@ export function ProjectTimelineStrip({ pmiId, refreshKey = 0 }: { pmiId: string;
               {i > 0 && <span className="text-[color:var(--muted-foreground)]/40">·</span>}
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${
-                  n.time
+                  n.tone === 'danger'
+                    ? 'bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[var(--danger)] font-semibold'
+                    : n.time
                     ? 'bg-white text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/0.9),1px_1px_3px_oklch(0.55_0.03_258/0.12),-1px_-1px_2px_oklch(1_0_0/0.85)]'
                     : 'text-[color:var(--muted-foreground)]/60'
                 }`}
-                title={`${n.label}（来源：${n.source}）`}
+                title={`${n.label}（来源：${n.source}）${n.group ? '：' + n.group.map(g => `${g.label} ${g.count} 家${g.time ? '，最近 ' + g.time : ''}`).join('；') : ''}`}
               >
-                <span className={`h-1 w-1 rounded-full ${n.time ? 'bg-[var(--accent)]' : 'bg-[color:var(--muted-foreground)]/40'}`} />
+                <span className={`h-1 w-1 rounded-full ${n.tone === 'danger' ? 'bg-[var(--danger)]' : n.time ? 'bg-[var(--accent)]' : 'bg-[color:var(--muted-foreground)]/40'}`} />
                 {n.label}
-                <span className="font-mono tabular-nums">{fmtNode(n)}</span>
+                {n.group ? (
+                  <span className="font-mono tabular-nums">{n.group.map(g => g.count).join('/')} 家</span>
+                ) : (
+                  <span className="font-mono tabular-nums">{fmtNode(n)}</span>
+                )}
               </span>
             </span>
           ))}
