@@ -524,7 +524,7 @@ function BidDetailInner() {
                   {project.intentApplicable && (project.intentConfirmable || myIntentConfirmedAt) && (
                     <button
                       type="button"
-                      className="neu-btn-soft"
+                      className={`neu-btn-soft${myIntentConfirmedAt ? "" : " intent-cta"}`}
                       disabled={!!myIntentConfirmedAt}
                       onClick={() => { intentThenSubmitRef.current = false; setIntentOpen(true); }}
                     >

@@ -341,7 +341,7 @@ export default function BidListPage() {
                       {p.intentApplicable && (p.myIntent ? (
                         <button type="button" className="neu-btn-xs row-action" disabled>已确认参与</button>
                       ) : p.intentConfirmable ? (
-                        <button type="button" className="neu-btn-xs row-action" onClick={() => setIntentTarget(p)}>拟参与</button>
+                        <button type="button" className="neu-btn-xs row-action intent-cta" onClick={() => setIntentTarget(p)}>拟参与</button>
                       ) : null)}
                       <Link
                         href={`/bids/${encodeURIComponent(p.id)}?from=list`}

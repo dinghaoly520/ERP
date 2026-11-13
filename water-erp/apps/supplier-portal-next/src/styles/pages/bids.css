@@ -57,6 +57,14 @@
    ——此前意向按钮作为独立网格子项会溢出三列模板换行错位 */
 .row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 
+/* 拟参与 CTA（2026-11-13 用户裁定）：红字加粗（danger token，hover 保红）——
+   仅作用于可操作态；「已确认参与」禁用态保持常规 */
+.neu-btn-xs.intent-cta, .neu-btn-soft.intent-cta,
+.neu-btn-xs.intent-cta:hover, .neu-btn-soft.intent-cta:hover {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 /* 详情箭头 — cgzxui chevron 语言（同 flow-back/announce-view-all）：hover/focus 右移微动效 */
 .opportunity-detail-link .detail-chevron {
   margin-left: 1px;
