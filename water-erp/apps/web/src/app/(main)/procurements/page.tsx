@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { StatusBadge as WbStatusBadge } from "@/components/workbench"; // 别名避开本页台账结果 StatusBadge
 import { SasacExtractModal } from "@/components/procurements/sasac-extract-modal";
-import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
+import { ProjectTimelineDialog } from "@/components/projects/project-timeline-dialog";
+import { ExpertInfoField, BiddingUnitsField } from "@/components/projects/project-roster-fields";
+import { Clock3 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -336,6 +338,8 @@ function LedgerRow({
   /** admin 或 PMI 属主（后端 assertItemScope 同口径）——显示「归档卷」按钮 */
   canManageVolume?: boolean;
 }) {
+  // 时间轴弹窗（2026-11-16 统一：与项目管理同款按钮+弹窗，替原内嵌横条）
+  const [timelineOpen, setTimelineOpen] = useState(false);
   const formatDate = (date: string | null) => {
     if (!date) return "-";
     const d = new Date(date);
@@ -544,54 +548,32 @@ function LedgerRow({
                 公告发布为最后一次发布口径）；条目自带「时间轴」前缀标签，失败静默灰显占位 */}
             {item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && (
               <div className="mt-2.5">
-                <ProjectTimelineStrip pmiId={item.projectManagementId} />
+                <button
+                  type="button"
+                  onClick={() => setTimelineOpen(true)}
+                  className="neu-btn-soft !h-[32px] !text-xs"
+                >
+                  <Clock3 size={14} />时间轴
+                </button>
+                <ProjectTimelineDialog
+                  open={timelineOpen}
+                  onClose={() => setTimelineOpen(false)}
+                  pmiId={item.projectManagementId}
+                />
               </div>
             )}
 
-            {/* 专家信息 - 项目管理来源 */}
+            {/* 评审专家名单（2026-11-16 统一：与项目管理同款只读名册表——组长皇冠/正选候补徽标） */}
             {item.sourceType === "PROJECT_MANAGEMENT" && item.expertInfo && (
               <div className="mt-2.5">
-                <div className="text-[10px] font-semibold text-[rgba(119,129,219,0.8)] uppercase tracking-wide">专家信息</div>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {item.expertInfo.split('\n').filter(Boolean).map((expertLine, i) => {
-                    const parts = expertLine.split('|');
-                    const name = parts[0] || '';
-                    const department = parts[1] || '';
-                    const specialty = parts[2] || '';
-                    const title = parts[3] || '';
-                    const hasDetails = department || specialty || title;
-                    return (
-                      <span
-                        key={i}
-                        className="group relative inline-flex items-center rounded-[6px] bg-[rgba(119,129,219,0.08)] px-2.5 py-1 text-[11px] text-[rgba(119,129,219,1)] cursor-default"
-                      >
-                        {name}
-                        {hasDetails && (
-                          <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 w-max max-w-[250px] rounded-[8px] bg-[rgba(50,50,60,0.95)] px-3 py-2 text-[10px] text-white shadow-lg">
-                            <div className="font-medium mb-1">{name}</div>
-                            {department && <div>部门：{department}</div>}
-                            {specialty && <div>专业：{specialty}</div>}
-                            {title && <div>职称：{title}</div>}
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
+                <ExpertInfoField value={item.expertInfo} />
               </div>
             )}
 
-            {/* 投标单位 - 项目管理来源 */}
+            {/* 参与供应商（2026-11-16 统一：与项目管理同款名单列表） */}
             {item.sourceType === "PROJECT_MANAGEMENT" && item.biddingUnits && (
               <div className="mt-2.5">
-                <div className="text-[10px] font-semibold text-[color:var(--muted-foreground)] uppercase tracking-wide">投标单位</div>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {item.biddingUnits.split(/[、,\n]/).filter(u => u.trim()).map((unit, i) => (
-                    <span key={i} className="rounded-[6px] bg-[rgba(96,139,239,0.08)] px-2.5 py-1 text-[11px] text-[color:var(--muted-foreground)]">
-                      {unit.trim()}
-                    </span>
-                  ))}
-                </div>
+                <BiddingUnitsField label="参与的供应商" value={item.biddingUnits} />
               </div>
             )}
 
