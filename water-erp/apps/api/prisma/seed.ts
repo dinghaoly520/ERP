@@ -14,9 +14,9 @@
  *   seed 直接写回库中真实的 bcrypt 口令哈希；常用演示账号口令沿用 `<用户名>@2026`（见下方输出）。
  *   评审专家例外：seed 末尾会把用户名重置为专家姓名、口令置为身份证号（R2 2026-09-18；档案缺 idNumber 回退 `expert@2026`）。
  *
- * 注意
- *   `ProcurementProject.json` 为空——导出快照前该表数据已被一次失败的 seed 清空且未能恢复，
- *   如需采购立项演示数据，请重新创建后重跑 dump。
+ * 注意（2026-11-16 快照瘦身裁定）
+ *   业务演示数据（公告/投标项目/进度/评审/通知/工作安排等）已全部移出快照——
+ *   种子只保留「账号 + 供应商 + 专家」基础库，重灌后业务面为空库起步、从零积累。
  *
  * 生产保护
  *   NODE_ENV=production 下默认拒绝执行（避免再次误清生产数据）；
@@ -24,22 +24,13 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { SASAC_UNITS } from '@water-erp/shared';
-import { readFileSync, mkdirSync, writeFileSync, chmodSync, statSync } from 'node:fs';
-import { execSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { readFileSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { join } from 'node:path';
 import { hashSync } from 'bcryptjs';
-import { encryptPasswordVault } from '../src/auth/password-vault.util';
 import { GbCodeService } from '../src/common/gb-code.service';
 import { backfillGbCodes } from '../src/common/gb-code.backfill';
 import { sealPii, openPii, blindIndexPii } from '../src/common/crypto/sm-field-crypto';
 import { sweepStaleActionableNotifications } from '../src/notification/stale-sweep';
-import { execSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
-import { encryptBuffer } from '../src/announcement/bid-document.crypto';
-import { wrapKey } from '../src/common/crypto/envelope-crypto';
-import { LlmService } from '../src/local-ai/llm.service';
-import { AnnouncementAiService } from '../src/announcement/announcement-ai.service';
 
 const prisma = new PrismaClient();
 const dataDir = join(__dirname, 'seed-data');
@@ -199,75 +190,6 @@ const SEED_ORDER: ReadonlyArray<[tableName: string, delegate: keyof PrismaClient
   ['AiConcordanceResult', 'aiConcordanceResult'],
 ];
 
-/**
- * 生成 hero 项目投标 PDF（reportlab）+ 上传 MinIO（sealedPath）+ 更新真实 sha256。
- * 让 fetchBidderPlaintext 能读到真实文件，端到端 AI 分析可重现。
- * 幂等：seed 重跑覆盖上传 + sha256。python3/reportlab 不可用时跳过（不阻塞 seed）。
- */
-async function ensureBidFiles() {
-  console.log('▶ 生成投标 PDF + 上传 MinIO + 真实 sha256（hero 项目投标文件）');
-  const script = join(__dirname, 'scripts', 'gen-bid-pdf.py');
-  try {
-    execSync(`python3 ${script}`, { stdio: 'pipe' });
-  } catch {
-    console.warn('  ⚠ python3 gen-bid-pdf.py 失败（缺 reportlab？），跳过投标文件上传；fetchBidderPlaintext 将无文件可读');
-    return;
-  }
-  const mapping = [
-    { assetId: 'cmqhero-file-tech01', pdf: '/tmp/seed-pdf/submission-tech01.pdf' },
-    { assetId: 'cmqhero-file-biz01', pdf: '/tmp/seed-pdf/submission-biz01.pdf' },
-    { assetId: 'cmqhero-file-tech02', pdf: '/tmp/seed-pdf/submission-tech02.pdf' },
-    { assetId: 'cmqhero-file-biz02', pdf: '/tmp/seed-pdf/submission-biz02.pdf' },
-  ];
-  let uploaded = 0;
-  for (const m of mapping) {
-    const asset = await prisma.fileAsset.findUnique({ where: { id: m.assetId } });
-    if (!asset?.sealedPath) continue;
-    const buf = readFileSync(m.pdf);
-    await minioClient.putObject(MINIO_BUCKET, asset.sealedPath, buf, buf.length, {
-      'Content-Type': 'application/pdf',
-    });
-    const sha = createHash('sha256').update(buf).digest('hex');
-    await prisma.fileAsset.update({ where: { id: m.assetId }, data: { sha256: sha } });
-    console.log(`    ${m.assetId} → ${asset.sealedPath} (${buf.length}B, sha256 updated)`);
-    uploaded++;
-  }
-  console.log(`    投标文件就绪：${uploaded}/${mapping.length}`);
-}
-
-/**
- * 生成 cmqhero-bid-proj01 招标文件 PDF（reportlab，含★号实质性条款）→ AES-256-GCM 加密
- * → 上传 MinIO（复用 fileAsset.key）→ wrapKey 包裹 DEK 回填 BidDocument.decryptKey，
- * 让专家端「招标文件」预览端到端可解密（见 expert-tender-document-preview-design.md 验证前置）。
- * 幂等：seed 重跑覆盖上传 + 重新加密 + 回填。python3/reportlab 不可用时跳过（不阻塞 seed）。
- */
-async function ensureTenderFiles() {
-  console.log('▶ 生成招标文件 PDF + 加密 + 上传 MinIO + 回填 decryptKey（cmqhero-bid-proj01 招标文件）');
-  const script = join(__dirname, 'scripts', 'gen-tender-pdf.py');
-  try {
-    execSync(`python3 ${script}`, { stdio: 'pipe' });
-  } catch {
-    console.warn('  ⚠ python3 gen-tender-pdf.py 失败（缺 reportlab？），跳过招标文件上传；专家端预览将无法解密');
-    return;
-  }
-  const docId = 'cmqhero-bd01';
-  const doc = await prisma.bidDocument.findUnique({ where: { id: docId }, include: { fileAsset: true } });
-  if (!doc?.fileAsset) {
-    console.warn(`  ⚠ 招标文件 ${docId} 或其 fileAsset 不存在，跳过`);
-    return;
-  }
-  const plaintext = readFileSync('/tmp/seed-pdf/tender-hero.pdf');
-  const { ciphertext, decryptKey } = encryptBuffer(plaintext);
-  await minioClient.putObject(MINIO_BUCKET, doc.fileAsset.key, ciphertext, ciphertext.length, {
-    'Content-Type': 'application/pdf',
-  });
-  const wrapped = wrapKey(decryptKey, process.env.KMS_SECRET!);
-  await prisma.bidDocument.update({ where: { id: docId }, data: { decryptKey: wrapped } });
-  const sha = createHash('sha256').update(plaintext).digest('hex');
-  await prisma.fileAsset.update({ where: { id: doc.fileAsset.id }, data: { sha256: sha, size: plaintext.length } });
-  console.log(`    ${docId} → ${doc.fileAsset.key}（明文 ${plaintext.length}B → 密文 ${ciphertext.length}B，decryptKey 已包裹回填）`);
-}
-
 async function main() {
   // 生产环境保护闸门：seed 会 TRUNCATE 全部业务表（已在历史上造成过一次误清事故），
   // 在 NODE_ENV=production 下必须显式设 ALLOW_PROD_SEED=1 才放行。
@@ -337,99 +259,6 @@ async function main() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (prisma[delegate] as any).createMany({ data: rows });
     console.log(`    ${tableName}: ${rows.length}`);
-  }
-
-  // ═══ 参与意向/事故种子（2026-11-12 履约闭环）═══
-  // 英雄项目（已开标 EVALUATING）四家意向：三家已投递（三视图演示有数据）+ 重庆蜀通
-  // 未投递——蜀通另种 1 条 legacy 事故（track=INTENT、legacy=true 不触发拉黑——口径 #8），
-  // 合成「确认参与未投递」完整演示故事（修复环 R1 裁定：不向未开标项目种事故——违反开标后判定不变式）。
-  // 两表已入 TRUNCATE 清单，此处 upsert 幂等（重复行 no-op）。
-  {
-    // 快照项目名不含「英雄」：英雄项目实名「2026年度智慧水利大数据平台建设项目」
-    // （id cmqhero-bid-proj01、EVALUATING；另有 SUBMIT 项目「智慧水务大数据平台建设」是水务≠水利，勿混淆）
-    const heroProject = await prisma.bidProject.findFirst({
-      where: { name: { contains: '智慧水利大数据平台' } },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true },
-    });
-    if (heroProject) {
-      const intentSuppliers = await prisma.supplier.findMany({
-        where: { name: { in: ['四川水发建设有限公司', '中科院成都信息技术股份有限公司', '四川省通信产业服务有限公司', '重庆蜀通岩土工程有限公司'] } },
-        select: { id: true },
-      });
-      for (const s of intentSuppliers) {
-        await prisma.supplierBidIntent.upsert({
-          where: { projectId_supplierId: { projectId: heroProject.id, supplierId: s.id } },
-          update: {},
-          create: { projectId: heroProject.id, supplierId: s.id },
-        });
-      }
-      console.log(`    英雄项目意向：${intentSuppliers.length} 家（${heroProject.id}）`);
-    } else {
-      console.warn('    ⚠ 未找到英雄项目（智慧水利大数据平台），跳过意向种子');
-    }
-    // 蜀通=确认未投递演示：有意向、未投递、项目已开标——事故判定语义完整自洽。
-    // 每日 cron sweep 会把蜀通列为候选，但唯一键命中此处已种行 → skip（不派生新行、
-    // 不重评拉黑）；legacy=true 仅展示计入（KPI 有效事故 0、不拉黑）。
-    const demoSupplier = await prisma.supplier.findFirst({ where: { name: '重庆蜀通岩土工程有限公司' }, select: { id: true } });
-    if (demoSupplier && heroProject) {
-      await prisma.supplierBidNoShow.upsert({
-        where: { projectId_supplierId: { projectId: heroProject.id, supplierId: demoSupplier.id } },
-        update: {},
-        create: { projectId: heroProject.id, supplierId: demoSupplier.id, track: 'INTENT', legacy: true },
-      });
-      console.log(`    蜀通 legacy 事故：1 条（${heroProject.id}）`);
-    } else {
-      console.warn('    ⚠ 未找到蜀通或英雄项目，跳过事故种子');
-    }
-  }
-
-  // ═══ 公告↔项目挂钩修复（P2-1，2026-08-16 全链路审计）═══
-  // 种子公告 relatedProjectCode 是 SC 编号体系、种子项目是 BID- 码——两套编号互不挂钩，
-  // 导致 G3 投递闸门/门户可见性全部失配（供应商门户几乎无投标机会）。按标题对齐；
-  // 中标公示对未到 ARCHIVED 的项目回退草稿（时序矛盾：未评标先出中标公示）。
-  console.log('▶ 修复公告与招标项目挂钩（按标题对齐 relatedProjectCode）');
-  {
-    const projects = await prisma.bidProject.findMany({ select: { id: true, projectCode: true, name: true, stage: true } });
-    const normalize = (t: string) => t.replace(/(采购公示|中标公示|公示)$/u, '').trim();
-    const byName = new Map<string, (typeof projects)[number]>();
-    for (const p of projects) { byName.set(p.name, p); byName.set(normalize(p.name), p); }
-    let linked = 0, drafts = 0, kept = 0;
-    const anns = await prisma.announcement.findMany({
-      where: { type: { in: ['BID_NOTICE', 'WIN_NOTICE'] } },
-      select: { id: true, title: true, type: true, status: true, relatedProjectCode: true },
-    });
-    for (const a of anns) {
-      const p = byName.get(normalize(a.title)) ?? byName.get(a.title);
-      if (!p) { kept++; continue; }
-      if (a.type === 'BID_NOTICE') {
-        if (a.relatedProjectCode !== p.projectCode) {
-          await prisma.announcement.update({ where: { id: a.id }, data: { relatedProjectCode: p.projectCode } });
-        }
-        linked++;
-      } else if (a.type === 'WIN_NOTICE' && a.status === 'PUBLISHED' && p.stage !== 'ARCHIVED') {
-        await prisma.announcement.update({ where: { id: a.id }, data: { status: 'DRAFT' } });
-        drafts++;
-      }
-    }
-    console.log(`    BID_NOTICE 挂钩 ${linked} 条；中标公示回退草稿 ${drafts} 条（项目未归档）；无匹配项目 ${kept} 条`);
-  }
-
-  // ═══ SUBMIT 阶段种子项目演示时效续期（P2-1）═══
-  // 种子 SUBMIT 项目 deadline 均为历史时间（如 2026-07-08）——供应商门户「可投标项目」
-  // 因 deadline 已过不可见、投递必被 DEADLINE_PASSED 拦截，演示链路断头。续期到 seed 运行时刻
-  // 之后（截止 +3d / 开标 +4d / 下载截止 +2.5d），每次重跑 seed 自动顺延。
-  console.log('▶ SUBMIT 阶段种子项目演示时效续期（deadline=+3d / openTime=+4d）');
-  {
-    const renewed = await prisma.bidProject.updateMany({
-      where: { stage: 'SUBMIT' },
-      data: {
-        deadline: new Date(Date.now() + 3 * 86400_000),
-        openTime: new Date(Date.now() + 4 * 86400_000),
-        downloadDeadline: new Date(Date.now() + 2.5 * 86400_000),
-      },
-    });
-    console.log(`    续期 ${renewed.count} 个 SUBMIT 项目`);
   }
 
   // ═══ 供应商编号序列对齐（CI/全新库） ═══
@@ -601,63 +430,6 @@ async function main() {
       passwordHash: hashSync('admin123', 10),
     },
   });
-
-  // ═══ R6: 回填现有 BidProject 指派给「陈源远」bid_host（避免 :3007 硬分流后种子项目不可见）═══
-  console.log('▶ 回填 BidProject 主持人指派（→ 陈源远 bid_host）');
-  const chenBidHost = await prisma.user.findFirst({
-    where: { username: '陈源远', role: 'bid_host' },
-  });
-  if (chenBidHost) {
-    const result = await prisma.bidProject.updateMany({
-      where: { assignedHostUserId: null },
-      data: { assignedHostUserId: chenBidHost.id, assignedAt: new Date() },
-    });
-    console.log(`    回填 ${result.count} 个项目 → 陈源远`);
-  } else {
-    console.warn('    ⚠ 未找到 陈源远 bid_host，跳过回填');
-  }
-
-  // ═══ 投标文件持久化（让端到端 AI 分析可重现）═══
-  await ensureBidFiles();
-
-  // ═══ 招标文件持久化（让专家端「招标文件」预览端到端可解密）═══
-  await ensureTenderFiles();
-
-  // ═══ 回填公告 AI 摘要 ═══
-  // 种子 JSON 通过 createMany 直接写入，绕过 AnnouncementService.create() 的自动 AI 摘要生成。
-  // 此步对 aiSummary 为空的公告补全摘要，使首页/详情页「AI 概览」对所有公告统一可见。
-  // 幂等：已有 aiSummary 的公告不重复生成；DeepSeek 未配置时静默跳过。
-  console.log('▶ 回填公告 AI 摘要（aiSummary 为空的公告）');
-  try {
-    // 轻量 ConfigService：seed 脚本无 NestJS DI，用 process.env 直通
-    const envConfig = { get: (k: string, d?: any) => (process.env[k] ?? d) } as any;
-    const llm = new LlmService(envConfig);
-    const aiSvc = new AnnouncementAiService(llm, envConfig);
-    if (aiSvc.isConfigured()) {
-      const typeMap: Record<string, string> = { BID_NOTICE: '招标公告', WIN_NOTICE: '中标公示', POLICY: '政策法规', PLATFORM: '平台通知' };
-      const need = await prisma.announcement.findMany({
-        where: { OR: [{ aiSummary: null }, { aiSummary: '' }] },
-        select: { id: true, title: true, type: true, content: true },
-      });
-      let filled = 0;
-      for (const ann of need) {
-        const summary = await aiSvc.summarize({
-          title: ann.title,
-          type: typeMap[ann.type] ?? ann.type,
-          content: ann.content,
-        });
-        if (summary) {
-          await prisma.announcement.update({ where: { id: ann.id }, data: { aiSummary: summary } });
-          filled++;
-        }
-      }
-      console.log(`    AI 摘要回填: ${filled}/${need.length} 条${filled < need.length ? `（${need.length - filled} 条生成失败已跳过）` : ''}`);
-    } else {
-      console.log('    ⚠ DeepSeek 未配置（DEEPSEEK_API_KEY 缺失），跳过 AI 摘要回填');
-    }
-  } catch (e) {
-    console.warn(`    ⚠ AI 摘要回填失败: ${(e as Error).message}（不阻塞 seed）`);
-  }
 
   // ═══ admin 加密证书 bootstrap（口径同步：src/common/crypto/admin-keystore.service.ts）═══
   // 全新库 seed 后无 active 证书；运行中 API 不重启则供应商取 admin-cert 409

@@ -219,15 +219,17 @@ E2E suites (`apps/api/test/`): `auth`, `bid`, `supplier`, `upload` — each logs
 
 `pnpm db:seed` is **idempotent and destructive** — it `TRUNCATE ... RESTART IDENTITY CASCADE` on all business tables, then reloads from JSON snapshots at `apps/api/prisma/seed-data/*.json`. Edit the JSON snapshots to change seed data; `seed.ts` just orchestrates the load.
 
+> **2026-11-16 快照瘦身裁定**：业务演示数据（公告/投标项目/进度/评审/通知/工作安排/AI 分析件等）已全部移出快照——种子只保留「账号 + 供应商 + 专家」基础库（连同公司主数据、知识库/合规规则/范文库等内容库与 FileAsset 文件登记），重灌后业务面为空库起步、从零积累；运行中库已于同日按同口径清理。勿再向快照回灌业务演示数据。
+
 Passwords follow `<username>@2026` convention:
 
 | Account | Password | Role | Portal |
 |---------|----------|------|--------|
 | `重庆蜀通岩土工程有限公司` | `supplier@2026` | supplier (approved) · 原 `supplier1` | 供应商门户 (:3004) |
-| `四川水发建设有限公司` | `supplier@2026` | supplier (approved) · 英雄项目 3 家之一 | 供应商门户 (:3004) |
-| `中科院成都信息技术股份有限公司` | `supplier@2026` | supplier (approved) · 英雄项目评标第 1 名 | 供应商门户 (:3004) |
-| `四川省通信产业服务有限公司` | `supplier@2026` | supplier (approved) · 英雄项目解密异常 | 供应商门户 (:3004) |
-| `成都华西物资供应有限公司` | `supplier@2026` | supplier (approved) · 原 `huaxi` · 参与旧种子项目 | 供应商门户 (:3004) |
+| `四川水发建设有限公司` | `supplier@2026` | supplier (approved) | 供应商门户 (:3004) |
+| `中科院成都信息技术股份有限公司` | `supplier@2026` | supplier (approved) | 供应商门户 (:3004) |
+| `四川省通信产业服务有限公司` | `supplier@2026` | supplier (approved) | 供应商门户 (:3004) |
+| `成都华西物资供应有限公司` | `supplier@2026` | supplier (approved) · 原 `huaxi` | 供应商门户 (:3004) |
 | `Swhi-CGZX-01` | `Swhi-CGZX-01@2026` | leader · 采购中心领导 | 采购管理工作台 (:3005) |
 | `Swhi-CGZX-05` | `Swhi-CGZX-05@2026` | staff · 采购中心员工 | 采购管理工作台 (:3005) |
 | `Swhi-CGZX-00` | `Swhi-CGZX-00@2026` | leader · 董事长（工作台董事长变体+受限导航，见 `apps/web/src/lib/workbench-profiles.ts`） | 采购管理工作台 (:3005) |
