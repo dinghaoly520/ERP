@@ -24,8 +24,8 @@ fi
 # Add .venv/bin to PATH for hybrid servers
 export PATH="$(pwd)/.venv/bin:$PATH"
 
-# 端口参数化：OCR_PORT/OCR_HOST（与 procurement 实例并存时起独立端口，如 OCR_PORT=8110）
-OCR_PORT="${OCR_PORT:-8100}"
+# 端口参数化：OCR_PORT/OCR_HOST（默认 8110=ERP canon；procurement :8100 已随项目停用 2026-11-16）
+OCR_PORT="${OCR_PORT:-8110}"
 OCR_HOST="${OCR_HOST:-127.0.0.1}"
 
 exec .venv/bin/uvicorn main:app --host "$OCR_HOST" --port "$OCR_PORT" --workers 1 --timeout-keep-alive 300

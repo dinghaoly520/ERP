@@ -12,10 +12,12 @@
 # guard 清理（2026-11-04）：dev-api-guard 是 :4001 的拉起者，旧版不在此列——
 # 端口清完 30s 内被陈旧 guard 拉回、叠出多层 nest watch（当日 4 陈旧 guard 实录）。
 # 必须先杀拉起者再清端口；TERM 对旧版无效（trap 缺 exit），0.5s 后 -9 兜底。
+# 守护器清理（2026-11-16）：dev-supervise.sh（ocr :8110 / embedding :8003）是两服务的
+# 崩溃重启者——不先杀它，端口清完 5~10s 后孤儿复活抢新链端口；仅全量模式收杀（--api 不动）。
 # web3005-watch.sh（/tmp 守尸网）不在本列——它是 :3005 的留置缓解，按 memory 另行维护。
 #
 # 用法：
-#   pnpm dev:kill              # 全量：guard + 10 个端口 + apps/api 残树
+#   pnpm dev:kill              # 全量：guard + 守护器 + 12 个端口 + apps/api 残树
 #   pnpm dev:kill --api        # 只清 guard + :4001 + apps/api 残树（不动 9 个 portal）
 #   pnpm dev:kill --list       # 干跑：只列出将杀对象，不动手
 set -u
@@ -42,17 +44,20 @@ for pid in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
     *dev:kill*) continue ;; # 链根 sh -c 'pnpm dev:kill && concurrently …'——pnpm dev 启动期杀它会断链（&& 后半不执行）；手动停链时它等 concurrently 死后自然退出
   esac
   case "$cmd" in
-    *dev-api-guard.sh*|*dev:api-guard*)
-      cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || cwd=""
-      case "$cwd" in
-        "$ROOT"|"$ROOT"/*) gpids+=("$pid"); gdescs+=("${cmd:0:70}") ;;
-        *)
-          # cwd 不在本仓库的实例（绝对路径拉起），只在其 cmdline 指向本仓库时收杀
-          case "$cmd" in
-            *"$ROOT"*) gpids+=("$pid"); gdescs+=("${cmd:0:70}") ;;
-          esac ;;
-      esac
-      ;;
+    *dev-api-guard.sh*|*dev:api-guard*) KIND=guard ;;
+    *dev-supervise.sh*) KIND=supervisor ;;
+    *) continue ;;
+  esac
+  # 守护器仅全量模式收杀（--api 只清 :4001，不动 OCR/embedding）
+  [ "$KIND" = supervisor ] && [ "$MODE" != all ] && continue
+  cwd=$(readlink "/proc/$pid/cwd" 2>/dev/null) || cwd=""
+  case "$cwd" in
+    "$ROOT"|"$ROOT"/*) gpids+=("$pid"); gdescs+=("${cmd:0:70}") ;;
+    *)
+      # cwd 不在本仓库的实例（绝对路径拉起），只在其 cmdline 指向本仓库时收杀
+      case "$cmd" in
+        *"$ROOT"*) gpids+=("$pid"); gdescs+=("${cmd:0:70}") ;;
+      esac ;;
   esac
 done
 if [ ${#gpids[@]} -eq 0 ]; then
@@ -80,7 +85,7 @@ if [ "$DRY" = 0 ]; then
   if [ "$MODE" = "api" ]; then
     fuser -k 4001/tcp 2>/dev/null
   else
-    fuser -k 3002/tcp 3003/tcp 3004/tcp 3005/tcp 3006/tcp 3007/tcp 3008/tcp 3010/tcp 3011/tcp 4001/tcp 2>/dev/null
+    fuser -k 3002/tcp 3003/tcp 3004/tcp 3005/tcp 3006/tcp 3007/tcp 3008/tcp 3010/tcp 3011/tcp 4001/tcp 8003/tcp 8110/tcp 2>/dev/null
   fi
   sleep 0.5
 else
