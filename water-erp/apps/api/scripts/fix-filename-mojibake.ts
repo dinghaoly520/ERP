@@ -14,7 +14,8 @@
  *      bid_decrypted（#150 继承行）解密明文名；
  *   2. TenderClarificationDoc.title——专家门户「澄清与修改文件」卡行名（写入端点
  *      已于 ff49ee399 删除，行=历史数据；bug#150_281 三行 mojibake 即此面）；
- *   3. Attachment.fileName——PMI 阶段附件/谈判配置轨读端名。
+ *   3. Attachment.fileName——PMI 阶段附件/谈判配置轨读端名；已归档项目行自动跳过
+ *      （归档磁盘镜像按 DB 名落盘，改名断配对→下载 404，输出尾部有跳过计数）。
  * 不触碰：开标文件包等证据 JSON（SHA-256 指纹锚定，历史事实不可改写）。
  *
  * 判定（needsMultipartFilenameFix，条件式三闸）：
@@ -111,14 +112,26 @@ async function scanClarificationTitle(plans: Plan[]): Promise<void> {
   }
 }
 
-/** PMI 阶段附件/谈判配置轨读端名（Attachment.fileName）。 */
+/** PMI 阶段附件/谈判配置轨读端名（Attachment.fileName）。
+ *  评审二轮#3（2026-11-16 用户裁定）：归档导出 generateArchiveFiles 按 DB fileName 落
+ *  磁盘镜像、归档下载按 DB 名回定位磁盘文件（失配=404）——已归档项目行改名会断镜像
+ *  配对，一律跳过保持配对（乱码显示留在已结项目，展示面低频，可接受）。 */
+let skippedArchivedAttachments = 0;
 async function scanAttachmentFileName(plans: Plan[]): Promise<void> {
   if (!wantAttachment) return;
   let cursor: string | undefined;
   for (;;) {
-    const rows: Array<{ id: string; objectKey: string; fileName: string }> = await prisma.attachment.findMany({
+    const rows: Array<{
+      id: string; objectKey: string; fileName: string;
+      projectManagementItem: { archivedAt: Date | null } | null;
+      projectManagementStage: { projectManagementItem: { archivedAt: Date | null } } | null;
+    }> = await prisma.attachment.findMany({
       where: cursor ? { id: { gt: cursor } } : undefined,
-      select: { id: true, objectKey: true, fileName: true },
+      select: {
+        id: true, objectKey: true, fileName: true,
+        projectManagementItem: { select: { archivedAt: true } },
+        projectManagementStage: { select: { projectManagementItem: { select: { archivedAt: true } } } },
+      },
       orderBy: { id: 'asc' },
       take: CHUNK,
     });
@@ -126,6 +139,8 @@ async function scanAttachmentFileName(plans: Plan[]): Promise<void> {
     cursor = rows[rows.length - 1].id;
     for (const r of rows) {
       if (!needsMultipartFilenameFix(r.fileName)) continue;
+      const archivedAt = r.projectManagementItem?.archivedAt ?? r.projectManagementStage?.projectManagementItem?.archivedAt;
+      if (archivedAt) { skippedArchivedAttachments += 1; continue; }
       plans.push({ table: 'Attachment', id: r.id, label: r.objectKey.split('/').pop() ?? r.objectKey, from: r.fileName, to: normalizeMultipartFilename(r.fileName) });
     }
     if (rows.length < CHUNK) break;
@@ -151,6 +166,9 @@ async function main() {
         : '三表全扫（FileAsset / TenderClarificationDoc.title / Attachment.fileName）';
   console.log(`范围：${scopeDesc}`);
   console.log(`命中待修：${plans.length} 行`);
+  if (wantAttachment && skippedArchivedAttachments > 0) {
+    console.log(`⚠ 已跳过已归档项目 Attachment 行 ${skippedArchivedAttachments} 行——归档磁盘镜像按 DB 名落盘，改名断配对=归档下载 404；保持乱码配对不回填（如需治理：磁盘副本同步改名后人工单行 UPDATE）`);
+  }
   for (const [t, n] of [...byTable.entries()].sort()) console.log(`  - ${t}: ${n}`);
   for (const p of plans.slice(0, 50)) console.log(`  ${p.table} ${p.id} [${p.label}] ${JSON.stringify(p.from)} → ${JSON.stringify(p.to)}`);
   if (plans.length > 50) console.log(`  …另有 ${plans.length - 50} 行同口径`);
