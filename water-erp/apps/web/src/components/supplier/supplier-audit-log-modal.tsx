@@ -289,7 +289,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
             <table className="workbench-table">
               <thead>
                 <tr>
-                  <th className="text-center">操作</th><th className="text-center">供应商</th><th className="text-center">操作人</th><th className="text-center">时间</th><th className="text-center">详情</th>
+                  <th className="!text-center">操作</th><th className="!text-center">供应商</th><th className="!text-center">操作人</th><th className="!text-center">时间</th><th className="!text-center">详情</th>
                 </tr>
               </thead>
               <tbody>
