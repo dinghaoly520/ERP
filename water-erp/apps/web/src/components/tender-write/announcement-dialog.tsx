@@ -35,7 +35,8 @@ import {
   applyAutoFill,
   ANNOUNCEMENT_AUTO_FILL,
   numberToChineseAmount,
-} from "@/lib/tender-write/announcement-templates";
+  DEFAULT_SCHEDULE_REQUIREMENTS,
+} from '@/lib/tender-write/announcement-templates';
 import { AnnouncementPreviewDocument } from "./announcement-preview-document";
 import { TenderFieldActions } from "./tender-field-actions";
 import { TenderFieldSampleDialog } from "./tender-field-sample-drawer";
@@ -791,10 +792,9 @@ export function AnnouncementDialog({
         tenderRecord.businessRequirements?.trim()
         || tenderRecord.submissionRequirements?.trim()
         || project.activitySchedule?.trim();
-      if (schedule) {
-        patch.scheduleRequirements = schedule;
-        if (!rec.scheduleRequirementsType) patch.scheduleRequirementsType = 'have';
-      }
+      // 源值优先；无源值落默认模板（2026-11-16 用户裁定：选「有」直接加载写好的分条模板）
+      patch.scheduleRequirements = schedule || DEFAULT_SCHEDULE_REQUIREMENTS;
+      if (!rec.scheduleRequirementsType) patch.scheduleRequirementsType = 'have';
     }
     if (wanted('registrationMethod')) {
       // 2026-11-12 用户裁定：报名方式固定为供应商门户句（同步保底写入）；资格条件不再直取
@@ -908,6 +908,11 @@ export function AnnouncementDialog({
         next.maxPriceChinese = numberToChineseAmount(value);
       } else if (key === "maxPriceNumeric" || key === "maxPrice") {
         next.maxPriceChinese = "";
+      }
+
+      // 工期及进度要求（2026-11-16）：切「有」且内容空 → 直接加载默认分条模板
+      if (key === "scheduleRequirementsType" && value === "have" && !next.scheduleRequirements?.trim()) {
+        next.scheduleRequirements = DEFAULT_SCHEDULE_REQUIREMENTS;
       }
 
       // Auto-fill remark when remark type changes to a preset option
