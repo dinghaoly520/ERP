@@ -14,6 +14,79 @@ import { CompanyScopeService } from '../company/company-scope';
  * 解除后供应商回到 APPROVED 但账号仍停用，登录永返 ACCOUNT_PENDING（实测复现）。
  * 本 spec 锁定：两条 A-215 端点必须与 updateStatus/restoreStatus 同步联动账号。
  */
+describe('SupplierService — 状态机收窄（2026-11-16 两态裁定）', () => {
+  let service: SupplierService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      supplier: { findUnique: jest.fn(), updateMany: jest.fn(), findFirst: jest.fn() },
+      user: { update: jest.fn().mockResolvedValue(undefined) },
+      auditLog: { create: jest.fn().mockResolvedValue(undefined) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        { provide: CompanyScopeService, useValue: { resolveScope: jest.fn().mockResolvedValue({ all: true }), filter: jest.fn().mockReturnValue({}), assertInScope: jest.fn(), stampFor: jest.fn().mockResolvedValue({}) } },
+        SupplierService,
+        { provide: VerificationService, useValue: {} },
+        { provide: PrismaService, useValue: prisma },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToUser: jest.fn().mockResolvedValue(undefined), sendToRole: jest.fn().mockResolvedValue(undefined) } },
+        { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
+        { provide: LlmService, useValue: {} },
+      ],
+    }).compile();
+    service = module.get<SupplierService>(SupplierService);
+  });
+
+  it('在库(APPROVED)不可直接拉黑——拉黑只能从停用态进入', async () => {
+    prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'APPROVED', userId: 'u1' });
+
+    await expect(service.updateStatus('s1', 'BLACKLIST', '违规', 'u-op')).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('停用(DISABLED)→黑名单：updateStatus 放行并留痕理由+停账号', async () => {
+    prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'DISABLED', userId: 'u1' });
+    prisma.supplier.updateMany.mockResolvedValue({ count: 1 });
+
+    await service.updateStatus('s1', 'BLACKLIST', '情节严重', 'u-op');
+
+    expect(prisma.supplier.updateMany).toHaveBeenCalledWith({
+      where: { id: 's1', status: 'DISABLED' },
+      data: expect.objectContaining({ status: 'BLACKLIST', disableReason: '情节严重' }),
+    });
+    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'u1' }, data: { isActive: false } });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'SUPPLIER_BLACKLIST', details: expect.objectContaining({ reason: '情节严重' }) }),
+    }));
+  });
+
+  it('停用(DISABLED)不可再停用——停用仅接受在库(APPROVED)', async () => {
+    prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'DISABLED', userId: 'u1' });
+
+    await expect(service.updateStatus('s1', 'DISABLED', '重复停用', 'u-op')).rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('恢复一律必填理由——停用态恢复无理由 400 MISSING_REASON', async () => {
+    prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'DISABLED', userId: 'u1' });
+
+    await expect(service.restoreStatus('s1', 'u-op', '  ')).rejects.toMatchObject({ response: { code: 'MISSING_REASON' } });
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('A-215 blacklistSupplier 在库直拉黑 400（引导先停用）', async () => {
+    prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'APPROVED', userId: 'u1', companyId: null });
+
+    await expect(service.blacklistSupplier('s1', '违规', { sub: 'u-leader', role: 'leader' } as never))
+      .rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('SupplierService — blacklist 账号联动（A-215）', () => {
   let service: SupplierService;
   let prisma: any;
@@ -44,7 +117,8 @@ describe('SupplierService — blacklist 账号联动（A-215）', () => {
   describe('blacklistSupplier', () => {
     it('拉黑必须联动停用账号（isActive=false），与 updateStatus 同口径', async () => {
       // 首次调用=入口校验取数，末次调用=回读结果；同一 shape 两用即可
-      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'APPROVED', userId: 'u1', companyId: null });
+      // 2026-11-16 两态裁定后拉黑入口=停用态（在库直拉黑 400，见状态机 spec）
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'DISABLED', userId: 'u1', companyId: null });
       prisma.supplier.updateMany.mockResolvedValue({ count: 1 });
 
       await service.blacklistSupplier('s1', '违规', leader);
@@ -53,7 +127,7 @@ describe('SupplierService — blacklist 账号联动（A-215）', () => {
     });
 
     it('乐观锁冲突时不落账号停用', async () => {
-      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'APPROVED', userId: 'u1', companyId: null });
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', name: '甲公司', status: 'DISABLED', userId: 'u1', companyId: null });
       prisma.supplier.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(service.blacklistSupplier('s1', '违规', leader)).rejects.toMatchObject({ response: { code: 'CONCURRENT_UPDATE' } });

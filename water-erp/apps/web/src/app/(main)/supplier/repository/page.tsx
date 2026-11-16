@@ -22,7 +22,7 @@ import { useConfirm } from '@/components/workbench/use-confirm';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
 import { SupplierAuditLogModal } from '@/components/supplier/supplier-audit-log-modal';
-import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, Download, Check, Activity, AlertTriangle, Trash2, Key, Copy, Ban, History } from 'lucide-react';
+import { Building2, MessageSquareWarning, Search, Plus, RefreshCw, X, ChevronUp, ChevronDown, Star, Download, Check, Activity, AlertTriangle, Key, Copy, Ban, History } from 'lucide-react';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import { CopyIconButton } from '@/components/copy-icon-button';
 import { exportAllFilteredSuppliersToExcel } from '@/lib/excel-export';
@@ -81,7 +81,7 @@ function SupplierRepositoryPageInner() {
   const ENTERPRISE_TYPES = ['有限责任公司','股份有限公司','国有企业','集体企业','合伙企业','个人独资企业','外商投资企业','其他'];
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [batchModal, setBatchModal] = useState<{ type: 'DISABLED' | 'BLACKLIST' } | null>(null);
+  const [batchModal, setBatchModal] = useState<{ type: 'DISABLED' } | null>(null);
   const [batchReason, setBatchReason] = useState('');
   const [batchLoading, setBatchLoading] = useState(false);
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
@@ -112,7 +112,7 @@ function SupplierRepositoryPageInner() {
     if (!batchModal || !batchReason.trim()) { toast.error('请填写原因'); return; }
     setBatchLoading(true); let done = 0;
     for (const id of selected) { try { await updateSupplierStatus(id, batchModal.type, batchReason); done++; } catch {} }
-    toast.success(`已批量${batchModal.type === 'DISABLED' ? '停用' : '拉黑'} ${done} 个供应商`);
+    toast.success(`已批量停用 ${done} 个供应商`);
     setBatchModal(null); setBatchReason(''); setSelected(new Set()); setBatchLoading(false); loadData();
   };
 
@@ -418,14 +418,20 @@ function SupplierRepositoryPageInner() {
                         <>
                           <button onClick={() => setEvalTarget(s)} className="neu-btn-xs is-info">评价</button>
                           <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'disable', supplier: s }); }} className="neu-btn-xs is-warning">停用</button>
-                          {/* 与详情页/后端 @Roles 同口径 admin/leader（此前该页 admin-only，口径分裂） */}
+                        </>
+                      )}
+                      {/* 2026-11-16 两态裁定：处置链单向「在库→停用→黑名单」——在库不可直拉黑（先停用）；
+                          停用行=恢复+黑名单；黑名单行=恢复。全部必填理由（statusModal 统一闸）。 */}
+                      {s.status === 'DISABLED' && canApprove && (
+                        <>
+                          <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'restore', supplier: s }); }} className="neu-btn-xs is-success">恢复</button>
+                          {/* 拉黑与详情页 A-215 端点/后端 @Roles 同口径 admin/leader */}
                           {['admin', 'leader'].includes(currentUser?.role ?? '') && (
                             <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'blacklist', supplier: s }); }} className="neu-btn-xs is-danger">黑名单</button>
                           )}
                         </>
                       )}
-                      {/* 断头路接线（2026-09-28 审计 S2）：停用行补恢复入口（后端 restore 已建，前端原零接线） */}
-                      {s.status === 'DISABLED' && canApprove && (
+                      {s.status === 'BLACKLIST' && canApprove && (
                         <button onClick={() => { setStatusReason(''); setStatusModal({ type: 'restore', supplier: s }); }} className="neu-btn-xs is-success">恢复</button>
                       )}
                     </div>
@@ -488,7 +494,6 @@ function SupplierRepositoryPageInner() {
             {/* 异议与投诉受理（2026-10-21 用户口径）：仅 leader——异议按归属公司过滤，只出现在
                 归属公司 leader 的受理板；staff/admin 不设此入口（API 层非 admin 仍限本公司只读） */}
             {currentUser?.role === 'leader' && <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>}
-            <button onClick={() => router.push('/supplier/elimination')} className="neu-btn-soft"><Trash2 size={15} />淘汰候选</button>
             {canManageInvitations && <button onClick={() => setInvModalOpen(true)} className="neu-btn-soft"><Key size={15} />邀请码</button>}
             <button onClick={() => setShowAuditLog(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
@@ -661,7 +666,6 @@ function SupplierRepositoryPageInner() {
           <span className="neu-batch-bar-count">已选 <strong>{selected.size}</strong> 条</span>
           <div className="neu-batch-bar-spacer" />
           <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'DISABLED' }); }} className="neu-btn-xs is-warning">批量停用</button>
-          <button onClick={() => { setBatchReason(''); setBatchModal({ type: 'BLACKLIST' }); }} className="neu-btn-xs is-danger">批量拉黑</button>
           <button onClick={() => setSelected(new Set())} className="neu-btn-xs"><X size={12} />取消选择</button>
         </div>
       )}
@@ -702,12 +706,12 @@ function SupplierRepositoryPageInner() {
         <Modal
           open
           onClose={() => setBatchModal(null)}
-          title={batchModal.type === 'DISABLED' ? '批量停用' : '批量拉黑'}
+          title="批量停用"
           description={<>将对选中的 <strong>{selected.size}</strong> 个供应商统一处理</>}
           footer={
             <>
               <button onClick={() => setBatchModal(null)} className="neu-btn-soft">取消</button>
-              <button onClick={handleBatch} disabled={batchLoading || !batchReason.trim()} className={`neu-btn-soft ${batchModal.type === 'DISABLED' ? 'is-warning' : 'is-danger'}`}>{batchLoading ? '处理中...' : '确认'}</button>
+              <button onClick={handleBatch} disabled={batchLoading || !batchReason.trim()} className="neu-btn-soft is-warning">{batchLoading ? '处理中...' : '确认'}</button>
             </>
           }
         >

@@ -276,7 +276,6 @@ describe('NotificationService', () => {
       'PRE_WIN_CONFIRM_DUE',
       'SUPPLIER_CLEANUP_DUE',
       'SUPPLIER_DECLINE_STREAK',
-      'SUPPLIER_ELIMINATE_CANDIDATE',
     ]);
   });
 

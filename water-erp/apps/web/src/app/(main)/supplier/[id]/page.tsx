@@ -448,19 +448,21 @@ export default function SupplierDetailPage() {
                   getTagVocabulary(120).then(r => setTagVocab(r.items)).catch(() => setTagVocab([]));
                 }} className="neu-btn-xs"><Pencil size={12} /> 业务标签</button>
                 <button onClick={() => { setActionReason(''); setActionModal({ type: 'disable', supplier }); }} className="neu-btn-xs is-warning">停用</button>
-                {/* 黑名单走专用端点（@Roles admin/leader），staff 点必 403——按钮同步收敛 */}
-                {['admin', 'leader'].includes(currentUser?.role ?? '') && (
-                  <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
-                )}
               </>
             )}
             {/* CTS A-215：黑名单状态提供解除入口（原因必填留痕，@Roles admin/leader） */}
             {supplier.status === 'BLACKLIST' && ['admin', 'leader'].includes(currentUser?.role ?? '') && (
               <button onClick={() => { setActionReason(''); setActionModal({ type: 'unblacklist', supplier }); }} className="neu-btn-xs is-success">解除黑名单</button>
             )}
-            {/* 断头路接线（2026-09-28 审计 S2）：停用状态恢复入口（后端 restore 已建） */}
-            {supplier.status === 'DISABLED' && isAdmin && (
-              <button onClick={() => { setActionReason(''); setActionModal({ type: 'restore', supplier }); }} className="neu-btn-xs is-success">恢复</button>
+            {/* 2026-11-16 两态裁定：停用行=恢复+黑名单（拉黑走 A-215 专用端点 admin/leader，
+                在库不可直拉黑——先停用）；断头路接线沿革见 2026-09-28 审计 S2 */}
+            {supplier.status === 'DISABLED' && (
+              <>
+                <button onClick={() => { setActionReason(''); setActionModal({ type: 'restore', supplier }); }} className="neu-btn-xs is-success">恢复</button>
+                {['admin', 'leader'].includes(currentUser?.role ?? '') && (
+                  <button onClick={() => { setActionReason(''); setActionModal({ type: 'blacklist', supplier }); }} className="neu-btn-xs is-danger">黑名单</button>
+                )}
+              </>
             )}
           </div>
         </div>

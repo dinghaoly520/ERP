@@ -151,44 +151,6 @@ describe('SupplierService — 总览旁路端点公司隔离', () => {
     });
   });
 
-  describe('reviewEliminationCandidates（淘汰候选）', () => {
-    it('限定公司：候选扫描叠加 link 过滤，知会只发视野公司 approvers（不再平台全员）', async () => {
-      prisma.supplier.findMany.mockResolvedValue([{ id: 'sup-1', name: '低分供应商' }]); // 候选扫描
-      prisma.user.findMany.mockResolvedValue([{ id: 'approver-1' }]); // resolveCompanyApprovers
-      prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e1', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e2', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e3', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-      ]);
-      await service.reviewEliminationCandidates(ACTOR_LEADER as any);
-      expect(prisma.supplier.findMany.mock.calls[0][0].where).toEqual({
-        status: 'APPROVED',
-        companyLinks: { some: { companyId: { in: ['co-js'] }, status: 'APPROVED' } },
-      });
-      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({ companyId: 'co-js' }),
-      }));
-      expect(notification.create).toHaveBeenCalled();
-      expect(notification.sendToRole).not.toHaveBeenCalled();
-    });
-
-    it('全部公司视野（admin 默认）：保持平台全员 sendToRole 原行为', async () => {
-      companyScope.resolveScope.mockResolvedValue({ all: true });
-      prisma.supplier.findMany.mockResolvedValue([]);
-      await service.reviewEliminationCandidates({ sub: 'a', role: 'admin' } as any);
-      expect(notification.sendToRole).not.toHaveBeenCalled(); // 无候选不发
-      prisma.supplier.findMany.mockResolvedValue([{ id: 's', name: 'n' }]);
-      prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e1', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e2', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e3', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-      ]);
-      await service.reviewEliminationCandidates({ sub: 'a', role: 'admin' } as any);
-      expect(notification.sendToRole).toHaveBeenCalledWith('leader', expect.anything());
-      expect(notification.sendToRole).toHaveBeenCalledWith('staff', expect.anything());
-    });
-  });
-
   describe('listSupplierAuditLogs（操作历史）', () => {
     it('全局模式限定公司：resourceId∈视野供应商（双谓词集）', async () => {
       prisma.supplier.findMany.mockResolvedValue([{ id: 'sup-1' }]);

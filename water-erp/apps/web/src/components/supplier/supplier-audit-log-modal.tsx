@@ -19,7 +19,6 @@ const ACTION_LABELS: Record<string, string> = {
   SUPPLIER_RESTORED: '恢复正常',
   SUPPLIER_RESUBMITTED: '重新提交',
   SUPPLIER_REACTIVATED: '重新激活',
-  SUPPLIER_ELIMINATED: '淘汰',
   SUPPLIER_CHANGE_APPROVED: '变更审批通过',
   SUPPLIER_CHANGE_REJECTED: '变更驳回',
   SUPPLIER_CONVERTED_REGULAR: '转正式供应商',
@@ -33,7 +32,6 @@ const ACTION_TONE: Record<string, string> = {
   SUPPLIER_DISABLED: 'var(--warning)',
   SUPPLIER_BLACKLIST: 'var(--danger)',
   SUPPLIER_UNBLACKLIST: 'var(--success)',
-  SUPPLIER_ELIMINATED: 'var(--danger)',
   SUPPLIER_REJECTED: 'var(--danger)',
   SUPPLIER_CHANGE_REJECTED: 'var(--danger)',
 };

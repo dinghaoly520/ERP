@@ -19,7 +19,6 @@ import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from './supplier-change-fields';
 import { assertCreditCodeChangeable } from './credit-code-change.util';
-import { shouldAutoDisable } from './supplier-performance';
 import { buildSupplierPortrait } from './supplier-portrait.util';
 import { generateBusinessTags, TAG_MAX, TAG_MIN } from './business-tags';
 import { LlmService } from '../local-ai/llm.service';
@@ -2522,15 +2521,21 @@ export class SupplierService {
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
-    if (supplier.status !== 'APPROVED') {
-      throw new BadRequestException({ error: '只有已入库供应商可以调整状态', code: 'INVALID_STATUS' });
+    // 2026-11-16 用户裁定（两态收窄）：处置链单向「在库→停用→黑名单」——
+    // 在库不可直接拉黑（先停用），停用不可重复停用；淘汰候选机制同日下线。
+    const requiredFrom = status === 'DISABLED' ? 'APPROVED' : 'DISABLED';
+    if (supplier.status !== requiredFrom) {
+      throw new BadRequestException({
+        error: status === 'DISABLED' ? '只有已入库供应商可以停用' : '只有已停用供应商可以列入黑名单（请先停用）',
+        code: 'INVALID_STATUS',
+      });
     }
 
     // B6：停用/拉黑原因写入独立字段 disableReason（不再错用 returnReason）。
     // 停用/黑名单必须联动账号停用——否则被拉黑的供应商仍可登录、仍能投标（最严重数据一致性洞）。
-    // 乐观锁，并发时仅一方能从 APPROVED 转出。
+    // 乐观锁，并发时仅一方能转出。
     const claimed = await this.prisma.supplier.updateMany({
-      where: { id, status: 'APPROVED' },
+      where: { id, status: requiredFrom },
       data: { status, disableReason: reason, eliminatedAt: null },
     });
     if (claimed.count === 0) {
@@ -2548,9 +2553,9 @@ export class SupplierService {
     if (supplier.status !== 'DISABLED' && supplier.status !== 'BLACKLIST') {
       throw new BadRequestException({ error: '仅停用/黑名单供应商可恢复', code: 'INVALID_STATUS' });
     }
-    // 黑名单解禁属高风险反向操作，必须留痕理由（停用恢复可选）。
-    if (supplier.status === 'BLACKLIST' && !reason?.trim()) {
-      throw new BadRequestException({ error: '黑名单解禁必须填写理由', code: 'MISSING_REASON' });
+    // 2026-11-16 用户裁定：恢复（停用/黑名单同口径）一律必填理由留痕。
+    if (!reason?.trim()) {
+      throw new BadRequestException({ error: '恢复必须填写理由', code: 'MISSING_REASON' });
     }
     const claimed = await this.prisma.supplier.updateMany({
       where: { id, status: { in: ['DISABLED', 'BLACKLIST'] } },
@@ -3319,7 +3324,7 @@ export class SupplierService {
     }
 
     // 关联项目校验：projectId 非空时项目须真实存在、且该供应商确实参与过（有 BidSupplier 记录），
-    // 防虚构项目/未参与项目写评价污染画像、淘汰预警与统计下游（对齐专家评价 EXPERT_NOT_ON_PROJECT 口径）。
+    // 防虚构项目/未参与项目写评价污染画像与统计下游（对齐专家评价 EXPERT_NOT_ON_PROJECT 口径）。
     if (dto.projectId) {
       const project = await this.prisma.bidProject.findUnique({ where: { id: dto.projectId }, select: { id: true } });
       if (!project) throw new BadRequestException({ error: '评价关联的项目不存在', code: 'PROJECT_NOT_FOUND' });
@@ -3330,7 +3335,7 @@ export class SupplierService {
     // 方案B（2026-10-21 用户裁定：工作人员可多次评价）——提交闸+频次闸：
     // ①提交闸（防手滑）：同评价人×同供应商×同项目×同来源 7 天内已评价 → 覆盖更新（视为修改，不增条目）
     // ②频次闸（防恶意刷）：7 天内对该供应商已有其他评价 → 须 leader/admin 或填「复评事由」
-    // ③统计闸（防失真）见 latestSupplierEvals——排名/画像/淘汰预警按槽位取最新，单人只算一票
+    // ③统计闸（防失真）见 latestSupplierEvals——排名/画像按槽位取最新，单人只算一票
     const source = dto.evaluationSource === 'contract' ? 'contract' : 'procurement';
     const recent = await this.prisma.supplierEvaluation.findMany({
       where: { supplierId, evaluatorId, createdAt: { gte: new Date(Date.now() - EVALUATION_COOLDOWN_MS) } },
@@ -3385,13 +3390,13 @@ export class SupplierService {
       data: { supplierId, projectId: dto.projectId, evaluatorId, ...evalData },
     });
 
-    // 评价影响画像/淘汰，补审计。
+    // 评价影响画像，补审计。
     await this.audit(evaluatorId, 'SUPPLIER_EVALUATION_CREATED', supplierId, {
       finalGrade, projectId: dto.projectId ?? null, reviewReason: dto.reviewReason?.trim() || null,
     });
 
-    // 决策 #3：不自动停用。连续低分由 reviewEliminationCandidates()（cron + 人工）产出预警，
-    // 实际淘汰须经 admin 调 confirmEliminate() 确认。此处仅返回评价结果。
+    // 决策 #3：不自动停用。淘汰候选机制已于 2026-11-16 下线（处置只余停用/黑名单两态、
+    // 全人工），连续低分仅供画像参考。
     return created;
   }
 
@@ -3411,8 +3416,9 @@ export class SupplierService {
     if (supplier.status === 'BLACKLIST') {
       throw new BadRequestException({ error: '该供应商已在黑名单中', code: 'ALREADY_BLACKLISTED' });
     }
-    if (supplier.status === 'PENDING' || supplier.status === 'RETURNED') {
-      throw new BadRequestException({ error: '审核未完结的供应商不可拉黑，请先完成审核或退回', code: 'INVALID_STATUS' });
+    // 2026-11-16 两态裁定：拉黑仅接受停用态（在库须先停用；审核管线态/已拒绝不可直接拉黑）
+    if (supplier.status !== 'DISABLED') {
+      throw new BadRequestException({ error: '只有已停用供应商可以列入黑名单（请先停用）', code: 'INVALID_STATUS' });
     }
     const claimed = await this.prisma.supplier.updateMany({
       where: { id: supplierId, status: supplier.status },
@@ -3570,81 +3576,6 @@ export class SupplierService {
     });
   }
 
-  /* 淘汰预警 + 人工确认（决策 #3：只预警，不自动改状态） */
-
-  /** 扫描淘汰候选（最近 3 次绩效均为 E），通知管理员；不修改 status。 */
-  /** 淘汰候选扫描（公司隔离 2026-10-19）：候选池与知会范围均限视野——此前全量扫描
-   *  APPROVED 供应商且 sendToRole 平台全员知会，他司淘汰名单（供应商名）跨公司外泄。
-   *  限定视野走 notifyCompanyApprovers（逐视野公司发该公司 leader+staff）；全部公司
-   *  视野（admin 默认）保持 sendToRole 原行为。 */
-  async reviewEliminationCandidates(actor?: AuthenticatedUser, companyId?: string) {
-    const scope = actor ? await this.companyScope.resolveScope(actor, companyId) : null;
-    const f = scope ? supplierCompanyWhere(scope) : {};
-    const suppliers = await this.prisma.supplier.findMany({
-      where: { status: 'APPROVED', ...f },
-      select: { id: true, name: true },
-    });
-
-    const candidates: Array<{ supplierId: string; name: string; reason: string }> = [];
-    for (const s of suppliers) {
-      // 统计闸：淘汰预警「最近 3 次」按槽位去重判定（方案B 多次评价——单人刷 E 不再触发误淘汰）
-      const recent = latestSupplierEvals(await this.prisma.supplierEvaluation.findMany({
-        where: { supplierId: s.id },
-        orderBy: { createdAt: 'desc' },
-        select: { supplierId: true, finalGrade: true, evaluatorId: true, projectId: true, evaluationSource: true, createdAt: true, updatedAt: true },
-      })).slice(0, 3);
-      if (shouldAutoDisable(recent.map(r => ({ finalGrade: r.finalGrade })))) {
-        candidates.push({ supplierId: s.id, name: s.name, reason: '最近 3 次绩效综合评价均为 E 级（不合格）' });
-      }
-    }
-
-    if (candidates.length > 0) {
-      const names = candidates.map(c => `${c.name}（${c.reason}）`).join('；');
-      const payload = {
-        type: 'SUPPLIER_ELIMINATE_CANDIDATE',
-        title: '供应商淘汰预警',
-        content: `${candidates.length} 家供应商进入淘汰候选，请人工复核：${names}`,
-        link: '/supplier',
-      };
-      // 淘汰复核属 :3005 供应商库管理（leader+staff）；admin 只管管理端账号，不收业务知会。
-      // 限定视野时逐视野公司发该公司 approvers（知会不跨公司）；全部公司视野保持平台全员。
-      if (scope && !scope.all) {
-        for (const cid of scope.companyIds) {
-          await this.notifyCompanyApprovers(cid, payload);
-        }
-      } else {
-        await Promise.all(['leader', 'staff'].map(r => this.notificationService.sendToRole(r, payload)));
-      }
-    }
-
-    return candidates;
-  }
-
-  /** 人工确认淘汰：置 status=DISABLED。 */
-  async confirmEliminate(supplierId: string, reason: string, userId?: string) {
-    const supplier = await this.prisma.supplier.findUnique({
-      where: { id: supplierId },
-      select: { id: true, status: true, name: true, userId: true },
-    });
-    if (!supplier) throw new NotFoundException('供应商不存在');
-    // 校验原状态：仅已入库供应商可被淘汰，避免对 PENDING/已停用 误操作。
-    if (supplier.status !== 'APPROVED') {
-      throw new BadRequestException({ error: '仅已入库供应商可确认淘汰', code: 'INVALID_STATUS' });
-    }
-    // B12：淘汰=DISABLED + eliminatedAt 时间戳（区分手动停用：后者 eliminatedAt 为 null）。
-    // 乐观锁 + 联动账号停用。
-    const claimed = await this.prisma.supplier.updateMany({
-      where: { id: supplierId, status: 'APPROVED' },
-      data: { status: 'DISABLED', disableReason: reason, eliminatedAt: new Date() },
-    });
-    if (claimed.count === 0) {
-      throw new BadRequestException({ error: '供应商状态已变更，请刷新后重试', code: 'CONFLICT' });
-    }
-    await this.prisma.user.update({ where: { id: supplier.userId }, data: { isActive: false } });
-    if (userId) await this.audit(userId, 'SUPPLIER_ELIMINATED', supplierId, { name: supplier.name, reason });
-    return { success: true };
-  }
-
   /* 资质到期预警看板（公司隔离 2026-10-15：与 stats 同口径——预警 KPI 卡不得跨视野计数） */
   async getQualificationAlerts(actor?: AuthenticatedUser, companyId?: string) {
     const now = Date.now();
@@ -3773,7 +3704,6 @@ export class SupplierService {
         SUPPLIER_RETURNED: '退回补正',
         SUPPLIER_DISABLED: '停用',
         SUPPLIER_BLACKLIST: '拉黑',
-        SUPPLIER_ELIMINATED: '淘汰',
         SUPPLIER_RESTORED: '恢复',
         SUPPLIER_RESUBMITTED: '重新提交',
         SUPPLIER_REACTIVATED: '重新激活',
@@ -4174,7 +4104,7 @@ export class SupplierService {
   }
 
   /** 供应商操作历史（审计）：不可变留痕，供「操作历史」只读看板追溯。
-   *  覆盖入库/审核/停用/拉黑/恢复/变更/评价/淘汰/标签等全部 audit 落库动作。 */
+   *  覆盖入库/审核/停用/拉黑/恢复/变更/评价/标签等全部 audit 落库动作。 */
   /** 供应商操作历史（公司隔离 2026-10-19）：全局模式曾全量拉审计流（nameMap 解析跨公司供应商名）；
    *  按供应商模式可直打他司 id。全局模式=视野内供应商 id 集（双谓词，同 getRecentActivities）；
    *  按供应商模式=该供应商须在视野（同详情页 assertSupplierInScope 谓词）。 */

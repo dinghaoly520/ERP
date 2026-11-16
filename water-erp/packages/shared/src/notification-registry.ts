@@ -540,7 +540,7 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_RETURNED', label: '退回补正', domain: 'supplier', icon: 'RotateCcw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_BLACKLISTED', label: '供应商拉黑', domain: 'supplier', icon: 'Ban', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_UNBLACKLISTED', label: '供应商解除拉黑', domain: 'supplier', icon: 'CircleCheck', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
-  { code: 'SUPPLIER_ELIMINATE_CANDIDATE', label: '供应商淘汰预警', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP }, // 2026-09-26 已去 admin；sharedResolve（2026-11-12）：与专家退库批报同构的群发复核型
+  // SUPPLIER_ELIMINATE_CANDIDATE（供应商淘汰预警）已删——2026-11-16 两态裁定：处置只余停用/黑名单，淘汰候选扫描/复核页/确认端点同日整体下线
   { code: 'SUPPLIER_VISIT_REGISTERED', label: '供应商来访登记', domain: 'supplier', icon: 'CalendarCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP }, // 门户来访登记表单（:3002 /contact/visitor，@Public 匿名提交）：实际投递=访问单位（Company.name 精确匹配）归属公司 staff，无人回退平台 admin
   { code: 'SUPPLIER_REVIEW_URGE', label: '供应商催审', domain: 'supplier', icon: 'Clock', tone: 'orange', actionable: true, audiences: LEGACY('现按归属公司工作人员+回退全体，挂起待议'), channels: IN_APP },
   { code: 'PREQUAL_RESULT', label: '资格预审结果', domain: 'supplier', icon: 'FileCheck2', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },

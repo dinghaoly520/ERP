@@ -425,13 +425,6 @@ export class SupplierController {
     return this.supplierService.getNegotiationConfig(projectId);
   }
 
-  @Get('eliminate-candidates')
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '供应商淘汰候选扫描（预警，不自动停用；公司隔离，admin 可 ?companyId= 切公司）' })
-  async reviewEliminationCandidates(@Query('companyId') companyId?: string, @Request() req: any = {}) {
-    return this.supplierService.reviewEliminationCandidates(req.user, companyId);
-  }
-
   @Get('qualification-alerts')
   @Roles('admin', 'leader', 'staff')
   @ApiOperation({ summary: '资质到期预警看板（公司隔离，admin 可 ?companyId= 切公司）' })
@@ -566,7 +559,7 @@ export class SupplierController {
   @Post(':id/restore')
   @UseGuards(SupplierScopeGuard)
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '恢复/解禁供应商（停用或黑名单 → 已入库；黑名单解禁须填理由）' })
+  @ApiOperation({ summary: '恢复/解禁供应商（停用或黑名单 → 已入库；一律须填理由留痕）' })
   async restoreStatus(@Param('id') id: string, @Body() body: { reason?: string }, @Request() req: any) {
     return this.supplierService.restoreStatus(id, req.user?.sub, body?.reason);
   }
@@ -680,14 +673,6 @@ export class SupplierController {
   @ApiOperation({ summary: '供应商画像' })
   async getPortrait(@Param('id') id: string) {
     return this.supplierService.getSupplierPortrait(id);
-  }
-
-  @Post(':id/eliminate')
-  @UseGuards(SupplierScopeGuard)
-  @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '人工确认供应商淘汰' })
-  async confirmEliminate(@Param('id') id: string, @Body() body: { reason: string }, @Request() req: any) {
-    return this.supplierService.confirmEliminate(id, body.reason, req.user?.sub);
   }
 
   // CTS A-213/215/216 投标人信息资源库

@@ -56,7 +56,7 @@ function deriveInsights(
       type: 'warning',
       title: `非活跃供应商占比 ${inactivePct.toFixed(0)}%（${inactive} 家），资源池活性偏低`,
       body: `每 5 家入库供应商中有超过 1 家处于停用或黑名单状态，有效可调用的供应商仅为 ${approved} 家。${classified !== total ? `行业统计仅覆盖 ${classified} 家（${((classified/total)*100).toFixed(0)}%），${total - classified} 家尚未填写行业。` : ''}`,
-      suggestion: `审核停用名单中可恢复资质的供应商；对长期停用的执行淘汰清理；加大新供应商准入招募。`,
+      suggestion: `审核停用名单中可恢复资质的供应商；对长期停用的评估是否列入黑名单；加大新供应商准入招募。`,
     });
   } else {
     list.push({
@@ -86,7 +86,7 @@ function deriveInsights(
         type: 'warning',
         title: `优良率偏低 ${evalStats.excellentRatio.toFixed(1)}%，A 级 ${aRate}% / D+E 级 ${((deCount / evalStats.total) * 100).toFixed(0)}%`,
         body: `超过 ${((deCount) / evalStats.total * 100).toFixed(0)}% 评价集中在 D/E 区间（${deCount} 次），供应商整体履约质量有待提升。覆盖率 ${coveragePct.toFixed(0)}%。`,
-        suggestion: `对新项目选取提高资质与履约权重；对 D/E 级供应商进行专项辅导或启动淘汰评估。`,
+        suggestion: `对新项目选取提高资质与履约权重；对 D/E 级供应商进行专项辅导或停用处置。`,
       });
     } else {
       list.push({
@@ -386,7 +386,7 @@ export default function SupplierDashboardPage() {
   const insights = useMemo(() => deriveInsights(industries, stats, evalStats, alerts), [industries, stats, evalStats, alerts]);
   const actionLabels: Record<string, string> = {
     SUPPLIER_APPROVED: '审核通过', SUPPLIER_REJECTED: '审核不通过', SUPPLIER_RETURNED: '退回补正',
-    SUPPLIER_DISABLED: '停用', SUPPLIER_BLACKLIST: '拉黑', SUPPLIER_ELIMINATED: '淘汰',
+    SUPPLIER_DISABLED: '停用', SUPPLIER_BLACKLIST: '拉黑',
     SUPPLIER_RESTORED: '恢复正常', SUPPLIER_RESUBMITTED: '重新提交', SUPPLIER_REACTIVATED: '重新激活',
     SUPPLIER_CHANGE_APPROVED: '变更审批通过', SUPPLIER_CHANGE_REJECTED: '变更驳回',
     SUPPLIER_CONVERTED_REGULAR: '转正式供应商', SUPPLIER_EVALUATION_CREATED: '履约评价',
