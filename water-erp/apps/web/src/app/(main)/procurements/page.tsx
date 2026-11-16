@@ -6,6 +6,8 @@ import { StatusBadge as WbStatusBadge } from "@/components/workbench"; // 别名
 import { SasacExtractModal } from "@/components/procurements/sasac-extract-modal";
 import { ProjectTimelineDialog } from "@/components/projects/project-timeline-dialog";
 import { ExpertInfoField, BiddingUnitsField } from "@/components/projects/project-roster-fields";
+import { listChanges, type ProjectChangeRecord } from "@/lib/api/project-changes";
+import { History } from "lucide-react";
 import { Clock3 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -315,6 +317,8 @@ function LedgerRow({
   isExpanded,
   projectSummary,
   summaryLoading,
+  changeRecords,
+  changesLoading,
   onViewArchive,
   onViewVolume,
   onMoveToRecycleBin,
@@ -328,6 +332,9 @@ function LedgerRow({
   isExpanded: boolean;
   projectSummary: string | null;
   summaryLoading: boolean;
+  /** 变更/补遗记录（2026-11-16 统一）；null=未加载，[]=无记录 */
+  changeRecords: ProjectChangeRecord[] | null;
+  changesLoading: boolean;
   onViewArchive?: () => void;
   /** 打开归档卷弹窗（DA/T 103：勾稽/检测/ASIP 导出）——终态卡片 */
   onViewVolume?: () => void;
@@ -577,6 +584,50 @@ function LedgerRow({
               </div>
             )}
 
+            {/* 变更/补遗记录（2026-11-16 统一）：变更=红染、补遗=青染；轮次/时间/操作人/理由/字段 from→to */}
+            {item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && (changesLoading || changeRecords === null ? (
+              <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-[color:var(--muted-foreground)]">
+                <Loader2 size={11} className="animate-spin" />变更记录加载中…
+              </div>
+            ) : changeRecords.length > 0 ? (
+              <div className="mt-2.5 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <History size={12} className="text-[var(--danger)]" />
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">变更 / 补遗记录（{changeRecords.length}）</span>
+                </div>
+                {changeRecords.map(rec => (
+                  <div
+                    key={rec.id}
+                    className="rounded-[11px] px-3 py-2"
+                    style={{
+                      background: rec.type === 'CHANGE'
+                        ? 'color-mix(in oklch, var(--danger) 5%, transparent)'
+                        : 'color-mix(in oklch, var(--accent) 4%, transparent)',
+                      boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)',
+                    }}
+                  >
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${rec.type === 'CHANGE' ? 'bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)]' : 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[color:var(--accent-strong)]'}`}>
+                        第{rec.round}轮 · {rec.type === 'CHANGE' ? '变更' : '补遗'}
+                      </span>
+                      <span className="tabular-nums text-[color:var(--muted-foreground)]">{new Date(rec.createdAt).toLocaleString('zh-CN', { hour12: false })}</span>
+                      <span className="text-[color:var(--muted-foreground)]">{rec.operatorName}</span>
+                    </div>
+                    <p className="mt-1 text-[11px] leading-5 text-[color:var(--foreground)]">理由：{rec.reason}</p>
+                    {rec.changeset.length > 0 && (
+                      <div className="mt-1 space-y-0.5">
+                        {rec.changeset.map((c, i) => (
+                          <p key={i} className="text-[11px] leading-5 text-[color:var(--muted-foreground)]">
+                            <span className="font-medium">{c.label}</span>：{c.from || '（空）'} → {c.to || '（空）'}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : null)}
+
             {/* 中标单位 */}
             {awardedSupplier && (
               <div className="mt-2.5">
@@ -737,6 +788,9 @@ export default function ProcurementsPage() {
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(new Set());
   const [itemSummaries, setItemSummaries] = useState<Record<string, string>>({});
   const [loadingSummaries, setLoadingSummaries] = useState<Set<string>>(new Set());
+  // 变更/补遗记录（2026-11-16 统一）：展开时懒加载，键=台账条目 id
+  const [changeRecords, setChangeRecords] = useState<Record<string, ProjectChangeRecord[]>>({});
+  const [loadingChanges, setLoadingChanges] = useState<Set<string>>(new Set());
   const { setPageContext } = useAssistant();
 
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -884,6 +938,19 @@ export default function ProcurementsPage() {
           resultStatusLabel: item.resultStatusLabel,
         },
       });
+
+      // 变更/补遗记录懒加载（2026-11-16）：失败静默成空（区显示无记录）
+      if (item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && !changeRecords[itemId]) {
+        setLoadingChanges(prev => new Set(prev).add(itemId));
+        try {
+          const recs = await listChanges(item.projectManagementId);
+          setChangeRecords(prev => ({ ...prev, [itemId]: recs }));
+        } catch {
+          setChangeRecords(prev => ({ ...prev, [itemId]: [] }));
+        } finally {
+          setLoadingChanges(prev => { const n = new Set(prev); n.delete(itemId); return n; });
+        }
+      }
 
       // Fetch project summary for PROJECT_MANAGEMENT items
       if (item.sourceType === "PROJECT_MANAGEMENT" && item.projectManagementId && !itemSummaries[itemId]) {
@@ -1196,6 +1263,8 @@ export default function ProcurementsPage() {
                             onExpand={() => handleExpandToggle(item)}
                             isExpanded={expandedItemIds.has(item.id)}
                             projectSummary={itemSummaries[item.id] || null}
+                            changeRecords={changeRecords[item.id] ?? null}
+                            changesLoading={loadingChanges.has(item.id)}
                             summaryLoading={loadingSummaries.has(item.id)}
                             onViewArchive={() => handleViewArchive(item)}
                             onViewVolume={() => handleOpenVolume(item)}
@@ -1219,6 +1288,8 @@ export default function ProcurementsPage() {
                     onExpand={() => handleExpandToggle(item)}
                     isExpanded={expandedItemIds.has(item.id)}
                     projectSummary={itemSummaries[item.id] || null}
+                    changeRecords={changeRecords[item.id] ?? null}
+                    changesLoading={loadingChanges.has(item.id)}
                     summaryLoading={loadingSummaries.has(item.id)}
                     onViewArchive={() => handleViewArchive(item)}
                     onViewVolume={() => handleOpenVolume(item)}
