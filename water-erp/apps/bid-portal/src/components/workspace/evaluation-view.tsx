@@ -1503,7 +1503,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         </div>
 
         {/* #147：评分明细与汇总卡——供应商×评分项聚合（通过性表决+数值合计），结果生成后附总分对照勾稽 */}
-        <ScoreDetailCard project={project} results={results} />
+        <ScoreDetailCard project={project} />
       </div>
 
       {/* 3 步生成向导 */}

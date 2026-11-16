@@ -13,7 +13,6 @@
 import { useMemo } from 'react';
 import { ClipboardList } from 'lucide-react';
 import type { BidProjectDetail } from '@/lib/types';
-import type { BidEvaluationResultInfo } from '@/lib/api/evaluation';
 import { EXPERT_ROLE } from '@water-erp/shared';
 import type { ScoreCategory } from '@/lib/api/evaluation';
 
@@ -21,10 +20,12 @@ const PASS_FAIL_CATEGORIES: ScoreCategory[] = ['QUALIFICATION', 'RESPONSIVE'];
 
 type Props = {
   project: BidProjectDetail;
-  results: BidEvaluationResultInfo[];
 };
 
-export function ScoreDetailCard({ project, results }: Props) {
+export function ScoreDetailCard({ project }: Props) {
+  // 聚合体整体入 memo（评审 LOW-2）：对照行用 project.evaluationResults——与记录同载荷随详情
+  // 下发（orderBy rank），无独立拉取失败面（评审 LOW-1：独立 results 态失败时会误报
+  // 「结果未生成」且对照行消失，与邻排名卡的读取失败告警口径矛盾）
   const pkg = useMemo(() => {
     const defs = (project.scoreItems ?? []).map((i) => ({
       id: i.id,
@@ -39,39 +40,38 @@ export function ScoreDetailCard({ project, results }: Props) {
       (e.scoreRecords ?? []).map((r) => ({ ...r, expertId: e.id })),
     );
     if (defs.length === 0 || records.length === 0) return null;
-    return { defs, records };
+    const results = project.evaluationResults ?? [];
+    // 供应商列序：官方结果名次序在前，其余按记录首现顺序（镜像 #121）
+    const resultBySupplier = new Map(results.map((r) => [r.supplierId, r]));
+    const suppliers = [
+      ...results.map((r) => r.supplierId),
+      ...[...new Set(records.map((r) => r.supplierId))].filter((id) => !resultBySupplier.has(id)),
+    ];
+    const supplierName = new Map([
+      ...results.map((r) => [r.supplierId, r.supplierName] as const),
+      ...(project.suppliers ?? []).map((s) => [s.id, s.supplierName] as const),
+    ]);
+    const pfItemIds = new Set(defs.filter((d) => PASS_FAIL_CATEGORIES.includes(d.category)).map((d) => d.id));
+    // 供应商 × 评分项 聚合（各专家合计；通过性项另计表决票——专家未投票的 null 不计入分母）
+    const cell = new Map<string, { sum: number; n: number; votes?: number; pass?: number }>();
+    for (const r of records) {
+      const key = `${r.supplierId}|${r.scoreItemId}`;
+      const c = cell.get(key) ?? { sum: 0, n: 0 };
+      c.sum += Number(r.score) || 0;
+      c.n += 1;
+      if (pfItemIds.has(r.scoreItemId) && (r.passed === true || r.passed === false)) {
+        c.votes = (c.votes ?? 0) + 1;
+        c.pass = (c.pass ?? 0) + (r.passed ? 1 : 0);
+      }
+      cell.set(key, c);
+    }
+    return { defs, records, results, resultBySupplier, suppliers, supplierName, pfItemIds, cell, expertCount: new Set(records.map((r) => r.expertId)).size };
   }, [project]);
 
   if (!pkg) return null;
 
-  const { defs, records } = pkg;
-  // 供应商列序：官方结果名次序在前，其余按记录首现顺序（镜像 #121）
-  const resultBySupplier = new Map(results.map((r) => [r.supplierId, r]));
-  const suppliers = [
-    ...results.map((r) => r.supplierId),
-    ...[...new Set(records.map((r) => r.supplierId))].filter((id) => !resultBySupplier.has(id)),
-  ];
-  const supplierName = new Map([
-    ...results.map((r) => [r.supplierId, r.supplierName] as const),
-    ...(project.suppliers ?? []).map((s) => [s.id, s.supplierName] as const),
-  ]);
+  const { defs, records, results, resultBySupplier, suppliers, supplierName, pfItemIds, cell, expertCount } = pkg;
   const supLabel = (id: string) => supplierName.get(id) ?? `供应商 ${id.slice(-6)}`;
-
-  const pfItemIds = new Set(defs.filter((d) => PASS_FAIL_CATEGORIES.includes(d.category)).map((d) => d.id));
-  // 供应商 × 评分项 聚合（各专家合计；通过性项另计表决票——专家未投票的 null 不计入分母）
-  const cell = new Map<string, { sum: number; n: number; votes?: number; pass?: number }>();
-  for (const r of records) {
-    const key = `${r.supplierId}|${r.scoreItemId}`;
-    const c = cell.get(key) ?? { sum: 0, n: 0 };
-    c.sum += Number(r.score) || 0;
-    c.n += 1;
-    if (pfItemIds.has(r.scoreItemId) && (r.passed === true || r.passed === false)) {
-      c.votes = (c.votes ?? 0) + 1;
-      c.pass = (c.pass ?? 0) + (r.passed ? 1 : 0);
-    }
-    cell.set(key, c);
-  }
-  const expertCount = new Set(records.map((r) => r.expertId)).size;
 
   return (
     <div className="rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
