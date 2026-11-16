@@ -1,8 +1,9 @@
 # OCR 服务架构文档
 
-> 最后更新：2026-11-04
+> 最后更新：2026-11-16
 > 适用版本：`services/ocr/` v1.3.0（`main.py:27`）
 > 当前引擎：`OCR_ENGINE=rapid`（RapidOCR PP-OCRv4，**CPU 模式**，GPU 自动检测未触发）
+> 变更摘要（2026-11-16）：**PM2 轨退役**——dev 托管收编 water-erp `pnpm dev` 链（`scripts/dev-supervise.sh` 守护，崩溃 5s 重启，watchdog 自杀→拉起语义保留）；procurement 项目已停用（其 :8100 OCR 与 :8003 bge-m3 宿主职责由本链接管）；`ecosystem.config.js` 删除。
 > 变更摘要（相对 v1.2）：**ERP 全面接管**——本目录升为主副本，PM2 `erp-ocr` 独立实例 ：8110，procurement :8100 不再复用；细粒度配置面（workers/线程/dpi/页数全 env 化，线程铁律）；文字层快速路径（数字原生 PDF 提速一个量级，实测 450×）。
 > 变更摘要（相对 v1.1）：GLM-OCR 引擎已整体移除；新增 watchdog 挂死自愈、PDF 分块渲染、事件循环解锁 + 请求串行化、ONNX CUDA GPU 误判防护。
 
@@ -12,7 +13,7 @@
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                 OCR Service (ERP 自管 PM2 erp-ocr :8110)               │
+│                 OCR Service (dev 链 dev-supervise 守护 :8110)           │
 │                    FastAPI + uvicorn (单 worker)                       │
 ├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
@@ -43,7 +44,7 @@
 │                                                                        │
 │  稳定性层（v1.2.0）：                                                   │
 │    · asyncio.Lock 串行化批次 + executor 跑 OCR → 事件循环永不阻塞      │
-│    · watchdog 守护线程：单页超 180s → os._exit(1) → PM2 ~5s 拉起        │
+│    · watchdog 守护线程：单页超 180s → os._exit(1) → 守护器 ~5s 拉起      │
 └────────────────────────────────────────────────────────────────────────┘
 
 调用方：apps/api NestJS `local-ai/ocr.service.ts`
@@ -54,8 +55,8 @@
   · 结果 Redis 缓存（内容哈希键，rerun/重试零重复计算，故障不阻断；TTL/上限为代码常量）
   · 失败由 BullMQ 队列重试 → 与 watchdog 自愈配合
 
-GPU 上其余常驻：bge-m3 embedding vLLM (:8003, PM2 procurement-embedding)
-procurement 项目自己的 OCR（PM2 procurement-ocr :8100）与本实例无关、互不影响。
+GPU 上其余常驻：bge-m3 embedding vLLM (:8003, pnpm dev 链 dev:embedding 守护)
+procurement 项目已停用（2026-11-16）——其 PM2 全家桶（:8100 OCR / :8003 embedding / :4000 api）不再运行。
 ```
 
 ---
@@ -67,7 +68,7 @@ procurement 项目自己的 OCR（PM2 procurement-ocr :8100）与本实例无关
 | **env 值** | `rapid` | `easy` | `opendataloader` |
 | **原理** | PP-OCRv4 检测+方向+识别（ONNX） | CRNN 检测+识别（PyTorch） | docling 文档解析 + hybrid OCR |
 | **运行位置** | CPU（满足条件自动切 CUDA） | CPU/GPU | 本地 docling + hybrid 子进程 |
-| **当前可用性** | ✅ 生产在用 | ⚠️ **easyocr 未安装**，选了会 ImportError→PM2 重启循环 | ✅ 已安装且已打补丁，默认未启用 |
+| **当前可用性** | ✅ 生产在用 | ⚠️ **easyocr 未安装**，选了会 ImportError→守护器重启循环 | ✅ 已安装且已打补丁，默认未启用 |
 | **中文优化** | ✅ 专门优化 | ⚠️ 通用多语言 | 取决于后端（rapidocr 后端=同 RapidOCR） |
 | **表格/公式/排版** | ❌ | ❌ | ✅ docling 保留 Markdown 排版 |
 | **文字型 PDF** | 渲染→OCR | 渲染→OCR | 直接提取文字层（不 OCR） |
@@ -144,7 +145,7 @@ PDF 字节流
 
 ### 4.2 分块渲染（`main.py:34-35, 272-286`）
 
-`OCR_CHUNK_PAGES=16`（env 可调）：渲染→OCR→释放 循环。此前整本 PDF 像素图常驻内存（191 页需数 GB），现峰值 ≈ 单块大小。配合 PM2 `max_memory_restart=4G`。
+`OCR_CHUNK_PAGES=16`（env 可调）：渲染→OCR→释放 循环。此前整本 PDF 像素图常驻内存（191 页需数 GB），现峰值 ≈ 单块大小。进程若仍 OOM 崩溃，由 dev-supervise 守护循环 5s 拉起（PM2 `max_memory_restart` 语义随 PM2 退役移除）。
 
 ### 4.3 Watchdog 挂死自愈（`ocr_engine.py:573-610`）
 
@@ -156,7 +157,7 @@ watchdog 守护线程（每 5s 巡检，OCR_WATCHDOG=1 默认开）：
     in_flight 且 elapsed > OCR_PAGE_TIMEOUT（默认 180s）
         → logger.critical("OCR watchdog: ... 卡死")
         → os._exit(1)          ← 线程无法取消 onnxruntime 死锁，只能杀进程
-        → PM2 restart_delay=5s 拉起
+        → dev-supervise 守护循环 5s 拉起
         → 上游 BullMQ 任务重试
 ```
 
@@ -172,9 +173,9 @@ watchdog 守护线程（每 5s 巡检，OCR_WATCHDOG=1 默认开）：
 
 **当前机器**：条件 1、2 满足，条件 3 不满足（系统库路径无 libcudart，ldconfig 0 条）→ 启动日志 `No GPU, using CPU OCR`，**以 CPU 模式稳定运行**。
 
-若未来要启用 GPU OCR：将 venv 内 `nvidia-cuda-runtime` 的 lib 目录（或系统 CUDA）加入 `LD_LIBRARY_PATH`（PM2 env 块），重启即自动切换为 `config_gpu.yaml`（det/cls/rec 均为 PP-OCRv4 ONNX CUDA）。
+若未来要启用 GPU OCR：将 venv 内 `nvidia-cuda-runtime` 的 lib 目录（或系统 CUDA）加入 `LD_LIBRARY_PATH`（dev-supervise 所在 shell 的 env），重启即自动切换为 `config_gpu.yaml`（det/cls/rec 均为 PP-OCRv4 ONNX CUDA）。
 
-### 4.5 OMP 线程限制（PM2 env）
+### 4.5 OMP 线程限制（会话 env）
 
 历史口径（procurement-ocr 用 `OMP_NUM_THREADS=8` 压 OpenMP 互掐）；**erp-ocr 不设 OMP env**——线程预算直接由 `OCR_INTRA_THREADS`/`OCR_INTER_THREADS` 在会话层收口（v1.3.0），限得更准。
 
@@ -201,7 +202,7 @@ recognize(arr) → result 每行 r[1] 用 \n 连接
 
 ### 5.2 EasyOcrEngine（`ocr_engine.py:104-115`）
 
-代码保留但 **easyocr 未安装**（venv 无此包）。`.env` 设 `easy` 会在 warmup 抛 ImportError → PM2 重启循环。需要时先 `.venv/bin/pip install easyocr`。
+代码保留但 **easyocr 未安装**（venv 无此包）。`.env` 设 `easy` 会在 warmup 抛 ImportError → 守护器重启循环。需要时先 `.venv/bin/pip install easyocr`。
 
 ### 5.3 OpenDataLoader / hybrid（`ocr_engine.py:120-445`）
 
@@ -257,23 +258,16 @@ patch hybrid_server.py < ../../../../patches/hybrid_server_rapidocr.patch
 NestJS 消费端 env（`apps/api/.env`）9 项（2026-11-06 用户裁定推翻 11-05 零配置面，恢复 env 装配；全部带默认值，缺省零行为变化）：
 `OCR_SERVICE_URL`（:8110）、`OCR_BATCH_PAGES`（40）、`OCR_BATCH_TIMEOUT_MS`（300000）、`OCR_IMAGE_TIMEOUT_MS`（120000）、`OCR_BATCH_RETRIES`（3）、`OCR_RETRY_DELAY_MS`（500）、`OCR_LARGE_FILE_MB`（20）、`OCR_CACHE_TTL_SECONDS`（604800）、`OCR_CACHE_MAX_ENTRY_KB`（2048）。非法值回落默认并 warn；服务端引擎调参仍在 services/ocr/.env。
 
-### 6.2 PM2 env 对照（erp-ocr vs procurement-ocr）
+### 6.2 托管参数（dev 链守护器，2026-11-16 起）
 
-| 项 | erp-ocr（ERP 自管 :8110） | procurement-ocr（:8100，对方项目） |
-|---|---|---|
-| 线程控制 | `OCR_INTRA_THREADS`（会话层，.env） | `OMP_NUM_THREADS=8`（进程层 env） |
-| `ALL_PROXY` | `socks5://127.0.0.1:7897/` | docling/huggingface_hub 走 httpx，需 socks5 格式 |
-| `max_memory_restart` | `4G` | 191 页批处理正常峰值 <1G，超限回收 |
-| `kill_timeout` | `30s` | 留时间清理 hybrid 子进程 |
-| `restart_delay` | `5s` | watchdog 自杀后快速拉起 |
-| `max_restarts` | `10` | 防崩溃循环 |
+dev 托管收编 `pnpm dev` 链：`scripts/dev-supervise.sh ocr 8110 5 bash services/ocr/start.sh`——崩溃 5s 重启（watchdog 自杀→拉起）、TERM 整链退出不复活、端口被占则让位。历史 PM2 参数对照表（erp-ocr vs procurement-ocr）随 PM2 退役移除；仍有效的口径：线程控制走 `OCR_INTRA_THREADS` 会话层收口（.env，不设进程级 `OMP_NUM_THREADS`）；hybrid 相关 httpx 依赖需 `socks5://` 代理格式。
 
 ---
 
 ## 7. GPU 资源现状（RTX 5090 D, 24GB）
 
 ```
-├── bge-m3 embedding vLLM (:8003)   ~2.3GB   PM2: procurement-embedding
+├── bge-m3 embedding vLLM (:8003)   ~2.3GB   pnpm dev 链 dev:embedding（守护）
 ├── OCR 服务                        CPU 模式（显存 0；GPU 判定条件见 §4.4）
 └── 剩余显存                        可供未来启用 OCR CUDA / 其他模型
 ```
@@ -291,13 +285,12 @@ GLM-OCR vLLM（原 :8101，~2.2GB）已下线，相关 vLLM 环境适配补丁�
 | `main.py` | FastAPI 入口（路由、分块渲染、锁与 busy 状态） |
 | `ocr_engine.py` | 引擎工厂 + watchdog + hybrid pool + opendataloader 解析 |
 | `config_gpu.yaml` | RapidOCR CUDA 配置（GPU 模式自动启用） |
-| `start.sh` | 开发启动：建 `.env`/`.venv` → uvicorn :8100（`pnpm dev:ocr`） |
+| `start.sh` | 开发启动：建 `.env`/`.venv` → uvicorn :8110（`pnpm dev:ocr`，经 dev-supervise 守护） |
 | `requirements.txt` | Python 依赖（PyMuPDF 为 PDF 渲染器；pdf2image 已移除） |
 | `patches/hybrid_server_rapidocr.patch` | venv 内 opendataloader 补丁的留档，升级后重放 |
 | `test_main.py` | 单元测试（max_pages=0 只返回页数） |
 | `test_ocr.py` | opendataloader hybrid 路径手动诊断脚本（`python test_ocr.py <pdf>`） |
 | `test_config.py` | 配置解析单测（resolve_* / v5 kwargs） |
-| `ecosystem.config.js` | PM2 `erp-ocr` 托管定义（:8110） |
 | `.env.example` | 全量配置旋钮契约（含 6 核预算预设注释） |
 
 ### 8.2 启动方式
@@ -308,9 +301,9 @@ pnpm dev:ocr        # → bash services/ocr/start.sh
                      #   首次自动建 venv（.venv/.ready 标记）、.env；
                      #   requirements.txt 变更后自动重建 venv
 
-# 本机常驻（ERP 自管，2026-11-04 接管）
-pm2 start ecosystem.config.js --only erp-ocr    # :8110
-pm2 logs erp-ocr
+# 本机常驻（2026-11-16 起 PM2 退役）：随 pnpm dev 全链启动
+#   守护器 scripts/dev-supervise.sh（崩溃 5s 重启、TERM 整链退出）；单独拉起即 pnpm dev:ocr，
+#   日志带 [ocr] 前缀输出在 dev 链面板；全链清理 pnpm dev:kill（含 :8110/:8003 与守护器）
 
 # 健康检查（含生效配置上报）
 curl localhost:8110/health
@@ -318,6 +311,7 @@ curl localhost:8110/health
 ```
 
 > **接管记录（2026-11-04）**：ERP API `OCR_SERVICE_URL` 由 procurement :8100 切至自管 `erp-ocr` :8110；procurement-ocr（:8100）属 procurement 项目、继续自用。生产部署为 Docker（麒麟 x86_64、8 核、6 核预算、无 GPU），本机调试完成后整体替换。
+> **2026-11-16**：procurement 项目停用（:8100/:8003 随之退役）；erp-ocr 改由 `pnpm dev` 链 dev-supervise 守护，PM2 轨整体退役（`ecosystem.config.js` 删除）。
 
 ### 8.3 NestJS 调用方（`apps/api/src/local-ai/ocr.service.ts`）
 
@@ -374,8 +368,8 @@ easy     仅在需要多语言混排且接受安装 easyocr/torch 时考虑
 | 日志 `No GPU, using CPU OCR` 但期望 GPU | libcudart 不在库路径 | 见 §4.4，设 `LD_LIBRARY_PATH` 后重启 |
 | OCR 返回空文本 | 空白扫描件 / 置信度过滤 | `curl /health`；人工看渲染图清晰度 |
 | 日志 `Using PP-OCRv4 default models` | 正常 | v5 模型未装；要 v5 需放 `~/.rapidocr/models/v5/` |
-| 选 `easy` 后 PM2 重启循环 | easyocr 未安装 | `.venv/bin/pip install easyocr` 或改回 `rapid` |
+| 选 `easy` 后守护器重启循环 | easyocr 未安装 | `.venv/bin/pip install easyocr` 或改回 `rapid` |
 | hybrid 启动失败 / 无 `--ocr-backend` | pip 升级后 venv 补丁丢失 | 重放 `patches/hybrid_server_rapidocr.patch`（§5.3） |
-| Hybrid 服务器离线 | 子进程崩溃 | `curl localhost:5002/health`；`pm2 logs erp-ocr` |
+| Hybrid 服务器离线 | 子进程崩溃 | `curl localhost:5002/health`；看 dev 链面板 `[ocr]` 前缀日志 |
 | httpx 代理报错 | `socks://` 不被识别 | 生产 env 已设 `socks5://`；代码侧自动改写子进程代理 |
 | GPU OOM / 显存争抢 | 多模型共存 | `nvidia-smi`；OCR 当前 CPU 模式不占显存 |

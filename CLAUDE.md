@@ -41,7 +41,7 @@ Run workspace commands from `water-erp/`.
 
 Infrastructure in `water-erp/docker-compose.yml`: PostgreSQL 16 (`localhost:5432`), Redis 7 (`localhost:6380→6379`), MinIO (`localhost:9000`, console `localhost:9001`).
 
-**Auxiliary service:** `water-erp/services/ocr/` is a standalone Python (FastAPI + uvicorn) OCR microservice, **ERP 自管 PM2 `erp-ocr` 实例 `:8110`（2026-11-04 接管，v1.3.0）**——不再复用 procurement 的 :8100（procurement-ocr 属对方项目、继续自用）。`start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化，venv 就绪含 requirements 新旧检查；细粒度配置面（`OCR_NUM_WORKERS`/`OCR_INTRA_THREADS`/`OCR_CHUNK_PAGES`/`OCR_DEFAULT_DPI` 等，线程铁律 WORKERS×INTRA≤核预算，见 `services/ocr/.env.example`）；文字层快速路径（数字原生 PDF 免 OCR，实测 450×）。API 侧 `local-ai/OcrService` env 9 项（2026-11-06 裁定推翻 11-05 零配置面）：`OCR_SERVICE_URL=:8110` + 批次/超时/重试/分批阈值/缓存 8 旋钮（`OCR_BATCH_PAGES=40`/`OCR_BATCH_TIMEOUT_MS=300000` 等，全带默认），dpi 不上送走服务端 `OCR_DEFAULT_DPI` 单一权威，Redis 结果缓存（内容哈希键、故障不阻断）。生产部署 Docker（麒麟 x86_64/8核/6核预算/无 GPU）。架构文档 `services/ocr/ARCHITECTURE.md`。
+**Auxiliary service:** `water-erp/services/ocr/` is a standalone Python (FastAPI + uvicorn) OCR microservice, **dev 链 `dev-supervise.sh` 守护实例 `:8110`（2026-11-04 自 procurement 接管；2026-11-16 PM2 退役收编 `pnpm dev`，崩溃 5s 守护重启，watchdog 自杀语义保留）**——procurement 项目已停用（其 :8100/:8003 宿主职责由本链接管）。`start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化，venv 就绪含 requirements 新旧检查；细粒度配置面（`OCR_NUM_WORKERS`/`OCR_INTRA_THREADS`/`OCR_CHUNK_PAGES`/`OCR_DEFAULT_DPI` 等，线程铁律 WORKERS×INTRA≤核预算，见 `services/ocr/.env.example`）；文字层快速路径（数字原生 PDF 免 OCR，实测 450×）。API 侧 `local-ai/OcrService` env 9 项（2026-11-06 裁定推翻 11-05 零配置面）：`OCR_SERVICE_URL=:8110` + 批次/超时/重试/分批阈值/缓存 8 旋钮（`OCR_BATCH_PAGES=40`/`OCR_BATCH_TIMEOUT_MS=300000` 等，全带默认），dpi 不上送走服务端 `OCR_DEFAULT_DPI` 单一权威，Redis 结果缓存（内容哈希键、故障不阻断）。生产部署 Docker（麒麟 x86_64/8核/6核预算/无 GPU）。架构文档 `services/ocr/ARCHITECTURE.md`。
 
 ## Portal Descriptions
 
@@ -158,7 +158,7 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all (9 portals — includes bigscreen + mobile-portal + ai-bid worker)
+# Start all（9 门户（含 bigscreen/mobile）+ ai-bid worker + api-guard + OCR :8110 + bge-m3 :8003——链 13 成员）
 pnpm dev
 
 # Start individual apps
@@ -182,8 +182,9 @@ pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bi
 # pnpm dev:ukey-mw-guard    # :17999（已退役，guard 会因 systemd 不在而尝试拉起——生产不应启用）
 # （2026-10-28 已从 pnpm dev 链移除 guard——dev 不再复活 :17999）
 
-# OCR 微服务（Python，:8100）
+# OCR 微服务 :8110（dev-supervise 守护）
 pnpm dev:ocr
+pnpm dev:embedding   # bge-m3 embedding vLLM :8003（dev-supervise 守护；procurement PM2 停用后由本链托管）
 
 # Build
 pnpm build
@@ -323,7 +324,7 @@ The NestJS API (`apps/api`, :4001):
 | `Procurements` | Procurement project lifecycle (active module — exports `ProcurementsService`) |
 | `Procurement` | Legacy procurement module (no Prisma; prefer `Procurements` for new work) |
 | `ProjectManagement` | Project management endpoints |
-| `TenderWrite` / `TenderReview` / `TenderSample` / `TenderHistory` | Tender-document authoring, AI review, sample library, historical-tender search. **`TenderReview` 硬依赖基础设施**（移植自 procurement，缺一即"无法使用"）：postgres 须为 `pgvector/pgvector:pg16` + `PGVECTOR_ENABLED=true`（语义/通用审查走 pgvector RAG）；`EMBEDDING_BASE_URL` 须指本机在跑的 vLLM bge-m3 `http://localhost:8003/v1` 且 `EMBEDDING_MODEL=/home/asus/models/bge-m3`（全路径，无 `--served-model-name`）；规则提取/CRUD 走 `@Roles('leader','admin','staff')`（与 upload/execute 对齐；原 `AdminGuard` 仅 admin 在 :3005 不可用——admin 登录后被 `portalURL` 弹去 :3007，故已放宽）。详见 memory `tender-review-infra-gotchas` |
+| `TenderWrite` / `TenderReview` / `TenderSample` / `TenderHistory` | Tender-document authoring, AI review, sample library, historical-tender search. **`TenderReview` 硬依赖基础设施**（移植自 procurement，缺一即"无法使用"）：postgres 须为 `pgvector/pgvector:pg16` + `PGVECTOR_ENABLED=true`（语义/通用审查走 pgvector RAG）；`EMBEDDING_BASE_URL` 须指本机在跑的 vLLM bge-m3 `http://localhost:8003/v1` 且 `EMBEDDING_MODEL=/home/asus/models/bge-m3`（全路径，无 `--served-model-name`）（:8003 由 `pnpm dev` 链 dev:embedding 拉起，2026-11-16 起不再依赖 procurement PM2）；规则提取/CRUD 走 `@Roles('leader','admin','staff')`（与 upload/execute 对齐；原 `AdminGuard` 仅 admin 在 :3005 不可用——admin 登录后被 `portalURL` 弹去 :3007，故已放宽）。详见 memory `tender-review-infra-gotchas` |
 | `Knowledge` | Knowledge base / RAG corpus backing AI features. **文件上传解析异步化（2026-11-06）**：`POST /knowledge/:id/files` 收件即落 MinIO+建 `KnowledgeFile(status=PARSING)` 返 202，解析/分块/嵌入在 BullMQ `knowledge-parse` 队列（由 ai-bid worker 进程消费）；`status` PARSING/READY/FAILED+页进度（`processedPages/totalPages`，OCR 批次粒度）、`indexed=false`=嵌入降级、`sha256` 同库去重（PARSING/READY 复用返回、FAILED 重置重入队）；FAILED 可 `POST :id/files/:fileId/retry`；检索/规则提取仅 READY。**解析严格模式（2026-11-10 生产实录）**：processor 调 `parse()` 带 `strictOcr: true`——扫描件（pdf-parse 稀疏）OCR 不可用/抛错/空结果一律抛错落 FAILED（此前宽容降级返回残稀文本，476 页扫描件 OCR 批 fetch failed 被吞、垃圾 1 chunk 误标 READY indexed=true，前端永无失败提示）；`parse()` 默认仍宽容（project-management 字段提取/tender-review 上传依赖降级梯子）。**reindex 异步化（2026-11-11 生产实录）**：同步 reindex 在 KB 含大文档（嵌入小时级）时必穿 proxy 120s 窗 → 504 而 API 循环照跑；现 `POST :id/reindex` 立即 202+后台逐文件（增量跳过 indexed=true、每文件 deleteByFileId 幂等替换、防重入守卫、后台 promise 顶层兜底防浮动 reject），`?force=true` 整库全量；前端 toast 改「已后台启动」 |
 | `Audit` | Operation audit logs (`AuditLog` model) |
 | `Assistant` | AI chatbot conversations & messages (DeepSeek LLM); action logs |
@@ -372,7 +373,7 @@ COOKIE_DOMAIN=.scsfjt.com          # 生产域名部署必设：跨子域 cookie
 
 # ── 基础设施 ──
 REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker 都读它（缺省回退 localhost:6380）
-OCR_SERVICE_URL=http://localhost:8100  # OCR 微服务（services/ocr），local-ai/OcrService 消费（后端内部依赖，浏览器零直连，无需域名）；生产分机部署（2026-10-26）：http://10.60.14.14:8100（生产 .env 设此项；本机开发不设=默认 localhost 配 pnpm dev:ocr）
+OCR_SERVICE_URL=http://localhost:8110  # OCR 微服务（services/ocr，dev 链 :8110，本机 .env 已显式设置），local-ai/OcrService 消费（后端内部依赖，浏览器零直连，无需域名）；生产分机部署（2026-10-26）：http://10.60.14.14:8100（生产 .env 设此项，B 机容器内 8100 口径）；代码缺省回落 localhost:8110（ocr.service.ts，2026-11-16 与 dev 链同口径；生产恒显式设置不受缺省影响）
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
 FIELD_ENC_SECRET=...               # 敏感字段国密加密主密钥（PII sm1: SM4-CBC+HMAC-SM3，等保+密评 2026-10；生产缺失/<32 拒绝启动；dev 回退固定钥；FIELD_ENC_SECRET_OLD 轮转旧钥）
 # BID_DUAL_ENVELOPE（已废弃 2026-10-14：旧轨投递整体封死，flag 不再提供退回语义，env 无此行）；CA_SUPPLIER_V3_ENABLED（已转正 2026-11-05：默认开含 dual-v3，仅显式 false 应急收窄，env 无此行）

@@ -1,5 +1,6 @@
 # embed 嵌入服务验证 curl（bge-m3 vLLM · :8003）
 
+> 2026-11-16 注：托管已变更——procurement 项目停用，:8003 改由 water-erp `pnpm dev` 链 `dev:embedding`（dev-supervise 守护）拉起；下列 curl 命令与响应契约不变。
 > 2026-11-02 实测定稿。服务由 PM2 托管（进程名 `procurement-embedding`，绑 0.0.0.0 供 zhishiku 容器共用），
 > ERP API 经 `local-ai/EmbeddingService` 消费，配置在 `apps/api/.env`：
 

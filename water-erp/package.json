@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev:kill": "bash scripts/dev-kill.sh",
-    "dev": "pnpm dev:kill && concurrently -n supplier,web,expert,public,bid,api,assistant,bigscreen,mobile,ai-worker,api-guard -c green,blue,purple,cyan,red,yellow,white,gray,#5bc0de,#ff8f00,#ff5252 \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\" \"pnpm dev:mobile\" \"pnpm dev:ai-worker\" \"pnpm dev:api-guard\"",
+    "dev": "pnpm dev:kill && concurrently -n supplier,web,expert,public,bid,api,assistant,bigscreen,mobile,ai-worker,api-guard,ocr,embedding -c green,blue,purple,cyan,red,yellow,white,gray,#5bc0de,#ff8f00,#ff5252,#f06292,#7e57c2 \"pnpm dev:supplier\" \"pnpm dev:web\" \"pnpm dev:expert\" \"pnpm dev:public\" \"pnpm dev:bid\" \"pnpm dev:api\" \"pnpm dev:assistant\" \"pnpm dev:bigscreen\" \"pnpm dev:mobile\" \"pnpm dev:ai-worker\" \"pnpm dev:api-guard\" \"pnpm dev:ocr\" \"pnpm dev:embedding\"",
     "dev:api": "pnpm --filter api start:dev",
     "dev:api-guard": "bash scripts/dev-api-guard.sh",
     "dev:ai-worker": "sleep 20 && pnpm --filter api dev:worker:ai-bid-analysis",
@@ -17,7 +17,8 @@
     "dev:mobile": "pnpm --filter mobile-portal dev",
     "dev:bigscreen": "pnpm --filter bigscreen dev",
     "dev:supplier": "pnpm --filter supplier-portal-next dev",
-    "dev:ocr": "cd services/ocr && bash start.sh",
+    "dev:ocr": "bash scripts/dev-supervise.sh ocr 8110 5 bash services/ocr/start.sh",
+    "dev:embedding": "bash scripts/dev-supervise.sh embedding 8003 10 /home/asus/vllm_venv/bin/vllm serve /home/asus/models/bge-m3 --host 0.0.0.0 --port 8003 --convert embed --max-model-len 8192 --gpu-memory-utilization 0.40 --enforce-eager",
     "dev:ukey-mw": "cd services/ukey-middleware && bash start.sh",
     "dev:ukey-mw-guard": "cd services/ukey-middleware && bash start-guard.sh",
     "dev:ukey-mw-usb": "cd services/ukey-middleware && bash start-usb.sh",
