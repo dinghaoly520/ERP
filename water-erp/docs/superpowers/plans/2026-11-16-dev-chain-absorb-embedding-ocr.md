@@ -39,7 +39,7 @@
 **Interfaces:**
 - Produces: `dev-supervise.sh <label> <port> <restart_delay_s> <cmd> [args...]`——端口已监听 → 打印让位信息 `exit 0`；TERM/INT → 杀子进程并 `exit 0`（不重启）；子进程非 TERM 退出 → 打印退出码、`sleep delay` 后重启。Task 2 的 dev 链条目与 `dev:ocr`/`dev:embedding` 均以此签名调用。
 
-- [ ] **Step 1: 写自测脚本（三用例，先红）**
+- [x] **Step 1: 写自测脚本（三用例，先红）**
 
 `scripts/dev-supervise.selftest.sh`，对齐 `dev-api-guard.selftest.sh` 先例；临时文件 `mktemp -d`、测试端口 `59801`（避免与真实服务冲突）、`pgrep -f` 用带 `tst` 的唯一 label 防自匹配：
 
@@ -76,12 +76,12 @@ echo "全部通过"
 
 （注意用例 B 的 port 传 `0`：不探测真实端口，`ss` 对 `:0 ` 无监听必然放行——参数仍占位保持签名。）
 
-- [ ] **Step 2: 跑自测确认红**
+- [x] **Step 2: 跑自测确认红**
 
 Run: `bash scripts/dev-supervise.selftest.sh`
 Expected: 用例 A 即 FAIL（`dev-supervise.sh: No such file or directory`，timeout 速退非 0）
 
-- [ ] **Step 3: 实现 `scripts/dev-supervise.sh`**
+- [x] **Step 3: 实现 `scripts/dev-supervise.sh`**
 
 trap/wait 交互是签名测不出的算法，整体给出：
 
@@ -119,12 +119,12 @@ done
 
 （`wait` 被信号打断时 trap 已 `exit 0`，循环内不会走到重启——这就是 TERM 不复活的机制。）
 
-- [ ] **Step 4: 跑自测确认绿**
+- [x] **Step 4: 跑自测确认绿**
 
 Run: `chmod +x scripts/dev-supervise.sh scripts/dev-supervise.selftest.sh && bash scripts/dev-supervise.selftest.sh`
 Expected: 三用例全 PASS，末行 `全部通过`
 
-- [ ] **Step 5: Commit（含 spec 与本计划）**
+- [x] **Step 5: Commit（含 spec 与本计划）**
 
 ```bash
 git add scripts/dev-supervise.sh scripts/dev-supervise.selftest.sh \
@@ -148,11 +148,11 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 - Consumes: Task 1 的 `dev-supervise.sh` 签名。
 - Produces: dev 链 13 成员（尾部新增 `ocr`、`embedding`）；`dev:kill` 全量模式清 12 端口（原 10 + 8003 + 8110）并扫杀 `*dev-supervise.sh*`（`--api` 模式不杀守护器）。
 
-- [ ] **Step 1: `start.sh` 默认端口 8100→8110**
+- [x] **Step 1: `start.sh` 默认端口 8100→8110**
 
 行 `OCR_PORT="${OCR_PORT:-8100}"` → `OCR_PORT="${OCR_PORT:-8110}"`；上一行注释改为 `# 端口参数化：OCR_PORT/OCR_HOST（默认 8110=ERP canon；procurement :8100 已随项目停用 2026-11-16）`
 
-- [ ] **Step 2: `package.json` 三处**
+- [x] **Step 2: `package.json` 三处**
 
 `dev` 链：names 尾部追加 `,ocr,embedding`；colors 追加 `,#f06292,#7e57c2`；命令尾部追加两条：
 
@@ -163,19 +163,19 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 `dev:ocr` 改为 `"dev:ocr": "bash scripts/dev-supervise.sh ocr 8110 5 bash services/ocr/start.sh"`；新增 `"dev:embedding": "bash scripts/dev-supervise.sh embedding 8003 10 /home/asus/vllm_venv/bin/vllm serve /home/asus/models/bge-m3 --host 127.0.0.1 --port 8003 --convert embed --max-model-len 8192 --gpu-memory-utilization 0.40 --enforce-eager"`
 
-- [ ] **Step 3: `dev-kill.sh` 两处**
+- [x] **Step 3: `dev-kill.sh` 两处**
 
 ① 端口行（第 83 行全量分支）追加两端口：
 `fuser -k 3002/tcp 3003/tcp 3004/tcp 3005/tcp 3006/tcp 3007/tcp 3008/tcp 3010/tcp 3011/tcp 4001/tcp 8003/tcp 8110/tcp 2>/dev/null`
 ② 第 45 行 pattern `*dev-api-guard.sh*|*dev:api-guard*)` 扩为 `*dev-api-guard.sh*|*dev:api-guard*|*dev-supervise.sh*)`——**但守卫杀须全模式、守护器杀须限 `MODE=all`**：把该 case 命中后按 cmdline 细分（guard 两条 pattern 任何 MODE 都收杀；`dev-supervise.sh` 仅 `MODE=all` 时入列），实现方式自选（如两个独立 case 分支）。头注释补一行：守护器清理防「fuser 清端口后 10s 孤儿复活」；用法注释 `10 个端口`→`12 个端口`。
 
-- [ ] **Step 4: 语法与干跑验证**
+- [x] **Step 4: 语法与干跑验证**
 
 Run: `bash -n scripts/dev-kill.sh && node -e "JSON.parse(require('fs').readFileSync('package.json'))" && bash scripts/dev-kill.sh --list`
 Expected: 三条全无错；干跑列出将杀对象（当前无守护器运行则显示无）
 再 Run: `bash scripts/dev-kill.sh --api --list`（如有守护器在跑，确认其**不在** --api 清单）——静态审查 MODE 闸实现亦可。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add package.json services/ocr/start.sh scripts/dev-kill.sh
@@ -196,25 +196,25 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 **Interfaces:** 无代码接口；纯退役与文档。产出约定：后续文档/记忆中 OCR 与 :8003 的托管表述统一为「`pnpm dev` 链 `scripts/dev-supervise.sh` 守护」。
 
-- [ ] **Step 1: 删 ecosystem.config.js**
+- [x] **Step 1: 删 ecosystem.config.js**
 
 `git rm services/ocr/ecosystem.config.js`（2026-11-04 的「勿并入 pnpm dev」警示已由守护循环推翻，spec 有案）
 
-- [ ] **Step 2: ARCHITECTURE.md 扫旧表述**
+- [x] **Step 2: ARCHITECTURE.md 扫旧表述**
 
 逐处替换（行号为 2026-11-16 现状）：L6 变更摘要「PM2 `erp-ocr` 独立实例」→「dev 链 `dev-supervise.sh` 守护实例（2026-11-16 PM2 退役）」；L15 拓扑图标签；L46「→ PM2 ~5s 拉起」→「→ dev-supervise ~5s 拉起」；L57-58 bge-m3 托管方改「`pnpm dev` 链 `dev:embedding`（procurement 已停用）」、L58 整句改历史注记；L70/L204「PM2 重启循环」→「守护器重启循环」；L147 `max_memory_restart` 表述改「守护循环拉起（max_memory 语义随 PM2 退役移除，OOM 后同 5s 重启）」；L159 `PM2 restart_delay=5s`→`dev-supervise delay=5s`；L175「（PM2 env 块）」→「（dev-supervise 所在 shell env）」；L177 标题「（PM2 env）」→「（会话 env）」；L260-262 对照表改历史注记或重写为「erp-ocr（dev 链 :8110）」；L276「PM2: procurement-embedding」→「dev:embedding」；L300 文件清单删 ecosystem 行。`grep -n 'PM2\|pm2' ARCHITECTURE.md` 复核：仅允许历史变更摘要里的年份叙述残留。
 
-- [ ] **Step 3: `.env.example` / `.env` 注释同步**
+- [x] **Step 3: `.env.example` / `.env` 注释同步**
 
 「超时自杀交 PM2 拉起（默认 180）」→「超时自杀交 dev-supervise 守护循环拉起（默认 180）」（两个文件同一行）
 
-- [ ] **Step 4: CLAUDE.md 三处（Bash + python3 替换，ARS 守卫拦 Edit/Write）**
+- [x] **Step 4: CLAUDE.md 三处（Bash + python3 替换，ARS 守卫拦 Edit/Write）**
 
 ① L44 OCR 段「**ERP 自管 PM2 \`erp-ocr\` 实例 \`:8110\`（2026-11-04 接管，v1.3.0）**——不再复用 procurement 的 :8100（procurement-ocr 属对方项目、继续自用）。」→「**dev 链 \`dev-supervise.sh\` 守护实例 \`:8110\`（2026-11-04 自 procurement 接管；2026-11-16 PM2 退役收编 \`pnpm dev\`，崩溃 5s 守护重启，watchdog 自杀语义保留）**——procurement 项目已停用（其 :8100/:8003 宿主职责由本链接管）。」
 ② Development Commands：`pnpm dev` 注释「Start all (9 portals — includes bigscreen + mobile-portal + ai-bid worker)」→「Start all（9 portals + bigscreen + mobile + ai-bid worker + OCR :8110 + bge-m3 embedding :8003）」；`pnpm dev:ocr` 注释「# OCR 微服务（Python，:8100）」→「# OCR 微服务 :8110（dev-supervise 守护）」；其下新增一行 `pnpm dev:embedding   # bge-m3 embedding vLLM :8003（dev-supervise 守护；procurement PM2 停用后由本链托管）`（对齐邻近注释缩进）。
 ③ TenderReview 硬依赖句「\`EMBEDDING_BASE_URL\` 须指本机在跑的 vLLM bge-m3 \`http://localhost:8003/v1\`」后追加「（:8003 由 \`pnpm dev\` 链 dev:embedding 拉起，2026-11-16 起不再依赖 procurement PM2）」。
 
-- [ ] **Step 5: 复核 + Commit**
+- [x] **Step 5: 复核 + Commit**
 
 Run: `grep -rn 'erp-ocr\|procurement-embedding' --include='*.md' services/ docs/ ../CLAUDE.md 2>/dev/null | grep -v 已停用 | grep -v 2026-11-16`（人为复核残行是否均为历史叙述）
 ```bash
@@ -232,23 +232,23 @@ Co-Authored-By: Claude Code <noreply@anthropic.com>"
 
 **Interfaces:** Consumes Task 2 的 `dev:ocr`/`dev:embedding`/`dev:kill`。
 
-- [ ] **Step 1: 单服务——OCR 崩溃自愈**
+- [x] **Step 1: 单服务——OCR 崩溃自愈**
 
 后台 `pnpm dev:ocr` → 轮询 `curl -s --noproxy '*' http://127.0.0.1:8110/health`（≤60s）→ 200。
 找到 uvicorn 进程 PID（`ss -tlnp | grep :8110`）`kill -9` → 轮询 :8110 重新监听（≤15s=5s delay+启动）→ `/health` 复 200。
 
-- [ ] **Step 2: 单服务——embedding 冒烟**
+- [x] **Step 2: 单服务——embedding 冒烟**
 
 `pnpm dev:kill` 清场 → 后台 `pnpm dev:embedding` → 轮询 `curl -s --noproxy '*' http://127.0.0.1:8003/v1/models`（**≤180s**，模型加载分钟级，禁即时判定）→ 响应含 `bge-m3`；再 `curl -s --noproxy '*' -X POST http://127.0.0.1:8003/v1/embeddings -H 'Content-Type: application/json' -d '{"model":"/home/asus/models/bge-m3","input":["测试"]}'` → 返回 1024 维向量（jq 数长度）。
 
-- [ ] **Step 3: 全链集成**
+- [x] **Step 3: 全链集成**
 
 `pnpm dev:kill` 清场 → 后台 `pnpm dev`（自带 dev:kill 前置）→ 等编译+模型加载 → 断言 13 端口全监听：3002 3004 3005 3006 3007 3008 3010 3011 4001 8003 8110（`ss -tln` 逐一核对；3003 ukey 不在链）；`curl /api/docs` 200。→ `pnpm dev:kill` → 断言 12 端口全释放、`pgrep -f dev-supervise.sh` 为空。
 
-- [ ] **Step 4: pm2-asus 核对（用户侧动作闭环）**
+- [x] **Step 4: pm2-asus 核对（用户侧动作闭环）**
 
 提醒用户执行 `! sudo systemctl disable pm2-asus`；执行后 `systemctl is-enabled pm2-asus` 期望 `disabled`。若用户暂不执行，在交付说明中标注遗留风险。
 
-- [ ] **Step 5: 收尾**
+- [x] **Step 5: 收尾**
 
 计划文档勾选回写、记忆更新（`bge-m3-pm2-procurement-shared` 与 `ocr-service-pm2-managed-hangs` 改托管现状、MEMORY.md 钩子同步）、向用户汇报验收结果与未推送提交数（不主动 push）。
