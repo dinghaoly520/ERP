@@ -3,6 +3,8 @@ import { LlmService } from '../local-ai/llm.service';
 import { DashboardService } from '../dashboard/dashboard.service';
 import { ProgressService, STAGE_LABELS } from '../progress/progress.service';
 import { CompanyScopeService } from '../company/company-scope';
+import { PrismaService } from '../prisma/prisma.service';
+import { readInsightCache, writeInsightCache } from '../common/company-data-fingerprint';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
 export type BriefItem = { text: string; jump: '/dashboard' | '/ledger' | '/progress' };
@@ -66,12 +68,15 @@ export function briefRangeLabel(rangeKey?: string, startDate?: string, endDate?:
 @Injectable()
 export class MobileBriefService {
   private readonly logger = new Logger(MobileBriefService.name);
+  /** 数据指纹缓存命名空间（SystemConfig 键前缀，与综合分析/进度洞察同源件） */
+  private static readonly BRIEF_CACHE_NS = 'mobile-brief';
 
   constructor(
     private readonly llm: LlmService,
     private readonly dashboard: DashboardService,
     private readonly companyScope: CompanyScopeService,
     private readonly progress: ProgressService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async getBrief(
@@ -87,6 +92,17 @@ export class MobileBriefService {
      * 数据库页却全库，同设备自相矛盾） */
     const scope = await this.companyScope.resolveScope(user, companyId, portalSource);
     const filter = this.companyScope.filter(scope);
+    /* 数据指纹缓存（2026-11-12 用户裁定「数据变才变，拒绝时间窗」同源件，2026-11-16
+     * 接入）：此前每击必重跑 LLM（3~15s），叠加 AiController 类级 @Throttle 20/min，
+     * 挂载/切Tab/切区间/下拉连续触发即打满 429 → 前端抹成「生成失败」，表现为
+     * 「本次登录怎么点都不再更新」。变体=full：brief 除台账数外还吃 PMI 阶段分布
+     * （最堵阶段句），PMI 写入也须失效。键公司段=scope 派生（含 mobile-3011 总数据
+     * 口径），非客户端直传。 */
+    const scopeKey = scope.all ? 'all' : scope.companyIds.slice().sort().join(',');
+    const cached = await readInsightCache(
+      this.prisma, MobileBriefService.BRIEF_CACHE_NS, scopeKey, startDate, endDate, 'full',
+    );
+    if (cached.hit) return cached.result as MobileBriefResult;
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     // 区间随页面（2026-11-03）：缺省回退本月；prompt 标签同源——「本月 0 万 vs 本年数百万」同屏打架根治
@@ -135,13 +151,18 @@ export class MobileBriefService {
         this.logger.warn(`今日要报字段为空，LLM 原始返回：${JSON.stringify(r).slice(0, 800)}`);
         return { available: false };
       }
-      return {
+      const result: MobileBriefResult = {
         available: true,
         focus: { text: focusText, jump: '/dashboard' },
         metric: { text: metricText, jump: '/ledger' },
         reminder: { text: reminderText, jump: '/progress' },
         shareText: shareText || `${metricText}；${focusText}`,
       };
+      /* 生成成功落存（失败/兜底不入库——质量降级不冻结共享缓存）；写失败不阻断返回 */
+      await writeInsightCache(
+        this.prisma, MobileBriefService.BRIEF_CACHE_NS, scopeKey, result, startDate, endDate, 'full',
+      ).catch(() => undefined);
+      return result;
     } catch (err) {
       this.logger.warn(`今日要报生成失败：${err instanceof Error ? err.message : err}`);
       return { available: false };
