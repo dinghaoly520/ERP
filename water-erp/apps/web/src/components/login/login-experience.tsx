@@ -129,6 +129,7 @@ export function LoginExperience({ redirectTo }: LoginExperienceProps) {
       const result = await login({
         username,
         password,
+        remember: values.remember,
       });
       beginTenderWriteSession(createTenderWriteSessionId());
 

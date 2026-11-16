@@ -5,8 +5,9 @@
  *   token_web cookie 在同一浏览器全局只有一份，两个标签页登录两个账号会互相
  *   覆盖；改由各标签页经 X-Web-Token 头携带自己的 token，同浏览器多账号并存。
  *   token 内的 sid 与库中 User.webSessionId 比对实现「同账号仅一处在线」。
- * - login-prefill：登录成功时保存的账号密码（base64 混淆），被顶下线/冻结回到
- *   登录页时预填，减少重复输入。仅本机 localStorage，手动登出即清除。
+ * - login-prefill：登录成功时按「记住密码」勾选保存的账号密码（base64 混淆，
+ *   勾选才落存），回到登录页（被顶下线/冻结/登出后再访）时预填，减少重复输入。
+ *   仅本机 localStorage；取消勾选后的下一次登录即清除（撤销记住）。
  */
 
 const WEB_TOKEN_KEY = "webToken";

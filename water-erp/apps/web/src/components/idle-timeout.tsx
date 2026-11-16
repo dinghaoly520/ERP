@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { getWebToken, clearWebToken, clearLoginPrefill } from "@/lib/session-store";
+import { getWebToken, clearWebToken } from "@/lib/session-store";
 
 /**
  * 12 小时无操作自动退出（2026-09-24）。
@@ -42,10 +42,10 @@ export function IdleTimeout() {
     const doLogout = () => {
       if (logoutTriggeredRef.current) return;
       logoutTriggeredRef.current = true;
-      // 调用后端 logout（销毁 webSessionId + 清 cookie），失败也照常清本地态回登录页
+      // 调用后端 logout（销毁 webSessionId + 清 cookie），失败也照常清本地态回登录页。
+      // 「记住密码」勾选时的本地预填保留（与被顶下线同语义，便于回登）；未勾选本就未落存
       api.post("/auth/logout").catch(() => {});
       clearWebToken();
-      clearLoginPrefill();
       window.location.href = "/login";
     };
 

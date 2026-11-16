@@ -146,19 +146,27 @@ async function requestJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 export async function login(credentials: {
   username: string;
   password: string;
+  /** 登录页「记住密码」勾选值：控制是否落本地预填（勿上送后端） */
+  remember: boolean;
 }): Promise<{ access_token: string; role: string; username: string }> {
+  const { remember, ...payload } = credentials;
   const result = await requestJson<{ access_token: string; role: string; username: string }>(
     `${API_BASE}/auth/login`,
     {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(credentials),
+      body: JSON.stringify(payload),
     },
   );
-  // 单设备登录：tab 级会话标识 + 被顶下线回登录页时的账号密码预填
+  // 单设备登录：tab 级会话标识；「记住密码」勾选才保存账号密码预填，
+  // 取消勾选登录同时清除旧预填（撤销此前记住的密码）
   rememberWebSession(result.access_token);
-  saveLoginPrefill(credentials.username, credentials.password);
+  if (remember) {
+    saveLoginPrefill(payload.username, payload.password);
+  } else {
+    clearLoginPrefill();
+  }
   return result;
 }
 
@@ -420,8 +428,8 @@ export async function logout() {
     method: "POST",
     credentials: "include",
   });
-  // 手动登出：不保留密码预填、会话标识失效（被顶下线路径另行保留预填）
-  clearLoginPrefill();
+  // 手动登出：会话标识失效。「记住密码」勾选时保留本地预填（记住语义），
+  // 未勾选时本就未落存；撤销记住 = 取消勾选后再登录一次
   clearWebToken();
   return result;
 }
