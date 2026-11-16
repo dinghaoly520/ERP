@@ -14,7 +14,7 @@
 | DB 凭据 | 不写死。`docker exec zentao-standalone-db-1 printenv \| grep -i MARIA` → 取 `MARIADB_USER` / `MARIADB_PASSWORD` |
 | 附件存储 | 禅道容器内 `/data/zentao/www/data/upload/1/<zt_file.pathname>`；**磁盘文件不带扩展名**（pathname 里的 `.png` 只在 DB） |
 | ERP 代码 | `~/桌面/ERP/water-erp`（先 `git log --oneline -1` 记录基准 commit） |
-| 本地 OCR | PM2 `erp-ocr`，`http://localhost:8110`，`POST /ocr` multipart 字段 `file`（可选 `dpi`，默认 150）；内容取证唯一权威通道 |
+| 本地 OCR | dev 链 `erp-ocr`（`pnpm dev:ocr` 守护），`http://localhost:8110`，`POST /ocr` multipart 字段 `file`（可选 `dpi`，默认 150）；内容取证唯一权威通道 |
 | 导出目录 | `~/桌面/禅道/bug-export/`：`*.md`（详情）+ `*.csv`（清单）+ `images/`（截图） |
 | 关键表 | `zt_bug`（主表）、`zt_file`（附件映射）、`zt_action`（操作历史：软删除/指派/激活轨迹） |
 
