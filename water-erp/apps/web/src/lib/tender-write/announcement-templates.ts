@@ -588,6 +588,12 @@ export const ANNOUNCEMENT_AUTO_FILL: Record<string, string> = {
   procurementTime: "procurementTime",
   signatureDate: "signatureDate",
   objection: "objection",
+  // 监督块（2026-11-16 用户裁定：公告自动引入采购文件中的监督人）——
+  // 采购文件草稿四字段同名直映，仅填公告侧空缺；公司信息管理值退居兜底
+  supervisionDepartment: "supervisionDepartment",
+  supervisionAddress: "supervisionAddress",
+  supervisionContact: "supervisionContact",
+  supervisionPhone: "supervisionPhone",
 };
 
 /**
