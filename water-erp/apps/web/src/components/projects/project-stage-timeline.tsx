@@ -316,11 +316,9 @@ export function ProjectStageTimeline({
                     <button
                       type="button"
                       onClick={() => {
-                        // UX 增强（2026-09-21）：进行中步骤点击卡片主体直接打开对应操作面板
-                        //（此前仅切换右侧详情，用户点卡片无反应误以为入口失效）；
-                        // 其他步骤保持原「仅选中」语义。
+                        // 2026-11-16 用户裁定：卡片主体仅选中切换右侧详情；
+                        // 进入对应操作页面只走卡内按钮（此前进行中卡主体直开面板的增强撤销）
                         onSelect(stageKey, entry.round);
-                        if (entry.isInProgress && onStageAction) onStageAction(stageKey, entry.round);
                       }}
                       data-selected={isSelected}
                       className={[
@@ -400,7 +398,7 @@ export function ProjectStageTimeline({
                         <div className="flex flex-col items-stretch gap-1.5">
                           {/* 步骤操作按钮仅对"进行中"步骤开放（2026-09-09 拍板）——
                               仅选中/聚焦（activeStageKey）不再显示按钮；选中卡只切换右侧详情面板 */}
-                          {actionLabel && onStageAction && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && entry.stageKey !== 'CONTRACT' && (
+                          {actionLabel && onStageAction && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
                             <span
                               role="button"
                               tabIndex={0}
