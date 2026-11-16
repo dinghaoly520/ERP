@@ -303,7 +303,7 @@ function SupplierRepositoryPageInner() {
           <thead>
             <tr>
                   <th style={{ width: 36 }}><input type="checkbox" className="neu-checkbox" checked={selected.size > 0 && selected.size === rows.length} ref={el => { if (el) el.indeterminate = selected.size > 0 && selected.size < rows.length; }} onChange={toggleAll} /></th>
-                  <th style={{ width: 100 }}>企业名称</th>
+                  <th className="text-center" style={{ width: 100 }}>企业名称</th>
                   <th className="text-center" style={{ width: 160 }}>统一社会信用代码</th>
                   <th style={{ width: 140 }}>企业类型</th>
                   <th className="text-center" style={{ width: 84 }}>评价次数</th>
@@ -336,7 +336,7 @@ function SupplierRepositoryPageInner() {
                     <input type="checkbox" className="neu-checkbox" checked={selected.has(s.id)} onChange={() => toggleSelect(s.id)} />
                   </td>
                   <td>
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 justify-center">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{s.name[0]}</div>
                       <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors" title={s.name}>{s.name}</span>
                       {s.isTemporary && (() => {
