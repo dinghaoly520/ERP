@@ -1417,7 +1417,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               m.relatedProjectCode?.trim() ? `编号 ${m.relatedProjectCode}` : '',
               period,
               `${when} · ${statusTxt}`,
-            ].filter(Boolean).join(' ｜ ');
+            ].filter(Boolean).join(' ～ ');
             return `· ${m.title}\n（${attrs}）`;
           }).join('\n\n');
           const okDup = await confirmDialog({
