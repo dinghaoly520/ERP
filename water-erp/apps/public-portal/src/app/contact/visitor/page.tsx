@@ -151,7 +151,7 @@ export default function VisitorPage() {
                   {submitting ? '提交中...' : '提交登记'}
                 </button>
               </div>
-              <p className="text-[12px] text-[var(--fg-3)] text-center mt-3.5">提交后请保持手机畅通，我们会在1个工作日内与您联系</p>
+              <p className="text-[12px] text-[var(--fg-3)] text-center mt-3.5">提交后请保持手机畅通，我们会尽快与您联系</p>
             </form>
           </div>
         </div>
