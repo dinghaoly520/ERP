@@ -74,7 +74,7 @@ function DetailLines({ item }: { item: SupplierAuditLogItem }) {
   const prefer = ['reason', 'finalGrade', 'field', 'from', 'note'];
   const ordered = [...prefer.filter(k => keys.includes(k)), ...keys.filter(k => !prefer.includes(k))];
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1">
+    <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
       {ordered.map(k => (
         <span key={k} className="text-xs text-[var(--muted-foreground)]">
           <span className="text-[var(--foreground)]/60">{FIELD_LABELS[k] ?? k}</span>：
@@ -289,7 +289,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
             <table className="workbench-table">
               <thead>
                 <tr>
-                  <th>操作</th><th>供应商</th><th>操作人</th><th>时间</th><th>详情</th>
+                  <th className="text-center">操作</th><th className="text-center">供应商</th><th className="text-center">操作人</th><th className="text-center">时间</th><th className="text-center">详情</th>
                 </tr>
               </thead>
               <tbody>
@@ -324,7 +324,7 @@ function GroupRows({ day, list }: { day: string; list: SupplierAuditLogItem[] })
     <>
       <tr>
         <td colSpan={5} className="!py-2 !px-3" style={{ background: 'color-mix(in oklch, var(--accent) 4%, transparent)' }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center gap-2">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.06em] text-[var(--foreground)]">{dayLabel(day)}</span>
             <span className="text-[10px] tabular-nums text-[var(--muted-foreground)]">{list.length} 条</span>
           </div>
@@ -334,16 +334,16 @@ function GroupRows({ day, list }: { day: string; list: SupplierAuditLogItem[] })
         const tone = ACTION_TONE[it.action] || 'var(--foreground)';
         return (
           <tr key={it.id}>
-            <td>
+            <td className="text-center">
               <span className="rounded px-2 py-0.5 text-[10px] font-bold whitespace-nowrap"
                 style={{ color: tone, backgroundColor: `color-mix(in_oklch,${tone}_12%,transparent)` }}>
                 {ACTION_LABELS[it.action] || it.action}
               </span>
             </td>
-            <td className="text-sm">{it.resourceName || '—'}</td>
-            <td className="text-sm">{it.actorName}</td>
-            <td className="text-xs tabular-nums text-[var(--muted-foreground)] whitespace-nowrap">{localTime(it.createdAt)}</td>
-            <td><DetailLines item={it} /></td>
+            <td className="text-center text-sm">{it.resourceName || '—'}</td>
+            <td className="text-center text-sm">{it.actorName}</td>
+            <td className="text-center text-xs tabular-nums text-[var(--muted-foreground)] whitespace-nowrap">{localTime(it.createdAt)}</td>
+            <td className="text-center"><DetailLines item={it} /></td>
           </tr>
         );
       })}
