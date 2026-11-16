@@ -53,13 +53,14 @@ export class OcrService {
     // @Global RedisModule 的 token；worker 进程可能未导入该模块 → Optional 缺席即禁用缓存
     @Optional() @Inject('REDIS_CLIENT') private readonly redis?: Redis | null,
   ) {
-    const raw = config.get<string>('OCR_SERVICE_URL', 'http://localhost:8100');
+    // 缺省回落 dev 链 canon :8110（2026-11-16 收编前为 :8100）；生产 .env 恒显式设置，不依赖缺省
+    const raw = config.get<string>('OCR_SERVICE_URL', 'http://localhost:8110');
     this.baseUrls = raw
       .split(',')
       .map((s) => s.trim().replace(/\/+$/, ''))
       .filter(Boolean);
     if (this.baseUrls.length === 0) {
-      this.baseUrls = ['http://localhost:8100'];
+      this.baseUrls = ['http://localhost:8110'];
     }
     if (this.baseUrls.length > 1) {
       this.logger.log(

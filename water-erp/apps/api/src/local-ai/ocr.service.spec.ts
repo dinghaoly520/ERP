@@ -21,7 +21,7 @@ async function makeService(
       provide: ConfigService,
       useValue: {
         get: (key: string, def?: string) =>
-          key === 'OCR_SERVICE_URL' ? url : (env[key] ?? def),
+          key === 'OCR_SERVICE_URL' ? (url ?? def) : (env[key] ?? def),
       },
     },
   ];
@@ -33,6 +33,30 @@ async function makeService(
   }).compile();
   return module.get(OcrService);
 }
+
+describe('OcrService 缺省值（env 未设 OCR_SERVICE_URL）', () => {
+  it('config 缺省回落 dev canon :8110（2026-11-16 收编前为 :8100）', async () => {
+    const svc = await makeService(undefined as unknown as string);
+    const hosts: string[] = [];
+    (global as any).fetch = jest.fn(async (url: string) => {
+      hosts.push(new URL(url).host);
+      return { ok: true, json: async () => okJson, text: async () => JSON.stringify(okJson) };
+    });
+    await svc.ocrImage(Buffer.from('x'), 'image/png', 'x.png');
+    expect(hosts).toEqual(['localhost:8110']);
+  });
+
+  it('空串/全空白列表同样回落 :8110', async () => {
+    const svc = await makeService(' , ');
+    const hosts: string[] = [];
+    (global as any).fetch = jest.fn(async (url: string) => {
+      hosts.push(new URL(url).host);
+      return { ok: true, json: async () => okJson, text: async () => JSON.stringify(okJson) };
+    });
+    await svc.ocrImage(Buffer.from('x'), 'image/png', 'x.png');
+    expect(hosts).toEqual(['localhost:8110']);
+  });
+});
 
 describe('OcrService 多副本 round-robin', () => {
   it('逗号列表：连续请求在副本间交替', async () => {
