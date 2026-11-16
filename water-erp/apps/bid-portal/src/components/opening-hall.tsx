@@ -547,7 +547,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
   const handleEnterRecord = async (confirmSealedPrice = false, confirmSealedPeriod = false) => {
     if (!projectId || !recordEntry) return;
     const { amount, period, qualityTarget, bondStatus } = recordDraft;
-    if (!amount.trim() || !period.trim() || !qualityTarget.trim() || !bondStatus.trim()) {
+    if (recordEntry.readOnly) {
+      // 裁定②（2026-11-12，bug#60）：查看态（dual-v3）只校验可编辑字段——法定唱标值来自
+      // 加密承诺自动生成、非主持人填写，不得因历史值为空阻断保证金判定保存
+      if (!bondStatus.trim()) { toast.error('请选择保证金判定'); return; }
+    } else if (!amount.trim() || !period.trim() || !qualityTarget.trim() || !bondStatus.trim()) {
       toast.error('请完整填写唱标信息'); return;
     }
     // A-113：动态字段校验（法定四字段校验在上方，保持既有文案零漂移）——
@@ -1487,17 +1491,41 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                 : `据解密后的投标内容填写，提交后${recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。`}
             </p>
             {recordEntry.readOnly && (
-              <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-[oklch(0.71_0.11_164_/_0.10)] px-3 py-2 text-[11px] font-semibold text-[var(--success)]">
-                <ShieldCheck size={13} strokeWidth={1.75} />
-                来自加密承诺 · 自动公布
-              </div>
+              <>
+                {/* 裁定③（2026-11-12，bug#60）：顶部只读摘要区——法定唱标值以只读值块呈现
+                    （裁定①：查看态不再复用录入表单控件渲染法定字段），主持人下方仅补充可编辑项 */}
+                <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-[oklch(0.71_0.11_164_/_0.10)] px-3 py-2 text-[11px] font-semibold text-[var(--success)]">
+                  <ShieldCheck size={13} strokeWidth={1.75} />
+                  来自加密承诺 · 自动公布
+                </div>
+                <div className="bid-tile mt-2 grid grid-cols-2 gap-x-4 gap-y-3 rounded-[12px] p-3.5">
+                  {entryFields.filter(f => isStatutoryKey(f.key) && f.key !== 'bondStatus').map(f => (
+                    <div key={f.key} className={f.key === 'qualityTarget' ? 'col-span-2 min-w-0' : 'min-w-0'}>
+                      <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-[var(--muted-foreground)]">
+                        {f.key === 'amount' ? `${f.label}（${recordDraft.amountUnit ?? '元'}）` : f.label}
+                      </div>
+                      <div
+                        title={f.key === 'amount' ? recordDraft.amount : f.key === 'period' ? recordDraft.period : recordDraft.qualityTarget}
+                        className={`mt-1 truncate text-sm font-bold text-[color:var(--foreground)] ${f.key === 'amount' ? 'font-mono tabular-nums' : ''}`}>
+                        {f.key === 'amount'
+                          ? (recordDraft.amount.trim() || '—')
+                          : f.key === 'period' ? (recordDraft.period.trim() || '—') : (recordDraft.qualityTarget.trim() || '—')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
             {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 p-6 内边距，线不加 mx 即与内容区对齐；表单区已有 mt-4 故只留上间距 */}
             <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             {/* A-113：字段按项目配置序渲染——法定四键沿用既有控件（含 A-104 台账提示/凭证链接/密封 409 双确认流在提交侧），
                 动态键按 type 渲染 input/select；label 用配置 label（默认配置下与既有文案一致即零漂移） */}
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            {recordEntry.readOnly && (
+              <div className="mt-3 text-[11px] font-bold uppercase tracking-[.06em] text-[var(--muted-foreground)]">主持人补充</div>
+            )}
+            <div className={recordEntry.readOnly ? 'mt-2 grid grid-cols-2 gap-3' : 'mt-4 grid grid-cols-2 gap-3'}>
               {entryFields.map(f => {
+                if (recordEntry.readOnly && isStatutoryKey(f.key) && f.key !== 'bondStatus') return null; // 裁定①：法定字段已上移只读摘要区
                 if (isStatutoryKey(f.key)) {
                   // 法定四键：label 用配置（amount 恒为金额，单位后缀随轨道口径——dual-v2 预填为万元，
                   // 旧轨为元；表单标错单位是主持人录入歧义的源头，2026-09-14）
