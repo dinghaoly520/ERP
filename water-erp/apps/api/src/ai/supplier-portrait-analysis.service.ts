@@ -3,8 +3,28 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { LlmService } from '../local-ai/llm.service';
 
-const CACHE_PREFIX = 'supplier:portrait:analysis:';
+const CACHE_PREFIX = 'supplier:portrait:analysis:v2:'; // v2（2026-11-16）：清洗器上线作废旧缓存（存量英文键名文案不续命）
 const CACHE_TTL = 24 * 3600; // 24h；评价/资质变动时 cacheVer 改变即自然失效
+
+/** 报告正文英文字段名清洗（2026-11-16 用户裁定：综合分析报告禁英文字符串，同进度洞察）。
+ *  与进度洞察的通用剥除不同：报告正文合法携带数据值（统一社会信用代码随机大小写、
+ *  评价等级字母、经营范围英文词）——只剥 camelCase 字段名（小写开头+大写驼峰，如
+ *  finalGrade），ALLCAPS/纯小写词/数字串天然不命中；已知数据值先占位保护再还原。 */
+export function stripFieldEchoes(text: string, protectedValues: (string | null | undefined)[]): string {
+  const slots: string[] = [];
+  let out = text;
+  for (const v of protectedValues) {
+    if (!v) continue;
+    out = out.split(v).join(`⟦P${slots.length}⟧`);
+    slots.push(v);
+  }
+  out = out
+    .replace(/\b[a-z]+[A-Z][a-zA-Z0-9]*\s*(?:为|是|=|：|:)/g, '') // 字段名+连接词一并吃掉
+    .replace(/\b[a-z]+[A-Z][a-zA-Z0-9]*\b/g, '')
+    .replace(/ {2,}/g, ' ');
+  for (let i = 0; i < slots.length; i++) out = out.split(`⟦P${i}⟧`).join(slots[i]);
+  return out;
+}
 
 export interface PortraitInsight {
   label: string;
@@ -82,9 +102,10 @@ export class SupplierPortraitAnalysisService {
     const evalCount = supplier.evaluations.length;
     const grades = supplier.evaluations.map(e => e.finalGrade);
     const recentEvals = supplier.evaluations.slice(0, 5).map(e => ({
-      finalGrade: e.finalGrade,
-      date: new Date(e.createdAt).toLocaleDateString('zh-CN'),
-      dimensions: { completeness: e.completenessGrade, responsiveness: e.responsivenessGrade, cooperation: e.cooperationGrade, compliance: e.complianceGrade, comprehensive: e.comprehensiveGrade },
+      // 键名中文化（2026-11-16）：英文嵌套键会被 LLM 原样抄进报告正文（进度洞察 daysSinceUpdate 同族实录）
+      等级: e.finalGrade,
+      日期: new Date(e.createdAt).toLocaleDateString('zh-CN'),
+      维度: { 完整性: e.completenessGrade, 响应性: e.responsivenessGrade, 配合度: e.cooperationGrade, 合规性: e.complianceGrade, 综合: e.comprehensiveGrade },
     }));
 
     const context = {
@@ -124,6 +145,26 @@ export class SupplierPortraitAnalysisService {
       result.supplierName = supplier.name;
       result.analyzedAt = new Date().toISOString();
       result.engine = 'deepseek';
+      // 输出清洗（2026-11-16）：自由文本字段剥 camelCase 字段名回声——metrics 的 tone/icon
+      // 是功能性枚举不动；已知数据值（名称/信用代码/电话邮箱）占位保护
+      const protect = [
+        supplier.name, supplier.creditCode,
+        ...supplier.contacts.map((c: any) => c.phone).filter(Boolean),
+        ...supplier.contacts.map((c: any) => c.email).filter(Boolean),
+      ];
+      const clean = (t: unknown) => stripFieldEchoes(String(t ?? ''), protect);
+      result.overview = clean(result.overview);
+      result.strengths = (result.strengths ?? []).map(clean);
+      result.risks = (result.risks ?? []).map(clean);
+      result.suggestions = (result.suggestions ?? []).map(clean);
+      result.suitableFor = (result.suitableFor ?? []).map(clean);
+      result.historySummary = clean(result.historySummary);
+      result.metrics = (result.metrics ?? []).map((m: any) => ({
+        ...m,
+        label: clean(m?.label),
+        value: clean(m?.value),
+        interpretation: clean(m?.interpretation),
+      }));
       try { await this.redis.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL); } catch { /* ignore */ }
       return result;
     } catch (e: any) {
@@ -245,4 +286,5 @@ const PORTRAIT_SYSTEM_PROMPT = `你是采购专家评审系统的 AI 供应商�
 - overview 是完整的文字段落，覆盖所有维度，不用标题分段
 - strengths/risks/suggestions 每条均为完整通顺的中文句子，读起来像报告正文的一部分
 - suitableFor 基于业务标签+经营范围+分类标签推荐
-- 所有内容纯文本，不使用 markdown 格式`;
+- 所有内容纯文本，不使用 markdown 格式
+- 正文禁止出现英文字段名/代码标识（如 finalGrade）——数据值除外（评价等级字母、统一社会信用代码、电话邮箱等按原样引用）`;
