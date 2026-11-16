@@ -286,22 +286,6 @@ a {
   .sidebar-brand-title { animation: none; }
 }
 
-/* Diagonal light band — angled motion accent.
-   Rendered as a child span (uses ::before) so it never collides with any
-   ::after layer on the same box. */
-.angle-sweep-band {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  border-radius: inherit;
-  z-index: 0;
-}
-@keyframes angleSweep {
-  0% { transform: translateX(-130%) skewX(-18deg); }
-  58%, 100% { transform: translateX(130%) skewX(-18deg); }
-}
-
 /* Skewed active indicator — angular bookmark stripe */
 .nav-active-skew {
   background: linear-gradient(180deg, rgba(72, 120, 235, 0.95), rgba(124, 162, 244, 0.7));
@@ -1337,66 +1321,6 @@ a {
 
 
 
-@keyframes chartSweep {
-  0% {
-    transform: translateX(0) skewX(-18deg);
-    opacity: 0;
-  }
-  8% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 0.95;
-  }
-  100% {
-    transform: translateX(360%) skewX(-18deg);
-    opacity: 0;
-  }
-}
-
-@keyframes barSweep {
-  0%,
-  16% {
-    transform: translateX(-140%);
-    opacity: 0;
-  }
-  28% {
-    opacity: 1;
-  }
-  68% {
-    opacity: 0.9;
-  }
-  100% {
-    transform: translateX(140%);
-    opacity: 0;
-  }
-}
-
-@keyframes chartPulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 0.92;
-  }
-  50% {
-    transform: scale(1.12);
-    opacity: 1;
-  }
-}
-
-@keyframes orbitFloat {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(1.4deg);
-  }
-  75% {
-    transform: rotate(-1.4deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .login-stage__rays::before,
 .login-stage__rays::after,
@@ -1423,10 +1347,6 @@ a {
 
 .pm-detail-overlay {
   pointer-events: none;
-}
-@keyframes pm-pipeline-shimmer {
-  0%, 100% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
 }
 
 .pm-stage-rail {
@@ -1568,20 +1488,6 @@ a {
 @media (prefers-reduced-motion: reduce) {
   .pm-current-step-hero__dot::after {
     animation: none;
-  }
-}
-
-@keyframes pmListCardSheen {
-  0% {
-    transform: translate3d(-110%, 0, 0);
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate3d(110%, 0, 0);
-    opacity: 0;
   }
 }
 
@@ -2295,32 +2201,8 @@ a {
 
 /* 2026-11-16 unslop 清退：panelSheen（扫光，唯一消费者 glass-float 已删）删除 */
 
-@keyframes chartPulse {
-  0%,
-  100% {
-    transform: scale(0.98);
-    opacity: 0.72;
-  }
-  50% {
-    transform: scale(1.03);
-    opacity: 1;
-  }
-}
-
 
 /* 2026-11-16 unslop 清退：chromaShift（流光，唯一消费者 chromatic-glass 已删）删除 */
-
-@keyframes spectrumShift {
-  0%,
-  100% {
-    transform: translate3d(-10%, 0, 0) rotate(0deg);
-    opacity: 0.54;
-  }
-  50% {
-    transform: translate3d(18%, 1%, 0) rotate(2deg);
-    opacity: 0.84;
-  }
-}
 
 
 
@@ -2514,8 +2396,6 @@ body::after,
 .flow-glow,
 .ambient-grid::after,
 .command-orb::before,
-.risk-alert-pulse,
-.supplier-card-glow,
 .live-clock-ring,
 .live-clock-sweep,
 .live-clock-dot,
@@ -2530,374 +2410,14 @@ body::after,
   }
 }
 
-@keyframes kpiShimmerScroll {
-  0%, 100% { transform: translateY(-100%); opacity: 0; }
-  15% { opacity: 0.6; }
-  50% { transform: translateY(100%); opacity: 1; }
-  85% { opacity: 0.6; }
-}
-
-@keyframes metricPulseRing {
-  0% { border-color: rgba(96,139,239,0.35); transform: scale(0.95); opacity: 1; }
-  50% { border-color: rgba(96,139,239,0.12); transform: scale(1.04); opacity: 0.5; }
-  100% { border-color: transparent; transform: scale(1.08); opacity: 0; }
-}
-
-@keyframes numberPopIn {
-  0% { transform: scale(0.8) translateY(4px); opacity: 0; }
-  60% { transform: scale(1.05) translateY(-2px); }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
-}
-
-@keyframes ringSegmentEnter {
-  0% { opacity: 0; stroke-dashoffset: 100; }
-  60% { opacity: 0.7; }
-  100% { opacity: 1; stroke-dashoffset: 0; }
-}
-
-@keyframes ringChartOrbit {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes progressGlowSweep {
-  0%, 100% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
-}
-
-/* Risk alert pulse effect */
-.risk-alert-pulse {
-  animation: riskAlertPulse 1.8s ease-in-out infinite;
-}
-
-@keyframes riskAlertPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(230,129,102,0.25);
-    border-color: rgba(230,129,102,0.2);
-  }
-  50% {
-    box-shadow: 0 0 8px 4px rgba(230,129,102,0.15);
-    border-color: rgba(230,129,102,0.35);
-  }
-}
-
-/* Risk severity badge flash */
-.risk-severity-flash {
-  animation: riskSeverityFlash 2.2s ease-in-out infinite;
-}
-
-@keyframes riskSeverityFlash {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 1; transform: scale(1.02); }
-}
-
-/* Supplier card glow on hover */
-.supplier-card-glow {
-  position: relative;
-  overflow: hidden;
-}
-
-.supplier-card-glow::before {
-  content: "";
-  position: absolute;
-  inset: -50% -20% auto -20%;
-  height: 60%;
-  background: radial-gradient(ellipse at center, rgba(96,139,239,0.12) 0%, transparent 70%);
-  transform: translateY(-100%);
-  transition: transform 0.4s ease-out;
-  pointer-events: none;
-}
-
-.supplier-card-glow:hover::before {
-  transform: translateY(0);
-}
-
-/* Supplier tag bounce */
-.supplier-tag-bounce:hover {
-  animation: supplierTagBounce 0.3s ease-out;
-}
-
-@keyframes supplierTagBounce {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-}
-
-@keyframes chartDotPulse {
-  0%, 100% { r: 3; opacity: 0.9; }
-  50% { r: 4; opacity: 1; }
-}
-
-@keyframes deptBarGrow {
-  0% { transform: scaleX(0); opacity: 0.5; }
-  100% { transform: scaleX(1); opacity: 1; }
-}
-
-@keyframes intelSheenLine {
-  0%, 100% { transform: translateX(-100%); opacity: 0; }
-  50% { transform: translateX(100%); opacity: 1; }
-}
-
-@keyframes bulletEnter {
-  0% { opacity: 0; transform: scale(0.5); }
-  60% { transform: scale(1.2); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes budgetGaugeRotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes expandEnter {
-  0% { opacity: 0; transform: translateY(-8px) scaleY(0.9); }
-  100% { opacity: 1; transform: translateY(0) scaleY(1); }
-}
-
-@keyframes iconRotateOnce {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@keyframes badgeColorCycle {
-  0%, 100% { filter: hue-rotate(0deg); }
-  50% { filter: hue-rotate(15deg); }
-}
-
-@keyframes floatingIndicator {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
-}
-
-@keyframes budgetArcDraw {
-  0% {
-    strokeDashoffset: 200;
-    opacity: 0;
-  }
-  30% {
-    opacity: 0.7;
-  }
-  100% {
-    strokeDashoffset: 0;
-    opacity: 1;
-  }
-}
-
-@keyframes budgetPercentFade {
-  0% {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes budgetStatIconPulse {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50% { transform: scale(1.3); opacity: 1; }
-}
-
-@keyframes budgetValueEnter {
-  0% { opacity: 0; transform: translateX(8px); }
-  100% { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes budgetDotAppear {
-  0% { opacity: 0; transform: scale(0); }
-  60% { transform: scale(1.2); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes complianceBadgeEnter {
-  0% { opacity: 0; transform: scale(0.8); }
-  60% { transform: scale(1.1); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes complianceItemSlide {
-  0% { opacity: 0; transform: translateX(-10px); }
-  100% { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes complianceFillGrow {
-  0% { transform: scaleX(0); }
-  100% { transform: scaleX(1); }
-}
-
-@keyframes complianceTrackShimmer {
-  0%, 100% { transform: translateX(-100%); opacity: 0; }
-  50% { transform: translateX(100%); opacity: 0.3; }
-}
-
-@keyframes landingHeaderFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
-}
-
-@keyframes landingSearchSheen {
-  0%, 100% { transform: translate3d(-20%, 0, 0) rotate(6deg); opacity: 0.4; }
-  50% { transform: translate3d(80%, 0, 0) rotate(6deg); opacity: 0.8; }
-}
-
-@keyframes landingLogoEnter {
-  0% { opacity: 0; transform: scale(0.6) rotate(-8deg); }
-  60% { transform: scale(1.1) rotate(2deg); }
-  100% { opacity: 1; transform: scale(1) rotate(0deg); }
-}
-
-@keyframes landingTitleGradient {
-  0%, 100% { filter: brightness(1); }
-  50% { filter: brightness(1.08); }
-}
-
-@keyframes landingSloganPulse {
-  0%, 100% { box-shadow: 0 14px 34px rgba(126,149,192,0.08); }
-  50% { box-shadow: 0 18px 40px rgba(126,149,192,0.12); }
-}
-
-@keyframes landingMetricsEnter {
-  0% { opacity: 0; transform: translateY(16px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes landingProgressSweep {
-  0%, 100% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
-}
-
-@keyframes landingAnalysisExpand {
-  0% { opacity: 0; transform: scaleY(0.92) translateY(-8px); }
-  100% { opacity: 1; transform: scaleY(1) translateY(0); }
-}
-
-@keyframes landingInsightEnter {
-  0% { opacity: 0; transform: translateX(-8px); }
-  100% { opacity: 1; transform: translateX(0); }
-}
-
-@keyframes landingActionEnter {
-  0% { opacity: 0; transform: scale(0.9); }
-  60% { transform: scale(1.03); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes landingDividerPulse {
-  0%, 100% { opacity: 0.48; }
-  50% { opacity: 0.72; }
-}
-
-@keyframes landingCircleOrbit {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes landingLineShimmer {
-  0%, 100% { strokeOpacity: 0.34; }
-  50% { strokeOpacity: 0.52; }
-}
-
-@keyframes landingExpandIconRotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(180deg); }
-}
-
-@keyframes landingTagBadgeEnter {
-  0% { opacity: 0; transform: scale(0.8); }
-  60% { transform: scale(1.05); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes trendLineDraw {
-  0% { stroke-dashoffset: 3000; opacity: 0.3; }
-  50% { opacity: 0.7; }
-  100% { stroke-dashoffset: 0; opacity: 1; }
-}
-
-@keyframes trendLineDrawBlue {
-  0% { stroke-dashoffset: 3000; opacity: 0.2; filter: drop-shadow(0 0 0 transparent); }
-  50% { opacity: 0.6; filter: drop-shadow(0 0 4px rgba(96,139,239,0.3)); }
-  100% { stroke-dashoffset: 0; opacity: 1; filter: drop-shadow(0 0 6px rgba(96,139,239,0.5)); }
-}
-
-@keyframes trendLineDrawTeal {
-  0% { stroke-dashoffset: 3000; opacity: 0.2; filter: drop-shadow(0 0 0 transparent); }
-  50% { opacity: 0.6; filter: drop-shadow(0 0 4px rgba(92,181,150,0.3)); }
-  100% { stroke-dashoffset: 0; opacity: 1; filter: drop-shadow(0 0 6px rgba(92,181,150,0.5)); }
-}
-
-@keyframes trendAreaFadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-@keyframes trendAreaFadeInBlue {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes trendAreaFadeInTeal {
-  0% { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 0.8; transform: translateY(0); }
-}
-
-@keyframes trendDotPulse {
-  0%, 100% { r: 4; opacity: 0.85; }
-  50% { r: 5; opacity: 1; }
-}
-
-@keyframes trendDotGlowRing {
-  0% { r: 6; opacity: 0.5; stroke-width: 2; }
-  50% { r: 10; opacity: 0.3; stroke-width: 1.5; }
-  100% { r: 12; opacity: 0; stroke-width: 1; }
-}
-
-@keyframes trendGuideLineAppear {
-  0% { opacity: 0; stroke-dashoffset: 100; }
-  100% { opacity: 0.6; stroke-dashoffset: 0; }
-}
-
-@keyframes trendTooltipEnter {
-  0% { opacity: 0; transform: translateY(-4px) scale(0.95); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-@keyframes trendChartGlowShift {
-  0%, 100% { opacity: 0.5; transform: translateX(0); }
-  50% { opacity: 0.7; transform: translateX(10px); }
-}
-
-@keyframes trendHeaderSheen {
-  0%, 100% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
-  50% { transform: translateX(100%) skewX(-15deg); opacity: 0.6; }
-}
-
-@keyframes trendLegendBadgeEnter {
-  0% { opacity: 0; transform: scale(0.8); }
-  60% { transform: scale(1.05); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes trendGridLineFadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
-
-@keyframes trendXLabelEnter {
-  0% { opacity: 0; transform: translateY(4px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
+/* 2026-11-16 unslop 清退：risk-alert-pulse / risk-severity-flash / supplier-card-glow /
+   supplier-tag-bounce 四族零消费动画类及 keyframes 删除 */
 
 /* ========================================
    Compact Mode Styles
    ======================================== */
 .compact-mode {
   --compact-spacing: 0.75;
-}
-
-.compact-mode .panel-soft,
-.compact-mode .panel-strong {
-  padding: calc(1rem * 0.75);
 }
 
 .compact-mode .interactive-surface {
@@ -2976,16 +2496,6 @@ body::after,
 
 .dark body {
   background: var(--background);
-}
-
-.dark .panel-soft {
-  background: linear-gradient(180deg, rgba(35, 45, 65, 0.85), rgba(28, 38, 58, 0.75));
-  border-color: rgba(55, 75, 110, 0.45);
-}
-
-.dark .panel-strong {
-  background: linear-gradient(155deg, rgba(40, 52, 75, 0.92), rgba(30, 42, 65, 0.82));
-  border-color: rgba(70, 90, 130, 0.55);
 }
 
 .dark input,
@@ -3264,38 +2774,10 @@ body::after,
   }
 }
 
-@keyframes tenderPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.65; }
-}
 
 
-
-@keyframes tenderSuccessBounce {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
-@keyframes tenderShimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-/* Shadow System for Tender Module */
-:root {
-  --tender-shadow-field: 0 2px 8px rgba(59, 89, 143, 0.06);
-  --tender-shadow-card: 0 12px 28px rgba(59, 89, 143, 0.08);
-  --tender-shadow-panel: 0 18px 40px rgba(59, 89, 143, 0.10);
-  --tender-shadow-hover: 0 16px 36px rgba(57, 88, 142, 0.12);
-  --tender-shadow-focus: 0 0 0 4px rgba(107, 149, 240, 0.12);
-
-  /* State Colors */
-  --tender-state-idle: rgba(90, 122, 186, 0.76);
-  --tender-state-complete: rgba(92, 181, 150, 1);
-  --tender-state-active: rgba(96, 139, 239, 1);
-  --tender-state-warning: rgba(234, 188, 110, 1);
-  --tender-state-error: rgba(230, 129, 102, 1);
-}
+/* 2026-11-16 unslop 清退：tender 影子变量族（--tender-shadow- 前缀 5 项）与状态色族
+   （--tender-state- 前缀 5 项）全部零消费删除；下方 .tender-btn 系列实际使用 neu 变量，不受影响 */
 
 /* ── Tender toolbar button system ── */
 
@@ -3767,13 +3249,6 @@ body::after,
 }
 
 
-
-@keyframes loadingProgress {
-  0% { width: 0%; }
-  60% { width: 70%; }
-  90% { width: 92%; }
-  100% { width: 96%; }
-}
 
 
 
@@ -4669,63 +4144,22 @@ body::after,
 /* ===== 动画关键帧 ===== */
 
 /* 主体：温柔悬浮 */
-@keyframes bodyGentleFloat {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-5px); }
-}
 
 /* 主体：活跃弹跳 */
-@keyframes bodyActiveBounce {
-  0%, 100% { transform: scale(1); }
-  30%      { transform: scale(1.06); }
-  60%      { transform: scale(0.96); }
-}
 
 /* 外层光晕呼吸 */
-@keyframes haloOuterBreathing {
-  0%, 100% { opacity: 0.45; transform: scale(1); }
-  50%      { opacity: 0.85; transform: scale(1.18); }
-}
 
 /* 外层光晕脉冲（活跃） */
-@keyframes haloOuterPulse {
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.3); }
-}
 
 /* 中层光环呼吸 */
-@keyframes haloMidBreathing {
-  0%, 100% { opacity: 0.5;  transform: scale(1); }
-  50%      { opacity: 0.85; transform: scale(1.1); }
-}
 
 /* 中层光环脉冲（活跃） */
-@keyframes haloMidPulse {
-  0%, 100% { opacity: 0.6;  transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.18); }
-}
 
 /* 内光晕闪烁 */
-@keyframes haloCoreFlicker {
-  0%, 100% { opacity: 0.6;  filter: blur(4px); }
-  33%      { opacity: 0.9;  filter: blur(3px); }
-  66%      { opacity: 0.55; filter: blur(5px); }
-}
 
 /* 内光晕脉冲（活跃） */
-@keyframes haloCorePulse {
-  0%, 100% { opacity: 0.7;  transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.08); }
-}
 
 /* 流光扫过 */
-@keyframes shimmerSweep {
-  0%   { transform: translateX(-100%) rotate(6deg); opacity: 0; }
-  15%  { opacity: 0.6; }
-  50%  { opacity: 0.3; }
-  85%  { opacity: 0.6; }
-  100% { transform: translateX(100%) rotate(6deg); opacity: 0; }
-}
 
 /* 流光扫过 */
 
@@ -4775,11 +4209,6 @@ body::after,
 /* 新表情：弹性放大 + 淡入 */
 .asst-sprite-img-in {
   animation: faceSwitchIn 400ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-@keyframes faceSwitchOut {
-  0%   { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(0.6); }
 }
 
 @keyframes faceSwitchIn {
@@ -4966,16 +4395,6 @@ body::after,
 
 
 /* ── Flow 页面入场动画 ── */
-@keyframes flow-enter {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 /* ════════════════════════════════════════════════════════════════════
    cgzxui — Neumorphic Design System (ported from public-portal :3002)
