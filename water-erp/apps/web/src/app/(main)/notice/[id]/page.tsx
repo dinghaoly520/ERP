@@ -131,7 +131,7 @@ export default function NoticeDetailPage() {
     </div>
   );
   const handleHide = async () => {
-    if (!ann || !(await confirm({ message: `确认隐藏「${ann.title}」？隐藏后进入回收站，可在公告发布中心右上角回收站中恢复。` }))) return;
+    if (!ann || !(await confirm({ message: `确认隐藏「${ann.title}」？隐藏后进入回收站，可在公告发布中心右上角回收站中恢复。`, danger: true }))) return;
     hideAnnouncement(ann.id)
       .then(() => { toast.success("已隐藏，可在回收站中恢复"); router.push("/notice"); })
       .catch((e: any) => toast.error(e?.message || "隐藏失败"));

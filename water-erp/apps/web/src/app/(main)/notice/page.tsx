@@ -314,7 +314,7 @@ export default function NoticePage() {
       }
       if (!(await confirm({ message: `确认发布选中的 ${target.length} 条信息？发布后立即对供应商门户可见。` }))) return;
     }
-    if (action !== 'publish' && !(await confirm({ message: `确认隐藏选中的 ${target.length} 条信息？操作后进入回收站，可在回收站中恢复。` }))) return;
+    if (action !== 'publish' && !(await confirm({ message: `确认隐藏选中的 ${target.length} 条信息？操作后进入回收站，可在回收站中恢复。`, danger: true }))) return;
     clearSelection();
     const results = await Promise.allSettled(target.map(id =>
       action === 'hide' ? hideAnnouncement(id)
@@ -335,7 +335,7 @@ export default function NoticePage() {
 
   /* ── 回收站体系（2026-09-26）：行级隐藏/下架，删除入口移除 ── */
   const hideRow = async (a: AnnouncementListItem) => {
-    if (!(await confirm({ message: `确认隐藏「${a.title}」？隐藏后进入回收站，可在右上角回收站中恢复。` }))) return;
+    if (!(await confirm({ message: `确认隐藏「${a.title}」？隐藏后进入回收站，可在右上角回收站中恢复。`, danger: true }))) return;
     try { await hideAnnouncement(a.id); toast.success(`已隐藏「${a.title}」，可在回收站中恢复`); load(); }
     catch (e: any) { toast.error(e?.message || '隐藏失败'); }
   };
