@@ -580,6 +580,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
   const [sunshineModalOpen, setSunshineModalOpen] = useState(false);
   const [publishTiming, setPublishTiming] = useState<'now' | 'scheduled' | 'announcement_start'>('now');
   const [scheduledDate, setScheduledDate] = useState('');
+
+  // 2026-11-16 用户裁定：发布时间选项下线——发布时刻按公示期限（起）执行
+  //（起已填 → announcement_start 定时发布；未填 → 立即发布。选择器 UI 已删除）
+  useEffect(() => {
+    if (!category) return;
+    const start = ((draft ?? {}) as Record<string, string>).announcementStart?.trim();
+    setPublishTiming(start ? 'announcement_start' : 'now');
+  }, [category, draft]);
   // 公示期限（止）不再独立存 state（2026-11-13 用户裁定「按公告编写中的实施公示期」）：
   // 旧双源（announcementEndDate || draft.announcementEnd）中 state 在挂载时被初值固化
   // （默认 3 天止），此后 Step1 公告编写改起止只更新 draft——state 旧值永远压住新值，
@@ -739,7 +747,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (cachedWiz.visibility === 'RESTRICTED') {
         toast.info('原公告范围「部分供应商可见」已转为全部可见');
       }
-      setPublishTiming(cachedWiz.publishTiming === 'scheduled' ? 'scheduled' : 'now'); // 旧缓存的 announcement_start 已废弃，归一到 now
+      setPublishTiming(cachedWiz.publishTiming === 'scheduled' ? 'scheduled' : 'now'); // 恢复后由派生 effect 按公示起覆盖（2026-11-16 选择器下线）
       setScheduledDate(cachedWiz.scheduledDate ?? '');
       setBidSubmissionDeadline(cachedWiz.bidSubmissionDeadline ?? '');
       setDownloadMode('free');
@@ -1608,7 +1616,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               const pubEnd = dr.announcementEnd || '';
               const summaryRows: Array<[string, React.ReactNode]> = [
                 ['公告范围', '全部可见'],
-                ['发布时间', publishTiming === 'now' ? '确认后立即发布' : `定时 ${formatDateTimeDisplay(scheduledDate)}`],
+                ['发布时间', publishTiming === 'now'
+                  ? '确认后立即发布'
+                  : publishTiming === 'announcement_start'
+                    ? `按公示期限（起）${formatDateTimeDisplay(((draft ?? {}) as Record<string, string>).announcementStart)}`
+                    : `定时 ${formatDateTimeDisplay(scheduledDate)}`],
               ];
               if (pubStart || pubEnd) {
                 summaryRows.push(['公示期限', `${formatDateTimeDisplay(pubStart)} 至 ${formatDateTimeDisplay(pubEnd)}`]);
@@ -1644,10 +1656,13 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               ]);
               summaryRows.push(['发布后通知', notifyOnPublish ? '发送站内通知' : '不发送']);
               // 发布时间标签（门户详情页「发布时间」行同款格式）
-              const publishTimeLabel =
-                publishTiming === 'scheduled' && scheduledDate
-                  ? new Date(scheduledDate).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-                  : new Date().toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+              const publishTimeLabel = (() => {
+                const fmtTs = (v: string) => new Date(v).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                const start = ((draft ?? {}) as Record<string, string>).announcementStart;
+                if (publishTiming === 'announcement_start' && start) return fmtTs(start);
+                if (publishTiming === 'scheduled' && scheduledDate) return fmtTs(scheduledDate);
+                return fmtTs(new Date().toISOString());
+              })();
               return (
                 <div className="flex h-full min-h-[60vh] flex-col gap-4 lg:flex-row">
                   {/* 左：门户发布效果预览——发布后供应商在信息门户所见即此版式与内容 */}
@@ -1825,7 +1840,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
               {/* ★ 中标公告公示期（2026-09-04）：发布后顺延 3 天异议期，与 BidProject A1 口径一致 */}
               {category === 'winning_bid' && (() => {
-                const base = publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : new Date();
+                const startFilled = publishTiming === 'announcement_start' && ((draft ?? {}) as Record<string, string>).announcementStart;
+                const base = startFilled
+                  ? new Date(((draft ?? {}) as Record<string, string>).announcementStart)
+                  : publishTiming === 'scheduled' && scheduledDate ? new Date(scheduledDate) : new Date();
                 const publicityEnd = new Date(base.getTime() + 3 * 86400000);
                 const fmt = (d: Date) => `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                 return (
@@ -1834,7 +1852,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                     <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2">
                       <span className="inline-flex items-center gap-2 text-sm">
                         <span className="text-[10px] font-bold text-[var(--muted-foreground)]">发布时间</span>
-                        <span className="font-semibold text-[var(--foreground)] tabular-nums">{publishTiming === 'scheduled' && scheduledDate ? fmt(base) : '发布后'}</span>
+                        <span className="font-semibold text-[var(--foreground)] tabular-nums">{startFilled || (publishTiming === 'scheduled' && scheduledDate) ? fmt(base) : '发布后'}</span>
                       </span>
                       <span className="inline-flex items-center gap-2 text-sm">
                         <span className="text-[10px] font-bold text-[var(--muted-foreground)]">公示截止</span>
@@ -1848,40 +1866,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                 );
               })()}
 
-              {categoryConfig.showTiming ? (
-              <div className="flex flex-col rounded-[20px] p-5 space-y-3" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.7), 1px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.8)' }}>
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">发布时间</div>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="timing"
-                    checked={publishTiming === 'now'}
-                    onChange={() => setPublishTiming('now')}
-                    className="accent-[var(--accent)]"
-                  />
-                  立即发布
-                </label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="timing"
-                    checked={publishTiming === 'scheduled'}
-                    onChange={() => setPublishTiming('scheduled')}
-                    className="accent-[var(--accent)]"
-                  />
-                  定时发布
-                </label>
-                {publishTiming === 'scheduled' && (
-                  <input
-                    type="datetime-local"
-                    value={scheduledDate}
-                    onChange={(e) => setScheduledDate(e.target.value)}
-                    className="workbench-input w-full text-sm"
-                  />
-                )}
-                {/* 按公示期限（起）发布已删除（2026-09-04）——中标公告公示期改为发布后顺延 3 天 */}
-              </div>
-              ) : <div />}
+              {/* 发布时间选择器已删除（2026-11-16 用户裁定）：公告发布时刻按
+                  公示期限（起）执行——announcementStart 有值即 announcement_start 模式，
+                  缺值立即发布；见下方派生 effect */}
               </div>
 
               {categoryConfig.showKeyTime && (() => {
