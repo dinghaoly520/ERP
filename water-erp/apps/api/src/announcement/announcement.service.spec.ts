@@ -569,6 +569,8 @@ describe('AnnouncementService — 对接专项 T4 发布赋码闸（自愈版，
         create: jest.fn().mockResolvedValue({ id: 'a2', status: 'PUBLISHED' }),
       },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+      // 终止项目发布闸（2026-11-16）：PMI 判定查询 mock（null=未终止 → 闸放行）
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
     };
     const { AnnouncementService: Svc } = await import('./announcement.service');
@@ -621,6 +623,8 @@ describe('W2 依法必招标示录入口（P1-4，2026-09-09）— guard 读 met
         update: jest.fn().mockImplementation(async (_args: any) => ({ id: 'a1', publicityEnd: new Date(Date.now() + 3 * 86400000) })),
       },
       bidProject: { findUnique: jest.fn() },
+      // 终止项目发布闸（2026-11-16）：PMI 判定查询 mock（null=未终止 → 闸放行）
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
       // 非必招项目偏离留痕路径（deviated → supervisionLog）需要
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -2087,5 +2091,78 @@ describe('AnnouncementService — getParticipants 合并意向集（2026-11-12 �
     const r = await service.getParticipants('ann1');
     expect(prisma.supplierBidIntent.findMany).not.toHaveBeenCalled();
     expect(r.stats.intentConfirmed).toBe(0);
+  });
+});
+
+describe('终止项目发布闸（2026-11-16 用户裁定：终止后未发布公告直接进回收站）', () => {
+  const mkTermSvc = async (pmiBy: { code?: any; id?: any; bp?: any }) => {
+    const prisma: any = {
+      announcement: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'ann-t1', status: 'DRAFT', type: 'BID_NOTICE', title: '终止项目公告',
+          relatedProjectCode: 'SWHI-JJ-9', metadata: { foo: 1 },
+        }),
+        update: jest.fn().mockResolvedValue({}),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      announcementHistory: { create: jest.fn().mockResolvedValue({}) },
+      // 判定链：先按 projectCode 直查 PMI，miss 后经 BidProject.projectCode→projectManagementItemId 桥接
+      projectManagementItem: {
+        findUnique: jest.fn().mockImplementation(async (a: any) => (a.where.projectCode ? pmiBy.code : pmiBy.id)),
+      },
+      bidProject: { findUnique: jest.fn().mockResolvedValue(pmiBy.bp ?? null) },
+    };
+    const { AnnouncementService: Svc } = await import('./announcement.service');
+    const svc: any = Object.create(Svc.prototype);
+    svc.prisma = prisma;
+    svc.logger = { warn: jest.fn(), log: jest.fn(), error: jest.fn() };
+    return { svc, prisma };
+  };
+
+  it('update 转发布且 PMI 已终止（经 BidProject 桥接）→ 不发布、公告移入回收站 + HIDE 留痕、409 TERMINATED_PROJECT', async () => {
+    const { svc, prisma } = await mkTermSvc({
+      code: null,
+      bp: { projectManagementItemId: 'pmi-9' },
+      id: { status: 'TERMINATED' },
+    });
+    await expect(svc.update('ann-t1', { status: 'PUBLISHED' } as any)).rejects.toMatchObject({
+      response: { code: 'TERMINATED_PROJECT' },
+    });
+    // 回收站语义：HIDDEN + recycle 快照（by=系统）+ 其余 metadata 键保留 + HIDE 历史
+    expect(prisma.announcement.update).toHaveBeenCalledWith({
+      where: { id: 'ann-t1' },
+      data: expect.objectContaining({ status: 'HIDDEN' }),
+    });
+    const data = prisma.announcement.update.mock.calls[0][0].data;
+    expect(data.metadata.recycle).toMatchObject({ from: 'DRAFT', action: 'HIDDEN' });
+    expect(data.metadata.foo).toBe(1);
+    expect(prisma.announcementHistory.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ announcementId: 'ann-t1', action: 'HIDE', status: 'HIDDEN' }),
+    });
+  });
+
+  it('PMI 编号直配终止（relatedProjectCode 即业务编号）→ 同口径拦截', async () => {
+    const { svc, prisma } = await mkTermSvc({ code: { status: 'TERMINATED' } });
+    await expect(svc.update('ann-t1', { status: 'PUBLISHED' } as any)).rejects.toMatchObject({
+      response: { code: 'TERMINATED_PROJECT' },
+    });
+    expect(prisma.announcement.update).toHaveBeenCalled();
+  });
+
+  it('PMI 未终止（ACTIVE）→ 闸放行不拦截（后续流程照常）', async () => {
+    const { svc, prisma } = await mkTermSvc({ code: null, bp: { projectManagementItemId: 'pmi-9' }, id: { status: 'ACTIVE' } });
+    // 放行后 update 继续走后续分支——本用例只验「不抛 TERMINATED_PROJECT」（其余错误与闸无关）
+    await svc.update('ann-t1', { status: 'PUBLISHED' } as any).catch((e: any) => {
+      expect(e?.response?.code).not.toBe('TERMINATED_PROJECT');
+    });
+    expect(prisma.announcement.update.mock.calls[0]?.[0]?.data?.status).not.toBe('HIDDEN');
+  });
+
+  it('create 即时发布 + 关联项目已终止 → 建行前 409 拒绝、不留孤儿公告', async () => {
+    const { svc, prisma } = await mkTermSvc({ code: { status: 'TERMINATED' } });
+    await expect(svc.create({
+      title: 'T', type: 'POLICY', status: 'PUBLISHED', content: 'c', relatedProjectCode: 'SWHI-JJ-9',
+    } as any, 'u1')).rejects.toMatchObject({ response: { code: 'TERMINATED_PROJECT' } });
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
   });
 });

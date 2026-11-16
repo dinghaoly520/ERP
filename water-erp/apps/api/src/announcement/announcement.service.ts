@@ -101,6 +101,12 @@ export class AnnouncementService {
 
     const status = (dto.status as any) ?? 'DRAFT';
 
+    // 终止项目发布闸（2026-11-16 用户裁定，同 update 路径）：即时发布关联已终止项目——
+    // 置于建行之前拒绝、不留孤儿公告（同 W2/T4 预检口径）
+    if (status === 'PUBLISHED' && await this.isLinkedProjectTerminated(dto.relatedProjectCode)) {
+      throw new ConflictException({ error: '关联采购项目已终止，公告不可发布（未创建）', code: 'TERMINATED_PROJECT' });
+    }
+
     // W2（B-004/B-009）：依法必招时间规则预检——置于建行之前，违者 400 且不留孤儿公告
     if (dto.type === 'BID_NOTICE' && status === 'PUBLISHED') {
       await this.assertBidNoticeTimingGuard(dto);
@@ -643,6 +649,50 @@ export class AnnouncementService {
     return sections.map((l) => `<p>${esc(l)}</p>`).join('');
   }
 
+  /** 判定关联项目是否已终止（2026-11-16 用户裁定）：
+   *  relatedProjectCode 直配 PMI.projectCode，或经 BidProject.projectCode→projectManagementItemId 桥接。
+   *  仅认 PMI.status=TERMINATED（开标前流标 ABORTED 不在此闸——那是流标语义、另有处置）。 */
+  private async isLinkedProjectTerminated(relatedProjectCode?: string | null): Promise<boolean> {
+    const code = relatedProjectCode?.trim();
+    if (!code) return false;
+    const pmDirect = await this.prisma.projectManagementItem.findUnique({
+      where: { projectCode: code },
+      select: { status: true },
+    });
+    if (pmDirect?.status === 'TERMINATED') return true;
+    const bp = await this.prisma.bidProject.findUnique({
+      where: { projectCode: code },
+      select: { projectManagementItemId: true },
+    });
+    if (bp?.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({
+        where: { id: bp.projectManagementItemId },
+        select: { status: true },
+      });
+      if (pm?.status === 'TERMINATED') return true;
+    }
+    return false;
+  }
+
+  /** 终止发布闸内部回收（与 applyRecycle(HIDDEN) 同构）：HIDDEN + metadata.recycle 快照 + HIDE 历史。
+   *  操作人留痕=「系统（项目终止联动）」——该路径无用户操作上下文（定时发布/批量发布同汇于此）。 */
+  private async recycleForTerminatedProject(ann: {
+    id: string; title: string; type: string; status: string; metadata: unknown;
+  }) {
+    const meta = { ...((ann.metadata as Record<string, any> | null) ?? {}) };
+    meta.recycle = { from: ann.status ?? 'DRAFT', action: 'HIDDEN', at: new Date().toISOString(), by: '系统（项目终止联动）' };
+    await this.prisma.announcement.update({
+      where: { id: ann.id },
+      data: { status: 'HIDDEN', metadata: meta as any },
+    });
+    await this.prisma.announcementHistory.create({
+      data: {
+        announcementId: ann.id, action: 'HIDE', title: ann.title, type: ann.type,
+        status: 'HIDDEN', changedFields: ['status'], operatorName: '系统（项目终止联动）',
+      },
+    }).catch(e => this.logger.warn(`终止发布闸回收留痕失败（不阻塞）: ${(e as Error).message}`));
+  }
+
   async update(id: string, dto: UpdateAnnouncementDto) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
     if (!announcement) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
@@ -653,6 +703,7 @@ export class AnnouncementService {
     if (announcement.status === 'PUBLISHED' && dto.status === 'DRAFT') {
       throw new BadRequestException({ error: '公告已发布，不能转回草稿；如需撤回请使用下架', code: 'PUBLISHED_NO_DEMOTE' });
     }
+
 
     const title = dto.title ?? announcement.title;
     const type = dto.type ?? announcement.type;
@@ -669,6 +720,21 @@ export class AnnouncementService {
     const isPublishTransition =
       announcement.status !== 'PUBLISHED' &&
       targetStatus === 'PUBLISHED';
+    // 终止项目发布闸（2026-11-16 用户裁定）：终止后未发布的关联公告不得发布——
+    // 直接移入回收站（HIDDEN+recycle 快照+HIDE 历史）并以 409 拒绝发布请求。
+    // 置于补遗/公示期等发布闸之前：项目终止是最根本的不可发布事由。
+    if (isPublishTransition) {
+      const effectiveCode = dto.relatedProjectCode
+        ?? announcement.relatedProjectCode
+        ?? ((announcement.metadata as Record<string, any> | null)?.projectCode);
+      if (await this.isLinkedProjectTerminated(effectiveCode)) {
+        await this.recycleForTerminatedProject(announcement);
+        throw new ConflictException({
+          error: '关联采购项目已终止，公告未发布、已移入回收站（可在管理端回收站中查看或恢复）',
+          code: 'TERMINATED_PROJECT',
+        });
+      }
+    }
     // 补遗闸（2026-11-06 用户裁定）：项目已进入开标确认及以后步骤不可发布补遗（update 路径：
     // 编辑转发布/定时到点发布/批量发布均汇于此）
     if (isPublishTransition && (dto.type ?? announcement.type) === 'ADDENDUM') {

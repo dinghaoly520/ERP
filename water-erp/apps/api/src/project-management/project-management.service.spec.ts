@@ -2693,21 +2693,24 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
       prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: 'TERMINATED' });
       prisma.user.findUnique.mockResolvedValue({ displayName: '采购中心领导 02', username: 'Swhi-CGZX-02' });
       // 关联公告三态：PUBLISHED 收、DRAFT（发布中竞态）收、已在回收站的跳过。
-      // findMany 按 where.status.in 模拟 DB 过滤——真实验证实现的状态过滤语义
+      // findMany 按 where.status.in + 已收集合模拟 DB 状态（in-tx 收走后事务后补扫应空转）
       const ANN_FIXTURES = [
         { id: 'ann-1', status: 'PUBLISHED', title: '竞价采购公告 X', type: 'BID_NOTICE', metadata: { foo: 1 } },
         { id: 'ann-2', status: 'DRAFT', title: '发布中草稿', type: 'BID_NOTICE', metadata: null },
         { id: 'ann-3', status: 'HIDDEN', title: '已在回收站', type: 'BID_NOTICE', metadata: {} },
       ];
+      const hiddenIds = new Set<string>();
+      prisma.announcement.update.mockImplementation(async (args: any) => { hiddenIds.add(args.where.id); return {}; });
       prisma.announcement.findMany.mockImplementation(async (args: any) =>
-        ANN_FIXTURES.filter(a => (args?.where?.status?.in ?? []).includes(a.status)));
+        ANN_FIXTURES.filter(a => (args?.where?.status?.in ?? []).includes(a.status) && !hiddenIds.has(a.id)));
 
       const res = await service.terminateProject('pm-01', { reason: '需求取消' }, 'u-1', { sub: 'u-1', id: 'u-1', role: 'staff' } as any);
 
       expect(res.status).toBe('TERMINATED');
-      // 收进回收站的 id 集合 = ann-1(PUBLISHED) + ann-2(DRAFT)；ann-3 已在回收站（HIDDEN）不再收
-      const hiddenIds = prisma.announcement.update.mock.calls.map((c: any[]) => c[0].where.id);
+      // 收进回收站的 id 集合 = ann-1(PUBLISHED) + ann-2(DRAFT)；ann-3 已在回收站（HIDDEN）不再收；
+      // 事务后补扫对已收件空转（总调用恰 2 次而非重复收）
       expect(new Set(hiddenIds)).toEqual(new Set(['ann-1', 'ann-2']));
+      expect(prisma.announcement.update).toHaveBeenCalledTimes(2);
       const first = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].where.id === 'ann-1')![0];
       expect(first.data.status).toBe('HIDDEN');
       expect(first.data.metadata.recycle).toMatchObject({ from: 'PUBLISHED', action: 'HIDDEN', by: '采购中心领导 02' });
