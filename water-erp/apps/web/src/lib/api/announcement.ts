@@ -240,6 +240,8 @@ export interface AnnouncementDuplicateMatch {
   status: string;
   publishDate: string | null;
   relatedProjectCode?: string | null;
+  /** 2026-11-16：查重提示带公示起止——metadata.announcementStart/publicityEnd（或 publicityPeriod 文本） */
+  metadata?: Record<string, unknown> | null;
 }
 export function checkAnnouncementDuplicate(payload: { title: string; relatedProjectCode?: string; type?: string }) {
   return api.post<{ matches: AnnouncementDuplicateMatch[] }>('/announcements/check-duplicate', payload);

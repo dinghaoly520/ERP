@@ -1392,7 +1392,23 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         if (dup.matches.length > 0) {
           const dupLines = dup.matches.map((m) => {
             const when = m.publishDate ? `${new Date(m.publishDate).toLocaleDateString('zh-CN')} 发布` : '未发布';
-            return `· ${m.title}（${when} · ${m.status === 'PUBLISHED' ? '已发布' : '已归档'}）`;
+            const code = m.relatedProjectCode?.trim() ? `编号 ${m.relatedProjectCode} · ` : '';
+            // 公告起止（2026-11-16 用户裁定）：metadata 起/止优先，缺则 publicityPeriod 文本
+            const md = (m.metadata ?? {}) as Record<string, unknown>;
+            const fmtDup = (v: unknown) => {
+              const d = v ? new Date(String(v)) : null;
+              return d && !Number.isNaN(d.getTime())
+                ? d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : '';
+            };
+            const startTxt = fmtDup(md.announcementStart);
+            const endTxt = fmtDup(md.publicityEnd);
+            const period = startTxt || endTxt
+              ? `公告起止 ${startTxt || '—'} 至 ${endTxt || '—'} · `
+              : typeof md.publicityPeriod === 'string' && md.publicityPeriod.trim()
+                ? `公告起止 ${md.publicityPeriod} · `
+                : '';
+            return `· ${m.title}（${code}${period}${when} · ${m.status === 'PUBLISHED' ? '已发布' : '已归档'}）`;
           }).join('\n');
           const okDup = await confirmDialog({
             title: '疑似重复发布',

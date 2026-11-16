@@ -1990,10 +1990,16 @@ export class AnnouncementService {
       select: {
         id: true, title: true, type: true, status: true,
         publishDate: true, relatedProjectCode: true,
+        metadata: true, // 2026-11-16 用户裁定：查重提示带公示起止（metadata.announcementStart/publicityEnd/publicityPeriod）
       },
       orderBy: [{ publishDate: 'desc' }, { createdAt: 'desc' }],
       take: 5,
     });
-    return { matches };
+    return {
+      matches: matches.map((m) => ({
+        ...m,
+        metadata: m.metadata as Record<string, unknown> | null,
+      })),
+    };
   }
 }
