@@ -1390,10 +1390,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           type: announcementType,
         });
         if (dup.matches.length > 0) {
+          // 命中行排版（2026-11-16 用户裁定：分行结构化——标题一行、属性一行括注）。
+          // 弹窗正文 whitespace-pre-line：换行保留、行首空格折叠——缩进用「（…）」括注行表达层级
           const dupLines = dup.matches.map((m) => {
             const when = m.publishDate ? `${new Date(m.publishDate).toLocaleDateString('zh-CN')} 发布` : '未发布';
-            const code = m.relatedProjectCode?.trim() ? `编号 ${m.relatedProjectCode} · ` : '';
-            // 公告起止（2026-11-16 用户裁定）：metadata 起/止优先，缺则 publicityPeriod 文本
+            const statusTxt = m.status === 'PUBLISHED' ? '已发布' : '已归档';
             const md = (m.metadata ?? {}) as Record<string, unknown>;
             const fmtDup = (v: unknown) => {
               const d = v ? new Date(String(v)) : null;
@@ -1403,16 +1404,25 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
             };
             const startTxt = fmtDup(md.announcementStart);
             const endTxt = fmtDup(md.publicityEnd);
-            const period = startTxt || endTxt
-              ? `公告起止 ${startTxt || '—'} 至 ${endTxt || '—'} · `
+            const periodTxt = startTxt && endTxt
+              ? `${startTxt} 至 ${endTxt}`
+              : startTxt ? `${startTxt} 起` : endTxt ? `至 ${endTxt}` : '';
+            const period = periodTxt
+              ? `公告起止 ${periodTxt}`
               : typeof md.publicityPeriod === 'string' && md.publicityPeriod.trim()
-                ? `公告起止 ${md.publicityPeriod} · `
+                ? `公告起止 ${md.publicityPeriod}`
                 : '';
-            return `· ${m.title}（${code}${period}${when} · ${m.status === 'PUBLISHED' ? '已发布' : '已归档'}）`;
-          }).join('\n');
+            // 属性段：仅收录有值项，「｜」分隔——避免「至 —」空占位
+            const attrs = [
+              m.relatedProjectCode?.trim() ? `编号 ${m.relatedProjectCode}` : '',
+              period,
+              `${when} · ${statusTxt}`,
+            ].filter(Boolean).join(' ｜ ');
+            return `· ${m.title}\n（${attrs}）`;
+          }).join('\n\n');
           const okDup = await confirmDialog({
             title: '疑似重复发布',
-            message: `检出 ${dup.matches.length} 条内容相同/相关的公告：\n${dupLines}\n\n确认仍要发布？`,
+            message: `检出 ${dup.matches.length} 条内容相同/相关的公告：\n\n${dupLines}\n\n确认仍要发布？`,
             confirmText: '仍要发布',
             cancelText: '返回检查',
             danger: true,
