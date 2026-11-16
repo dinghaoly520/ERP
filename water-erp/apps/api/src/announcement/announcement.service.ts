@@ -1713,7 +1713,8 @@ export class AnnouncementService {
       this.prisma.announcement.count({ where: { ...where, type: 'BID_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'WIN_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'POLICY', status: 'PUBLISHED' } }),
-      this.prisma.announcement.count({ where: { ...where, status: 'DRAFT' } }),
+      // 待处理草稿（2026-11-16 用户裁定）：排除定时待发布件——它们已在主表「待发布」展示，不重复计数
+      this.prisma.announcement.count({ where: { ...where, status: 'DRAFT', metadata: { path: ['scheduledPublishDate'], equals: Prisma.DbNull } } }),
       this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED', publishDate: { gte: monthStart } } }),
       this.prisma.announcement.aggregate({ where: { ...where, status: 'PUBLISHED' }, _sum: { viewCount: true } }),
     ]);
