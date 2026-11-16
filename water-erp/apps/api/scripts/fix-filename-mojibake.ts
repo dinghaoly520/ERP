@@ -24,9 +24,9 @@
  * 用法：
  *   npx tsx scripts/fix-filename-mojibake.ts                          # dry-run（默认，只报告）
  *   npx tsx scripts/fix-filename-mojibake.ts --execute                # 执行回填
- *   npx tsx scripts/fix-filename-mojibake.ts --table=fileAsset        # 限定表（fileAsset|clarification|attachment，默认三表全扫）
- *   npx tsx scripts/fix-filename-mojibake.ts --category=bid_document  # 限定分类（逗号分隔，仅 FileAsset）
- *   npx tsx scripts/fix-filename-mojibake.ts --id=cmw...              # 外科模式：单行（仅 FileAsset）
+ *   npx tsx scripts/fix-filename-mojibake.ts --table=fileAsset        # 限定表（fileAsset|clarification|attachment，默认三表全扫；非法值直接报错）
+ *   npx tsx scripts/fix-filename-mojibake.ts --category=bid_document  # 限定分类（逗号分隔）——外科模式：仅扫 FileAsset，另两表不扫
+ *   npx tsx scripts/fix-filename-mojibake.ts --id=cmw...              # 外科模式：仅 FileAsset 单行（另两表不扫）
  * 写入为条件 updateMany（where 含原值）——并发改名不被覆盖，安全重跑幂等。
  */
 import { PrismaClient } from '@prisma/client';
@@ -38,9 +38,16 @@ const idArg = process.argv.find((a) => a.startsWith('--id='))?.slice(5);
 const categoryArg = process.argv.find((a) => a.startsWith('--category='))?.slice(11);
 const categories = categoryArg ? categoryArg.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
 const tableArg = process.argv.find((a) => a.startsWith('--table='))?.slice(8);
+// P3（2026-11-16 评审）：--table 值校验——typo 静默空跑会让操作者误判「无存量」
+if (tableArg && !['fileAsset', 'clarification', 'attachment'].includes(tableArg)) {
+  throw new Error(`--table 值非法: ${tableArg}（可选 fileAsset | clarification | attachment）`);
+}
+// P2（2026-11-16 评审）：--id/--category 为 FileAsset 外科模式——给出时任一即收窄为
+// 仅扫 FileAsset，另两表不扫不回填（恢复原版「外科」契约，防组合 flag 下静默全表回填）
+const surgicalFileAsset = !!(idArg || categories);
 const wantFileAsset = !tableArg || tableArg === 'fileAsset';
-const wantClarification = !tableArg || tableArg === 'clarification';
-const wantAttachment = !tableArg || tableArg === 'attachment';
+const wantClarification = !surgicalFileAsset && (!tableArg || tableArg === 'clarification');
+const wantAttachment = !surgicalFileAsset && (!tableArg || tableArg === 'attachment');
 
 const CHUNK = 500;
 
@@ -135,7 +142,14 @@ async function main() {
   for (const p of plans) byTable.set(`${p.table}`, (byTable.get(p.table) ?? 0) + 1);
 
   console.log(`=== 文件名 latin1 误读存量修复（${execute ? 'EXECUTE' : 'DRY-RUN'}）===`);
-  console.log(`范围：${idArg ? `FileAsset 单行 ${idArg}` : categories ? `FileAsset category ∈ {${categories.join(', ')}}` : tableArg ? `table=${tableArg}` : '三表全扫（FileAsset / TenderClarificationDoc.title / Attachment.fileName）'}`);
+  const scopeDesc = idArg && wantFileAsset
+    ? `FileAsset 单行 ${idArg}（外科模式：另两表不扫）`
+    : categories && wantFileAsset
+      ? `FileAsset category ∈ {${categories.join(', ')}}（外科模式：另两表不扫）`
+      : tableArg
+        ? `table=${tableArg}`
+        : '三表全扫（FileAsset / TenderClarificationDoc.title / Attachment.fileName）';
+  console.log(`范围：${scopeDesc}`);
   console.log(`命中待修：${plans.length} 行`);
   for (const [t, n] of [...byTable.entries()].sort()) console.log(`  - ${t}: ${n}`);
   for (const p of plans.slice(0, 50)) console.log(`  ${p.table} ${p.id} [${p.label}] ${JSON.stringify(p.from)} → ${JSON.stringify(p.to)}`);
