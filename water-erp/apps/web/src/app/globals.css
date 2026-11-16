@@ -2690,9 +2690,7 @@ body::after,
   100% { opacity: 1; transform: translateY(0); }
 }
 
-/* Editable info card — same visual structure as static cards {
-  cursor: pointer;
-}
+/* editable-info-card 规则已随零消费清退（2026-11-16 注释整理中间态残留的孤儿注释已修） */
 
 /* ─── 阶段快捷操作按钮 ──────────────────────────────────────────────────────────── */
 
