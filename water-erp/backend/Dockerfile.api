@@ -28,6 +28,19 @@ ARG NPM_VERSION=11.13.0
 
 RUN corepack enable
 
+# ---- LibreOffice headless + 中文字体（2026-11-16 生产启用）----
+# 依赖面：common/office-to-pdf.util（docx→pdf：标书编写导出/签字包/专家端预览）、
+#   expert.service docx→pdf、knowledge document-parser .doc→txt（ai-worker 同镜像消费）。
+# - libreoffice-writer 足够（全部调用点只转 Word 系）；--no-install-recommends 防拉全家桶+JRE
+# - fonts-noto-cjk 必装：slim 基底无 CJK 字体，缺它 PDF 中文全变口字方块
+# - bookworm 用 deb822 源（debian.sources）；国内直连 deb.debian.org 间歇超时，换 tuna 镜像
+#   （可改 aliyun/ustc；A 机代理可靠也可删 sed 走直连）
+# - 放在依赖/源码层之前：源码变更不触发重装（层缓存友好）；体积 +≈500MB
+RUN sed -i 's@//deb.debian.org@//mirrors.tuna.tsinghua.edu.cn@g; s@//security.debian.org@//mirrors.tuna.tsinghua.edu.cn@g' /etc/apt/sources.list.d/debian.sources \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends libreoffice-writer fonts-noto-cjk \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # ---- 只拷贝 workspace 成员清单（利用层缓存：源码变更不触发重装依赖）----
