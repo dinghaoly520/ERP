@@ -255,7 +255,7 @@ export function AppShell({
       <div className="mx-auto flex h-full w-full overflow-hidden">
         <aside
           data-mode={sidebarRail ? "rail" : "full"}
-          className="sidebar-sheen sidebar-card mr-4 hidden h-full w-[240px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex"
+          className="sidebar-card mr-4 hidden h-full w-[240px] shrink-0 flex-col rounded-tl-[24px] rounded-tr-[24px] rounded-bl-none rounded-br-[24px] pr-2 lg:flex"
         >
           <header className="flex flex-col items-center gap-2 px-3.5 pb-3.5 pt-4">
             <div className="command-orb brand-orb-3d flex h-12 w-12 shrink-0 items-center justify-center">

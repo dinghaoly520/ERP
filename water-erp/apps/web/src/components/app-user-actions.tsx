@@ -155,7 +155,7 @@ export function AppUserActions({ layout = "header" }: AppUserActionsProps) {
         <button
         type="button"
         onClick={handleClick}
-        className="interactive-surface flex w-full min-h-[52px] items-center justify-center gap-2 rounded-[16px] bg-[oklch(1_0_0/_0.9)] px-3.5 py-3 text-sm font-medium text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.14),-1px_-1px_3px_oklch(1_0_0/_0.9)] hover:-translate-y-px"
+        className="interactive-surface flex w-full min-h-[52px] items-center justify-center gap-2 rounded-[16px] bg-[oklch(1_0_0/_0.9)] px-3.5 py-3 text-sm font-medium text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.14),-1px_-1px_3px_oklch(1_0_0/_0.9)]"
       >
         <span className="neu-icon-well inline-flex h-9 w-9 items-center justify-center rounded-[12px] text-[color:var(--accent)]">
           <UserRound size={17} strokeWidth={1.9} />
