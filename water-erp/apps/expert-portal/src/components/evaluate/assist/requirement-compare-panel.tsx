@@ -532,16 +532,16 @@ export function RequirementComparePanel({
                             </span>
                             {selectedResp.excerpt ? (
                               <div className="mt-2">
-                                <p className="text-[11px] italic leading-relaxed text-[var(--muted-foreground)]">
+                                <p className="text-[11px] leading-relaxed text-[var(--muted-foreground)]">
                                   “{selectedResp.excerpt}”
                                 </p>
                                 {selectedResp.verified === false && (
-                                  <p className="mt-1 flex items-center gap-0.5 text-[10px] text-[oklch(0.52_0.13_70)] not-italic">
+                                  <p className="mt-1 flex items-center gap-0.5 text-[10px] text-[oklch(0.52_0.13_70)]">
                                     <AlertCircle size={10} /> AI 摘录未在标书中复核通过，请手动核对
                                   </p>
                                 )}
                                 {selectedResp.pageCorrected && (
-                                  <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)] not-italic">· 页码已自动修正</p>
+                                  <p className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">· 页码已自动修正</p>
                                 )}
                               </div>
                             ) : (

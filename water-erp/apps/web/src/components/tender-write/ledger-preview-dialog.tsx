@@ -106,7 +106,7 @@ export function LedgerPreviewDialog({
     try {
       const result = await updateNotificationLedger(rows);
       downloadBlobFile(result.blob, result.fileName);
-      setSuccessMessage("导出成功！");
+      setSuccessMessage("导出成功");
       setTimeout(() => setSuccessMessage(null), 2000);
       // Reload after export to sync 序号
       loadLedger();

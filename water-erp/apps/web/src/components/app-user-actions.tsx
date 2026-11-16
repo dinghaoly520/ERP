@@ -82,7 +82,7 @@ export function ReviewCenterButton({ className, withModal = false }: { className
       {count != null && count > 0 && (
         <span
           className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-black leading-none text-white"
-          style={{ background: "oklch(0.55 0.19 25)", boxShadow: "0 2px 6px oklch(0.55 0.19 25 / 0.4)" }}
+          style={{ background: "oklch(0.55 0.19 25)" }}
         >
           {count > 99 ? "99+" : count}
         </span>
@@ -128,7 +128,7 @@ export function AppUserActions({ layout = "header" }: AppUserActionsProps) {
     }
 
     return (
-      <div className="inline-flex min-h-[48px] items-center gap-2 rounded-[18px] border border-white/60 bg-white/58 px-4 py-2 text-sm text-[color:var(--muted-foreground)] shadow-[0_12px_24px_rgba(69,99,158,0.06)]">
+      <div className="inline-flex min-h-[48px] items-center gap-2 rounded-[18px] bg-[oklch(1_0_0/_0.9)] px-4 py-2 text-sm text-[color:var(--muted-foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.14),-1px_-1px_3px_oklch(1_0_0/_0.9)]">
         <Loader2 size={16} className="animate-spin" />
       </div>
     );
@@ -150,14 +150,14 @@ export function AppUserActions({ layout = "header" }: AppUserActionsProps) {
       <div className="flex w-full flex-col gap-2">
         {/* 全局兜底入口：自绘 hero 页（无 UnifiedHeader）也能进审批中心 */}
         {canReview && (
-          <ReviewCenterButton className="relative flex w-full min-h-[44px] items-center justify-center gap-2 rounded-[16px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.86),rgba(241,246,255,0.78))] px-3.5 py-2.5 text-sm font-bold text-[color:var(--foreground)] shadow-[0_10px_22px_rgba(69,99,158,0.06)] transition-all duration-200 hover:-translate-y-px" />
+          <ReviewCenterButton className="relative flex w-full min-h-[44px] items-center justify-center gap-2 rounded-[16px] bg-[oklch(1_0_0/_0.92)] px-3.5 py-2.5 text-sm font-bold text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.14),-1px_-1px_3px_oklch(1_0_0/_0.9)] transition-[transform,box-shadow] duration-200 hover:-translate-y-px hover:shadow-[inset_0_1px_0_oklch(1_0_0/_0.8),3px_3px_7px_oklch(0.5_0.08_258_/_0.18),-2px_-2px_5px_oklch(1_0_0/_0.95)]" />
         )}
         <button
         type="button"
         onClick={handleClick}
-        className="interactive-surface flex w-full min-h-[52px] items-center justify-center gap-2 rounded-[16px] border border-white/68 bg-[linear-gradient(145deg,rgba(255,255,255,0.8),rgba(241,246,255,0.72))] px-3.5 py-3 text-sm font-medium text-[color:var(--foreground)] shadow-[0_12px_22px_rgba(69,99,158,0.05)] transition-all duration-200 hover:-translate-y-px"
+        className="interactive-surface flex w-full min-h-[52px] items-center justify-center gap-2 rounded-[16px] bg-[oklch(1_0_0/_0.9)] px-3.5 py-3 text-sm font-medium text-[color:var(--foreground)] shadow-[inset_0_1px_0_oklch(1_0_0/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.14),-1px_-1px_3px_oklch(1_0_0/_0.9)] hover:-translate-y-px"
       >
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-white/76 bg-white/82 text-[color:var(--accent)]">
+        <span className="neu-icon-well inline-flex h-9 w-9 items-center justify-center rounded-[12px] text-[color:var(--accent)]">
           <UserRound size={17} strokeWidth={1.9} />
         </span>
         <span className="truncate">{currentUser.displayName}</span>
@@ -170,15 +170,15 @@ export function AppUserActions({ layout = "header" }: AppUserActionsProps) {
     <div className="inline-flex items-center gap-2.5">
       {canReview && (
         <ReviewCenterButton
-          className="relative inline-flex min-h-[44px] items-center gap-2 rounded-[16px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.88),rgba(241,246,255,0.8))] px-3.5 py-2 shadow-[0_10px_22px_rgba(69,99,158,0.07)] transition-all hover:-translate-y-px hover:bg-white/92"
+          className="relative inline-flex min-h-[44px] items-center gap-2 rounded-[16px] bg-[oklch(1_0_0/_0.92)] px-3.5 py-2 shadow-[inset_0_1px_0_oklch(1_0_0/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.14),-1px_-1px_3px_oklch(1_0_0/_0.9)] transition-[transform,box-shadow] duration-200 hover:-translate-y-px hover:shadow-[inset_0_1px_0_oklch(1_0_0/_0.8),3px_3px_7px_oklch(0.5_0.08_258_/_0.18),-2px_-2px_5px_oklch(1_0_0/_0.95)]"
         />
       )}
       <button
         type="button"
         onClick={handleClick}
-        className="inline-flex min-h-[48px] items-center gap-3 rounded-[18px] border border-white/68 bg-[linear-gradient(145deg,rgba(255,255,255,0.86),rgba(241,246,255,0.78))] px-4 py-2.5 shadow-[0_14px_28px_rgba(69,99,158,0.06)] transition-all hover:bg-white/90"
+        className="inline-flex min-h-[48px] items-center gap-3 rounded-[18px] bg-[oklch(1_0_0/_0.9)] px-4 py-2.5 shadow-[inset_0_1px_0_oklch(1_0_0/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.14),-1px_-1px_3px_oklch(1_0_0/_0.9)] transition-[box-shadow] duration-200 hover:shadow-[inset_0_1px_0_oklch(1_0_0/_0.8),3px_3px_7px_oklch(0.5_0.08_258_/_0.18),-2px_-2px_5px_oklch(1_0_0/_0.95)]"
       >
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[12px] border border-white/76 bg-white/82 text-[color:var(--accent)]">
+        <span className="neu-icon-well inline-flex h-9 w-9 items-center justify-center rounded-[12px] text-[color:var(--accent)]">
           <UserRound size={17} strokeWidth={1.9} />
         </span>
         <div className="min-w-0">

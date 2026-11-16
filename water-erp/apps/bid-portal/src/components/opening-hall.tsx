@@ -681,7 +681,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
       )}
       {timeWarning === '1min' && !sessionEnded && (
         <div className="flex items-center gap-2 rounded-xl bg-[oklch(0.66_0.175_27_/_0.14)] px-4 py-2.5 text-sm font-bold text-[var(--danger)]">
-          <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟！
+          <AlertTriangle size={16} className="animate-pulse" /> 解密窗口仅剩 1 分钟
         </div>
       )}
       {/* 窗口已过期且仍有未到终局态的供应商——给出两条出路指引（P1-4：仅参标家——

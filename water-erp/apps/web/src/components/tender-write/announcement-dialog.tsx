@@ -1521,7 +1521,7 @@ export function AnnouncementDialog({
       });
       const saved = await saveFileWithPicker(result.blob, result.fileName);
       if (saved) {
-        setSuccessMessage("导出成功！");
+        setSuccessMessage("导出成功");
         setTimeout(() => setSuccessMessage(null), 2000);
       }
     } catch (error) {

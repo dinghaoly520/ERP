@@ -477,7 +477,7 @@ export function AccountManagementPanel() {
 
       {/* 列表（工作人员：审批管理，保留现状；供应商：只读视图） */}
       {listView === "staff" ? (
-      <div className="overflow-hidden rounded-[18px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,251,255,0.72))] shadow-[0_12px_28px_rgba(59,89,143,0.06)]">
+      <div className="overflow-hidden rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.18)] bg-[oklch(1_0_0_/_0.88)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.7),2px_2px_6px_oklch(0.5_0.08_258_/_0.1),-1px_-1px_4px_oklch(1_0_0_/_0.85)]">
         <div className="overflow-x-auto">
           {/* 列宽稳健化（2026-10-22）：table-fixed + colgroup 显式列宽——列宽由表头决定、
               不再被长内容（手机号/公司名/操作按钮）撑爆；单元格内容截断+悬停看全文，跨浏览器一致 */}
@@ -597,7 +597,7 @@ export function AccountManagementPanel() {
         </div>
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
-            <span className="command-orb mb-3 inline-flex h-12 w-12 items-center justify-center rounded-[16px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(241,245,251,0.88))] text-[color:var(--muted-foreground)] shadow-[0_10px_22px_rgba(72,120,235,0.06)]">
+            <span className="neu-icon-well mb-3 inline-flex h-12 w-12 items-center justify-center rounded-[16px] text-[color:var(--muted-foreground)]">
               <UserCog size={20} strokeWidth={1.6} />
             </span>
             <div className="text-sm font-medium text-[color:var(--foreground)]">没有匹配的账号</div>
@@ -606,7 +606,7 @@ export function AccountManagementPanel() {
         ) : null}
       </div>
       ) : (
-      <div className="overflow-hidden rounded-[18px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(248,251,255,0.72))] shadow-[0_12px_28px_rgba(59,89,143,0.06)]">
+      <div className="overflow-hidden rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.18)] bg-[oklch(1_0_0_/_0.88)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.7),2px_2px_6px_oklch(0.5_0.08_258_/_0.1),-1px_-1px_4px_oklch(1_0_0_/_0.85)]">
         <div className="overflow-x-auto">
           {/* 列宽稳健化（2026-10-22）：同工作人员表 table-fixed + colgroup */}
           <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
@@ -713,7 +713,7 @@ export function AccountManagementPanel() {
         </div>
         {supplierFiltered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-14 text-center">
-            <span className="command-orb mb-3 inline-flex h-12 w-12 items-center justify-center rounded-[16px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(241,245,251,0.88))] text-[var(--muted-foreground)] shadow-[0_10px_22px_rgba(72,120,235,0.06)]">
+            <span className="neu-icon-well mb-3 inline-flex h-12 w-12 items-center justify-center rounded-[16px] text-[var(--muted-foreground)]">
               <Building2 size={20} strokeWidth={1.6} />
             </span>
             <div className="text-sm font-medium text-[color:var(--foreground)]">没有匹配的供应商账号</div>

@@ -591,7 +591,7 @@ function BidSubmitInner() {
         baseRevision,
       });
       draft.clearDraft();
-      toast.success("标书提交成功！");
+      toast.success("标书提交成功");
       router.push("/my-bids");
     } catch (err: any) {
       // 意向未确认（2026-11-12）：后端 INTENT_REQUIRED → 回详情页先确认（详情页 goToSubmit 会弹确认弹窗）

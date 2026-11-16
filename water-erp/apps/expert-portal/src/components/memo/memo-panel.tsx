@@ -617,7 +617,7 @@ export function MemoPanel({
                     <ExternalLink size={11} strokeWidth={1.7} /> 查看墨迹原图
                   </button>
                 ) : (
-                  <span className="text-xs italic text-[var(--muted-foreground)]">（空备忘）</span>
+                  <span className="text-xs text-[var(--muted-foreground)]">（空备忘）</span>
                 )}
                 <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]">
                   {new Date(m.createdAt).toLocaleString('zh-CN')}

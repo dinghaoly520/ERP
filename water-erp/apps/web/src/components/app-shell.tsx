@@ -395,7 +395,7 @@ export function AppShell({
                         className={[
                           "interactive-surface inline-flex min-w-fit items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-all duration-200",
                           active
-                            ? "border-white/75 bg-[linear-gradient(145deg,rgba(255,255,255,0.8),rgba(236,242,255,0.72))] text-[color:var(--accent)] shadow-[0_12px_24px_rgba(57,88,142,0.08)]"
+                            ? "border-transparent bg-[oklch(1_0_0_/_0.95)] text-[color:var(--accent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.75),2px_2px_5px_oklch(0.5_0.08_258_/_0.12),-1px_-1px_3px_oklch(1_0_0_/_0.85)]"
                             : "border-white/45 bg-white/42 text-[color:var(--muted-foreground)]",
                         ].join(" ")}
                       >

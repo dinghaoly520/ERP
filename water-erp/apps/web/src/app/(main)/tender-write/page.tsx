@@ -441,7 +441,7 @@ export default function TenderWritePage() {
         title: projectName,
         draftData,
       });
-      setSuccessMessage("保存成功！可在历史记录中查看。");
+      setSuccessMessage("保存成功，可在历史记录中查看。");
       setTimeout(() => setSuccessMessage(null), 2000);
     } catch (error) {
       setErrorMessage(
@@ -509,7 +509,7 @@ export default function TenderWritePage() {
         if (format === 'pdf' && result.format === 'docx') {
           setSuccessMessage("服务器未配置 PDF 转换环境，已回退导出 Word 文档；已自动保存到历史记录。");
         } else {
-          setSuccessMessage("导出成功！已自动保存到历史记录。");
+          setSuccessMessage("导出成功，已自动保存到历史记录。");
         }
         setTimeout(() => setSuccessMessage(null), 4000);
       }

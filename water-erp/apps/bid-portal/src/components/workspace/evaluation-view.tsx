@@ -1683,7 +1683,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                           <img src={inkUrls[m.id]} alt="手写批注" className="mt-1 w-full rounded-lg" />
                         )}
                         {m.inkFileId && !inkUrls[m.id] && (
-                          <p className="text-[10px] italic text-[var(--muted-foreground)]">墨迹加载中…</p>
+                          <p className="text-[10px] text-[var(--muted-foreground)]">墨迹加载中…</p>
                         )}
                         <div className="mt-1 text-[10px] text-[var(--muted-foreground)]">
                           {new Date(m.createdAt).toLocaleString('zh-CN')}

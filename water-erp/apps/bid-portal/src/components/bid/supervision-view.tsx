@@ -175,7 +175,7 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
                                 {flag === 'escalated' ? '已上报' : '关注中'}
                               </span>
                             )}
-                            {note && !isAnnotating && <span className="text-[10px] italic text-[color:var(--muted-foreground)]">· 有批注</span>}
+                            {note && !isAnnotating && <span className="text-[10px] text-[color:var(--muted-foreground)]">· 有批注</span>}
                           </div>
                           {isAnnotating && (
                             <div className="mt-2 space-y-2">
