@@ -5,17 +5,26 @@ import type { NotificationChannel, DispatchPayload, ChannelSendResult } from './
 /** 通知轨短信通道（2026-10-27 接融易达现役，替换 skipped 桩）：与验证码轨同账号
  *  （RYD_APPID/RYD_APPKEY/RYD_SIGN_NAME），直发成品全文（如 :3005 邀请固定语句）。
  *  网关要求 msg 含【签名】——正文未带时统一前置 RYD_SIGN_NAME；SMS 无标题概念，title 不参与发送。
- *  无兜底（2026-10-27 用户裁定）：网关失败即 status=failed 透出错误码，NotificationDeliveryLog 留痕。 */
+ *  无兜底（2026-10-27 用户裁定）：网关失败即 status=failed 透出错误码，NotificationDeliveryLog 留痕。
+ *  测试闸（2026-11-16 用户裁定「必须修复」）：SMS_PROVIDER=console 时与验证码轨同拦不真发——
+ *  此前通知轨只看 RYD_* 密钥存在即真发，真发测试后密钥未注释期间入库审批短信照发计费（11-12 实录 20 条）。 */
 @Injectable()
 export class SmsChannel implements NotificationChannel {
   name = 'sms' as const;
   private readonly logger = new Logger(SmsChannel.name);
 
   async send(p: DispatchPayload): Promise<ChannelSendResult> {
+    if (!p.phone) return { status: 'skipped', error: '无手机号' };
+    if ((process.env.SMS_PROVIDER ?? '').toLowerCase() === 'console') {
+      if (process.env.NODE_ENV === 'production') {
+        return { status: 'failed', error: 'SMS_PROVIDER=console 不可在生产环境使用（通知轨短信）', phoneMasked: maskPhone(p.phone) };
+      }
+      this.logger.warn(`[SMS-STUB] 通知: ${maskPhone(p.phone)} ← ${p.content}`);
+      return { status: 'sent', providerRef: 'console-stub', phoneMasked: maskPhone(p.phone) };
+    }
     const appid = process.env.RYD_APPID;
     const appkey = process.env.RYD_APPKEY;
     const signName = process.env.RYD_SIGN_NAME;
-    if (!p.phone) return { status: 'skipped', error: '无手机号' };
     if (!appid || !appkey || !signName) {
       return { status: 'failed', error: '融易达短信配置不完整（RYD_APPID/RYD_APPKEY/RYD_SIGN_NAME）' };
     }

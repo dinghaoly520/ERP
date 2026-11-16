@@ -5,7 +5,9 @@ import { SmsChannel } from './sms.channel';
    锁定：sign=md5(appid+mobile+msg 原文+appkey) 传输才编码；msg 未带【签名】时前置；
    失败不兜底直接 failed 透出错误码。
    2026-11-10 对账字段：taskId→providerRef、手机号掩码 phoneMasked 随结果返回——
-   融易达账单逐条对账与多联系人失败定位。 */
+   融易达账单逐条对账与失败定位。
+   2026-11-16 测试闸：SMS_PROVIDER=console 与验证码轨同拦不真发（此前只看 RYD_* 密钥，
+   真发测试后密钥未注释期间通知轨照发计费）。 */
 
 const ENV = {
   RYD_APPID: 'test-appid-0000000000000000',
@@ -27,10 +29,12 @@ describe('SmsChannel（通知轨·融易达）', () => {
   beforeEach(() => {
     fetchMock.mockReset();
     Object.entries(ENV).forEach(([k, v]) => (process.env[k] = v));
+    delete process.env.SMS_PROVIDER; // 默认真发路径；console 闸由专列用例显式设置
     channel = new SmsChannel();
   });
   afterEach(() => {
     Object.keys(ENV).forEach((k) => delete process.env[k]);
+    delete process.env.SMS_PROVIDER;
   });
 
   const payload = {
@@ -77,5 +81,26 @@ describe('SmsChannel（通知轨·融易达）', () => {
   it('无手机号：skipped', async () => {
     const r = await channel.send({ ...payload, phone: null } as never);
     expect(r).toEqual({ status: 'skipped', error: '无手机号' });
+  });
+
+  it('SMS_PROVIDER=console 测试闸（2026-11-16）：不触网，[SMS-STUB] 返回 sent + console-stub 对账标记', async () => {
+    process.env.SMS_PROVIDER = 'console';
+    const r = await channel.send(payload as never);
+    expect(r).toMatchObject({ status: 'sent', providerRef: 'console-stub', phoneMasked: '133****0619' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('SMS_PROVIDER=console + 生产环境：failed 拒绝（防生产误配静默丢信），不触网', async () => {
+    process.env.SMS_PROVIDER = 'console';
+    const prevNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const r = await channel.send(payload as never);
+      expect(r.status).toBe('failed');
+      expect(r.error).toContain('console');
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prevNodeEnv;
+    }
   });
 });

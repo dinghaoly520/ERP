@@ -66,8 +66,9 @@ export class NotificationService {
     }).catch(() => {});
   }
 
-  /** 解析用户全部可用手机号（2026-10-27 用户口径：短信逐联系人各发一条）：
+  /** 解析用户全部可用手机号（排序去重供各渠道取主联系人）：
    *  专家=ExpertProfile.phone 单值；供应商=全部联系人电话（密文拆封，去重，主联系人排序在前）。
+   *  短信渠道只取首位（主联系人单条，2026-11-16 裁定）；email/电话渠道同取首位。
    *  无联系人 → 空数组（短信不投递，仅站内）。 */
   private async resolvePhones(userId: string): Promise<string[]> {
     const [profile, supplier] = await Promise.all([
@@ -116,14 +117,15 @@ export class NotificationService {
     await Promise.allSettled(tasks);
   }
 
-  /** 指定渠道向单个用户发送通知 + 投递。phone 从 ExpertProfile 获取。 */
+  /** 指定渠道向单个用户发送通知 + 投递。短信=email/电话=主联系人（resolvePhones 首位，2026-11-16 裁定）。 */
   async sendToUser(
     userId: string,
     channels: string[],
     payload: { type: string; title: string; content: string; link?: string | null },
   ): Promise<{ userId: string; results: Record<string, string> }> {
     this.assertRegisteredType(payload.type);
-    // 2026-10-27：供应商短信改全联系人各发一条（resolvePhones）；email/电话渠道仍用主联系人（phones[0]）
+    // 2026-11-16 用户裁定（推翻 2026-10-27 全联系人口径）：短信收窄为主联系人单条（phones[0]）；
+    // email/电话渠道同用主联系人。号码去重由 resolvePhones 保证——每号恒只一条。
     const [user, phones] = await Promise.all([
       this.prisma.user.findUnique({ where: { id: userId }, select: { email: true } }).catch(() => null),
       this.resolvePhones(userId),
@@ -163,15 +165,15 @@ export class NotificationService {
           this.logDelivery(userId, notificationId, 'sms', { status: 'skipped', error: '无联系人手机号' }),
         );
       } else {
-        // 逐联系人各发一条；聚合口径：任一 failed 即 failed，否则 sent
-        for (const phone of phones) {
-          tasks.push(
-            this.smsChannel.send({ userId, phone, email: contact.email, ...payload }).then(r => {
-              results.sms = results.sms === 'failed' || r.status === 'failed' ? 'failed' : r.status;
-              return this.logDelivery(userId, notificationId, 'sms', r);
-            }),
-          );
-        }
+        // 主联系人单条（2026-11-16 用户裁定「每一个号码只发送一次，收窄为主联系人」）：
+        // resolvePhones 首位即主联系人（isPrimary 排序+去重）——此前逐联系人各发一条，
+        // 多联系人供应商一次入库审批即 2-N 条（11-10/11-12 测试计费 20 条实录）。
+        tasks.push(
+          this.smsChannel.send({ userId, phone: phones[0], email: contact.email, ...payload }).then(r => {
+            results.sms = r.status;
+            return this.logDelivery(userId, notificationId, 'sms', r);
+          }),
+        );
       }
     }
     if (channels.includes('phone') && shouldDispatch('phone', contact)) {
