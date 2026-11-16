@@ -113,7 +113,7 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     label: "工期及进度要求内容",
     placeholder: "请输入工期及进度要求",
     multiline: true,
-    aiPrompt: "根据招标文件中的项目信息和商务要求，生成工期及进度要求。包含工期天数/日历天、里程碑节点、进度计划要求等。不要使用#、*等符号，不要出现空行。",
+    aiPrompt: "依据项目基本信息与采购文件（采购内容、供货/服务范围、安装调试要求、工期相关约定）生成本项目工期及进度要求：分条编号列出，不超过 4 条，每条一句话；工期天数等数字须依据项目实际推定并明确单位（日历天/工作日）；逻辑顺序=供货完成→安装调试→验收→工期调整。不要使用#、*等符号，不要出现空行，不要输出与工期进度无关的内容。",
   },
   {
     key: "registrationMethod",
@@ -573,17 +573,6 @@ export function createEmptyAnnouncementDraft(
  * Auto-fill mapping: announcement field keys -> tender draft field keys.
  * When the announcement dialog opens, matching tender draft values are copied.
  */
-/**
- * 工期及进度要求默认模板（2026-11-16 用户裁定：初始即写好——简化、分条、逻辑清晰；
- * 选「有」直接加载，可编辑）。数字为常规缺省，按项目实际调整。
- */
-export const DEFAULT_SCHEDULE_REQUIREMENTS = [
-  '1.成交供应商应在合同签订后 30 日历天内完成全部供货（服务）并送达指定地点；',
-  '2.需要安装调试的，到货后 5 个工作日内完成，并向采购人提交验收申请；',
-  '3.分批交付的，各批次时间以采购人书面通知为准；',
-  '4.工期调整须经采购人与供应商双方书面确认。',
-].join('\n');
-
 export const ANNOUNCEMENT_AUTO_FILL: Record<string, string> = {
   projectName: "projectName",
   projectOverview: "projectOverview",

@@ -35,7 +35,6 @@ import {
   applyAutoFill,
   ANNOUNCEMENT_AUTO_FILL,
   numberToChineseAmount,
-  DEFAULT_SCHEDULE_REQUIREMENTS,
 } from '@/lib/tender-write/announcement-templates';
 import { AnnouncementPreviewDocument } from "./announcement-preview-document";
 import { TenderFieldActions } from "./tender-field-actions";
@@ -792,9 +791,17 @@ export function AnnouncementDialog({
         tenderRecord.businessRequirements?.trim()
         || tenderRecord.submissionRequirements?.trim()
         || project.activitySchedule?.trim();
-      // 源值优先；无源值落默认模板（2026-11-16 用户裁定：选「有」直接加载写好的分条模板）
-      patch.scheduleRequirements = schedule || DEFAULT_SCHEDULE_REQUIREMENTS;
-      if (!rec.scheduleRequirementsType) patch.scheduleRequirementsType = 'have';
+      if (schedule) {
+        patch.scheduleRequirements = schedule;
+        if (!rec.scheduleRequirementsType) patch.scheduleRequirementsType = 'have';
+      } else if (rec.scheduleRequirementsType === 'have') {
+        // 源值皆空且已选「有」（2026-11-16 用户裁定）：AI 按项目生成——一次性触发，防重入
+        if (!scheduleAiFiredRef.current) {
+          scheduleAiFiredRef.current = true;
+          const f = fields.find((x) => x.key === 'scheduleRequirements');
+          void handleAiGenerate('scheduleRequirements', '工期及进度要求', '', f?.aiPrompt);
+        }
+      }
     }
     if (wanted('registrationMethod')) {
       // 2026-11-12 用户裁定：报名方式固定为供应商门户句（同步保底写入）；资格条件不再直取
@@ -884,6 +891,8 @@ export function AnnouncementDialog({
   // 报名方式及条件 AI 自动生成（2026-11-12 用户裁定）：预填仅落固定句，条件部分由 AI
   // 综合生成——一次性触发（ref 防重入/防循环：AI 写回再渲染不再触发）
   const registrationAiFiredRef = useRef(false);
+  // 工期及进度要求 AI 一次性触发（2026-11-16）：源值皆空才触发，防与预填竞态重复生成
+  const scheduleAiFiredRef = useRef(false);
   const registrationField = fields.find((f) => f.key === "registrationMethod");
   useEffect(() => {
     if (step !== "edit" || !draft || registrationAiFiredRef.current) return;
@@ -910,9 +919,11 @@ export function AnnouncementDialog({
         next.maxPriceChinese = "";
       }
 
-      // 工期及进度要求（2026-11-16）：切「有」且内容空 → 直接加载默认分条模板
-      if (key === "scheduleRequirementsType" && value === "have" && !next.scheduleRequirements?.trim()) {
-        next.scheduleRequirements = DEFAULT_SCHEDULE_REQUIREMENTS;
+      // 工期及进度要求（2026-11-16）：切「有」且内容空 → AI 按项目生成（防重入守卫）
+      if (key === "scheduleRequirementsType" && value === "have" && !next.scheduleRequirements?.trim() && !scheduleAiFiredRef.current) {
+        scheduleAiFiredRef.current = true;
+        const f = fields.find((x) => x.key === 'scheduleRequirements');
+        setTimeout(() => void handleAiGenerate('scheduleRequirements', '工期及进度要求', '', f?.aiPrompt), 0);
       }
 
       // Auto-fill remark when remark type changes to a preset option
