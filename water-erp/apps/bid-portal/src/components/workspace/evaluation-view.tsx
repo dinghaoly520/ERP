@@ -44,6 +44,7 @@ import { copyToClipboard } from '@/lib/copy-to-clipboard';
 import type { BidProjectDetail } from '@/lib/types';
 import { EXPERT_ROLE, formatBidPrice, summarizeEvaluationRules } from '@water-erp/shared';
 import AiAnalysisCard from './ai-analysis-card';
+import { ScoreDetailCard } from './score-detail-card';
 import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
 import { HelpTip } from '@/components/help-tip';
@@ -1500,6 +1501,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             </div>
           ) : null; })()}
         </div>
+
+        {/* #147：评分明细与汇总卡——供应商×评分项聚合（通过性表决+数值合计），结果生成后附总分对照勾稽 */}
+        <ScoreDetailCard project={project} results={results} />
       </div>
 
       {/* 3 步生成向导 */}
