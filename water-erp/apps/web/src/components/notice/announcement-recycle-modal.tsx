@@ -3,22 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
 import {
-  listAnnouncements, restoreAnnouncement,
+  listAnnouncements, restoreAnnouncement, deleteAnnouncement,
   type AnnouncementListItem, type AnnouncementStatus,
 } from '@/lib/api/announcement';
 import { toast } from 'sonner';
-import { EyeOff, PackageX, RotateCcw, FileText, ExternalLink, Trash2 } from 'lucide-react';
+import { EyeOff, RotateCcw, FileText, ExternalLink, Trash2 } from 'lucide-react';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL } from '@/lib/announcement-meta';
+import { useConfirm } from '@/components/workbench/use-confirm';
 
 const PAGE_SIZE = 15;
-
-/** 回收站两节（v2 拍板 2026-09-26）：已隐藏（可恢复）/ 已下架（终态，仅查看）。无清空操作。 */
-type RecycleTab = 'HIDDEN' | 'OFFLINE';
-
-const TABS: Array<{ key: RecycleTab; label: string }> = [
-  { key: 'HIDDEN', label: '已隐藏' },
-  { key: 'OFFLINE', label: '已下架' },
-];
 
 const FROM_STATUS_LABELS: Partial<Record<AnnouncementStatus, string>> = {
   DRAFT: ANN_STATUS_LABEL.DRAFT, PUBLISHED: ANN_STATUS_LABEL.PUBLISHED, ARCHIVED: ANN_STATUS_LABEL.ARCHIVED,
@@ -27,34 +20,27 @@ const FROM_STATUS_LABELS: Partial<Record<AnnouncementStatus, string>> = {
 const TYPE_LABELS: Record<string, string> = ANN_TYPE_LABEL; // 统一 lib/announcement-meta（2026-09-29 R5）
 
 /**
- * 回收站（2026-09-26 v2）：分「已隐藏 / 已下架」两节。
- * 已隐藏：查看 + 恢复（还原到隐藏前状态）；已下架：仅查看（下架为终态，不可恢复）。
- * 不提供清空——UI 无任何公告永久删除入口（后端 DELETE 保留但停用）。
+ * 回收站（2026-11-16「下架」退役改版）：单节只收「已隐藏」件，行操作 = 查看 + 恢复 + 永久删除。
+ * 删除走既有 DELETE 端点（BID_IN_PROGRESS 闸门在后端）；隐藏/恢复/删除均落公告历史。
  */
 export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
-  const [tab, setTab] = useState<RecycleTab>('HIDDEN');
   const [data, setData] = useState<{ total: number; items: AnnouncementListItem[] }>({ total: 0, items: [] });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<{ id: string; title: string } | null>(null);
+  const { confirm, dialog } = useConfirm();
 
-  const load = useCallback(async (t: RecycleTab, p: number) => {
+  const load = useCallback(async (p: number) => {
     setLoading(true);
     try {
-      const res = await listAnnouncements({ status: t, page: p, pageSize: PAGE_SIZE });
+      const res = await listAnnouncements({ status: 'HIDDEN', page: p, pageSize: PAGE_SIZE });
       setData({ total: res.total, items: res.items });
       setPage(p);
     } catch { /* empty */ }
     setLoading(false);
   }, []);
 
-  useEffect(() => { load('HIDDEN', 1); }, [load]);
-
-  const switchTab = (t: RecycleTab) => {
-    if (t === tab) return;
-    setTab(t);
-    load(t, 1);
-  };
+  useEffect(() => { load(1); }, [load]);
 
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
 
@@ -62,48 +48,47 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
     try {
       await restoreAnnouncement(a.id);
       toast.success(`已恢复「${a.title}」`);
-      await load('HIDDEN', 1);
+      await load(1);
       onChanged();
     } catch (e: any) { toast.error(e?.message || '恢复失败'); }
   };
 
+  const remove = async (a: AnnouncementListItem) => {
+    if (!(await confirm({
+      title: '永久删除公告',
+      message: `确认永久删除「${a.title}」？删除后不可恢复，删除记录将留档公告历史；如该公告关联的投标项目正在投标/开标/评标流程中，将无法删除。`,
+      danger: true,
+    }))) return;
+    try {
+      await deleteAnnouncement(a.id);
+      toast.success(`已永久删除「${a.title}」`);
+      await load(page);
+      onChanged();
+    } catch (e: any) { toast.error(e?.message || '删除失败'); }
+  };
+
   return (
     <>
+      {dialog}
       <Modal
         open
         onClose={onClose}
         title={<span className="flex items-center gap-2"><Trash2 size={16} className="text-[var(--accent)]" /> 回收站</span>}
-        description="隐藏与下架的公告分节存放：已隐藏可恢复，已下架为终态仅可查看；不提供清空操作"
+        description="隐藏的公告在此存放：可恢复到隐藏前状态，或永久删除（删除留档公告历史）"
         size="2xl"
         footer={
           <div className="flex w-full items-center justify-between">
             <span className="text-xs text-[var(--muted-foreground)]">共 {data.total} 条 · 第 {page}/{totalPages} 页</span>
             <div className="flex items-center gap-2">
-              <button disabled={loading || page <= 1} onClick={() => load(tab, page - 1)} className="neu-btn-xs disabled:opacity-40">上一页</button>
-              <button disabled={loading || page >= totalPages} onClick={() => load(tab, page + 1)} className="neu-btn-xs disabled:opacity-40">下一页</button>
+              <button disabled={loading || page <= 1} onClick={() => load(page - 1)} className="neu-btn-xs disabled:opacity-40">上一页</button>
+              <button disabled={loading || page >= totalPages} onClick={() => load(page + 1)} className="neu-btn-xs disabled:opacity-40">下一页</button>
               <button onClick={onClose} className="neu-btn-soft">关闭</button>
             </div>
           </div>
         }
       >
-        {/* 两节切换：已隐藏（可恢复）/ 已下架（终态） */}
-        <div className="neu-segment mb-3" role="group" aria-label="回收站分节" data-count="2" data-index={String(TABS.findIndex((t) => t.key === tab))}>
-          <span className="neu-segment-thumb" aria-hidden="true" />
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              className="neu-segment-btn"
-              aria-pressed={tab === t.key}
-              onClick={() => switchTab(t.key)}
-            >
-              {t.key === 'HIDDEN' ? <EyeOff size={13} /> : <PackageX size={13} />} {t.label}{tab === t.key ? ` ${data.total}` : ''}
-            </button>
-          ))}
-        </div>
-
         <div className="overflow-x-auto">
-          <table className="neu-table w-full min-w-[640px]">
+          <table className="neu-table w-full min-w-[680px]">
             <thead>
               <tr>
                 <th>标题</th>
@@ -122,9 +107,7 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
                   <td colSpan={6} className="px-4 py-12">
                     <div className="flex flex-col items-center gap-2">
                       <FileText size={20} className="text-[var(--muted-foreground)]" />
-                      <p className="text-sm text-[var(--muted-foreground)]">
-                        {tab === 'HIDDEN' ? '暂无隐藏的公告——隐藏的公告会出现在这里' : '暂无下架的公告——下架的公告会出现在这里（不可恢复）'}
-                      </p>
+                      <p className="text-sm text-[var(--muted-foreground)]">暂无隐藏的公告——隐藏的公告会出现在这里</p>
                     </div>
                   </td>
                 </tr>
@@ -143,9 +126,8 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
                     <td>
                       <div className="flex flex-wrap justify-center gap-1.5">
                         <button onClick={() => setView({ id: a.id, title: a.title })} className="neu-btn-xs"><ExternalLink size={12} /> 查看</button>
-                        {tab === 'HIDDEN' && (
-                          <button onClick={() => restore(a)} className="neu-btn-xs is-success"><RotateCcw size={12} /> 恢复</button>
-                        )}
+                        <button onClick={() => restore(a)} className="neu-btn-xs is-success"><RotateCcw size={12} /> 恢复</button>
+                        <button onClick={() => remove(a)} className="neu-btn-xs is-danger"><Trash2 size={12} /> 删除</button>
                       </div>
                     </td>
                   </tr>
@@ -162,7 +144,7 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
           open
           onClose={() => setView(null)}
           title={<span className="flex items-center gap-2"><FileText size={16} className="text-[var(--accent)]" /> {view.title}</span>}
-          description="公告详情（回收站内查看；恢复请回到回收站「已隐藏」节）"
+          description="公告详情（回收站内查看；恢复或永久删除请回到回收站列表操作）"
           size="4xl"
         >
           <iframe src={`/notice-view/${view.id}`} title={view.title} className="h-[74vh] w-full rounded-[12px] border-0 bg-white" />
