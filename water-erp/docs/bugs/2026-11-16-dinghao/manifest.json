@@ -1,0 +1,35 @@
+{
+  "batch": "2026-11-16-dinghao",
+  "exportedAt": "2026-11-16",
+  "baselineCommit": "03f80be6a",
+  "files": {
+    "bug114_195.png": {
+      "md5": "82d7405a43c2f3c95317473869c1fdb0",
+      "size": 989551
+    },
+    "bug114_196.png": {
+      "md5": "58ac246933fad955d16481c83c44e7ad",
+      "size": 82300
+    },
+    "bug125_215.png": {
+      "md5": "0dae083931096ee520c44413b4dbf506",
+      "size": 1090500
+    },
+    "bug125_279.png": {
+      "md5": "97b05ebc7c3ca701a5a5a50c5170bae2",
+      "size": 1072758
+    },
+    "bug136_235.jpg": {
+      "md5": "c63cf545712014230dc597668e17a3e8",
+      "size": 56515
+    },
+    "bug144_245.png": {
+      "md5": "f9c97bdec3480ac9545fe66d5ef32f99",
+      "size": 2006940
+    },
+    "bug144_283.png": {
+      "md5": "d4d67cc64311c3f751cd8f2f4fe4e862",
+      "size": 751705
+    }
+  }
+}

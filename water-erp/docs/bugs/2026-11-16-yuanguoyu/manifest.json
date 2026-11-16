@@ -1,0 +1,63 @@
+{
+  "batch": "2026-11-16-yuanguoyu",
+  "exportedAt": "2026-11-16",
+  "baselineCommit": "03f80be6a",
+  "files": {
+    "bug115_197.png": {
+      "md5": "f43382f29d643a4add21d41b47425f7c",
+      "size": 851840
+    },
+    "bug115_198.png": {
+      "md5": "21db27693ccff9fb295dabf6e3e5da20",
+      "size": 71783
+    },
+    "bug121_211.png": {
+      "md5": "6870a664f927d32a529b1d3c204db862",
+      "size": 1749779
+    },
+    "bug147_251.png": {
+      "md5": "1c5d0fa3780e9564d8178be92befc2b0",
+      "size": 3237405
+    },
+    "bug150_256.png": {
+      "md5": "c7e8fedbd1e22dfc1b046c035a66146e",
+      "size": 1024140
+    },
+    "bug150_281.png": {
+      "md5": "10fae5b510ae44869117ef56ea224534",
+      "size": 1015293
+    },
+    "bug151_257.png": {
+      "md5": "6712bd41492a9bec4b82076a649f9007",
+      "size": 1412295
+    },
+    "bug163_272.png": {
+      "md5": "375424e70e1613476cf9426c9ecdfc50",
+      "size": 807352
+    },
+    "bug166_275.png": {
+      "md5": "d5a40127135d0b6de0768e204d3571dc",
+      "size": 593756
+    },
+    "bug166_276.png": {
+      "md5": "0fe2972fadc766a7a78dd4464b00bde3",
+      "size": 577146
+    },
+    "bug169_284.png": {
+      "md5": "074298188a716aed2fba361ecce12877",
+      "size": 2371448
+    },
+    "bug169_285.png": {
+      "md5": "92cde953d218051dc09cf160c2a04bf1",
+      "size": 1669506
+    },
+    "bug60_116.png": {
+      "md5": "7d52bace7034c2cbfffb81f5701b57b8",
+      "size": 324758
+    },
+    "bug96_164.jpg": {
+      "md5": "77c2da0f2981a4d4ccb562183e3a8a23",
+      "size": 112860
+    }
+  }
+}

@@ -1,0 +1,13 @@
+﻿ID,等级,标题,报告人,创建时间,当前代码状态,关键代码/根因,修复建议要点,截图文件
+169,S1,开评标端「实时连接中断，正在重连」且无法预览招标文件（11-13新开）,czy,2026-11-13,➖ 待诊断（S1双症状）,WS：evaluate/[id]/page.tsx:1557锚点+use-expert-websocket已带query.portal；PDF：「未能加载PDF文档」全仓零命中=Chrome原生查看器；预览链expert.service.ts:1227 docx→LibreOffice→PDF,三步定谳：①项目BidDocument数据态②环境与响应码/Content-Type③分流（LibreOffice部署/BidDocument空流程票/401直链族复查）,images/bug169_284.png;images/bug169_285.png
+163,S1,正式环境——组件会话后一直重连中无法发送信息（11-09未拉）,zengrui,2026-11-09,🟡 疑已修复待生产复验,双修复链9bf331a4b（WS七点）+f0f386d6b（#138 ChatPanel竞态锁）；截图另显「尚未组建开标会话」发送锁,生产复验：B机镜像含双修复链+nginx /socket.io/核对（X-Portal+Upgrade头）+复演大厅重连与发送,images/bug163_272.png
+98,S1,平板端和web端不能同时登录,zengrui,2026-10-21,✅ 已修复（TAB-SYNC-01）,配对制双端并存已落地（06ce1fa3f…0029002f3+e2e 13场景）,报告人以新机制复验（桌面出码→平板配对→双端同步）后关单,
+100,S1,web端开始评分后没找到平板扫码入口,zengrui,2026-10-21,✅ 已被TAB-SYNC-01吸收,新入口=桌面评分步「配对打分平板」出码（pairing-ticket）,复验新入口后关单,
+60,S2,查看唱标信息，与设计不符,czy,2026-10-16,❌ 待实施（已裁定三点）,opening-hall.tsx:1482 查看态复用录入表单,按11-12裁定：只读值块+readOnly校验只绑可编辑字段+顶部只读摘要区,images/bug60_116.png
+96,S2,评标项目/标书获取，平板端预览文件失效,czy,2026-10-21,❌ 仍存在（设计缺口首选）,平板路由组1492行无预览入口；候选二=平板浏览器cookie/proxy面（直链无Referer）,裁定形态：补平板预览入口（复用桌面组件触屏适配）vs 文案引导回桌面；与TAB-SYNC-02联动,images/bug96_164.jpg
+147,S3,管理端项目详情缺失评分明细卡片,czy,2026-10-30,❌ 仍存在（组件已就绪）,落点project-detail-panel.tsx；#121已export评分明细卡（archive-detail-modal.tsx）,快修：组件接入项目详情面板，数据源对齐#121口径,images/bug147_251.png
+150,S3,标书文件名反显错误（11-13复激活·新表面）,zengrui,2026-10-30,❌ 部分修复·新表面复发,上批修标书获取tab（32b6f9e7a+12行回填）；新表面=澄清行名直发FileAsset.originalName（expert.service.ts:963/1046）；dpi300定谳真mojibake,①定位3行写入端点（latin1可逆验证）②上传轨补normalizeMultipartFilename③存量回填脚本扩跑（dry-run先行）,images/bug150_256.png;images/bug150_281.png
+166,S3,正式环境——下载回流包/签字包报未登录（11-09未拉）,zengrui,2026-11-09,🟡 疑已修复待生产复验+部署项,签字包=裸<a>直链（signing-tab.tsx:385→/api/upload/files/:id）；bcd9fc930直链族修复待部署确认；附带实锤生产缺LibreOffice（opening-sign.service.ts:88文案逐字吻合）,①生产复验直链下载②B机装LibreOffice（惠及#169候选1）③可选：签字包下载apiFetch化镜像#115,images/bug166_275.png;images/bug166_276.png
+115,S3,开评标管理—下载回流包格式有问题,zengrui,2026-10-23,✅ 已修复,068d91aba（zip证据包）+f11fa8f26（九项收口）,关单,images/bug115_197.png;images/bug115_198.png
+121,S3,管理员端/归档/项目详情未展示通过/未通过评分点,czy,2026-10-26,✅ 已修复,7ed33f26f+bf58b38ce+e98b23dcd（评分明细卡+表决口径）,关单,images/bug121_211.png
+151,S2,开标主持人—供应商排名后面显示废标？,zengrui,2026-10-30,✅ 已修复,evaluation-view.tsx:1452-1497 名次「—」+disqualifiedReason（44a9a448a等）,关单,images/bug151_257.png
