@@ -158,7 +158,7 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all（9 portals + bigscreen + mobile + ai-bid worker + OCR :8110 + bge-m3 embedding :8003）
+# Start all（9 门户（含 bigscreen/mobile）+ ai-bid worker + api-guard + OCR :8110 + bge-m3 :8003——链 13 成员）
 pnpm dev
 
 # Start individual apps
@@ -373,7 +373,7 @@ COOKIE_DOMAIN=.scsfjt.com          # 生产域名部署必设：跨子域 cookie
 
 # ── 基础设施 ──
 REDIS_URL=redis://localhost:6380   # BullMQ + ioredis；API 与 ai-bid worker 都读它（缺省回退 localhost:6380）
-OCR_SERVICE_URL=http://localhost:8110  # OCR 微服务（services/ocr，dev 链 :8110，本机 .env 已显式设置），local-ai/OcrService 消费（后端内部依赖，浏览器零直连，无需域名）；生产分机部署（2026-10-26）：http://10.60.14.14:8100（生产 .env 设此项，B 机容器内 8100 口径）；代码缺省回落 localhost:8100（ocr.service.ts——B 机兼容遗留，勿依赖缺省值）
+OCR_SERVICE_URL=http://localhost:8110  # OCR 微服务（services/ocr，dev 链 :8110，本机 .env 已显式设置），local-ai/OcrService 消费（后端内部依赖，浏览器零直连，无需域名）；生产分机部署（2026-10-26）：http://10.60.14.14:8100（生产 .env 设此项，B 机容器内 8100 口径）；代码缺省回落 localhost:8110（ocr.service.ts，2026-11-16 与 dev 链同口径；生产恒显式设置不受缺省影响）
 KMS_SECRET=...                     # 信封加密主密钥：见下方「投标文件密钥信封加密」；生产必填，空则抛错
 FIELD_ENC_SECRET=...               # 敏感字段国密加密主密钥（PII sm1: SM4-CBC+HMAC-SM3，等保+密评 2026-10；生产缺失/<32 拒绝启动；dev 回退固定钥；FIELD_ENC_SECRET_OLD 轮转旧钥）
 # BID_DUAL_ENVELOPE（已废弃 2026-10-14：旧轨投递整体封死，flag 不再提供退回语义，env 无此行）；CA_SUPPLIER_V3_ENABLED（已转正 2026-11-05：默认开含 dual-v3，仅显式 false 应急收窄，env 无此行）

@@ -368,7 +368,7 @@ easy     仅在需要多语言混排且接受安装 easyocr/torch 时考虑
 | 日志 `No GPU, using CPU OCR` 但期望 GPU | libcudart 不在库路径 | 见 §4.4，设 `LD_LIBRARY_PATH` 后重启 |
 | OCR 返回空文本 | 空白扫描件 / 置信度过滤 | `curl /health`；人工看渲染图清晰度 |
 | 日志 `Using PP-OCRv4 default models` | 正常 | v5 模型未装；要 v5 需放 `~/.rapidocr/models/v5/` |
-| 选 `easy` 后 PM2 重启循环 | easyocr 未安装 | `.venv/bin/pip install easyocr` 或改回 `rapid` |
+| 选 `easy` 后守护器重启循环 | easyocr 未安装 | `.venv/bin/pip install easyocr` 或改回 `rapid` |
 | hybrid 启动失败 / 无 `--ocr-backend` | pip 升级后 venv 补丁丢失 | 重放 `patches/hybrid_server_rapidocr.patch`（§5.3） |
 | Hybrid 服务器离线 | 子进程崩溃 | `curl localhost:5002/health`；看 dev 链面板 `[ocr]` 前缀日志 |
 | httpx 代理报错 | `socks://` 不被识别 | 生产 env 已设 `socks5://`；代码侧自动改写子进程代理 |

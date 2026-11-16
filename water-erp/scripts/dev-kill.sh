@@ -33,7 +33,7 @@ for arg in "$@"; do
   esac
 done
 
-echo "[dev-kill] 1/3 清 dev-api-guard 拉起者（不先杀它，端口清了也会被拉回叠树）"
+echo "[dev-kill] 1/3 清拉起者/守护器（dev-api-guard 是 :4001 拉起者、dev-supervise.sh 是 OCR/embedding 守护器——不先杀它们，端口清了会被拉回叠树/孤儿复活抢口）"
 gpids=()
 gdescs=()
 for pid in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
@@ -45,7 +45,10 @@ for pid in $(ls /proc 2>/dev/null | grep -E '^[0-9]+$'); do
   esac
   case "$cmd" in
     *dev-api-guard.sh*|*dev:api-guard*) KIND=guard ;;
-    *dev-supervise.sh*) KIND=supervisor ;;
+    # 守护器 pattern 收紧为 shell 执行形态（2026-11-16）：裸 *dev-supervise.sh* 会附带杀伤
+    # vim/grep/timeout 等仅引用文件名的进程（含 selftest 的 timeout/KILL_WAIT= 前缀调用）。
+    # env 赋值前缀等异形态直调不中弹——其 uvicorn/vllm 子进程持端口，第 2/3 步兜底。
+    bash\ *dev-supervise.sh*|sh\ *dev-supervise.sh*|*bin/bash\ *dev-supervise.sh*|*bin/sh\ *dev-supervise.sh*) KIND=supervisor ;;
     *) continue ;;
   esac
   # 守护器仅全量模式收杀（--api 只清 :4001，不动 OCR/embedding）

@@ -27,6 +27,9 @@ on_term() {
     wait "$CHILD" 2>/dev/null
     kill "$WATCHER" 2>/dev/null
   fi
+  # 兜底（2026-11-16 评审 Minor#3）：fork 与 CHILD=$! 间的竞窗可能漏杀刚 fork 的子进程——
+  # TERM 掉本 shell 全部直接子进程（watcher 此时已处理；漏网子进程无视 TERM 的极端场景由 dev:kill fuser 收口）
+  pkill -TERM -P $$ 2>/dev/null
   exit 0
 }
 trap on_term TERM INT
