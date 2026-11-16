@@ -143,6 +143,36 @@ describe('ExpertAdminService — portrait & retire (Track D §3.4)', () => {
       expect(candidates).toHaveLength(1);
       expect(candidates[0].reason).toContain('12');
     });
+
+    it('入库未满 12 个月的专家不进『无分配』候选（新导入库天然无历史分配，2026-11-16 裁定）', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        {
+          id: 'u4', displayName: '新入库专家',
+          expertProfile: { specialty: '水利', verifiedAt: null, createdAt: new Date(Date.now() - 30 * 24 * 3600 * 1000) },
+        },
+      ]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]); // 无评价
+      prisma.bidExpert.findMany.mockResolvedValue([]); // 无分配
+
+      const candidates = await service.reviewRetirementCandidates();
+      expect(candidates).toHaveLength(0);
+      expect(notification.sendToCompanyRoles).not.toHaveBeenCalled();
+    });
+
+    it('入库满 12 个月且无分配的专家仍进候选（闸门只挡新库，不挡真闲置）', async () => {
+      prisma.user.findMany.mockResolvedValue([
+        {
+          id: 'u5', displayName: '老闲置专家',
+          expertProfile: { specialty: '水利', verifiedAt: null, createdAt: new Date(Date.now() - 400 * 24 * 3600 * 1000) },
+        },
+      ]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+
+      const candidates = await service.reviewRetirementCandidates();
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].reason).toContain('12');
+    });
   });
 
   describe('confirmRetire', () => {

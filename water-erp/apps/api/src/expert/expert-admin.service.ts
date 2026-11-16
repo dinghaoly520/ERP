@@ -2353,7 +2353,7 @@ export class ExpertAdminService {
           ],
         },
       },
-      include: { expertProfile: { select: { specialty: true } } },
+      include: { expertProfile: { select: { specialty: true, verifiedAt: true, createdAt: true } } },
     });
 
     const cutoff = new Date(Date.now() - 365 * 24 * 3600 * 1000);
@@ -2389,10 +2389,16 @@ export class ExpertAdminService {
 
     for (const e of experts) {
       const recent = evalsByExpert.get(e.id) || [];
+      // 入库时长闸（2026-11-16 用户裁定）：批量导入的新库天然无历史分配，「近 12 个月
+      // 无评标分配」只对入库满 12 个月的专家判定。入库时间锚点 verifiedAt（审核入库
+      // 时间，仅在入库审核时写入）；种子/批量导入不落则回退档建 createdAt；均缺失=
+      // 数据异常，保守参与判定维持旧口径。与 PENDING 排除闸（2348 行）互补，堵住
+      // 「ACTIVE 批量导入必然命中无分配」的漏网面。
+      const entryAt = e.expertProfile?.verifiedAt ?? e.expertProfile?.createdAt;
       let reason: string | null = null;
       if (shouldDeactivateExpert(recent)) {
         reason = '最近 2 次履职评价均为 E 级';
-      } else if (!hasRecentAssign.has(e.id)) {
+      } else if (!hasRecentAssign.has(e.id) && (entryAt === undefined || entryAt <= cutoff)) {
         reason = '近 12 个月无评标分配';
       }
       if (reason) {
