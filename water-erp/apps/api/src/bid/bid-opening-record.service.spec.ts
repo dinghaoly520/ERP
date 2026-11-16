@@ -671,6 +671,41 @@ describe('BidOpeningRecordService — getOpeningRecordDraft', () => {
     expect(draft.amount).toBe('770000');
   });
 
+  it('bug#60 P1：dual-v3 真实形态（投递链不写密封 bidPrice、承诺价在 decryptedPrice）→ 报价/单位/保证金凭证同轨双信封读法', async () => {
+    // 真实 v3 行：bidPrice 恒 null（v3 投递 API 从不写密封列），报价在解密上传回填的
+    // decryptedPrice（fieldsCommit 承诺验证口径，万元）；记录由解密上传自动预填。
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: true, bondAmount: null, deadline: new Date('2026-11-20T15:00:00+08:00') });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+      envelopeVersion: 'dual-v3', bidPrice: null, decryptedPrice: '153.95',
+      deliveryPeriod: '20', qualityCommitment: '测试', bidBondAssetId: null,
+      decryptedAssets: { bond: 'fa-b1' },
+    });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue({ bondStatus: '', customFields: null, amountUnit: '万元' });
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.canView).toBe(true);
+    expect(draft.amount).toBe('153.95');        // 不再误读密封 bidPrice（恒 null → 旧读法显「—」）
+    expect(draft.amountUnit).toBe('万元');       // 戳优先（记录列），不再恒 null 显「元」
+    expect(draft.bidBondAssetId).toBe('fa-b1'); // v3 保证金凭证走 decryptedAssets.bond（同 v2）
+    expect(draft.period).toBe('20');
+    expect(draft.qualityTarget).toBe('测试');
+  });
+
+  it('bug#60 P1：dual-v3 记录戳缺失 → amountUnit 兜底「万元」（与 v2 同轨，不裸 null）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: false });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });
+    prisma.supplierBidSubmission.findUnique.mockResolvedValue({
+      envelopeVersion: 'dual-v3', bidPrice: null, decryptedPrice: '88.8',
+      deliveryPeriod: '30', qualityCommitment: null, bidBondAssetId: null, decryptedAssets: null,
+    });
+    prisma.bidOpeningRecord.findFirst.mockResolvedValue(null);
+
+    const draft = await service.getOpeningRecordDraft('p1', 's1');
+    expect(draft.amount).toBe('88.8');
+    expect(draft.amountUnit).toBe('万元');
+  });
+
   it('项目不要求保证金 → bondNotApplicable=true（前端默认选「不适用」）', async () => {
     prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', qualityRequirement: '合格', bondRequired: false });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', supplierId: 'su1', decryptStatus: 'SUCCESS', supplierName: '甲' });

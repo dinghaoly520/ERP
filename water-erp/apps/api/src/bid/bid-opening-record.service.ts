@@ -72,11 +72,13 @@ export class BidOpeningRecordService {
 
     const existingRecord = await this.prisma.bidOpeningRecord.findFirst({
       where: { projectId, bidSupplierId },
-      select: { bondStatus: true, customFields: true },
+      select: { bondStatus: true, customFields: true, amountUnit: true },
     });
 
-    // §5.4a：dual-v2 保证金凭证下发 decryptedAssets['bond'] 明文资产（C_outer 密文已被下载端拒收）
-    const bondAssetId = submission?.envelopeVersion === 'dual-v2' && submission.decryptedAssets
+    // §5.4a：双信封（dual-v2/v3 同轨，对齐 opening-record-assert.util isDualTrack）保证金凭证下发
+    // decryptedAssets['bond'] 明文资产（C_outer 密文已被下载端拒收）
+    const isDualTrack = submission?.envelopeVersion === 'dual-v2' || submission?.envelopeVersion === 'dual-v3';
+    const bondAssetId = isDualTrack && submission?.decryptedAssets
       ? ((submission.decryptedAssets as Record<string, unknown>)['bond'] as string | undefined) ?? null
       : (submission?.bidBondAssetId ?? null);
 
@@ -91,16 +93,18 @@ export class BidOpeningRecordService {
       canView: true,
       // bidPrice 入库已密封；此处 canView=true 已保证 decryptStatus==='SUCCESS'，安全拆封。
       // 旧明文数据经 openField legacy 兼容原样返回。
-      // dual-v2（同口径）：报价改指 decryptedPrice（解密上传经 fieldsCommit 承诺验证落库；
-      // 新轨投递 bidPrice 列恒 null，读旧列会显示 null 价 → 主持人按面板录入必撞 409 PRICE_MISMATCH）。
+      // 双信封（dual-v2/v3 同轨，2026-11-16 bug#60 评审 P1 补 v3）：报价改指 decryptedPrice
+      // （解密上传经 fieldsCommit 承诺验证落库；新轨投递 bidPrice 列恒 null——v3 投递链从不写
+      // 密封列，旧读法对真实 v3 行恒显「—」且保存死端）。
       amount: submission
-        ? (submission.envelopeVersion === 'dual-v2'
+        ? (isDualTrack
             ? (submission.decryptedPrice ?? null)
             : (submission.bidPrice ? openField(submission.bidPrice, process.env.KMS_SECRET!) : null))
         : null,
-      // dual-v2 报价以万元为单位入库（投标表单口径），前端展示须带单位——裸数字会被
+      // 双信封报价以万元为单位入库（投标表单口径），前端展示须带单位——裸数字会被
       // formatOpeningAmount 当「元」渲染（2026-09-11 实测显示「152.89 元」而非「152.89 万元」）。
-      amountUnit: submission?.envelopeVersion === 'dual-v2' ? '万元' : null,
+      // 单位戳优先（唱标金额单位铁律：读端唯一入口取记录列），记录缺失兜底「万元」。
+      amountUnit: isDualTrack ? (existingRecord?.amountUnit ?? '万元') : null,
       period: submission?.deliveryPeriod ?? null,
       qualityTarget: submission?.qualityCommitment || project.qualityRequirement,
       bondStatus: existingRecord?.bondStatus ?? null,

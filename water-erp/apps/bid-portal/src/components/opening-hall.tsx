@@ -1498,25 +1498,26 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   <ShieldCheck size={13} strokeWidth={1.75} />
                   来自加密承诺 · 自动公布
                 </div>
-                <div className="bid-tile mt-2 grid grid-cols-2 gap-x-4 gap-y-3 rounded-[12px] p-3.5">
-                  {entryFields.filter(f => isStatutoryKey(f.key) && f.key !== 'bondStatus').map(f => (
-                    <div key={f.key} className={f.key === 'qualityTarget' ? 'col-span-2 min-w-0' : 'min-w-0'}>
-                      <div className="text-[10px] font-semibold uppercase tracking-[.05em] text-[var(--muted-foreground)]">
-                        {f.key === 'amount' ? `${f.label}（${recordDraft.amountUnit ?? '元'}）` : f.label}
+                <div className="bid-tile mt-2 grid grid-cols-2 gap-x-4 gap-y-3 rounded-[14px] p-3.5">
+                  {entryFields.filter(f => isStatutoryKey(f.key) && f.key !== 'bondStatus').map(f => {
+                    const v = f.key === 'amount' ? recordDraft.amount : f.key === 'period' ? recordDraft.period : recordDraft.qualityTarget;
+                    return (
+                      <div key={f.key} className={f.key === 'qualityTarget' ? 'col-span-2 min-w-0' : 'min-w-0'}>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                          {f.key === 'amount' ? `${f.label}（${recordDraft.amountUnit ?? '元'}）` : f.label}
+                        </div>
+                        <div
+                          title={v.trim() ? v : undefined}
+                          className={`mt-1 truncate text-sm font-bold text-[color:var(--foreground)] ${f.key === 'amount' ? 'font-mono tabular-nums' : ''}`}>
+                          {v.trim() || '—'}
+                        </div>
                       </div>
-                      <div
-                        title={f.key === 'amount' ? recordDraft.amount : f.key === 'period' ? recordDraft.period : recordDraft.qualityTarget}
-                        className={`mt-1 truncate text-sm font-bold text-[color:var(--foreground)] ${f.key === 'amount' ? 'font-mono tabular-nums' : ''}`}>
-                        {f.key === 'amount'
-                          ? (recordDraft.amount.trim() || '—')
-                          : f.key === 'period' ? (recordDraft.period.trim() || '—') : (recordDraft.qualityTarget.trim() || '—')}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}
-            {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 p-6 内边距，线不加 mx 即与内容区对齐；表单区已有 mt-4 故只留上间距 */}
+            {/* 头部/内容隔离线（2026-11-11 用户裁定）：壳自带 p-6 内边距，线不加 mx 即与内容区对齐；下方表单区自带 mt-4（readOnly 态 mt-2）故只留上间距 */}
             <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             {/* A-113：字段按项目配置序渲染——法定四键沿用既有控件（含 A-104 台账提示/凭证链接/密封 409 双确认流在提交侧），
                 动态键按 type 渲染 input/select；label 用配置 label（默认配置下与既有文案一致即零漂移） */}
@@ -1566,12 +1567,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   return (
                     <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                       {labelText}
+                      {/* readOnly 态法定字段已在顶部摘要区渲染（裁定①），此控件仅非 readOnly 可达——
+                          2026-11-16 bug#60 评审 P2：旧 disabled/灰态分支为不可达死代码，已清 */}
                       <input value={statutoryValue}
                         onChange={e => setRecordDraft(d => f.key === 'amount'
                           ? { ...d, amount: e.target.value }
                           : f.key === 'period' ? { ...d, period: e.target.value } : { ...d, qualityTarget: e.target.value })}
-                        disabled={recordEntry.readOnly}
-                        className={`neu-input mt-1 w-full ${f.key === 'amount' ? 'font-mono' : ''} ${recordEntry.readOnly ? 'cursor-not-allowed opacity-70' : ''}`}
+                        className={`neu-input mt-1 w-full ${f.key === 'amount' ? 'font-mono' : ''}`}
                         placeholder={statutoryPlaceholder} />
                     </label>
                   );
