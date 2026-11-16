@@ -113,7 +113,7 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     label: "工期及进度要求内容",
     placeholder: "请输入工期及进度要求",
     multiline: true,
-    aiPrompt: "根据招标文件中的项目信息和商务要求，生成工期及进度要求。包含工期天数/日历天、里程碑节点、进度计划要求等。不要使用#、*等符号，不要出现空行。",
+    aiPrompt: "依据项目基本信息与采购文件（采购内容、供货/服务范围、安装调试要求、工期相关约定）生成本项目工期及进度要求：分条编号列出，不超过 4 条，每条一句话；工期天数等数字须依据项目实际推定并明确单位（日历天/工作日）；逻辑顺序=供货完成→安装调试→验收→工期调整。不要使用#、*等符号，不要出现空行，不要输出与工期进度无关的内容。",
   },
   {
     key: "registrationMethod",
@@ -588,6 +588,15 @@ export const ANNOUNCEMENT_AUTO_FILL: Record<string, string> = {
   procurementTime: "procurementTime",
   signatureDate: "signatureDate",
   objection: "objection",
+  // 监督块（2026-11-16 用户裁定：公告自动引入采购文件中的监督人）——
+  // 采购文件草稿四字段同名直映，仅填公告侧空缺；公司信息管理值退居兜底
+  supervisionDepartment: "supervisionDepartment",
+  supervisionAddress: "supervisionAddress",
+  supervisionContact: "supervisionContact",
+  supervisionPhone: "supervisionPhone",
+  // 开标地点（2026-11-16）：公告自动引入采购文件的开标地点（草稿键 bidOpeningPlace）——
+  // 与监督块同裁定；公司信息管理维护值退居兜底
+  openingLocation: "bidOpeningPlace",
 };
 
 /**
