@@ -53,6 +53,13 @@ function normalizeExpertCn(s: string): string {
   return (s || '').replace(/[\s（）()·]/g, '');
 }
 
+/** .docx/.doc 的真实 Content-Type（bug#169 诚实降级用——按扩展名判，勿信上传时存的 mimeType）。 */
+function wordMimeFor(fileName: string): string {
+  return /\.docx$/i.test(fileName)
+    ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    : 'application/msword';
+}
+
 /** 提取证书 DN 的 CN 段（到下一个逗号前，属性名大小写不敏感）；无 CN 段返回 null。 */
 function extractDnCn(dn: string): string | null {
   const m = /(?:^|,)\s*cn\s*=\s*([^,]*)/i.exec(dn || '');
@@ -1137,7 +1144,7 @@ export class ExpertService {
       },
     });
 
-    return { buffer: this.maybeConvertDocxToPdf(plaintext, doc.fileAsset.originalName), fileName: this.pdfFileName(doc.fileAsset.originalName), mimeType: 'application/pdf' };
+    return this.finalizeTenderDocPreview(plaintext, doc.fileAsset.originalName, 'application/pdf');
   }
 
   /** 谈判采购文件逐个下载（专家端，2026-10-20）：与清单端点同源解析（Attachment 主轨 +
@@ -1215,21 +1222,36 @@ export class ExpertService {
         riskFlag: '无',
       },
     });
-    const pdfName = this.pdfFileName(fileName);
-    const isPdf = pdfName !== fileName; // docx/doc 被改名 → 已转 PDF
+    return this.finalizeTenderDocPreview(buffer, fileName, mimeType || 'application/octet-stream');
+  }
+
+  /** 采购/招标文件预览收口（bug#169 诚实 MIME）：docx/doc 转 PDF 成功 → .pdf 名 + application/pdf；
+   *  转换失败（LibreOffice 不可用/未产出）→ 原名 + 真实 Word mime——inline 下浏览器自然转下载，
+   *  专家仍能拿到原文，且响应不再说谎；此前 docx 字节贴 application/pdf 标签回发，Chrome 原生
+   *  查看器只能报「未能加载PDF文档。」无从排障（生产缺 LibreOffice 时必现）。
+   *  非 Word 文件 → 原名 + fallbackMime（公告轨 application/pdf；谈判轨存量 mimeType||octet-stream——均维持原行为）。 */
+  private finalizeTenderDocPreview(
+    plaintext: Buffer,
+    originalName: string,
+    fallbackMime: string,
+  ): { buffer: Buffer; fileName: string; mimeType: string } {
+    const isWord = this.pdfFileName(originalName) !== originalName;
+    const converted = this.maybeConvertDocxToPdf(plaintext, originalName);
     return {
-      buffer: this.maybeConvertDocxToPdf(buffer, fileName),
-      fileName: pdfName,
-      mimeType: isPdf ? 'application/pdf' : (mimeType || 'application/octet-stream'),
+      buffer: converted ?? plaintext,
+      fileName: converted ? this.pdfFileName(originalName) : originalName,
+      mimeType: converted ? 'application/pdf' : isWord ? wordMimeFor(originalName) : fallbackMime,
     };
   }
 
-  /** 如果 plaintext 是 .docx/.doc，则用 LibreOffice 转换为 PDF；否则原样返回。
+  /** 如果 plaintext 是 .docx/.doc，则用 LibreOffice 转换为 PDF，返回转换产物字节；
+   *  未转换（非 Word 文件 / LibreOffice 失败 / 未产出 pdf）返回 null——调用方（finalizeTenderDocPreview）
+   *  据此诚实降级为原名+真实 Word mime，勿再以 PDF 标签回发 Word 字节（bug#169）。
    *  安全要点：临时文件使用固定安全名（mkdtemp 目录本身唯一），用户可控的 originalName
    *  绝不进入文件路径或命令行；用 execFileSync 数组参数，杜绝 shell 注入与路径穿越。 */
-  private maybeConvertDocxToPdf(plaintext: Buffer, originalName: string): Buffer {
+  private maybeConvertDocxToPdf(plaintext: Buffer, originalName: string): Buffer | null {
     const ext = /\.docx$/i.test(originalName) ? '.docx' : /\.doc$/i.test(originalName) ? '.doc' : null;
-    if (!ext) return plaintext;
+    if (!ext) return null;
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tender-docx-'));
     const safeBase = 'input';
     const docxPath = path.join(tmpDir, `${safeBase}${ext}`);
@@ -1244,10 +1266,11 @@ export class ExpertService {
       if (fs.existsSync(pdfPath)) {
         return fs.readFileSync(pdfPath);
       }
-      return plaintext;
+      this.logger.warn(`LibreOffice docx→pdf produced no output for ${originalName}`);
+      return null;
     } catch (err: any) {
       this.logger.warn(`LibreOffice docx→pdf failed for ${originalName}: ${err?.message ?? err}`);
-      return plaintext;
+      return null;
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
