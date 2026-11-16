@@ -786,7 +786,9 @@ export function AnnouncementDialog({
     const wanted = (key: string) =>
       fields.some((f) => f.key === key) && !rec[key]?.trim() && !patch[key]?.trim();
 
-    if (wanted('scheduleRequirements') && rec.scheduleRequirementsType !== 'none') {
+    // 工期及进度要求（2026-11-16 用户裁定二轮）：初始进入即 AI 按项目生成（源值优先），
+    // 选「有」时内容已在——直接加载，不等选择后才生成
+    if (wanted('scheduleRequirements')) {
       const schedule =
         tenderRecord.businessRequirements?.trim()
         || tenderRecord.submissionRequirements?.trim()
@@ -794,13 +796,10 @@ export function AnnouncementDialog({
       if (schedule) {
         patch.scheduleRequirements = schedule;
         if (!rec.scheduleRequirementsType) patch.scheduleRequirementsType = 'have';
-      } else if (rec.scheduleRequirementsType === 'have') {
-        // 源值皆空且已选「有」（2026-11-16 用户裁定）：AI 按项目生成——一次性触发，防重入
-        if (!scheduleAiFiredRef.current) {
-          scheduleAiFiredRef.current = true;
-          const f = fields.find((x) => x.key === 'scheduleRequirements');
-          void handleAiGenerate('scheduleRequirements', '工期及进度要求', '', f?.aiPrompt);
-        }
+      } else if (!scheduleAiFiredRef.current) {
+        scheduleAiFiredRef.current = true;
+        const f = fields.find((x) => x.key === 'scheduleRequirements');
+        void handleAiGenerate('scheduleRequirements', '工期及进度要求', '', f?.aiPrompt);
       }
     }
     if (wanted('registrationMethod')) {
