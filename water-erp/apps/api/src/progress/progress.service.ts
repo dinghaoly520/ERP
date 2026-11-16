@@ -185,8 +185,32 @@ function repairGarbledTitles(message: string, titles: string[]): string {
 }
 
 /** 组合清理：剔除乱码 + 回填项目名 */
+/** 洞察正文英文字段名清洗（2026-11-16 用户裁定：进度洞察禁英文字符串）：
+ *  LLM 偶把输入 JSON 的键名（如 daysSinceUpdate）写进正文。先以占位符保护真实项目名
+ *  （项目名是用户数据、其中的英文不清洗），再做专项改写与通用剥除，最后还原。 */
+export function stripEnglishFieldLeaks(text: string, titles: string[]): string {
+  const slots: string[] = [];
+  let out = text;
+  for (const t of titles) {
+    if (!t) continue;
+    out = out.split(t).join(`⟦T${slots.length}⟧`);
+    slots.push(t);
+  }
+  out = out
+    // 专项：daysSinceUpdate 为 0 → 今天有更新；为 N → N天未更新（保留数字语义）
+    .replace(/daysSinceUpdate\s*(?:为|是|=)?\s*0(?!\d)/gi, '今天有更新')
+    .replace(/daysSinceUpdate\s*(?:为|是|=)?\s*(\d+(?:\.\d+)?)/gi, '$1天未更新')
+    // 通用：其余 4+ 位英数字段名/代码标识（camelCase/snake_case）直接剥除——
+    // 字段名后跟「为/是/=」连接词时一并吃掉，避免残留「 为 0」残句
+    .replace(/[a-zA-Z_][a-zA-Z0-9_]{3,}\s*(?:为|是|=)\s*/g, '')
+    .replace(/[a-zA-Z_][a-zA-Z0-9_]{3,}/g, '')
+    .replace(/ {2,}/g, ' '); // 剥除后的空位收敛
+  for (let i = 0; i < slots.length; i++) out = out.split(`⟦T${i}⟧`).join(slots[i]);
+  return out;
+}
+
 function sanitizeLlmText(text: string, titles: string[]): string {
-  return repairGarbledTitles(stripMoji(text), titles);
+  return repairGarbledTitles(stripMoji(stripEnglishFieldLeaks(text, titles)), titles);
 }
 
 @Injectable()
@@ -401,7 +425,7 @@ export class ProgressService {
 
   /** 进度洞察服务端缓存命名空间（2026-11-10 用户裁定：同仪表盘综合分析——每公司视野
    *  存最新一份，数据指纹未变即时提取不重生成；多公司组合由前端提示手动分析） */
-  private static readonly PROGRESS_INSIGHT_NS = 'progress-ai-insights';
+  private static readonly PROGRESS_INSIGHT_NS = 'progress-ai-insights-v2'; // v2（2026-11-16）：清洗器上线作废旧缓存（存量英文文案不续命）
 
   async getAiInsights(
     userId?: string,
@@ -442,16 +466,17 @@ export class ProgressService {
         sc.scopedStage?.stageName ?? stageNames[p.currentStage] ?? p.currentStage ?? '未设置';
 
       return {
-        title: p.title,
-        requesterName: p.requesterName || p.createdBy?.displayName || '未登记',
-        department: p.requesterDepartment || '未设置',
-        procurementMethod: p.procurementMethod || '未设置',
-        currentStage: sc.round > 1 ? `第 ${sc.round} 轮 · ${stageLabel}` : stageLabel,
-        progress: `${sc.percent}%`,
-        budget: p.budgetAmount ? `${(p.budgetAmount / 10000).toFixed(1)}万` : '未设置',
-        daysSinceUpdate,
-        completedStages: sc.completed,
-        totalStages: sc.total,
+        // 键名中文化（2026-11-16）：英文键名会被 LLM 原样抄进正文（daysSinceUpdate 实录）
+        标题: p.title,
+        需求人: p.requesterName || p.createdBy?.displayName || '未登记',
+        部门: p.requesterDepartment || '未设置',
+        采购方式: p.procurementMethod || '未设置',
+        当前阶段: sc.round > 1 ? `第 ${sc.round} 轮 · ${stageLabel}` : stageLabel,
+        完成度: `${sc.percent}%`,
+        预算: p.budgetAmount ? `${(p.budgetAmount / 10000).toFixed(1)}万` : '未设置',
+        最近更新: daysSinceUpdate === 0 ? '今天有更新' : `${daysSinceUpdate}天未更新`,
+        已完成阶段数: sc.completed,
+        总阶段数: sc.total,
       };
     });
 
@@ -521,6 +546,7 @@ export class ProgressService {
 3. 禁止输出空泛的套话，每条洞察必须包含至少一个具体项目名称
 4. projectTitles 必须是数据中真实存在的项目名称
 5. 不要重复 overview 中已说过的内容
+6. 禁止正文出现任何英文字段名/代码标识（如 daysSinceUpdate）——更新情况一律中文表述（"今天有更新""N天未更新"）；数据中的字段已全部中文化，直接用中文键名指代
 
 【规则】
 1. 如果某个维度没有对应数据（如无停滞项目），跳过该维度，从剩余维度补充事实观察
@@ -532,20 +558,20 @@ export class ProgressService {
 
     const userPrompt = JSON.stringify(
       {
-        summary: {
-          totalActive: stats.totalActive,
-          averageCompletion: `${avgCompletion}%`,
-          totalBudget: `${(totalBudget / 10000).toFixed(1)}万`,
-          monthlyAdded: stats.monthlyAdded,
-          monthlyCompleted: stats.monthlyCompleted,
-          recentlyActive: stats.recentlyActive,
-          stalledProjects,
+        概况: {
+          活跃项目总数: stats.totalActive,
+          平均完成度: `${avgCompletion}%`,
+          总预算: `${(totalBudget / 10000).toFixed(1)}万`,
+          本月新增: stats.monthlyAdded,
+          本月完成: stats.monthlyCompleted,
+          近期有更新项目数: stats.recentlyActive,
+          停滞项目数: stalledProjects,
         },
-        stageDistribution: stats.stageDistribution.map((s) => ({
-          stage: stageNames[s.stage] || s.stage,
-          count: s.count,
+        阶段分布: stats.stageDistribution.map((s) => ({
+          阶段: stageNames[s.stage] || s.stage,
+          数量: s.count,
         })),
-        projects: projectSummaries,
+        项目列表: projectSummaries,
       },
       null,
       2,

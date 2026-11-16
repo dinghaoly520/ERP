@@ -44,7 +44,12 @@ export class AiController {
   }
 
   @Get('mobile-brief')
-  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——LLM 现场生成（不缓存；区间随页面 startDate/endDate+rangeKey，缺省本月）' })
+  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——数据指纹缓存（数据变才变，2026-11-12 裁定同源；区间随页面 startDate/endDate+rangeKey，缺省本月）' })
+  /* 路由级放宽（2026-11-16）：类级 20/min 是 LLM 成本闸；brief 已有指纹缓存（命中仅
+   * 三表聚合+SystemConfig 读），且 :3011 每次挂载/切Tab/下拉都重取（dev StrictMode
+   * 双发），20/min 会被正常浏览打满 → 429 风暴「点击不再更新」。120/min 防失控即可，
+   * LLM 成本由指纹闸兜底（同指纹只有首请求触达 LLM） */
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
   @Roles('admin', 'leader', 'staff')
   getMobileBrief(
     @CurrentUser() user: AuthenticatedUser,
