@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FileDown, FileText, FileUp, FolderInput, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
+import { CheckCircle2, FileDown, FileText, FileUp, FolderInput, History, Loader2, Save, Search, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { TenderExportFormatDialog } from '@/components/tender-write/export-format-dialog';
 import { apiFetch } from '@/lib/api/api-fetch';
@@ -1171,36 +1171,47 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
             onClick={handleSkipReviewUpload}
           />
           <div
-            className="wb-modal-shell relative z-10 mx-4 w-full max-w-[380px] p-6"
+            className="wb-modal-shell relative z-10 mx-4 flex w-full max-w-[380px] flex-col overflow-hidden"
           >
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-[0.95rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                审查已完成
-              </h2>
+            {/* A 版紧凑确认（2026-11-16 全系统推广）：正向确认——取消=红 / 确认=灰 */}
+            <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+                  <CheckCircle2 size={14} />
+                </span>
+                <h2 className="text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)]">
+                  审查已完成
+                </h2>
+              </div>
               <button type="button" onClick={handleSkipReviewUpload} className="neu-btn-xs"><X size={16} /></button>
             </div>
-            <div className="mt-3 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
-            <p className="mt-2.5 text-sm leading-[1.6] text-[color:var(--muted-foreground)]">
-              是否将审查后的采购文件提交至项目采购文件阶段？提交的文件已包含你在审查中「接受」的全部修改建议。
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={handleSkipReviewUpload}
-                disabled={reviewUploading}
-                className="neu-btn-soft flex-1 gap-2 !h-10 text-sm"
-              >
-                暂不上传
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleConfirmReviewUpload()}
-                disabled={reviewUploading}
-                className="neu-btn-primary flex-1 gap-2 !h-10 text-sm"
-              >
-                {reviewUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                提交至项目阶段
-              </button>
+            <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+            <div className="px-6 pt-4 pb-2">
+              <p className="text-sm leading-[1.6] text-[color:var(--foreground)]">
+                是否将审查后的采购文件提交至项目采购文件阶段？提交的文件已包含你在审查中「接受」的全部修改建议。
+              </p>
+            </div>
+            <div className="shrink-0 px-6 pb-4 pt-2">
+              <hr className="wb-section-rule mb-3" />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleSkipReviewUpload}
+                  disabled={reviewUploading}
+                  className="neu-btn-soft is-danger flex-1 gap-2 !h-10 text-sm"
+                >
+                  暂不上传
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmReviewUpload()}
+                  disabled={reviewUploading}
+                  className="neu-btn-soft flex-1 gap-2 !h-10 text-sm"
+                >
+                  {reviewUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  提交至项目阶段
+                </button>
+              </div>
             </div>
           </div>
         </div>

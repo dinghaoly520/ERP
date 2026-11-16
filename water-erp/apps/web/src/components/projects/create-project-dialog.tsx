@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-import { X, Upload, FileText, CheckCircle, Loader2, Sparkles, ChevronDown, Info } from 'lucide-react';
+import { X, Plus, Upload, FileText, CheckCircle, Loader2, Sparkles, ChevronDown, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { validateFileSize } from '@/lib/upload-rules';
 import {
@@ -934,25 +934,28 @@ export function CreateProjectDialog({
           className="absolute inset-0 bg-[color:var(--background)]/70 backdrop-blur-[6px]"
           onClick={() => { resetState(); onClose(); }}
         />
-        <div className="neu-dialog relative flex max-h-[90vh] w-full max-w-[min(720px,92vw)] flex-col">
+        <div className="wb-modal-shell relative flex max-h-[90vh] w-full max-w-[min(720px,92vw)] flex-col overflow-hidden">
 
-          <button
-            type="button"
-            onClick={() => { resetState(); onClose(); }}
-            className="neu-btn-xs absolute right-4 top-4 z-[2]"
-          >
-            <X size={16} />
-          </button>
-
-          {/* Fixed Header */}
-          <div className="flex-shrink-0 pr-[3.8rem]">
-            <h2 className="text-[clamp(1.34rem,2.7vw,1.58rem)] font-semibold leading-tight tracking-[-0.05em] text-[color:var(--foreground)]">新建采购项目</h2>
+          {/* A 版图标井头部（2026-11-16 全系统推广） */}
+          <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+                <Plus size={14} />
+              </span>
+              <h2 className="text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)]">新建采购项目</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => { resetState(); onClose(); }}
+              className="neu-btn-xs"
+            >
+              <X size={16} />
+            </button>
           </div>
-
-          <div className="wb-section-rule mt-4 flex-shrink-0" />
+          <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
           {/* Scrollable Content Area */}
-          <div className="flex-1 min-h-0 mt-5 px-[1.7rem] overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-4">
             {step === 'upload' && (
               <div className="space-y-6 pb-[1.7rem]">
                 {renderFileUpload(
@@ -1001,8 +1004,9 @@ export function CreateProjectDialog({
             {step === 'review' && renderReview()}
           </div>
 
-          {/* Fixed Footer */}
-          <div className="flex-shrink-0 px-[1.7rem] py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
+          {/* Fixed Footer — A 版底栏（2026-11-16 全系统推广） */}
+          <div className="flex-shrink-0 px-6 pb-6 pt-3">
+            <hr className="wb-section-rule mb-4" />
             {step === 'upload' && (
               <div className="flex justify-between">
                 <button

@@ -65,11 +65,15 @@ export function ProjectChangeEntry({
             className="relative flex max-h-[82vh] w-full max-w-[min(680px,92vw)] flex-col overflow-hidden wb-modal-shell"
             role="dialog"
           >
-            <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-5">
-              <div className="flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-                <ScrollText size={16} className="text-[var(--accent)]" />
-                变更 / 补遗记录
-                {records && <span className="text-xs font-normal text-[var(--muted-foreground)]">共 {records.length} 轮</span>}
+            <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+                  <ScrollText size={14} />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">变更 / 补遗记录</h2>
+                  {records && <p className="mt-1 text-xs text-[var(--muted-foreground)]">共 {records.length} 轮</p>}
+                </div>
               </div>
               <button type="button" onClick={() => setRecordsOpen(false)} className="neu-btn-xs"><X size={15} /></button>
             </div>

@@ -1243,26 +1243,30 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
         {notifyConfirmOpen && (
           <div className="absolute inset-0 z-30 flex items-center justify-center px-6">
             <div className="absolute inset-0 wb-overlay-backdrop" />
-            <div className="relative w-full max-w-[440px] wb-modal-shell px-6 py-5">
-              <div className="mb-2 flex items-center gap-2">
-                <div
-                  className="wb-icon-well wb-icon-well--sm"
-                  style={{ '--well-bg': 'var(--stage-evaluation-soft)', '--well-fg': 'var(--stage-evaluation)' } as React.CSSProperties}
-                >
-                  <BellRing size={15} />
-                </div>
-                <span className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">通知供应商与专家</span>
+            <div className="wb-modal-shell relative flex w-full max-w-[440px] flex-col overflow-hidden">
+              {/* A 版紧凑确认（2026-11-16 全系统推广）——单动作正向重试，保持 is-water */}
+              <div className="flex shrink-0 items-start gap-3 px-6 pb-4 pt-6">
+                <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+                  <BellRing size={14} />
+                </span>
+                <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">通知供应商与专家</h2>
               </div>
-              <p className="mb-4 text-xs leading-5 text-[var(--muted-foreground)]">
-                {pendingNotify?.decision === 'DELAY' ? (
-                  <>开标时间已更新为<span className="mx-1 font-semibold tabular-nums text-[var(--foreground)]">{formatDateTime(pendingNotify.openTime)}</span>，</>
-                ) : '已确定开标，'}
-                但通知发送失败。通知为强制步骤——请重试通知全部投标供应商与评标专家（沿用弹窗内配置的渠道与文案）。
-              </p>
-              <div className="neu-btn-group">
-                <button type="button" onClick={() => void handleRetryNotify()} disabled={busy} className="neu-btn-primary is-water !h-[36px] !text-xs">
-                  <BellRing size={13} /> 重试通知
-                </button>
+              <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+              <div className="px-6 pt-4 pb-2">
+                <p className="text-sm leading-relaxed text-[var(--foreground)]">
+                  {pendingNotify?.decision === 'DELAY' ? (
+                    <>开标时间已更新为<span className="mx-1 font-semibold tabular-nums text-[var(--foreground)]">{formatDateTime(pendingNotify.openTime)}</span>，</>
+                  ) : '已确定开标，'}
+                  但通知发送失败。通知为强制步骤——请重试通知全部投标供应商与评标专家（沿用弹窗内配置的渠道与文案）。
+                </p>
+              </div>
+              <div className="shrink-0 px-6 pb-4 pt-2">
+                <hr className="wb-section-rule mb-3" />
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => void handleRetryNotify()} disabled={busy} className="neu-btn-primary is-water !h-[38px]">
+                    <BellRing size={14} /> 重试通知
+                  </button>
+                </div>
               </div>
             </div>
           </div>

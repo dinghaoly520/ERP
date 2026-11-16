@@ -61,46 +61,28 @@ export function SupplierSelectModal({ isOpen, onClose, projectId, onSelect }: Pr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[550] flex items-center justify-center">
-      <div
-        className="absolute inset-0"
-        style={{ background: 'oklch(0.975 0.012 258 / 0.6)', backdropFilter: 'blur(3px)' }}
-        onClick={onClose}
-      />
-      <div
-        className="relative z-10 mx-5 w-full max-w-[520px] max-h-[80vh] overflow-y-auto rounded-[22px] p-6"
-        style={{
-          background: 'linear-gradient(170deg, oklch(1 0 0 / 0.97), oklch(0.99 0.003 258 / 0.72))',
-          boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.9), 3px 4px 18px oklch(0.46 0.07 258 / 0.18), -3px -3px 10px oklch(1 0 0 / 0.94)',
-        }}
-      >
-        {/* 标题栏 */}
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]"
-              style={{
-                background: 'color-mix(in oklch, var(--accent) 14%, transparent)',
-                boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6), 2px 2px 3px oklch(0.55 0.03 258 / 0.08)',
-              }}
-            >
-              <Building2 size={17} className="text-[var(--accent)]" />
-            </div>
-            <div>
-              <span className="text-sm font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
-                供应商抽选
-              </span>
-              <div className="text-[11px] text-[color:var(--muted-foreground)]">
-                AI 分析项目需求，推荐匹配供应商
-              </div>
+    <div className="fixed inset-0 z-[550] flex items-center justify-center p-4">
+      <div className="wb-overlay-backdrop" onClick={onClose} />
+      <div className="wb-modal-shell relative z-10 flex w-full max-w-[520px] flex-col overflow-hidden">
+        {/* A 版图标井头部（2026-11-16 全系统推广） */}
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+              <Building2 size={14} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)]">供应商抽选</h2>
+              <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">AI 分析项目需求，推荐匹配供应商</p>
             </div>
           </div>
           <button type="button" onClick={onClose} className="neu-btn-xs shrink-0">
             <X size={16} />
           </button>
         </div>
+        <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
         {/* 内容区 */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-4">
         {loading ? (
           <div className="flex flex-col items-center gap-3 py-12">
             <Loader2 size={24} className="animate-spin text-[var(--accent)]" />
@@ -112,8 +94,7 @@ export function SupplierSelectModal({ isOpen, onClose, projectId, onSelect }: Pr
             {error}
           </div>
         ) : (
-          <>
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2">
               {suppliers.map((s, i) => (
                 <button
                   key={i}
@@ -152,9 +133,14 @@ export function SupplierSelectModal({ isOpen, onClose, projectId, onSelect }: Pr
                 </button>
               ))}
             </div>
+        )}
+        </div>
 
-            {/* 底部操作 */}
-            <div className="flex items-center justify-between gap-3 pt-3" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        {/* 底部操作（非加载/错误态；A 版底栏分割线，2026-11-16 全系统推广） */}
+        {!loading && !error && (
+          <div className="shrink-0 px-6 pb-4 pt-3">
+            <hr className="wb-section-rule mb-3" />
+            <div className="flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={() => { loadedRef.current = false; setLoading(true); setError(null); setSelected(null); setSuppliers([]);
@@ -171,12 +157,12 @@ export function SupplierSelectModal({ isOpen, onClose, projectId, onSelect }: Pr
                 <span className="text-[10px] text-[color:var(--muted-foreground)]">
                   {selected ? `已选：${selected}` : '请点击选择一家供应商'}
                 </span>
-                <button type="button" onClick={handleConfirm} disabled={!selected} className="neu-btn-primary !h-[34px] !text-xs">
+                <button type="button" onClick={handleConfirm} disabled={!selected} className="neu-btn-primary !h-[38px]">
                   <Check size={14} /> 确认填入
                 </button>
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

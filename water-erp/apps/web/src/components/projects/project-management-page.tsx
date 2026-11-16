@@ -575,52 +575,53 @@ export function ProjectManagementPage() {
               if (!removingId) setCleanupTarget(null);
             }}
           />
-          <div className="relative w-full max-w-[600px] overflow-hidden wb-modal-shell">
-            <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.95),rgba(234,191,106,0.72),rgba(121,162,239,0.35))]" />
-            <div className="px-6 py-6">
-              <div className="flex items-start gap-4">
-                <div className="flex h-13 w-13 shrink-0 items-center justify-center rounded-[18px] border border-[color-mix(in_oklch,var(--danger)_24%,transparent)] bg-[color-mix(in_oklch,var(--danger)_11%,transparent)] text-[color:var(--danger)]">
-                  <AlertTriangle size={24} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="inline-flex rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] text-[color:var(--danger)]">
-                    不可恢复操作
-                  </div>
-                  <h3 className="mt-3 font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
-                    移除「{cleanupTarget.title}」？
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-[color:var(--muted-foreground)]">
-                    移除后项目内容将全部清除（附件、阶段资料、台账轮次），不可恢复；仅保留一条移除记录供追溯。
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setCleanupTarget(null)}
-                  disabled={Boolean(removingId)}
-                  className="neu-btn-xs"
-                  aria-label="取消移除"
-                >
-                  <X size={17} />
-                </button>
+          <div className="relative flex w-full max-w-[min(440px,92vw)] flex-col overflow-hidden wb-modal-shell">
+            {/* A 版紧凑确认（2026-11-16 全系统推广）：破坏性——取消=黑 / 确认=红 */}
+            <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--danger)_12%,oklch(0.99_0.004_258))] text-[color:var(--danger)]">
+                  <AlertTriangle size={14} />
+                </span>
+                <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">
+                  移除「{cleanupTarget.title}」？
+                </h2>
               </div>
-            </div>
-            <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-              <button type="button" onClick={() => setCleanupTarget(null)} disabled={Boolean(removingId)} className="neu-btn-soft !h-9 !text-xs">
-                取消
-              </button>
               <button
                 type="button"
-                onClick={() => {
-                  const target = cleanupTarget;
-                  setCleanupTarget(null);
-                  if (target) void handleRemoveProject(target.id);
-                }}
+                onClick={() => setCleanupTarget(null)}
                 disabled={Boolean(removingId)}
-                className="neu-btn-soft is-danger !h-9 !text-xs"
+                className="neu-btn-xs"
+                aria-label="取消移除"
               >
-                <Trash2 size={16} />
-                确认移除
+                <X size={16} />
               </button>
+            </div>
+            <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+            <div className="px-6 pt-4 pb-2">
+              <p className="text-sm leading-relaxed text-[var(--foreground)]">
+                移除后项目内容将全部清除（附件、阶段资料、台账轮次），不可恢复；仅保留一条移除记录供追溯。
+              </p>
+            </div>
+            <div className="shrink-0 px-6 pb-4 pt-2">
+              <hr className="wb-section-rule mb-3" />
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setCleanupTarget(null)} disabled={Boolean(removingId)} className="neu-btn-soft is-porcelain">
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = cleanupTarget;
+                    setCleanupTarget(null);
+                    if (target) void handleRemoveProject(target.id);
+                  }}
+                  disabled={Boolean(removingId)}
+                  className="neu-btn-primary is-water is-danger !h-[38px]"
+                >
+                  <Trash2 size={14} />
+                  确认移除
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -634,18 +635,21 @@ export function ProjectManagementPage() {
             onClick={() => setShowRecordsModal(false)}
           />
           <div className="relative flex h-[min(720px,calc(100dvh-3rem))] w-full max-w-[min(820px,92vw)] flex-col overflow-hidden wb-modal-shell">
-            <div className="absolute inset-x-0 top-0 h-1.5 bg-[linear-gradient(90deg,rgba(209,88,88,0.6),rgba(234,191,106,0.45),rgba(121,162,239,0.3))]" />
-            <div className="flex items-start justify-between gap-4 px-6 py-5" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-              <div className="min-w-0">
-                <h3 className="font-[family-name:var(--font-display)] text-[1.28rem] font-semibold tracking-[-0.05em] text-[color:var(--foreground)]">
+            <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+                  <FileX2 size={14} />
+                </span>
+                <h2 className="text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)]">
                   已移除的项目{deletionRecords.length > 0 ? `（${deletionRecords.length}）` : ''}
-                </h3>
+                </h2>
               </div>
               <button type="button" onClick={() => setShowRecordsModal(false)} className="neu-btn-xs" aria-label="关闭移除记录">
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5">
+            <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
+            <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
               {deletionRecords.length === 0 ? (
                 <div className="wb-panel flex items-center justify-center px-5 py-10 text-sm leading-6 text-[color:var(--muted-foreground)]">
                   暂无移除记录。在已终止项目卡片上点「移除」并确认后，会在此留下记录。

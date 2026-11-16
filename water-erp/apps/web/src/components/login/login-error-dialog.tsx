@@ -50,27 +50,20 @@ export function LoginErrorDialog({
         aria-hidden="true"
       />
 
-      {/* ── Dialog surface — cgzxui neumorphic ── */}
+      {/* ── Dialog surface — A 版瓷面壳（2026-11-16 全系统推广，替换旧 neu-dialog 渐变壳） ── */}
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className="neu-dialog relative z-10 flex w-full max-w-[420px] flex-col gap-5"
+        className="wb-modal-shell relative z-10 flex w-full max-w-[420px] flex-col overflow-hidden"
       >
-        {/* ── Header ── */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            {/* Danger icon well */}
-            <div
-              className="neu-icon-well flex h-9 w-9 shrink-0 items-center justify-center bg-[color-mix(in_oklch,var(--danger)_12%,oklch(0.99_0.004_258))]"
-            >
-              <AlertCircle
-                size={18}
-                strokeWidth={1.8}
-                className="text-[var(--danger)]"
-              />
-            </div>
-            <h2 className="text-base font-bold tracking-[-0.02em] text-[color:var(--foreground)]">
+        {/* ── Header — 图标井头部 ── */}
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--danger)_12%,oklch(0.99_0.004_258))] text-[color:var(--danger)]">
+              <AlertCircle size={14} strokeWidth={1.8} />
+            </span>
+            <h2 className="text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)]">
               {title}
             </h2>
           </div>
@@ -78,18 +71,23 @@ export function LoginErrorDialog({
             <X size={16} />
           </button>
         </div>
+        <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
         {/* ── Message — plain text, no recessed card ── */}
-        <p className="text-sm leading-6 text-[var(--foreground)]">
-          {message}
-        </p>
+        <div className="px-6 pt-4 pb-2">
+          <p className="text-sm leading-6 text-[var(--foreground)]">
+            {message}
+          </p>
+        </div>
 
-        {/* ── Divider + Footer ── */}
-        <hr className="wb-section-rule" />
-        <div className="flex justify-end">
-          <button onClick={onClose} className="neu-btn-soft">
-            我知道了
-          </button>
+        {/* ── Divider + Footer（紧凑；中性单钮=灰 soft） ── */}
+        <div className="shrink-0 px-6 pb-4 pt-2">
+          <hr className="wb-section-rule mb-3" />
+          <div className="flex justify-end gap-3">
+            <button onClick={onClose} className="neu-btn-soft">
+              我知道了
+            </button>
+          </div>
         </div>
       </div>
     </div>,
