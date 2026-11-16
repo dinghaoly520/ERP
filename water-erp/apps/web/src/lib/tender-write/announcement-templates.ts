@@ -594,6 +594,9 @@ export const ANNOUNCEMENT_AUTO_FILL: Record<string, string> = {
   supervisionAddress: "supervisionAddress",
   supervisionContact: "supervisionContact",
   supervisionPhone: "supervisionPhone",
+  // 开标地点（2026-11-16）：公告自动引入采购文件的开标地点（草稿键 bidOpeningPlace）——
+  // 与监督块同裁定；公司信息管理维护值退居兜底
+  openingLocation: "bidOpeningPlace",
 };
 
 /**
