@@ -727,6 +727,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     const pmiOpening = toDatetimeLocal(project.bidOpeningTime ?? '');
 
     const preTender = buildPrefillFromProject(project, tt) as ReadyTenderDraft;
+    // 2026-11-16 用户裁定：公告自动引入采购文件编写草稿的监督块与开标地点——
+    // 03 步骤填写/选择的值优先覆盖 PMI 预填（此前向导只从项目数据组预填，
+    // 采购文件里选的监督人/开标地点无带入通道；直接采购 supplierName 先例同源 localStorage）
+    try {
+      const raw = localStorage.getItem(tenderDraftStorageKey(project.id, project.currentRound ?? 1));
+      const td = raw ? ((JSON.parse(raw)?.[tt] ?? {}) as Record<string, string>) : {};
+      for (const k of ['supervisionDepartment', 'supervisionAddress', 'supervisionContact', 'supervisionPhone', 'bidOpeningPlace']) {
+        const v = td[k]?.trim();
+        if (v) (preTender as Record<string, string>)[k] = v;
+      }
+    } catch { /* 采购文件草稿缺失/损坏：PMI 预填兜底 */ }
     setTenderDraftForDialog(preTender);
 
     // ★ 缓存命中 —— 恢复上次完整状态，跳过全新预填
