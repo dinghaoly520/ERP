@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException, Logger, NotFoundExc
 import { assertBidNoticeTiming } from '../bid/bid-timing-rules';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { joinSoftWrappedPlainText } from '../tender-write/announcement-content-html.util';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { Inject, forwardRef } from '@nestjs/common';
@@ -337,11 +338,28 @@ export class AnnouncementService {
       // 2026-09-26 回收站体系：status 支持逗号分隔（回收站传 HIDDEN,OFFLINE），与 type 逗号语义一致
       const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
+      // 2026-11-16 用户裁定：纯草稿查询（KPI 弹窗/草稿筛选）排除定时待发布件——
+      // 它们已在主表以「待发布」展示，不重复计入待处理草稿
+      if (statuses.length === 1 && statuses[0] === 'DRAFT') {
+        where.AND = [...(where.AND ?? []), {
+          OR: [
+            { status: { not: 'DRAFT' } },
+            { metadata: { path: ['scheduledPublishDate'], equals: Prisma.DbNull } },
+          ],
+        }];
+      }
     } else {
       // 2026-09-26 回收站体系：默认排除回收站内容（隐藏/下架只在回收站可见，公开端本就只出 PUBLISHED）
-      // 2026-10-16 用户裁定：草稿不再混入管理端「全部」列表——草稿统一收纳进「待处理草稿」KPI 弹窗，
-      // 显式 status=DRAFT 仍可查（KPI 弹窗/草稿筛选用），仅默认「全部」排除
-      where.status = { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] };
+      // 2026-10-16 用户裁定：草稿不再混入管理端「全部」列表——纯草稿收纳进「待处理草稿」KPI 弹窗，
+      // 显式 status=DRAFT 仍可查（KPI 弹窗/草稿筛选用），仅默认「全部」排除纯草稿。
+      // 2026-11-16 用户裁定：定时待发布（DRAFT+scheduledPublishDate）直接进主表「待发布」；
+      // AND+OR 组合（search 分支覆写 where.OR，不能挂 OR 顶层）
+      where.AND = [...(where.AND ?? []), {
+        OR: [
+          { status: { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] } },
+          { status: 'DRAFT', metadata: { path: ['scheduledPublishDate'], not: Prisma.DbNull } },
+        ],
+      }];
     }
     if (params.search) {
       // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）
@@ -400,8 +418,13 @@ export class AnnouncementService {
       const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
     } else {
-      // 与 list() 同口径：默认「全部」排除草稿（2026-10-16），公司分组计数与列表一致
-      where.status = { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] };
+      // 与 list() 同口径（2026-11-16 含定时待发布件）：默认「全部」排除纯草稿，公司分组计数与列表一致
+      where.AND = [...(where.AND ?? []), {
+        OR: [
+          { status: { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] } },
+          { status: 'DRAFT', metadata: { path: ['scheduledPublishDate'], not: Prisma.DbNull } },
+        ],
+      }];
     }
     if (params.search) {
       // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）

@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SunshinePushService } from './sunshine-push.service';
+import { Prisma } from '@prisma/client';
 import { AnnouncementService } from './announcement.service';
 import { AnnouncementAiService } from './announcement-ai.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -818,7 +819,15 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     prisma.announcement.findMany.mockResolvedValue([]);
     await service.list({});
     // 2026-10-16：默认「全部」排除草稿（草稿收纳进 KPI 弹窗），回收态照旧排除
-    expect(prisma.announcement.findMany.mock.calls[0][0].where.status).toEqual({ notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] });
+    // 2026-11-16：默认改为 AND[OR] 组合——排除纯草稿、含定时待发布件（DRAFT+scheduledPublishDate）
+    expect(prisma.announcement.findMany.mock.calls[0][0].where.AND).toEqual([
+      expect.objectContaining({
+        OR: [
+          { status: { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] } },
+          { status: 'DRAFT', metadata: { path: ['scheduledPublishDate'], not: Prisma.DbNull } },
+        ],
+      }),
+    ]);
     await service.list({ status: 'HIDDEN,OFFLINE' });
     expect(prisma.announcement.findMany.mock.calls[1][0].where.status).toEqual({ in: ['HIDDEN', 'OFFLINE'] });
     await service.list({ status: 'PUBLISHED' });

@@ -66,7 +66,11 @@ const statusMeta: Record<AnnouncementStatus, { label: string; tone: 'green' | 'g
  */
 const HOUR_MS = 3_600_000;
 
-function displayStatus(a: { status: AnnouncementStatus; publishDate?: string | null; publicityEnd?: string | null }): { label: string; tone: 'green' | 'orange' | 'gray' } {
+function displayStatus(a: { status: AnnouncementStatus; publishDate?: string | null; publicityEnd?: string | null; metadata?: Record<string, any> }): { label: string; tone: 'green' | 'orange' | 'gray' } {
+  // 2026-11-16 用户裁定：定时待发布（DRAFT+scheduledPublishDate）直接进表、显示「待发布」
+  if (a.status === 'DRAFT' && String(a.metadata?.scheduledPublishDate ?? '').trim()) {
+    return { label: '待发布', tone: 'orange' };
+  }
   if (a.status !== 'PUBLISHED') return statusMeta[a.status];
   const pub = a.publishDate ? new Date(a.publishDate).getTime() : 0;
   const now = Date.now();
