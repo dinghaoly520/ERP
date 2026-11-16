@@ -4,9 +4,12 @@ import * as path from 'path';
 import * as os from 'os';
 
 /** multer 默认把 multipart 文件名按 latin1 解析，中文变 mojibake；还原为 utf8 */
-export function sanitizeFileName(raw: string): string {
-  return Buffer.from(raw, 'latin1').toString('utf8');
-}
+/**
+ * ⚠️ 已删除（2026-11-13）：无条件 latin1→utf8 的 sanitizeFileName 对正确 UTF-8 输入
+ * （filename* 扩展参数/程序直写）会二次毁伤。multipart 文件名归一化统一改用
+ * common/filename-encoding.util.ts 的条件式安全版 normalizeMultipartFilename。
+ * （project-management/docx/file-utils.ts 有同名的另一份文件名清洗函数，职责不同，未动。）
+ */
 
 /** 需要转为 PDF 的 Office 文档 MIME 类型 */
 const OFFICE_MIMES = new Set([

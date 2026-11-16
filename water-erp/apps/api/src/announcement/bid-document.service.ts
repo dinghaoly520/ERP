@@ -5,7 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 import { encryptBuffer, decryptBuffer, streamToBuffer } from './bid-document.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
-import { convertOfficeToPdf, sanitizeFileName } from '../common/office-to-pdf.util';
+import { convertOfficeToPdf } from '../common/office-to-pdf.util';
+import { normalizeMultipartFilename } from '../common/filename-encoding.util';
 import * as crypto from 'crypto';
 
 export type AccessScope = 'OPEN' | 'INVITED';
@@ -42,8 +43,8 @@ export class BidDocumentService {
     if (existing) throw new BadRequestException({ error: '该公告已有采购文件，请先删除', code: 'DOC_EXISTS' });
     this.assertDownloadModeConfig(config);
 
-    // ① 文件名 latin1→utf8 + ② docx/doc 转 PDF（标书获取页可预览）
-    const originalName = sanitizeFileName(file.originalname);
+    // ① multipart 文件名 latin1 误读归一化（条件式安全版，2026-11-13）+ ② docx/doc 转 PDF（标书获取页可预览）
+    const originalName = normalizeMultipartFilename(file.originalname);
     let buffer = file.buffer;
     let mimeType = file.mimetype;
     let displayName = originalName;
@@ -138,9 +139,10 @@ export class BidDocumentService {
     }
 
     // ② 文件名/类型兜底 + docx/doc 转 PDF（与 upload 一致）
-    // 注意：本路径不经 multer（latin1 乱码只出现在 multipart 上传），input.fileName 来自公告
-    // metadata，已是正确 UTF-8——不能再过 sanitizeFileName，否则中文反被转乱码。
-    const originalName = input.fileName || sanitizeFileName(input.objectKey.split('/').pop() || '招标文件');
+    // 注意：本路径不经 multer（latin1 误读只出现在 multipart 上传），input.fileName 来自公告
+    // metadata，已是正确 UTF-8。objectKey 段是服务端合成的 ASCII key，过条件式
+    // normalizeMultipartFilename 对纯 ASCII 恒等、对意外混入的高位字节安全兜底（2026-11-13）。
+    const originalName = input.fileName || normalizeMultipartFilename(input.objectKey.split('/').pop() || '招标文件');
     let buffer = sourceBuffer;
     let mimeType = input.mimeType || 'application/octet-stream';
     let displayName = originalName;
