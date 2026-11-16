@@ -1258,31 +1258,16 @@ ${shortlist}
 
     type StageKey = typeof PROJECT_WORKFLOW_STAGES[number]['key'];
 
-    // For small purchases, the first stage depends on which document was uploaded:
-    // - Only demand → 采购需求
-    // - Only initiation → 项目立项
-    // - Both → 采购需求 + 项目立项
     const SMALL_PURCHASE_DEMAND_STAGE = { key: 'PROCUREMENT_DEMAND' as StageKey, label: '采购需求' };
     const SMALL_PURCHASE_INITIATION_STAGE = { key: 'INITIATION' as StageKey, label: '项目立项' };
     const CONTRACT_STAGE = { key: 'CONTRACT' as StageKey, label: '合同' };
 
     // Build stages list
-    let stagesToCreate: Array<{ readonly key: StageKey; readonly label: string }>;
-    if (isSmallPurchase) {
-      const firstStages: Array<{ readonly key: StageKey; readonly label: string }> = [];
-      if (hasDemand) firstStages.push(SMALL_PURCHASE_DEMAND_STAGE);
-      if (hasInitiation) firstStages.push(SMALL_PURCHASE_INITIATION_STAGE);
-      if (firstStages.length === 0) firstStages.push(SMALL_PURCHASE_DEMAND_STAGE);
-      stagesToCreate = [...firstStages, CONTRACT_STAGE];
-    } else {
-      // 按采购方式取完整阶段模板（与前端定义矩阵一致）
-      const template = METHOD_STAGE_TEMPLATES[dto.procurementMethod] ?? METHOD_STAGE_TEMPLATES['询比采购'];
-      stagesToCreate = template as Array<{ readonly key: StageKey; readonly label: string }>;
-      // Only initiation form → remove PROCUREMENT_DEMAND from stages
-      if (!hasDemand && hasInitiation) {
-        stagesToCreate = stagesToCreate.filter((s) => s.key !== 'PROCUREMENT_DEMAND');
-      }
-    }
+    // 采购需求/采购立项步骤恒在（2026-11-16 用户裁定）：未上传对应文件的步骤保留 NOT_STARTED，
+    // 建项后被 currentStage 越过即由读端「待补充」机制接管（补传补录）——不再按上传裁剪步骤
+    const stagesToCreate: Array<{ readonly key: StageKey; readonly label: string }> = isSmallPurchase
+      ? [SMALL_PURCHASE_DEMAND_STAGE, SMALL_PURCHASE_INITIATION_STAGE, CONTRACT_STAGE]
+      : (METHOD_STAGE_TEMPLATES[dto.procurementMethod] ?? METHOD_STAGE_TEMPLATES['询比采购']) as Array<{ readonly key: StageKey; readonly label: string }>;
 
     // Determine the first active stage based on which documents were uploaded
     let firstActiveStage: StageKey;
@@ -7109,7 +7094,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const archivedProjects = await this.prisma.projectManagementItem.findMany({
       where: {
         demandProject: { not: null },
-        status: { not: 'RECYCLED' }, // 回收站项目不入库（已删除的归属污染选项）
+        // 回收站/已终止项目不入库不计数（回收站=已删除归属污染选项；已终止=2026-11-16
+        // 用户裁定「计数不计入已终止的项目」——终止项目不再贡献使用次数）
+        status: { notIn: ['RECYCLED', 'TERMINATED'] },
         ...scopeWhere,
       },
       select: {

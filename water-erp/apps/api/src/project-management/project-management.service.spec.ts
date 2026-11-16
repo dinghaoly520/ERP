@@ -532,7 +532,7 @@ describe('ProjectManagementService', () => {
       currentStage: 'INITIATION',
       status: 'ACTIVE',
     });
-    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 7 });
+    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 8 });
     prisma.attachment.create.mockResolvedValue({ id: 'att-01' });
 
     await expect(
@@ -563,9 +563,10 @@ describe('ProjectManagementService', () => {
     });
 
     // 公开招标不在方式模板表（METHOD_STAGE_TEMPLATES）中 → 回落「询比采购」模板（与前端矩阵一致）；
-    // 仅立项表（hasDemand=false）→ 去掉 PROCUREMENT_DEMAND（8 − 1 = 7），
+    // 仅立项表 → 需求步骤保留 NOT_STARTED（2026-11-16：未传文件不再裁剪步骤，建项后显示「待补充」），
     // INITIATION is COMPLETED, TENDER_DOCUMENT is the first IN_PROGRESS stage.
     const expectedStages = [
+      { key: 'PROCUREMENT_DEMAND', label: '采购需求', status: 'NOT_STARTED' },
       { key: 'INITIATION', label: '采购立项', status: 'COMPLETED' },
       { key: 'TENDER_DOCUMENT', label: '采购文件', status: 'IN_PROGRESS' },
       { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示', status: 'NOT_STARTED' },
@@ -585,6 +586,44 @@ describe('ProjectManagementService', () => {
         status: stage.status,
       })),
     });
+  });
+
+  // 小额采购分支（API 直调可达，UI 五方式不含）：需求/立项步骤恒在不裁剪（2026-11-16）
+  it('小额采购建项：未传表的需求/立项步骤保留 NOT_STARTED（待补充），不再按上传裁剪', async () => {
+    const { service, prisma } = makeService();
+    prisma.department.upsert.mockResolvedValue({ id: 'dept-01', name: '采购中心' });
+    prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-small', title: '小额', status: 'ACTIVE' });
+    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 3 });
+
+    await service.createFromInitiation({
+      requesterName: '李四',
+      requesterDepartment: '采购中心',
+      procurementTitle: '小额办公采购',
+      procurementMethod: '小额采购',
+      procurementCategory: '货物',
+      procurementOrganizationForm: '自行招标',
+      budgetAmount: 5000,
+      isAnnualBudget: false,
+      hasProcurementDemand: false,
+      projectReason: '测试',
+      supplierRequirements: '无',
+      initiationAttachment: {
+        fileName: '采购立项申请表.pdf',
+        objectKey: 'uploads/initiation-small.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 12345,
+        uploadedById: 'user-01',
+      },
+    } as never);
+
+    const rows = prisma.projectManagementStage.createMany.mock.calls[0][0].data as Array<{
+      stageKey: string; status: string;
+    }>;
+    expect(rows.map((r) => `${r.stageKey}:${r.status}`)).toEqual([
+      'PROCUREMENT_DEMAND:NOT_STARTED', // 未传需求表 → 保留待补充
+      'INITIATION:COMPLETED',
+      'CONTRACT:IN_PROGRESS',
+    ]);
   });
 
   it('extracts demand fields from the Chen Yingying demand form without pulling approval-flow text into labeled fields', async () => {
@@ -2082,7 +2121,7 @@ describe('ProjectManagementService', () => {
       const res = await service.getProjectAttributions({ sub: 'staff-1', username: 's', role: 'staff' });
       const where = prisma.projectManagementItem.findMany.mock.calls[0][0].where;
       expect(where.companyId).toEqual({ in: ['co-test'] }); // 数据库层过滤，非全量算完再减
-      expect(where.status).toEqual({ not: 'RECYCLED' }); // 既有口径不回归
+      expect(where.status).toEqual({ notIn: ['RECYCLED', 'TERMINATED'] }); // 已终止不计数（2026-11-16）
       expect(res).toHaveLength(1);
       expect(res[0]).toMatchObject({ name: '引大济岷工程', contractNumber: 'HT-1', usageCount: 1 });
     });
