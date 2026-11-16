@@ -4290,12 +4290,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
         });
       }
 
-      // 下游联动②：已发布公告下架（PUBLISHED→ARCHIVED，publicList 只列 PUBLISHED → 公开门户即时不可见）
+      // 下游联动②：关联公告移入回收站（2026-11-16 用户裁定，替换旧「PUBLISHED→ARCHIVED 下架留痕」）——
+      // 终止项目的公告进回收站：公开端/供应商端即时不可见，管理端回收站可恢复/删除，历史留 HIDE 档。
+      // 语义与 AnnouncementService.applyRecycle(HIDDEN) 同构（HIDDEN + metadata.recycle 快照 + 历史 HIDE），
+      // 就地走 tx 保持与流标同一事务。范围含 DRAFT——2026-11-16 实录竞态：发布与终止并发时，
+      // 旧 `status:'PUBLISHED'` 过滤在公告尚为 DRAFT 的瞬间漏收，终止后公告照常发布公示（SWHI-JJ-2026111602）。
       if (linkedProjectCodes.length > 0) {
-        await tx.announcement.updateMany({
-          where: { relatedProjectCode: { in: linkedProjectCodes }, status: 'PUBLISHED' },
-          data: { status: 'ARCHIVED' },
+        const linkedAnnouncements = await tx.announcement.findMany({
+          where: { relatedProjectCode: { in: linkedProjectCodes }, status: { in: ['PUBLISHED', 'DRAFT'] } },
+          select: { id: true, status: true, title: true, type: true, metadata: true },
         });
+        for (const ann of linkedAnnouncements) {
+          const meta = { ...((ann.metadata as Record<string, any> | null) ?? {}) };
+          meta.recycle = { from: ann.status, action: 'HIDDEN', at: terminatedAt.toISOString(), by: terminatorLabel };
+          await tx.announcement.update({
+            where: { id: ann.id },
+            data: { status: 'HIDDEN', metadata: meta as any },
+          });
+          await tx.announcementHistory.create({
+            data: {
+              announcementId: ann.id, action: 'HIDE', title: ann.title, type: ann.type,
+              status: 'HIDDEN', changedFields: ['status'],
+              operatorId: userId ?? null, operatorName: terminatorLabel,
+            },
+          });
+        }
       }
 
       // 下游联动③：未完成工作安排自动取消（TODO/IN_PROGRESS/BLOCKED → CANCELLED）

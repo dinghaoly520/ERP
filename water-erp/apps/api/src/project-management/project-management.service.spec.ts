@@ -2663,5 +2663,61 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
       await expect((service as any).buildArchiveScoreDetail('pmi-1')).resolves.toBeNull();
     });
   });
-});
 
+
+  describe('项目终止·关联公告回收站联动（2026-11-16 用户裁定：终止→公告移入回收站）', () => {
+    it('终止时关联已发布公告移入回收站：HIDDEN + metadata.recycle 快照 + 历史 HIDE（按操作人姓名）', async () => {
+      const { service, prisma } = makeService();
+      // 终止链路独有模型 mock（harness 默认未挂）：Object.assign 本地补齐
+      Object.assign(prisma, {
+        project: { ...prisma.project, upsert: jest.fn().mockResolvedValue({ id: 'proj-1' }) },
+        announcement: { ...prisma.announcement, update: jest.fn().mockResolvedValue({}), updateMany: jest.fn() },
+        announcementHistory: { create: jest.fn().mockResolvedValue({}) },
+        workArrangement: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+        bidProject: { ...prisma.bidProject, update: jest.fn().mockResolvedValue({}) },
+        procurementRound: { ...prisma.procurementRound, findFirst: jest.fn().mockResolvedValue(null) },
+      });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01', title: '竞价采购测试', projectCode: 'JJ-TEST-01',
+        procurementMethod: '竞价采购', procurementCategory: '货物', projectReason: '测试',
+        budgetAmount: 100, requesterDepartment: '采购中心', companyId: 'co-1', companyName: '测试公司',
+        currentStage: 'BID_EVALUATION', status: 'ACTIVE', createdById: 'u-1',
+      });
+      prisma.projectManagementStage.findMany.mockResolvedValue([]);
+      prisma.bidProject.findMany.mockResolvedValue([
+        { id: 'bp-01', name: '竞价项目', stage: 'SUBMIT', projectCode: 'SWHI-JJ-X', procurementMethod: '竞价采购', assignedHostUserId: null },
+      ]);
+      prisma.department.findFirst.mockResolvedValue({ id: 'dept-1' });
+      prisma.procurementRound.create.mockResolvedValue({ id: 'round-1' });
+      prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: 'TERMINATED' });
+      prisma.user.findUnique.mockResolvedValue({ displayName: '采购中心领导 02', username: 'Swhi-CGZX-02' });
+      // 关联公告三态：PUBLISHED 收、DRAFT（发布中竞态）收、已在回收站的跳过。
+      // findMany 按 where.status.in 模拟 DB 过滤——真实验证实现的状态过滤语义
+      const ANN_FIXTURES = [
+        { id: 'ann-1', status: 'PUBLISHED', title: '竞价采购公告 X', type: 'BID_NOTICE', metadata: { foo: 1 } },
+        { id: 'ann-2', status: 'DRAFT', title: '发布中草稿', type: 'BID_NOTICE', metadata: null },
+        { id: 'ann-3', status: 'HIDDEN', title: '已在回收站', type: 'BID_NOTICE', metadata: {} },
+      ];
+      prisma.announcement.findMany.mockImplementation(async (args: any) =>
+        ANN_FIXTURES.filter(a => (args?.where?.status?.in ?? []).includes(a.status)));
+
+      const res = await service.terminateProject('pm-01', { reason: '需求取消' }, 'u-1', { sub: 'u-1', id: 'u-1', role: 'staff' } as any);
+
+      expect(res.status).toBe('TERMINATED');
+      // 收进回收站的 id 集合 = ann-1(PUBLISHED) + ann-2(DRAFT)；ann-3 已在回收站（HIDDEN）不再收
+      const hiddenIds = prisma.announcement.update.mock.calls.map((c: any[]) => c[0].where.id);
+      expect(new Set(hiddenIds)).toEqual(new Set(['ann-1', 'ann-2']));
+      const first = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].where.id === 'ann-1')![0];
+      expect(first.data.status).toBe('HIDDEN');
+      expect(first.data.metadata.recycle).toMatchObject({ from: 'PUBLISHED', action: 'HIDDEN', by: '采购中心领导 02' });
+      expect(first.data.metadata.foo).toBe(1); // 其余 metadata 键保留
+      expect(prisma.announcementHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          announcementId: 'ann-1', action: 'HIDE', status: 'HIDDEN', changedFields: ['status'],
+          operatorId: 'u-1', operatorName: '采购中心领导 02',
+        }),
+      });
+    });
+  });
+});
