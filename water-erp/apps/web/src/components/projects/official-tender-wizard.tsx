@@ -8,7 +8,7 @@
  *  确认完成 → 由父组件执行原 updateStage 完成链（服务端双闸兜底：OFFICIAL_TENDER_REQUIRED 不可豁免）。
  *  关闭/取消 = 阶段不动。
  */
-import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Loader2, ShieldCheck, UploadCloud, X } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, FileText, Loader2, ShieldCheck, UploadCloud, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { ProjectManagementAttachment, ProjectManagementItem, ProjectManagementStage } from '@/lib/types/project-management';
@@ -302,13 +302,13 @@ export function OfficialTenderWizard({
                   disabled={!selectedId || selecting || uploading}
                   className="neu-btn-primary !h-[38px] !text-xs gap-1.5"
                 >
-                  下一步：对照确认评分标准 <ArrowRight size={14} />
+                  下一步：对照确认评分标准 <ChevronRight size={14} />
                 </button>
               </>
             ) : (
               <>
                 <button type="button" onClick={() => setStep(1)} className="neu-btn-soft gap-1.5">
-                  <ArrowLeft size={14} /> 更换正式文件
+                  <ChevronLeft size={14} /> 更换正式文件
                 </button>
                 <button
                   type="button"
