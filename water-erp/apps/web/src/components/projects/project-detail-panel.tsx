@@ -23,6 +23,7 @@ import {
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
 import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
+import { ScoreSnapshotSection } from './bid-confirm/handover-preview';
 import { isPassFailCategory } from '@water-erp/shared';
 import { getProjectParticipants } from '@/lib/api/announcement';
 import { fmtAcquireTime, zhToDatetimeLocal, zhRangeToDatetimeLocal, datetimeLocalToZh } from '@/lib/utils/format-acquire-time';
@@ -484,6 +485,35 @@ export function ProjectDetailPanel({
   }, [bpRefs, bpDetails, bpScoreItems]);
 
   const [scorePanelRound, setScorePanelRound] = useState<number | null>(null);
+
+  // ── #147：评分明细卡（当前轮关联投标项目有评标结果时下发；数据/渲染对齐 #121 归档详情口径
+  //    —— ScoreSnapshotSection 数值+通过性双形态、Decimal 字符串归一 number）──
+  const scoreDetailPkg = useMemo(() => {
+    const ref = bpRefs.find((r) => r.round === selectedRound);
+    const detail = ref ? bpDetails[ref.id] : undefined;
+    const results = detail?.evaluationResults ?? [];
+    if (!ref || !detail || results.length === 0) return null;
+    const defs = (bpScoreItems[ref.id] ?? detail.scoreItems).map((i) => ({
+      id: i.id,
+      name: i.name,
+      category: i.category as string,
+      maxScore: Number(i.maxScore),
+      points: (i.points ?? []).map((p) => ({ id: p.id, name: p.name })),
+    }));
+    // 专家分记录扁平化（组件按 supplier×item 聚合各专家合计；expertId 来自外层专家行）
+    const records = (detail.experts ?? []).flatMap((e) =>
+      (e.scoreRecords ?? []).map((r) => ({ ...r, expertId: e.id })),
+    );
+    return {
+      evaluationSnapshot: { scoreItemDefinitions: defs, scoreRecords: records },
+      evaluationResults: results.map((r) => ({
+        ...r,
+        totalScore: Number(r.totalScore),
+        averageScore: Number(r.averageScore),
+        bidPrice: r.bidPrice == null ? null : Number(r.bidPrice),
+      })),
+    };
+  }, [bpRefs, bpDetails, bpScoreItems, selectedRound]);
   // 03 完成向导（2026-09-26 用户裁定：强制）——「标记本阶段完成」先走「选/传正式盖章版文件
   // → 对照确认评分标准」两步向导，确认后才落完成；关闭/取消=阶段不动（服务端双闸兜底）
   const [tenderWizardRound, setTenderWizardRound] = useState<number | null>(null);
@@ -1931,6 +1961,24 @@ export function ProjectDetailPanel({
               <p className="text-sm leading-6 text-[color:var(--muted-foreground)]">
                 {isPastRound ? '该步骤属已完成的历史轮次，仅供查看。' : stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
               </p>
+
+              {/* #147：评分明细卡（当前轮关联投标项目有评标结果才显示；复用 #121 归档详情同款
+                  ScoreSnapshotSection——数值+通过性双形态，随轮次切换跟换） */}
+              {scoreDetailPkg && (() => {
+                const ref = bpRefs.find((r) => r.round === selectedRound);
+                return (
+                  <div className="wb-note p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <ClipboardList size={15} className="text-[var(--accent)]" strokeWidth={1.75} />
+                      <h3 className="text-sm font-semibold text-[color:var(--foreground)]">评分明细</h3>
+                      <span className="text-[11px] text-[color:var(--muted-foreground)]">
+                        {ref ? `第 ${selectedRound} 轮 · ${scoreDetailPkg.evaluationResults.length} 家供应商` : `${scoreDetailPkg.evaluationResults.length} 家供应商`}
+                      </span>
+                    </div>
+                    <ScoreSnapshotSection pkg={scoreDetailPkg} />
+                  </div>
+                );
+              })()}
 
               {/* 上传/分析进度条 — sticky 固定，始终可见（2026-11-06：上传相位升级为
                   水波流光聚合条——总百分比=Σ字节，速度滑动窗，可取消；分析相位不变） */}
