@@ -47,44 +47,44 @@ describe('ExpertAdminService — updateProfileStatus 无档案专家自愈建档
     service = module.get<ExpertAdminService>(ExpertAdminService);
   });
 
-  it('退库：无档案行时补建最小档案并完成状态迁移（不再 404）', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'e1', displayName: '杨睿', role: 'bid_expert', companyId: 'co-1' });
+  it('状态迁移：无档案行时补建最小档案并完成迁移（不再 404）——2026-11-16 两态裁定后用 PENDING→ACTIVE 入库路径（直退已禁，须先停用）', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'e1', displayName: '杨睿', role: 'bid_expert', companyId: 'co-1', isActive: true });
     // 第 1 次＝状态机前置查询（null 触发自愈）；第 2 次＝事务后回显
     prisma.expertProfile.findUnique
       .mockResolvedValueOnce(null)
-      .mockResolvedValue({ userId: 'e1', entryStatus: 'RETIRED', statusNote: '测试退库', retiredAt: new Date('2026-11-05') });
+      .mockResolvedValue({ userId: 'e1', entryStatus: 'ACTIVE', statusNote: null, retiredAt: null });
     prisma.expertProfile.create.mockResolvedValue({ entryStatus: 'PENDING', retiredAt: null });
     prisma.expertProfile.updateMany.mockResolvedValue({ count: 1 });
-    prisma.user.update.mockResolvedValue({});
 
-    const res = await service.updateProfileStatus('e1', { status: 'RETIRED', reason: '测试退库' }, admin);
+    const res = await service.updateProfileStatus('e1', { status: 'ACTIVE' }, admin);
 
     // 自愈建档：占位专业 + 留痕备注
     expect(prisma.expertProfile.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ userId: 'e1', specialty: '未登记' }),
     }));
-    // 状态迁移照常：档案 RETIRED+停用，账号下线
+    // 状态迁移照常：档案 ACTIVE（PENDING→ACTIVE 审核入库）
     expect(prisma.expertProfile.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { userId: 'e1' },
-      data: expect.objectContaining({ entryStatus: 'RETIRED', availability: '停用' }),
+      data: expect.objectContaining({ entryStatus: 'ACTIVE' }),
     }));
-    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: { isActive: false } });
-    expect(res?.entryStatus).toBe('RETIRED');
+    expect(res?.entryStatus).toBe('ACTIVE');
   });
 
-  it('档案齐全时行为不变：不触发自愈建档', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'e2', displayName: '张某', role: 'bid_expert', companyId: 'co-1' });
+  it('档案齐全时行为不变：不触发自愈建档（SUSPENDED 已下线 2026-11-16，改用 RETIRED→ACTIVE 恢复）', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'e2', displayName: '张某', role: 'bid_expert', companyId: 'co-1', isActive: false });
     prisma.expertProfile.findUnique
-      .mockResolvedValueOnce({ entryStatus: 'ACTIVE', retiredAt: null })
-      .mockResolvedValue({ userId: 'e2', entryStatus: 'SUSPENDED', statusNote: '暂停事由' });
+      .mockResolvedValueOnce({ entryStatus: 'RETIRED', retiredAt: new Date('2026-10-01') })
+      .mockResolvedValue({ userId: 'e2', entryStatus: 'ACTIVE', statusNote: null });
     prisma.expertProfile.updateMany.mockResolvedValue({ count: 1 });
+    prisma.user.update.mockResolvedValue({});
 
-    const res = await service.updateProfileStatus('e2', { status: 'SUSPENDED', reason: '暂停事由' }, admin);
+    const res = await service.updateProfileStatus('e2', { status: 'ACTIVE', reason: '复核恢复入库' }, admin);
 
     expect(prisma.expertProfile.create).not.toHaveBeenCalled();
     expect(prisma.expertProfile.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ entryStatus: 'SUSPENDED' }),
+      data: expect.objectContaining({ entryStatus: 'ACTIVE' }),
     }));
-    expect(res?.entryStatus).toBe('SUSPENDED');
+    expect(prisma.user.update).toHaveBeenCalledWith({ where: { id: 'e2' }, data: { isActive: true } });
+    expect(res?.entryStatus).toBe('ACTIVE');
   });
 });

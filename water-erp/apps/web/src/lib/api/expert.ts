@@ -110,11 +110,12 @@ export interface NotifyResult {
 
 /* ── 专家库 / 录入 ── */
 
-export function listExperts(params?: { search?: string; specialty?: string; employer?: string; page?: number; pageSize?: number; companyId?: string }) {
+export function listExperts(params?: { search?: string; specialty?: string; employer?: string; page?: number; pageSize?: number; companyId?: string; statusTab?: string }) {
   const q = new URLSearchParams();
   if (params?.search) q.set('search', params.search);
   if (params?.specialty) q.set('specialty', params.specialty);
   if (params?.employer) q.set('employer', params.employer);
+  if (params?.statusTab) q.set('statusTab', params.statusTab);
   if (params?.page) q.set('page', String(params.page));
   if (params?.pageSize) q.set('pageSize', String(params.pageSize));
   if (params?.companyId && params.companyId !== 'all') q.set('companyId', params.companyId);
@@ -170,12 +171,13 @@ export function createExpert(data: {
   return api.post<unknown>('/expert-admin', data);
 }
 
-export function setExpertAvailability(id: string, available: boolean) {
-  return api.patch<{ success: boolean }>(`/expert-admin/${id}/availability`, { available });
+/** 停用/启用（2026-11-16 两态裁定：理由必填，留痕入操作历史） */
+export function setExpertAvailability(id: string, available: boolean, reason: string) {
+  return api.patch<{ success: boolean }>(`/expert-admin/${id}/availability`, { available, reason });
 }
 
-/** CTS A-218/222 专家库状态：待审核/在库/暂停/退库（退库/暂停须 reason） */
-export function updateExpertEntryStatus(id: string, body: { status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'RETIRED'; reason?: string }) {
+/** CTS A-218/222 专家库状态：待审核/在库/退库（2026-11-16 暂停下线；退库/恢复须 reason） */
+export function updateExpertEntryStatus(id: string, body: { status: 'PENDING' | 'ACTIVE' | 'RETIRED'; reason?: string }) {
   return api.patch(`/expert-admin/${id}/status`, body);
 }
 

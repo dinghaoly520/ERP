@@ -16,7 +16,7 @@ import { useSort, SortableTh } from '@/lib/hooks/use-sort';
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, UserX, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
 import { SpecialtyBadge } from '@/components/expert/specialty-badge';
 import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
@@ -40,6 +40,13 @@ export default function ExpertRepositoryPage() {
   const [errored, setErrored] = useState(false);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState(''); // 防抖后的搜索词，驱动实际请求
+  // 2026-11-16 两态裁定：状态 tab 切换（供应商库同款；?status= 深链，默认在库）
+  const [statusTab, setStatusTab] = useState<'PENDING' | 'ACTIVE' | 'DISABLED' | 'RETIRED'>(
+    (() => {
+      const v = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('status') : null;
+      return v === 'PENDING' || v === 'DISABLED' || v === 'RETIRED' ? v : 'ACTIVE';
+    })()
+  );
   const [specialty, setSpecialty] = useState('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
@@ -53,7 +60,6 @@ export default function ExpertRepositoryPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advTitle, setAdvTitle] = useState('');
   const [advEmployer, setAdvEmployer] = useState('');
-  const [advAvailability, setAdvAvailability] = useState('');
   // 启用/停用二次确认
   const [confirmToggle, setConfirmToggle] = useState<ExpertListItem | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -83,9 +89,8 @@ export default function ExpertRepositoryPage() {
 
   // 搜索竞态守卫：递增 requestId，过期响应直接丢弃，避免旧结果覆盖新结果
   const loadReqIdRef = useRef(0);
-  // CTS A-218/222 入库状态操作（暂停/退库须事由；权限由后端 admin/leader 把关）
-  // 2026-09-28 审计 E2：暂停/退库改 Modal（原生 prompt 与全站范式割裂）；退库标注不可逆
-  const [entryEdit, setEntryEdit] = useState<{ expert: ExpertListItem; target: 'SUSPENDED' | 'RETIRED' } | null>(null);
+  // CTS A-218/222 入库状态操作（2026-11-16 两态裁定：暂停下线；退库/恢复入库/审核入库一律事由弹窗）
+  const [entryEdit, setEntryEdit] = useState<{ expert: ExpertListItem; target: 'ACTIVE' | 'RETIRED' } | null>(null);
   const [entryReason, setEntryReason] = useState('');
   const [entryBusy, setEntryBusy] = useState(false);
   const submitEntryStatus = async () => {
@@ -93,22 +98,13 @@ export default function ExpertRepositoryPage() {
     setEntryBusy(true);
     try {
       await updateExpertEntryStatus(entryEdit.expert.id, { status: entryEdit.target, reason: entryReason.trim() });
-      toast.success(entryEdit.target === 'SUSPENDED' ? '已暂停（事由已留痕）' : '已退库（事由已留痕）');
+      toast.success(entryEdit.target === 'RETIRED' ? '已退库（事由已留痕）' : '已恢复入库（事由已留痕）');
       setEntryEdit(null); setEntryReason('');
       load(); void refreshExpStats();
     } catch (err: any) { toast.error(err?.message || '操作失败'); }
     setEntryBusy(false);
   };
-  const handleEntryStatus = async (e: ExpertListItem, target: 'ACTIVE' | 'SUSPENDED' | 'RETIRED') => {
-    if (target === 'ACTIVE') {
-      // 恢复无需事由，保持直连
-      try {
-        await updateExpertEntryStatus(e.id, { status: target });
-        toast.success('入库状态已更新');
-        load(); void refreshExpStats();
-      } catch (err: any) { toast.error(err?.message || '操作失败'); }
-      return;
-    }
+  const handleEntryStatus = (e: ExpertListItem, target: 'ACTIVE' | 'RETIRED') => {
     setEntryReason('');
     setEntryEdit({ expert: e, target });
   };
@@ -164,7 +160,7 @@ export default function ExpertRepositoryPage() {
     const rid = ++loadReqIdRef.current;
     setLoading(true); setErrored(false);
     try {
-      const res = await listExperts({ search: query || undefined, specialty: specialty || undefined, page, pageSize: PAGE_SIZE, companyId });
+      const res = await listExperts({ search: query || undefined, specialty: specialty || undefined, page, pageSize: PAGE_SIZE, companyId, statusTab });
       if (rid !== loadReqIdRef.current) return;
       // 兼容新旧 API 返回格式：新版返回 { total, items }，旧版返回数组
       if (Array.isArray(res)) {
@@ -179,8 +175,10 @@ export default function ExpertRepositoryPage() {
       setErrored(true); toast.error(err?.message || '加载专家列表失败');
     }
     setLoading(false);
-  }, [query, specialty, page, companyId]);
+  }, [query, specialty, page, companyId, statusTab]);
   useEffect(() => { load(); }, [load]);
+  // 切 tab 回第一页（不同 tab 分页互不复用）
+  useEffect(() => { setPage(1); }, [statusTab]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   useEffect(() => { void fetchCurrentUser().then(u => { setIsAdmin(u.role === 'admin'); setCanManageStatus(u.role === 'admin' || u.role === 'leader'); }).catch(() => {}); }, []);
   useEffect(() => { listSpecialties(companyId).then(setSpecialties).catch(() => {}); }, [companyId]);
@@ -192,12 +190,14 @@ export default function ExpertRepositoryPage() {
       .catch(() => setCompanyCounts(null));
   }, [isAdmin, companyId, query, specialty]);
 
+  // 停用/启用理由（2026-11-16 两态裁定：一律必填，留痕入操作历史）
+  const [toggleReason, setToggleReason] = useState('');
   const doToggle = async () => {
-    if (!confirmToggle) return;
+    if (!confirmToggle || !toggleReason.trim()) { toast.error('请填写理由'); return; }
     const target = confirmToggle;
     setToggling(true);
     try {
-      await setExpertAvailability(target.id, !target.isActive);
+      await setExpertAvailability(target.id, !target.isActive, toggleReason.trim());
       toast.success(target.isActive ? '已停用' : '已启用');
       setConfirmToggle(null);
       load(); void refreshExpStats();
@@ -234,9 +234,8 @@ export default function ExpertRepositoryPage() {
     let list = sorted(experts);
     if (advTitle) list = list.filter(e => (e.expertProfile?.title || '').includes(advTitle));
     if (advEmployer) list = list.filter(e => (e.expertProfile?.employer || '').includes(advEmployer));
-    if (advAvailability) list = list.filter(e => e.expertProfile?.availability === advAvailability);
     return list;
-  }, [experts, advTitle, advEmployer, advAvailability, sortKey, sortDir, sorted]);
+  }, [experts, advTitle, advEmployer, sortKey, sortDir, sorted]);
 
   // 分页：total 来自服务端；高级筛选无匹配时可能少于 pageSize
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -368,43 +367,61 @@ export default function ExpertRepositoryPage() {
                       )}
                     </td>
                     {(() => {
-                      // 单列状态：入库状态为主语义（待审核/在库/暂停/退库，CTS A-218/222）；
-                      // 仅在库时副示可用性——异常态下可用性无意义，消除「已退库+可用」矛盾并排与双「已停用」重复
+                      // 2026-11-16 裁定：在库专家状态=空闲/已被抽取/正在评标三态，严格按项目
+                      // 阶段派生（EVALUATING=正在评标；DOWNLOAD/SUBMIT/OPENING 在途=已被抽取；
+                      // 无在途分配=空闲；ARCHIVED/ABORTED 不计入）。处置态（待审核/已停用/
+                      // 已退库）由 tab 分区呈现，暂停为历史遗留只读兼容。
                       const es = (e.expertProfile?.entryStatus ?? 'ACTIVE');
                       const note = e.expertProfile?.statusNote ?? undefined;
                       if (es === 'PENDING') return <td className="text-center" title={note}><StatusBadge tone="orange">待审核</StatusBadge></td>;
-                      if (es === 'SUSPENDED') return <td className="text-center" title={note}><StatusBadge tone="gray">暂停</StatusBadge></td>;
+                      if (es === 'SUSPENDED') return <td className="text-center" title={note}><StatusBadge tone="gray">暂停（遗留）</StatusBadge></td>;
                       if (es === 'RETIRED') return <td className="text-center" title={note}><StatusBadge tone="red">已退库</StatusBadge></td>;
-                      const avail = !e.isActive || e.expertProfile?.availability === '停用'
-                        ? { tone: 'gray' as const, label: '已停用' }
-                        : e.expertProfile?.availability === '占用'
-                          ? { tone: 'orange' as const, label: '评审中' }
-                          : { tone: 'green' as const, label: '可用' };
-                      return (
-                        <td className="text-center" title={`入库状态：在库 · 可用性：${avail.label}${note ? ` · ${note}` : ''}`}>
-                          <div className="flex items-center justify-center gap-1.5">
-                            <StatusBadge tone={avail.tone}>{avail.label}</StatusBadge>
-                            <span className="text-[11px] text-[var(--muted-foreground)]">在库</span>
-                          </div>
-                        </td>
-                      );
+                      if (!e.isActive || e.expertProfile?.availability === '停用') {
+                        return <td className="text-center" title={note}><StatusBadge tone="gray">已停用</StatusBadge></td>;
+                      }
+                      const inFlight = e.bidExperts.filter(b => ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'].includes(b.project?.stage ?? ''));
+                      if (inFlight.some(b => b.project?.stage === 'EVALUATING')) {
+                        return <td className="text-center" title="该专家有处于评标阶段的在途项目"><StatusBadge tone="orange">正在评标</StatusBadge></td>;
+                      }
+                      if (inFlight.length > 0) {
+                        return <td className="text-center" title={`已被抽取（在途项目 ${inFlight.length} 个，未进入评标）`}><StatusBadge tone="blue">已被抽取</StatusBadge></td>;
+                      }
+                      return <td className="text-center" title="无在途评标分配"><StatusBadge tone="green">空闲</StatusBadge></td>;
                     })()}
                     <td onClick={e => e.stopPropagation()} className="text-center">
+                      {/* 2026-11-16 两态裁定（供应商库同构）：在库=履职评价+停用；已停用=启用+退库；
+                          已退库=恢复入库；退库/恢复入库/审核入库走事由弹窗（admin/leader 权限收敛防 403 面） */}
                       <div className="flex flex-nowrap justify-center gap-1 whitespace-nowrap">
-                        <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
-                        <button onClick={() => setConfirmToggle(e)} className={e.isActive ? 'neu-btn-xs is-warning' : 'neu-btn-xs is-success'}>{e.isActive ? '停用' : '启用'}</button>
-                        {/* CTS A-218/222 入库状态操作（领导/管理员；按钮按权限收敛防 staff 403 面） */}
-                        {canManageStatus && (() => {
+                        {(() => {
                           const es = (e.expertProfile?.entryStatus ?? 'ACTIVE');
-                          if (es === 'PENDING') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">审核入库</button>;
-                          if (es === 'SUSPENDED') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">恢复</button>;
-                          if (es === 'RETIRED') return <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">恢复入库</button>;
-                          return (
-                            <>
-                              <button onClick={() => void handleEntryStatus(e, 'SUSPENDED')} className="neu-btn-xs is-warning">暂停</button>
-                              <button onClick={() => void handleEntryStatus(e, 'RETIRED')} className="neu-btn-xs is-danger">退库</button>
-                            </>
-                          );
+                          const stopped = es === 'ACTIVE' && (!e.isActive || e.expertProfile?.availability === '停用');
+                          if (es === 'PENDING') {
+                            return <>
+                              <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
+                              {canManageStatus && <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">审核入库</button>}
+                            </>;
+                          }
+                          if (es === 'RETIRED') {
+                            return canManageStatus
+                              ? <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">恢复入库</button>
+                              : null;
+                          }
+                          if (es === 'SUSPENDED') {
+                            // 暂停已下线：遗留行只提供恢复（转在库后再按新链处置）
+                            return canManageStatus
+                              ? <button onClick={() => void handleEntryStatus(e, 'ACTIVE')} className="neu-btn-xs is-success">恢复</button>
+                              : null;
+                          }
+                          if (stopped) {
+                            return <>
+                              <button onClick={() => { setToggleReason(''); setConfirmToggle(e); }} className="neu-btn-xs is-success">启用</button>
+                              {canManageStatus && <button onClick={() => void handleEntryStatus(e, 'RETIRED')} className="neu-btn-xs is-danger">退库</button>}
+                            </>;
+                          }
+                          return <>
+                            <button onClick={() => setEvalTarget(e)} className="neu-btn-xs is-info">履职评价</button>
+                            <button onClick={() => { setToggleReason(''); setConfirmToggle(e); }} className="neu-btn-xs is-warning">停用</button>
+                          </>;
                         })()}
                       </div>
                     </td>
@@ -418,8 +435,11 @@ export default function ExpertRepositoryPage() {
   );
 
   // Hero KPI：总数来自服务端，其余指标基于当前页近似
-  const available = experts.filter(e => e.isActive && e.expertProfile?.availability === '可用').length;
-  const occupied = experts.filter(e => e.isActive && e.expertProfile?.availability === '占用').length;
+  // 三态派生（与状态列同口径）：空闲 / 已被抽取 / 正在评标
+  const inFlightOf = (e: ExpertListItem) => e.bidExperts.filter(b => ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'].includes(b.project?.stage ?? ''));
+  const idle = experts.filter(e => e.isActive && (e.expertProfile?.entryStatus ?? 'ACTIVE') === 'ACTIVE' && e.expertProfile?.availability !== '停用' && inFlightOf(e).length === 0).length;
+  const assigned = experts.filter(e => inFlightOf(e).length > 0 && !inFlightOf(e).some(b => b.project?.stage === 'EVALUATING')).length;
+  const occupied = experts.filter(e => inFlightOf(e).some(b => b.project?.stage === 'EVALUATING')).length;
   const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
   // totalEvals 已删（2026-11-06 随累计评价胶囊移除；当前页推导值本就随翻页漂移）
   // 服务端全量 KPI（与 /expert/statistics 同口径，公司隔离同参数）
@@ -451,7 +471,7 @@ export default function ExpertRepositoryPage() {
             <div className="page-hero__icon"><UsersRound size={17} /></div>
             <div>
               <div className="page-hero__title">专家管理</div>
-              <div className="page-hero__sub">维护评审专家名录与专业分类，可暂停或恢复专家资格</div>
+              <div className="page-hero__sub">维护评审专家名录与专业分类——停用、退库与恢复管理（处置链：在库 → 停用 → 退库）</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -459,8 +479,9 @@ export default function ExpertRepositoryPage() {
             <div className="mr-2 hidden items-center lg:flex">
               {([
                 { value: String(expStats?.totalExperts ?? total), unit: '名', label: '全库口径', color: 'var(--accent)' },
-                { value: String(expStats?.available ?? available), unit: '名', label: '可用', color: 'var(--success)' },
-                { value: String(expStats?.occupied ?? occupied), unit: '名', label: '占用中', color: 'var(--warning)' },
+                { value: String(idle), unit: '名', label: '空闲', color: 'var(--success)' },
+                { value: String(assigned), unit: '名', label: '已被抽取', color: 'var(--accent)' },
+                { value: String(occupied), unit: '名', label: '正在评标', color: 'var(--warning)' },
                 { value: String(expStats?.disabled ?? disabled), unit: '名', label: '已停用', color: 'var(--muted-foreground)' },
               ] as const).map((s, i) => (
                 <div key={s.label} className="flex items-center">
@@ -488,7 +509,6 @@ export default function ExpertRepositoryPage() {
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="experts" />
             <Link href="/expert/ranking" className="neu-btn-soft"><Trophy size={15} />排名</Link>
             <Link href="/expert/statistics" className="neu-btn-soft"><TrendingUp size={15} />统计</Link>
-            {canManageStatus && <Link href="/expert/retirement" className="neu-btn-soft"><UserX size={15} />退库</Link>}
             <button onClick={() => setShowHistory(true)} className="neu-btn-soft"><History size={15} />操作历史</button>
           </div>
         </div>
@@ -507,8 +527,10 @@ export default function ExpertRepositoryPage() {
         {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}
         <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           <button onClick={() => setShowAdvanced(v => !v)} className={`neu-btn-xs ${showAdvanced ? 'is-active' : ''}`}>高级筛选</button>
+          {/* 批量启停仅限在库/已停用分区（2026-11-16：已退库/待审核行批量启用会铸出
+              entryStatus=RETIRED + 账号启用的脏态；处置走单行按钮） */}
           {!batchMode ? (
-            <button onClick={() => setBatchMode(true)} className="neu-btn-xs">批量操作</button>
+            (statusTab === 'ACTIVE' || statusTab === 'DISABLED') && <button onClick={() => setBatchMode(true)} className="neu-btn-xs">批量操作</button>
           ) : (
             <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
           )}
@@ -522,13 +544,24 @@ export default function ExpertRepositoryPage() {
         </div>
       </div>
 
+      {/* 状态 tab（2026-11-16 两态裁定，供应商库同款切换） */}
+      <div className="neu-tab-bar">
+        {([
+          { key: 'ACTIVE', label: '在库' },
+          { key: 'DISABLED', label: '已停用' },
+          { key: 'RETIRED', label: '已退库' },
+          { key: 'PENDING', label: '待审核' },
+        ] as const).map(t => (
+          <button key={t.key} onClick={() => setStatusTab(t.key)} className={`neu-tab ${statusTab === t.key ? 'is-active' : ''}`}>{t.label}</button>
+        ))}
+      </div>
+
       {/* 高级筛选 */}
       {showAdvanced && (
         <div className="neu-table-card p-4 flex flex-wrap items-end gap-3">
           <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">职称</span><select value={advTitle} onChange={e => setAdvTitle(e.target.value)} className="workbench-input !w-[150px]"><option value="">全部职称</option>{EXPERT_TITLES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
           <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">工作单位</span><input value={advEmployer} onChange={e => setAdvEmployer(e.target.value)} placeholder="单位名称" className="workbench-input !w-[180px]" /></label>
-          <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">状态</span><select value={advAvailability} onChange={e => setAdvAvailability(e.target.value)} className="workbench-input !w-[110px]"><option value="">全部</option><option value="可用">可用</option><option value="占用">占用</option><option value="停用">停用</option></select></label>
-          <button onClick={() => { setAdvTitle(''); setAdvEmployer(''); setAdvAvailability(''); }} className="neu-btn-xs">清除筛选</button>
+          <button onClick={() => { setAdvTitle(''); setAdvEmployer(''); }} className="neu-btn-xs">清除筛选</button>
         </div>
       )}
 
@@ -603,7 +636,7 @@ export default function ExpertRepositoryPage() {
           footer={
             <>
               <button type="button" onClick={() => setConfirmToggle(null)} disabled={toggling} className="neu-btn-soft !h-9 !text-xs">取消</button>
-              <button type="button" onClick={doToggle} disabled={toggling} className={`neu-btn-soft !h-9 !text-xs${confirmToggle.isActive ? ' is-danger' : ' is-success'}`}>{toggling ? '处理中…' : '确认'}</button>
+              <button type="button" onClick={doToggle} disabled={toggling || !toggleReason.trim()} className={`neu-btn-soft !h-9 !text-xs${confirmToggle.isActive ? ' is-danger' : ' is-success'}`}>{toggling ? '处理中…' : '确认'}</button>
             </>
           }
         >
@@ -611,10 +644,11 @@ export default function ExpertRepositoryPage() {
             <AlertTriangle size={13} strokeWidth={1.9} className={`mt-0.5 shrink-0 ${confirmToggle.isActive ? 'text-[var(--warning)]' : 'text-[var(--accent)]'}`} />
             <span className="text-xs leading-5 text-[color:var(--muted-foreground)]">
               {confirmToggle.isActive
-                ? <>停用后该专家将<strong className="text-[color:var(--foreground)]">无法参与新的评审抽取</strong>。</>
-                : <>启用后该专家可<strong className="text-[color:var(--foreground)]">重新参与评审抽取</strong>，并清除退库标记。</>}
+                ? <>停用后该专家将<strong className="text-[color:var(--foreground)]">无法参与新的评审抽取</strong>；如需退库，请先停用、再在「已停用」列表操作。</>
+                : <>启用后该专家可<strong className="text-[color:var(--foreground)]">重新参与评审抽取</strong>。</>}
             </span>
           </div>
+          <textarea value={toggleReason} onChange={e => setToggleReason(e.target.value)} placeholder="请填写理由（记入操作历史）…" className="neu-input mt-2 w-full h-20 resize-none text-sm" />
         </Modal>
       )}
 
@@ -669,23 +703,25 @@ export default function ExpertRepositoryPage() {
         <Modal
           open
           onClose={() => setEntryEdit(null)}
-          title={entryEdit.target === 'SUSPENDED' ? '暂停专家' : '退库专家'}
+          title={entryEdit.target === 'RETIRED' ? '退库专家' : '恢复入库'}
           description={<>专家：<strong className="text-[var(--foreground)]">{entryEdit.expert.displayName}</strong>（{entryEdit.expert.expertProfile?.specialty ?? '—'}）</>}
           footer={
             <>
               <button onClick={() => setEntryEdit(null)} className="neu-btn-soft">取消</button>
-              <button onClick={() => void submitEntryStatus()} disabled={entryBusy || !entryReason.trim()} className={`neu-btn-soft ${entryEdit.target === 'RETIRED' ? 'is-danger' : 'is-warning'}`}>
-                {entryBusy ? '处理中...' : entryEdit.target === 'SUSPENDED' ? '确认暂停' : '确认退库'}
+              <button onClick={() => void submitEntryStatus()} disabled={entryBusy || !entryReason.trim()} className={`neu-btn-soft ${entryEdit.target === 'RETIRED' ? 'is-danger' : 'is-success'}`}>
+                {entryBusy ? '处理中...' : entryEdit.target === 'RETIRED' ? '确认退库' : '确认恢复'}
               </button>
             </>
           }
         >
           <div className="flex flex-col gap-2">
             <p className="text-xs text-[var(--muted-foreground)]">
-              {entryEdit.target === 'SUSPENDED' ? '暂停期间专家不参与抽取；恢复后自动回到可用池。' : '退库为不可逆操作（需重新审核入库），事由将记入操作历史。'}
+              {entryEdit.target === 'RETIRED'
+                ? '退库仅接受已停用专家；退库后账号停用、不参与抽取，恢复需重新审核入库。事由将记入操作历史。'
+                : '恢复后专家回到在库状态；若从已退库恢复，账号将一并重新激活。事由将记入操作历史。'}
             </p>
             <textarea value={entryReason} onChange={(e) => setEntryReason(e.target.value)}
-              placeholder={entryEdit.target === 'SUSPENDED' ? '请填写暂停事由…' : '请填写退库事由…'}
+              placeholder={entryEdit.target === 'RETIRED' ? '请填写退库事由…' : '请填写恢复事由…'}
               className="neu-input w-full h-24 resize-none text-sm" />
           </div>
         </Modal>

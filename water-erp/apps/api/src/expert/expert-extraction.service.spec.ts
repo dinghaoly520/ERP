@@ -462,4 +462,57 @@ describe('ExpertExtractionService', () => {
       ]);
     });
   });
+
+describe('同日冲突硬排除（2026-11-16 用户裁定：同日已有评标项目即不可抽，推翻 2026-09-20「同日双标合法」信息级预告口径）', () => {
+  const setup = (u1BidExperts: any[]) => {
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', name: '本项目', procurementMethod: '公开招标',
+      openTime: new Date('2026-11-20T09:00:00'),
+      scope: '水利枢纽施工', qualification: '', qualityRequirement: '', riskNote: '', budget: null,
+      suppliers: [],
+    });
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u1', displayName: '甲', isActive: true, expertProfile: { specialty: '施工', availability: '可用', entryStatus: 'ACTIVE', title: '高级工程师', employer: 'A司' }, bidExperts: u1BidExperts, _count: { bidExperts: 3 } },
+      { id: 'u2', displayName: '乙', isActive: true, expertProfile: { specialty: '施工', availability: '可用', entryStatus: 'ACTIVE', title: '工程师', employer: 'B司' }, bidExperts: [], _count: { bidExperts: 0 } },
+    ]);
+    prisma.expertEvaluation.groupBy = jest.fn().mockResolvedValue([]);
+    prisma.expertEvaluation.findMany.mockResolvedValue([]);
+    prisma.bidExpert.findMany.mockResolvedValue([]);
+    prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+    extractionAi.analyzeAndScore.mockResolvedValue({ analysis: 'ok', requiredSpecialties: [], scoredExperts: [] });
+  };
+
+  it('preview：候选已有与本项目同日开标的在途项目 → 不入候选池（同日不同时段也排除）', async () => {
+    setup([{ project: { openTime: new Date('2026-11-20T15:00:00'), projectCode: 'X-1' } }]);
+    const res = await service.previewExtraction('p1', { projectId: 'p1', totalNeeded: 2, alternatives: 0, extractMode: 'merit_best' });
+    expect(res.candidatePool.map((c: any) => c.userId)).toEqual(['u2']);
+  });
+
+  it('preview：不同日在途项目不影响入池', async () => {
+    setup([{ project: { openTime: new Date('2026-11-21T09:00:00'), projectCode: 'X-2' } }]);
+    const res = await service.previewExtraction('p1', { projectId: 'p1', totalNeeded: 2, alternatives: 0, extractMode: 'merit_best' });
+    expect(res.candidatePool.map((c: any) => c.userId)).toContain('u1');
+  });
+
+  it('confirm：专家已有同日其他项目 → 400 EXPERT_SAME_DAY_CONFLICT（竞态兜底，preview 后被抢占也拦得住）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({
+      id: 'p1', name: '本项目', stage: 'SUBMIT',
+      openTime: new Date('2026-11-20T09:00:00'),
+      suppliers: [],
+    });
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '可用', entryStatus: 'ACTIVE' }, bidExperts: [] },
+    ]);
+    // 资格复核通过后、同日冲突查得他项目 → 拒绝且不写 BidExpert
+    prisma.bidExpert.findMany.mockResolvedValue([
+      { project: { openTime: new Date('2026-11-20T14:00:00'), name: '他项目' } },
+    ]);
+    await expect(service.confirmExtraction('p1', {
+      projectId: 'p1',
+      experts: [{ userId: 'u1', expertName: '甲', major: '施工', isLead: true }], candidates: [],
+    } as any, 'op1')).rejects.toMatchObject({ response: { code: 'EXPERT_SAME_DAY_CONFLICT' } });
+    expect(prisma.bidExpert.upsert).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+});
 });

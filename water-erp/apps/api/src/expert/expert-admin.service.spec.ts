@@ -254,43 +254,30 @@ describe('ExpertAdminService', () => {
       expect(res.loadDistribution['空闲']).toBe(4);
     });
 
-    it('reviewRetirementCandidates：待审核(PENDING)专家不入退库候选扫描', async () => {
+  });
+
+  describe('listExperts statusTab（2026-11-16 tab 切换）', () => {
+    it('DISABLED：entryStatus=ACTIVE + AND[账号停用 ∨ 可用性停用]——顶层 OR 键让位搜索', async () => {
       prisma.user.findMany.mockResolvedValue([]);
-      await service.reviewRetirementCandidates(ACTOR);
+      await service.listExperts(undefined, undefined, undefined, 1, 20, undefined, undefined, 'DISABLED');
       const where = prisma.user.findMany.mock.calls[0][0].where;
-      expect(where.expertProfile.entryStatus).toEqual({ in: ['ACTIVE', 'SUSPENDED'] });
+      expect(where.expertProfile).toEqual({ entryStatus: 'ACTIVE' });
+      expect(where.AND).toEqual([{ OR: [{ isActive: false }, { expertProfile: { availability: '停用' } }] }]);
     });
-
-    it('reviewRetirementCandidates：批报按候选归属公司分组发送+取代钩子限定本轮收件人（2026-11-12 举一反三：平台广播跨公司泄漏、全库清吞他司待办）', async () => {
-      // 两公司各一名「近 12 个月无分配」候选
-      prisma.user.findMany.mockResolvedValue([
-        { id: 'e-sjy', displayName: '周雄', companyId: 'co-sjy', expertProfile: { specialty: '水工' } },
-        { id: 'e-js', displayName: '李四', companyId: 'co-js', expertProfile: { specialty: '法律' } },
-      ]);
-      notification.sendToCompanyRoles.mockReset()
-        .mockResolvedValueOnce({ sent: 2, fallbackAdmin: false, userIds: ['u-sjy-1', 'u-sjy-2'] })
-        .mockResolvedValueOnce({ sent: 1, fallbackAdmin: false, userIds: ['u-js-1'] });
-      notification.sendToRole.mockClear();
-
-      await service.reviewRetirementCandidates(ACTOR);
-
-      // ① 两归属公司各发一批，content 只含本公司候选名——他司名单不外泄；不再平台广播
-      const calls = notification.sendToCompanyRoles.mock.calls;
-      expect(calls.map(c => c[0]).sort()).toEqual(['co-js', 'co-sjy']);
-      const sjyCall = calls.find(c => c[0] === 'co-sjy')!;
-      expect(sjyCall[1]).toEqual(['leader', 'staff']);
-      expect(sjyCall[2].content).toContain('周雄');
-      expect(sjyCall[2].content).not.toContain('李四');
-      expect(notification.sendToRole).not.toHaveBeenCalled();
-      // ② 取代旧批：限定本轮实际收件人 + createdAt 圈旧批——不开全库清（他司待办不吞）
-      expect(prisma.notification.updateMany).toHaveBeenCalledWith({
-        where: {
-          type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null,
-          createdAt: { lt: expect.any(Date) },
-          userId: { in: ['u-sjy-1', 'u-sjy-2', 'u-js-1'] },
-        },
-        data: { resolvedAt: expect.any(Date) },
-      });
+    it('ACTIVE：在库=entryStatus ACTIVE + 账号启用 + 可用性非停用', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.listExperts(undefined, undefined, undefined, 1, 20, undefined, undefined, 'ACTIVE');
+      const where = prisma.user.findMany.mock.calls[0][0].where;
+      expect(where.isActive).toBe(true);
+      expect(where.expertProfile).toEqual({ entryStatus: 'ACTIVE', availability: { not: '停用' } });
+    });
+    it('未传 statusTab 不过滤（兼容既有消费方）', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.listExperts();
+      const where = prisma.user.findMany.mock.calls[0][0].where;
+      expect(where).not.toHaveProperty('expertProfile');
+      expect(where).not.toHaveProperty('isActive');
+      expect(where).not.toHaveProperty('AND');
     });
   });
 
@@ -431,8 +418,9 @@ describe('ExpertAdminService', () => {
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
     it('专家角色正常启停（停用须真写 isActive=false 与 availability）', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert' });
-      await expect(service.setAvailability('u1', false)).resolves.toEqual({ success: true });
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', role: 'bid_expert', displayName: '王专家' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ entryStatus: 'ACTIVE', retiredAt: null });
+      await expect(service.setAvailability('u1', false, 'u-op', undefined, '长期健康原因')).resolves.toEqual({ success: true });
       expect(prisma.$transaction).toHaveBeenCalled();
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'u1' }, data: { isActive: false } }),
@@ -440,14 +428,71 @@ describe('ExpertAdminService', () => {
       expect(prisma.expertProfile.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { userId: 'u1' }, data: { availability: '停用' } }),
       );
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: 'EXPERT_DISABLE', details: expect.objectContaining({ reason: '长期健康原因' }) }),
+      }));
     });
   });
 
-  describe('confirmRetire / updateProfile（越权防护回归）', () => {
-    it('confirmRetire 拒绝非专家', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u9', role: 'leader' });
-      await expect(service.confirmRetire('u9', '测试')).rejects.toThrow(NotFoundException);
+  describe('两态裁定（2026-11-16：在库→停用→退库单向链，暂停下线）', () => {
+    const leader = { sub: 'u-op', role: 'leader' } as never;
+
+    it('updateProfileStatus：SUSPENDED 目标已下线——400 INVALID_STATUS', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'e1', role: 'bid_expert', isActive: true, displayName: '王专家' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ entryStatus: 'ACTIVE', retiredAt: null });
+      await expect(service.updateProfileStatus('e1', { status: 'SUSPENDED' } as any, leader))
+        .rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+      expect(prisma.expertProfile.updateMany).not.toHaveBeenCalled();
     });
+
+    it('updateProfileStatus：在库直退 400——须先停用', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'e1', role: 'bid_expert', isActive: true, displayName: '王专家' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ entryStatus: 'ACTIVE', retiredAt: null });
+      await expect(service.updateProfileStatus('e1', { status: 'RETIRED', reason: '长期未履职' } as any, leader))
+        .rejects.toMatchObject({ response: { code: 'INVALID_STATUS' } });
+      expect(prisma.expertProfile.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('updateProfileStatus：已停用→RETIRED 放行——事由留痕、账号保持停用', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'e1', role: 'bid_expert', isActive: false, displayName: '王专家' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ entryStatus: 'ACTIVE', retiredAt: null });
+      prisma.expertProfile.updateMany.mockResolvedValue({ count: 1 });
+      await service.updateProfileStatus('e1', { status: 'RETIRED', reason: '长期未履职' } as any, leader);
+      expect(prisma.expertProfile.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: { userId: 'e1' },
+        data: expect.objectContaining({ entryStatus: 'RETIRED', retireReason: '长期未履职', availability: '停用' }),
+      }));
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ action: 'EXPERT_RETIRE', details: expect.objectContaining({ reason: '长期未履职' }) }),
+      }));
+    });
+
+    it('updateProfileStatus：退库恢复（RETIRED→ACTIVE）须填理由——400 REASON_REQUIRED', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'e1', role: 'bid_expert', isActive: false, displayName: '王专家' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ entryStatus: 'RETIRED', retiredAt: new Date() });
+      await expect(service.updateProfileStatus('e1', { status: 'ACTIVE' } as any, leader))
+        .rejects.toMatchObject({ response: { code: 'REASON_REQUIRED' } });
+      expect(prisma.expertProfile.updateMany).not.toHaveBeenCalled();
+    });
+
+    it('setAvailability：停用须填理由——400 REASON_REQUIRED', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'e1', role: 'bid_expert', displayName: '王专家' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ entryStatus: 'ACTIVE', retiredAt: null });
+      await expect(service.setAvailability('e1', false, 'u-op', leader))
+        .rejects.toMatchObject({ response: { code: 'REASON_REQUIRED' } });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('setAvailability：启用已退库专家 400 EXPERT_STATUS_LOCKED（防清退库标记脏线）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'e1', role: 'bid_expert', displayName: '王专家' });
+      prisma.expertProfile.findUnique.mockResolvedValue({ entryStatus: 'RETIRED', retiredAt: new Date() });
+      await expect(service.setAvailability('e1', true, 'u-op', leader, '理由'))
+        .rejects.toMatchObject({ response: { code: 'EXPERT_STATUS_LOCKED' } });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateProfile（越权防护回归）', () => {
     it('updateProfile 拒绝非专家', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u9', role: 'staff' });
       await expect(service.updateProfile('u9', { displayName: 'x' })).rejects.toThrow(NotFoundException);

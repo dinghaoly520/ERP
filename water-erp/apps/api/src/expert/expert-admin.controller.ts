@@ -13,7 +13,7 @@ import { ExtractPreviewDto } from './dto/extract-preview.dto';
 import { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 import { ExtractionNotifyDto } from './dto/extraction-notify.dto';
 import { CreateExpertEvaluationDto } from './dto/create-expert-evaluation.dto';
-import { SetAvailabilityDto, ConfirmRetireDto } from './dto/expert-status.dto';
+import { SetAvailabilityDto } from './dto/expert-status.dto';
 import { UpdateExpertStatusDto } from './dto/update-expert-status.dto';
 import { CommitteeAssignmentDto } from '../bid/dto/committee-assignment.dto';
 import {
@@ -61,6 +61,7 @@ export class ExpertAdminController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
     @Query('companyId') companyId?: string, // 仅 admin 生效
+    @Query('statusTab') statusTab?: string, // PENDING/ACTIVE/DISABLED/RETIRED（2026-11-16 tab 切换）
     @Request() req: any = {},
   ) {
     return this.expertAdminService.listExperts(
@@ -71,6 +72,7 @@ export class ExpertAdminController {
       pageSize ? parseInt(pageSize, 10) : 20,
       req.user,
       companyId,
+      statusTab,
     );
   }
 
@@ -297,12 +299,6 @@ export class ExpertAdminController {
     });
   }
 
-  @Get('retire-candidates')
-  @ApiOperation({ summary: '专家退库候选扫描（预警，不自动停用；公司隔离）' })
-  reviewRetirementCandidates(@Request() req: any = {}) {
-    return this.expertAdminService.reviewRetirementCandidates(req.user);
-  }
-
   @Get('statistics')
   @ApiOperation({ summary: '专家库整体态势统计（公司隔离）' })
   getStatistics(@Query('companyId') companyId?: string, @Request() req: any = {}) {
@@ -427,9 +423,9 @@ export class ExpertAdminController {
   }
 
   @Patch(':id/availability')
-  @ApiOperation({ summary: '启用/停用专家（公司隔离）' })
+  @ApiOperation({ summary: '启用/停用专家（理由必填；公司隔离）' })
   setAvailability(@Param('id') id: string, @Body() dto: SetAvailabilityDto, @Request() req: any) {
-    return this.expertAdminService.setAvailability(id, dto.available, req.user?.sub, req.user);
+    return this.expertAdminService.setAvailability(id, dto.available, req.user?.sub, req.user, dto.reason);
   }
 
   @Patch(':id/profile')
@@ -498,22 +494,9 @@ export class ExpertAdminController {
     return this.expertAdminService.updateNotifyPrefs(id, dto, req.user);
   }
 
-  @Post(':id/retire-ignore')
-  @ApiOperation({ summary: '忽略本轮退库预警（90 天内跳过此专家的扫描；公司隔离）' })
-  ignoreRetirement(@Param('id') id: string, @Request() req: any) {
-    return this.expertAdminService.ignoreRetirementWarning(id, req.user?.sub, req.user);
-  }
-
-  @Post(':id/retire')
-  @Roles('admin', 'leader') // R6-7 B7：与 @Patch(:id/status) 同权限面（此前无角色限，staff/bid_host 可退库）
-  @ApiOperation({ summary: '人工确认专家退库（公司隔离）' })
-  confirmRetire(@Param('id') id: string, @Body() dto: ConfirmRetireDto, @Request() req: any) {
-    return this.expertAdminService.confirmRetire(id, dto.reason, req.user?.sub, req.user);
-  }
-
   @Patch(':id/status')
   @Roles('admin', 'leader')
-  @ApiOperation({ summary: 'CTS A-218/222 专家库状态：待审核/在库/暂停/退库（审核留痕 verifiedBy/At）' })
+  @ApiOperation({ summary: 'CTS A-218/222 专家库状态：待审核/在库/退库（暂停已下线 2026-11-16；审核留痕 verifiedBy/At）' })
   updateStatus(@Param('id') id: string, @Body() dto: UpdateExpertStatusDto, @Request() req: any) {
     return this.expertAdminService.updateProfileStatus(id, dto, req.user);
   }

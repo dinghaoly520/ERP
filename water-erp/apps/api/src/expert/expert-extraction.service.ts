@@ -15,6 +15,13 @@ import type { LlmSpecialtyQuota, ExtractMode } from './expert-extraction-ai.serv
 import type { ExtractPreviewDto } from './dto/extract-preview.dto';
 import type { ConfirmExtractionDto } from './dto/confirm-extraction.dto';
 
+
+/** 同一自然日判定（2026-11-16 同日硬排除裁定）：按服务器本地时区日历日比较——
+ *  与原同日预告（2026-09-20）同一比较口径，仅由「信息级预告」升格为「硬排除」。 */
+function isSameCalendarDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 @Injectable()
 export class ExpertExtractionService {
   constructor(
@@ -89,7 +96,9 @@ export class ExpertExtractionService {
     // 合规候选：bid_expert + 可用 + 未分配本项目 + 工作单位不在参与供应商中
     // 重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录），只排除其他项目的占用
     // 闸1（2026-09-20 spec）：排除「评标窗口未闭合」的专家（签到起→报告确认止）——
-    // 同时段双活跃从源头杜绝；同日不同时段合法（开窗以签到/报告确认为界，不以日历日）。
+    // 同时段双活跃从源头杜绝。
+    // 闸2（2026-11-16 用户裁定，推翻 2026-09-20「同日双标合法」信息级口径）：
+    // 候选已有与本项目同日开标的在途项目 → 硬排除（无论时段）。
     const baseWhere: import('@prisma/client').Prisma.UserWhereInput = {
       role: 'bid_expert',
       isActive: true,
@@ -118,8 +127,7 @@ export class ExpertExtractionService {
       include: {
         expertProfile: true,
         department: { select: { name: true } },
-        // 同日预告（信息级）：其他在途项目的开标时间，供候选标注 sameDayConflict——
-        // 合规允许同日双标（不同时段），只提示主持人注意时段安排，不排除
+        // 在途项目开标时间——供闸2同日硬排除判定
         bidExperts: {
           where: { project: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT', 'DOWNLOAD'] } } },
           select: { project: { select: { openTime: true, projectCode: true } } },
@@ -148,6 +156,14 @@ export class ExpertExtractionService {
         for (const sn of supplierNames) {
           if (sn && (emp.includes(sn) || sn.includes(emp))) return false;
         }
+      }
+      // 闸2（2026-11-16 用户裁定）：同日已有评标项目 → 不可抽取（无论时段；
+      // 本项目无 openTime 时无法锚定日，不排除）
+      if (project.openTime && u.bidExperts.some(b => {
+        const t = b.project?.openTime && new Date(b.project.openTime);
+        return t && isSameCalendarDay(t, new Date(project.openTime!));
+      })) {
+        return false;
       }
       return true;
     });
@@ -213,15 +229,6 @@ export class ExpertExtractionService {
     const candidates = eligible.map(u => {
       const latest = latestEvalMap.get(u.id);
       const load = loadMap.get(u.id) ?? 0;
-      // 同日预告（2026-09-20 spec 闸1）：候选已有其他在途项目与本项目同日开标——
-      // 不排除（同日不同时段合法），标注供主持人在抽取结果中权衡时段安排
-      const sameDayConflict = u.bidExperts.some(b => {
-        const a = b.project?.openTime && new Date(b.project.openTime);
-        return a && project.openTime
-          && a.getFullYear() === project.openTime.getFullYear()
-          && a.getMonth() === project.openTime.getMonth()
-          && a.getDate() === project.openTime.getDate();
-      });
       return {
         id: u.id,
         displayName: u.displayName,
@@ -240,7 +247,6 @@ export class ExpertExtractionService {
         disciplineGrade: latest?.disciplineGrade,
         scoreDeviation: deviationMap.get(u.id),
         recentProjects12m: recentMap.get(u.id) ?? 0,
-        sameDayConflict,
         currentLoad: load,
         currentLoadStatus: load === 0 ? '空闲' : load <= 2 ? '正常' : '繁忙',
       };
@@ -513,12 +519,34 @@ export class ExpertExtractionService {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
       select: {
-        id: true, name: true, stage: true, projectManagementItemId: true,
+        id: true, name: true, stage: true, projectManagementItemId: true, openTime: true,
         suppliers: { include: { supplier: { select: { name: true } } } },
       },
     });
     if (!project) throw new NotFoundException('项目不存在');
     if (!dto.experts?.length && !dto.candidates?.length) throw new BadRequestException({ error: '请选择专家', code: 'NO_EXPERTS' });
+
+    // 同日冲突硬闸（2026-11-16 用户裁定，竞态兜底）：preview 池已排除同日冲突专家，
+    // 但 preview 后、confirm 前可能被其他项目并发抽走——事务内重查拦截。
+    // 本项目无 openTime 时无法锚定日，跳过（与 preview 闸2 同口径）。
+    const assertNoSameDayConflict = async (tx: any, userId: string, expertName: string) => {
+      if (!project.openTime) return;
+      const rows = await tx.bidExpert.findMany({
+        where: {
+          userId,
+          projectId: { not: projectId },
+          project: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT', 'DOWNLOAD'] }, openTime: { not: null } },
+        },
+        select: { project: { select: { openTime: true, name: true } } },
+      });
+      const hit = rows.find(r => r.project?.openTime && isSameCalendarDay(new Date(r.project.openTime), new Date(project.openTime!)));
+      if (hit) {
+        throw new BadRequestException({
+          error: `专家 ${expertName} 当日（${new Date(project.openTime!).toLocaleDateString('zh-CN')}）已有评标项目「${hit.project.name}」，不能抽取`,
+          code: 'EXPERT_SAME_DAY_CONFLICT',
+        });
+      }
+    };
     // P1-6：评标启动/归档后禁「先清空再写入」的整体重抽（评分进度与签字状态挂 BidExpert，
     // deleteMany 会连带摧毁）；追加补选仍允许。
     // I6：流标项目同样禁整体重抽——deleteMany 会抹掉已签到/评分证据行
@@ -583,6 +611,7 @@ export class ExpertExtractionService {
             }
           }
         }
+        await assertNoSameDayConflict(tx, e.userId, e.expertName);
       }
 
       // 正选专家创建为 expertRole=正选（isPurchaserRepresentative：采购人代表标识）
@@ -598,6 +627,7 @@ export class ExpertExtractionService {
         await tx.bidExpert.deleteMany({ where: { projectId, expertRole: '候补' } });
       }
       for (const c of dto.candidates ?? []) {
+        await assertNoSameDayConflict(tx, c.userId, c.expertName);
         await tx.bidExpert.upsert({
           where: { projectId_userId: { projectId, userId: c.userId } },
           update: { expertName: c.expertName, major: c.major, expertRole: '候补', invitationStatus: 'pending' },

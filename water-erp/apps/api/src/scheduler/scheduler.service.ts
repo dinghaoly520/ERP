@@ -501,17 +501,6 @@ export class SchedulerService {
     if (sent > 0) this.logger.log(`[C4] 响应担保逐家退还提醒已发 ${sent} 项`);
   }
 
-  /** 每周一 01:00 扫描专家退库候选（仅预警通知，不自动改状态——决策 #3）。
-   *  供应商淘汰候选扫描已随 2026-11-16 两态裁定（处置只余停用/黑名单）下线。 */
-  @Cron('0 1 * * 1')
-  async scanRetirementCandidates() {
-    const experts = await this.expertAdmin.reviewRetirementCandidates().catch((e: Error) => {
-      this.logger.error(`专家退库扫描失败：${e.message}`);
-      return [];
-    });
-    this.logger.log(`退库预警扫描完成：专家候选 ${experts.length} 名`);
-  }
-
   /** 每分钟扫描定时公告（status=DRAFT + metadata.scheduledPublishDate），到期发布。
    *  P0-2（2026-09-09 审查）：改走 announcementService.update 的发布转换——旧实现裸
    *  prisma.update 直改 PUBLISHED，绕过手动发布的全部闸门/联动（B-004/B-009 依法必招时限
