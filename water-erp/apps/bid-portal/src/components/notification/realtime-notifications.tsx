@@ -5,7 +5,7 @@ import { notificationWsUrl } from '@water-erp/config';
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
-import { getNotificationLabel } from "@water-erp/shared";
+import { getNotificationLabel, getNotificationMeta } from "@water-erp/shared";
 
 /**
  * 全局实时通知（2026-09-26，开评标管理端版）：WS 订阅 `notification:new`，新站内通知
@@ -156,13 +156,17 @@ export function RealtimeNotifications() {
               <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed text-[oklch(0.55_0.01_264)]">{n.content}</p>
               <div className="mt-1.5 flex items-center justify-between">
                 <span className="text-[9px] uppercase tracking-wider text-[oklch(0.72_0.008_264)]">{getNotificationLabel(n.type)}</span>
-                <button
-                  type="button"
-                  onClick={(e) => markRead(e, n)}
-                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-[oklch(0.42_0.14_260)] transition-colors hover:underline"
-                >
-                  <CheckCheck size={10} strokeWidth={2.2} /> 标为已读
-                </button>
+                {/* actionable 待办不提供「标为已读」——后端 no-op（点开≠办结），标了角标不减
+                    （与本端铃铛 2026-11-05、:3005 toast 2026-09-29 同口径；点卡片即去完成） */}
+                {!getNotificationMeta(n.type)?.actionable && (
+                  <button
+                    type="button"
+                    onClick={(e) => markRead(e, n)}
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-[oklch(0.42_0.14_260)] transition-colors hover:underline"
+                  >
+                    <CheckCheck size={10} strokeWidth={2.2} /> 标为已读
+                  </button>
+                )}
               </div>
             </div>
           </div>

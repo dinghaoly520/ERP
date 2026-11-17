@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 import {
-  listNotifications, markNotificationRead, markAllNotificationsRead, fetchMyActivities, fetchAllActivities, resolveNotification,
+  listNotifications, markNotificationRead, markAllNotificationsRead, getUnreadCount, fetchMyActivities, fetchAllActivities, resolveNotification,
   type NotificationItem, type NotificationTab, type AuditActivity,
 } from '@/lib/api/notification';
 import {
@@ -459,6 +459,21 @@ export default function NotificationsPage() {
       .finally(() => setLoading(false));
   }, [tab, page]);
 
+  /** 全部标已阅（bug#125 裁定 A+B 同款——:3007 铃铛 2026-11-05 已覆盖，此处补齐）：
+   *  mark-all 后端只清知会类（READONLY，actionable 未办结刻意不动——防「已读兜底归已办」
+   *  清空待办），结果 toast 明示剩余待办数，消解「点了没反应」感知；不乐观谎报。 */
+  const handleAllRead = async () => {
+    const res = await markAllNotificationsRead().catch(() => null);
+    await load();
+    if (res === null) { toast.error('操作结果未知，请刷新查看'); return; } // 接口失败不假成功（评审 P2）
+    const readN = res?.count ?? 0;
+    const remaining = await getUnreadCount().then(r => r.count).catch(() => null);
+    if (readN > 0 && (remaining ?? 0) > 0) toast.success(`已读 ${readN} 条知会消息；还有 ${remaining} 条待办需逐条办结`);
+    else if (readN > 0) toast.success(`已读 ${readN} 条知会消息`);
+    else if ((remaining ?? 0) > 0) toast.message(`${remaining} 条为待办消息，需逐条办结`);
+    else toast.success('知会消息已全部标已阅');
+  };
+
   useEffect(() => { load(); }, [load]);
 
   // 打开已办查看窗时拉取相关操作记录（同类型、时间晚于通知）
@@ -522,7 +537,7 @@ export default function NotificationsPage() {
             </div>
           </div>
           <div className="page-hero__right">
-            <button className="neu-btn-soft" onClick={() => { void markAllNotificationsRead().then(() => load()); }}>
+            <button className="neu-btn-soft" onClick={() => { void handleAllRead(); }}>
               <CheckCheck size={14} /> 全部标已阅
             </button>
             <button className="neu-btn-soft" onClick={openHistory}>
