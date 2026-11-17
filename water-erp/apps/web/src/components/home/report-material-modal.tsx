@@ -90,10 +90,11 @@ function hbarsHtml(items: Array<{ label: string; value: number }>, fmt: (v: numb
 }
 
 /** 通用表格（widths 可选：各列百分比宽——table-fixed 布局，未给的列均分余量） */
-function tableHtml(head: string[], rows: string[][], widths?: number[]): string {
+function tableHtml(head: string[], rows: string[][], widths?: number[], centerFromCol = 0): string {
   if (!rows.length) return '<p class="empty">暂无数据</p>';
   const colgroup = widths ? `<colgroup>${widths.map(w => `<col style="width:${w}%">`).join('')}</colgroup>` : '';
-  return `<table class="tb${widths ? ' fixed' : ''}">${colgroup}<thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  const td = (c: string, i: number) => `<td${i >= centerFromCol ? ' class="ctr"' : ''}>${esc(c)}</td>`;
+  return `<table class="tb${widths ? ' fixed' : ''}">${colgroup}<thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => td(c, i)).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 /** 组装自包含 HTML 报告并唤起新窗口打印（用户选「存储为 PDF」得长档） */
@@ -137,6 +138,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 .tb td { border-bottom: 1px solid oklch(0.93 0.02 258); padding: 5px 6px; }
 .tb.fixed { table-layout: fixed; }
 .tb.fixed td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb td.ctr { text-align: center; }
 .duo { display: flex; gap: 16px; align-items: center; }
 .dl { list-style: none; flex: 1; } .dl li { display: flex; align-items: center; gap: 6px; padding: 2.5px 0; font-size: 11px; }
 .dl .nm { flex: 1; } .dl b { color: oklch(0.42 0.03 258); }
@@ -162,7 +164,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
     ['节约资金', s.totalSavingsLabel], ['节资率', `${savingsRate}%`], ['成交率', `${doneRate}%（${s.completedCount}/${s.totalCount}）`],
   ].map(([l, v]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
 ${aiBlock}
-<section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '预算金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]), [24, 13, 13, 13, 13, 12, 12])}${note('savings')}</section>
+<section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '预算金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]), [24, 13, 13, 13, 13, 12, 12], 1)}${note('savings')}</section>
 <section class="card"><h2>二、采购执行趋势</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
 <section class="card"><h2>三、${dimLabel}采购分析</h2>${hbarsHtml([...dimStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
 <section class="card"><h2>四、采购方式分布</h2>${donutSvg(data.methodStats, '总项目')}${note('method')}</section>
