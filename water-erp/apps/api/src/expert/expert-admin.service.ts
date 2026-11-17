@@ -204,8 +204,29 @@ export class ExpertAdminService {
 
   /* ── 专家库 ── */
 
-  /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索，服务端分页；公司隔离） */
-  async listExperts(search?: string, specialty?: string, employer?: string, page = 1, pageSize = 20, user?: AuthenticatedUser, companyId?: string) {
+  /** 专家库列表（含 ExpertProfile，可按姓名或专业模糊搜索，服务端分页；公司隔离）。
+   *  statusTab（2026-11-16 供应商库同款 tab 切换）：PENDING 待审核 / ACTIVE 在库 /
+   *  DISABLED 已停用（entryStatus ACTIVE 且账号停用或可用性停用）/ RETIRED 已退库；
+   *  未传=不过滤（全量，兼容既有消费方）。 */
+  async listExperts(search?: string, specialty?: string, employer?: string, page = 1, pageSize = 20, user?: AuthenticatedUser, companyId?: string, statusTab?: string) {
+    // 状态 tab 条件与专业/单位筛选合并进同一 expertProfile 键（Prisma 同键覆盖，不可分写）
+    const profileWhere: Record<string, unknown> = {
+      ...(specialty ? { specialty } : {}),
+      ...(employer ? { employer } : {}),
+    };
+    const andClauses: Array<Record<string, unknown>> = [];
+    let tabActive: boolean | undefined;
+    if (statusTab === 'PENDING') profileWhere.entryStatus = 'PENDING';
+    if (statusTab === 'ACTIVE' || statusTab === 'DISABLED') profileWhere.entryStatus = 'ACTIVE';
+    if (statusTab === 'ACTIVE') {
+      profileWhere.availability = { not: '停用' };
+      tabActive = true;
+    }
+    if (statusTab === 'DISABLED') {
+      // 顶层 OR 键与搜索 OR 冲突——用 AND 子句承载
+      andClauses.push({ OR: [{ isActive: false }, { expertProfile: { availability: '停用' } }] });
+    }
+    if (statusTab === 'RETIRED') profileWhere.OR = [{ entryStatus: 'RETIRED' }, { retiredAt: { not: null } }];
     const where = {
       role: 'bid_expert' as const,
       isTempExpert: false, // 临时需求方代表账号不入专家库列表（2026-11-05；其档案 availability='停用' 已不入池/目录）
@@ -213,7 +234,9 @@ export class ExpertAdminService {
       ...(await this.expertScopeFilter(user, companyId)),
       // 专业/公司筛选（ExpertProfile）：specialty 须独立于 employer——曾嵌在 employer 条件内，
       // 只传专业不传公司时筛选被静默丢弃，专业配额行人数恒为全库总数
-      ...((specialty || employer) && { expertProfile: { ...(specialty && { specialty }), ...(employer && { employer }) } }),
+      ...(Object.keys(profileWhere).length > 0 ? { expertProfile: profileWhere } : {}),
+      ...(tabActive !== undefined ? { isActive: tabActive } : {}),
+      ...(andClauses.length > 0 ? { AND: andClauses } : {}),
       ...(search ? {
         OR: [
           { displayName: { contains: search, mode: 'insensitive' as const } },
@@ -924,12 +947,21 @@ export class ExpertAdminService {
     return { imported, skipped, total: seedExpertUsers.length };
   }
 
-  /** 启用/停用专家（停用 = isActive=false + availability 停用；公司隔离） */
-  async setAvailability(userId: string, available: boolean, operatorId?: string, actor?: AuthenticatedUser) {
+  /** 启用/停用专家（停用 = isActive=false + availability 停用；公司隔离）。
+   *  2026-11-16 两态裁定：理由必填入 details；启用对已退库专家拒绝——退库恢复走「恢复入库」，
+   *  防「清退库标记但 entryStatus 仍 RETIRED」脏线。 */
+  async setAvailability(userId: string, available: boolean, operatorId?: string, actor?: AuthenticatedUser, reason?: string) {
     if (actor) await this.assertExpertInScope(userId, actor);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // 仅限专家角色，防止越权停用任意账户（含 admin/员工）
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
+    if (!reason?.trim()) {
+      throw new BadRequestException({ error: available ? '启用必须填写理由' : '停用必须填写理由', code: 'REASON_REQUIRED' });
+    }
+    const profile = await this.prisma.expertProfile.findUnique({ where: { userId }, select: { entryStatus: true } });
+    if (available && profile?.entryStatus === 'RETIRED') {
+      throw new BadRequestException({ error: '已退库专家请使用「恢复入库」，不能直接启用', code: 'EXPERT_STATUS_LOCKED' });
+    }
     await this.prisma.$transaction([
       this.prisma.user.update({ where: { id: userId }, data: { isActive: available } }),
       // 启用时清空退库标记，避免"可用却带退库标记"的脏数据；停用时保留退库字段供退库流程写入
@@ -941,7 +973,7 @@ export class ExpertAdminService {
         },
       }),
     ]);
-    await this.auditExpert(operatorId, available ? 'EXPERT_ENABLE' : 'EXPERT_DISABLE', userId, { expertName: user.displayName });
+    await this.auditExpert(operatorId, available ? 'EXPERT_ENABLE' : 'EXPERT_DISABLE', userId, { expertName: user.displayName, reason: reason.trim() });
     return { success: true };
   }
 
@@ -2183,8 +2215,8 @@ export class ExpertAdminService {
       include: { evaluator: { select: { id: true, displayName: true } } },
     });
 
-    // 决策 #3：不自动停用。连续 E 级由 reviewRetirementCandidates()（cron + 人工）产出预警，
-    // 实际退库须经 admin 调 confirmRetire() 确认。此处仅返回评价结果。
+    // 决策 #3：不自动停用。退库预警链已于 2026-11-16 随两态裁定下线（处置全人工），
+    // 连续低级仅供画像参考。此处仅返回评价结果。
     // 审计留痕：评价（含更新）记一条，整体等级 + 关联项目入 details，评价人=操作人（evaluatorId）
     await this.auditExpert(evaluatorId, 'EXPERT_EVALUATE', dto.expertUserId, {
       expertName: expert.displayName, overallGrade, projectId: dto.projectId ?? null, updated: !!sameSlot,
@@ -2333,158 +2365,12 @@ export class ExpertAdminService {
     });
   }
 
-  /* ── 退库预警 + 人工确认（决策 #3：只预警，不自动改状态） ── */
-
-  /** 扫描退库候选（连续 E 级 或 近 12 个月无分配），跳过最近 90 天内被标记忽略的专家；不修改 availability。 */
-  async reviewRetirementCandidates(user?: AuthenticatedUser) {
-    const ignoreCutoff = new Date(Date.now() - 90 * 24 * 3600 * 1000);
-    const f = await this.expertScopeFilter(user);
-    const experts = await this.prisma.user.findMany({
-      where: {
-        role: 'bid_expert', isActive: true,
-        ...f,
-        expertProfile: {
-          availability: { not: '停用' },
-          // 2026-10-28：待审核(PENDING)专家尚未入库，不应进「长期无分配」退库候选（新录入必然 12 个月无分配）
-          entryStatus: { in: ['ACTIVE', 'SUSPENDED'] },
-          OR: [
-            { retireIgnoredAt: null },
-            { retireIgnoredAt: { lt: ignoreCutoff } },
-          ],
-        },
-      },
-      include: { expertProfile: { select: { specialty: true } } },
-    });
-
-    const cutoff = new Date(Date.now() - 365 * 24 * 3600 * 1000);
-    const expertIds = experts.map(e => e.id);
-
-    // Batch queries instead of N+1 per-expert queries
-    const [allEvals, allRecentAssigns] = await Promise.all([
-      // All recent evaluations for all experts (up to 2 per expert)
-      // 统计闸：退库预警「连续低等级」按槽位去重判定（方案B 多次评价——单人刷 D/E 不再触发误退库）
-      this.prisma.expertEvaluation.findMany({
-        where: { expertUserId: { in: expertIds } },
-        orderBy: { createdAt: 'desc' },
-        select: { expertUserId: true, overallGrade: true, createdAt: true, evaluatorId: true, projectId: true, updatedAt: true },
-      }).then(latestExpertEvals),
-      // All recent assignments in last 12 months
-      this.prisma.bidExpert.findMany({
-        where: { userId: { in: expertIds }, createdAt: { gte: cutoff } },
-        select: { userId: true, id: true },
-      }),
-    ]);
-
-    // Index: expertUserId → recent evaluations (up to 2 most recent)
-    const evalsByExpert = new Map<string, { level: string }[]>();
-    for (const ev of allEvals) {
-      if (!evalsByExpert.has(ev.expertUserId)) evalsByExpert.set(ev.expertUserId, []);
-      const arr = evalsByExpert.get(ev.expertUserId)!;
-      if (arr.length < 2) arr.push({ level: ev.overallGrade });
-    }
-    // Index: userId → true if has recent assignment
-    const hasRecentAssign = new Set(allRecentAssigns.map(a => a.userId));
-
-    const candidates: Array<{ userId: string; displayName: string; companyId: string | null; specialty?: string; reason: string }> = [];
-
-    for (const e of experts) {
-      const recent = evalsByExpert.get(e.id) || [];
-      let reason: string | null = null;
-      if (shouldDeactivateExpert(recent)) {
-        reason = '最近 2 次履职评价均为 E 级';
-      } else if (!hasRecentAssign.has(e.id)) {
-        reason = '近 12 个月无评标分配';
-      }
-      if (reason) {
-        // companyId：批报按归属公司分组发送（2026-11-12）——sendToCompanyRoles 收件人同口径
-        candidates.push({ userId: e.id, displayName: e.displayName, companyId: e.companyId, specialty: e.expertProfile?.specialty, reason });
-      }
-    }
-
-    if (candidates.length > 0) {
-      // 新批取代旧批（2026-10-22）：本扫描被 /expert/retirement 页面每次打开与 cron 双路
-      // 调用，旧批报留待办无限累积（leader/staff 曾积 42 条）。真值在退库复核页实时计算。
-      // 2026-11-12 举一反三修复（与连拒预警 2026-11-02 跨公司错发同族）：
-      // ① 按候选专家归属公司分组发送——原平台广播 sendToRole 把全库候选名单发给全平台
-      //   leader/staff（实录：172 名候选批报到设计院 24 人+集团 12 人），违反专家库公司
-      //   隔离，且收件人点进复核页只见本公司子集（待办数与页面数对不上）；
-      // ② 取代钩子加收件人过滤——原 updateMany 全库清，A 公司开页会把 B 公司挂着的
-      //   待办一并消解且不发新批=他司通知凭空丢失；
-      // ③ 先发新批、后取代旧批（createdAt < batchStart 圈旧批）——中途失败宁可
-      //   重复待办，不可丢失待办。
-      const batchStart = new Date();
-      const recipientIds = new Set<string>();
-      const byCompany = new Map<string | null, typeof candidates>();
-      for (const c of candidates) {
-        const arr = byCompany.get(c.companyId) ?? [];
-        arr.push(c);
-        byCompany.set(c.companyId, arr);
-      }
-      // 2026-09-26 场内矩阵：退库预警是专家库管理事件（:3005），不进 bid_host（场内角色）；
-      // 收件人=候选归属公司 leader+staff（无人兜底 admin），link 指向 :3005 退库复核页
-      for (const [companyId, group] of byCompany) {
-        const names = group.map(c => `${c.displayName}（${c.reason}）`).join('；');
-        const r = await this.notification.sendToCompanyRoles(companyId, ['leader', 'staff'], {
-          type: 'EXPERT_RETIRE_CANDIDATE',
-          title: '专家退库预警',
-          content: `${group.length} 名专家进入退库候选，请人工复核：${names}`,
-          link: '/expert/retirement',
-        }).catch(() => ({ sent: 0, fallbackAdmin: false, userIds: [] as string[] }));
-        r.userIds?.forEach((id) => recipientIds.add(id));
-      }
-      if (recipientIds.size > 0) {
-        await this.prisma.notification.updateMany({
-          where: {
-            type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null,
-            createdAt: { lt: batchStart },
-            userId: { in: [...recipientIds] },
-          },
-          data: { resolvedAt: new Date() },
-        }).catch(() => {});
-      }
-    }
-
-    return candidates;
-  }
-
-  /** 忽略本轮退库预警：标记 retireIgnoredAt，90 天内 reviewRetirementCandidates 跳过此专家（公司隔离） */
-  async ignoreRetirementWarning(userId: string, operatorId?: string, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    await this.prisma.expertProfile.update({ where: { userId }, data: { retireIgnoredAt: new Date() } });
-    await this.auditExpert(operatorId, 'EXPERT_RETIRE_IGNORE', userId, { expertName: user.displayName });
-    return { success: true };
-  }
-
-  /** 人工确认退库：写入停用 + retiredAt + retireReason，同步禁用登录（同一事务，避免半退库态）。 */
-  async confirmRetire(userId: string, reason: string, operatorId?: string, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    // 仅限专家角色，防止越权停用任意账户
-    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    await this.prisma.$transaction([
-      this.prisma.expertProfile.updateMany({
-        where: { userId },
-        // entryStatus 同步 RETIRED：与状态机端点（updateProfileStatus）收敛为单一语义，避免两路径状态分叉
-        data: { availability: '停用', retiredAt: new Date(), retireReason: reason, entryStatus: 'RETIRED' },
-      }),
-      this.prisma.user.update({
-        where: { id: userId },
-        data: { isActive: false },
-      }),
-    ]);
-    await this.auditExpert(operatorId, 'EXPERT_RETIRE', userId, { expertName: user.displayName, reason });
-    return { success: true };
-  }
-
-  /** CTS A-218/222 专家库状态机：PENDING→ACTIVE 记审核留痕；RETIRED 联动账号停用（对齐 confirmRetire）。公司隔离。 */
   async updateProfileStatus(userId: string, dto: UpdateExpertStatusDto, actor?: AuthenticatedUser) {
     if (actor) await this.assertExpertInScope(userId, actor);
     if (!actor || !['admin', 'leader'].includes(actor.role)) {
       throw new ForbiddenException({ error: '仅领导或管理员可变更专家库状态', code: 'EXPERT_STATUS_ROLE_FORBIDDEN' });
     }
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, isActive: true } });
     if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
     let profile = await this.prisma.expertProfile.findUnique({
       where: { userId },
@@ -2516,6 +2402,20 @@ export class ExpertAdminService {
     if (dto.status === 'RETIRED' && !dto.reason?.trim()) {
       throw new BadRequestException({ error: '退库必须填写事由', code: 'REASON_REQUIRED' });
     }
+    // 2026-11-16 两态裁定（在库→停用→退库单向链）：
+    // ① 暂停（SUSPENDED）选项下线——历史存量只读展示，不再可写入；
+    // ② 退库仅接受已停用专家（在库直退 400 引导先停用，与供应商「先停用后拉黑」同构）；
+    // ③ 退库恢复（RETIRED→ACTIVE）理由必填（与停用/启用同口径）。
+    if ((dto.status as string) === 'SUSPENDED') {
+      // 类型层已由 DTO @IsIn 收窄，此闸防绕过 DTO 的直调/遗留调用方
+      throw new BadRequestException({ error: '暂停选项已下线（2026-11-16 两态裁定），请使用停用', code: 'INVALID_STATUS' });
+    }
+    if (dto.status === 'RETIRED' && (profile.entryStatus !== 'ACTIVE' || user.isActive)) {
+      throw new BadRequestException({ error: '只有已停用专家可以退库（请先停用）', code: 'INVALID_STATUS' });
+    }
+    if (dto.status === 'ACTIVE' && (profile.entryStatus === 'RETIRED' || profile.retiredAt !== null) && !dto.reason?.trim()) {
+      throw new BadRequestException({ error: '恢复入库必须填写理由', code: 'REASON_REQUIRED' });
+    }
     const ops: Prisma.PrismaPromise<unknown>[] = [
       this.prisma.expertProfile.updateMany({
         where: { userId },
@@ -2532,7 +2432,7 @@ export class ExpertAdminService {
                 ...(profile.retiredAt !== null ? { availability: '可用' } : {}),
               }
             : {}),
-          ...(dto.status === 'RETIRED' ? { retiredAt: new Date(), retireReason: dto.reason!.trim(), availability: '停用' } : {}), // R6-7 三分叉：退库须落停用，否则统计"可用"虚高（confirmRetire 同款已置）
+          ...(dto.status === 'RETIRED' ? { retiredAt: new Date(), retireReason: dto.reason!.trim(), availability: '停用' } : {}), // R6-7：退库须落停用，否则统计"可用"虚高（setAvailability 停用同款语义）
         },
       }),
     ];
@@ -2544,18 +2444,17 @@ export class ExpertAdminService {
       ops.push(this.prisma.user.update({ where: { id: userId }, data: { isActive: true } }));
     }
     await this.prisma.$transaction(ops);
-    // 审计留痕：按状态迁移归类动作（审核入库 / 暂停 / 退库 / 恢复），退库事由入 details
+    // 审计留痕：按状态迁移归类动作（审核入库 / 退库 / 恢复），退库事由入 details
     const prevStatus = profile.entryStatus ?? (profile.retiredAt ? 'RETIRED' : 'ACTIVE');
     const auditAction =
       dto.status === 'ACTIVE'
         ? (prevStatus === 'PENDING' ? 'EXPERT_APPROVE' : 'EXPERT_RESUME')
-        : dto.status === 'SUSPENDED' ? 'EXPERT_SUSPEND'
         : 'EXPERT_RETIRE';
     const displayName = (await this.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true } }))?.displayName;
     await this.auditExpert(actor.sub, auditAction, userId, {
       expertName: displayName,
       from: prevStatus, to: dto.status,
-      ...(dto.status === 'RETIRED' ? { reason: dto.reason!.trim() } : {}),
+      ...(dto.reason?.trim() ? { reason: dto.reason.trim() } : {}),
     });
     return this.prisma.expertProfile.findUnique({
       where: { userId },

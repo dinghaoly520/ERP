@@ -2575,7 +2575,7 @@ export function buildFailedBidAnnouncementPlan(
     { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
     { targetText: '项目简要说明', ...buildReplacement('项目简要说明', answers.projectBriefDescription), isHierarchicalText: true },
     { targetText: '开标时间', ...buildReplacement('开标时间', formatBidOpeningTime(answers.bidOpeningTime, answers.bidOpeningTimeType)) },
-    { targetText: '开标结果公示信息', ...buildReplacement('开标结果公示信息', answers.resultInfo), isHierarchicalText: true },
+    { targetText: '流标原因', ...buildReplacement('流标原因', answers.resultInfo), isHierarchicalText: true },
     // 公示期限（2026-11-06 用户裁定）：模板原硬编码「1日」已占位符化；正文取起止选择器
     // 所选区间（与公开端显示窗口同源），未填兜底法定 3 日
     { targetText: '公示期限', replacementText: formatPublicityPeriodRange(answers) || '3日', highlight: false },

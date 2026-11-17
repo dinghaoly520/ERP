@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException, Logger, NotFoundExc
 import { assertBidNoticeTiming } from '../bid/bid-timing-rules';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { joinSoftWrappedPlainText } from '../tender-write/announcement-content-html.util';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { Inject, forwardRef } from '@nestjs/common';
@@ -99,6 +100,12 @@ export class AnnouncementService {
     const suppliedAi = this.sanitizeClientAiSummary(dto.aiSummary);
 
     const status = (dto.status as any) ?? 'DRAFT';
+
+    // 终止项目发布闸（2026-11-16 用户裁定，同 update 路径）：即时发布关联已终止项目——
+    // 置于建行之前拒绝、不留孤儿公告（同 W2/T4 预检口径）
+    if (status === 'PUBLISHED' && await this.isLinkedProjectTerminated(dto.relatedProjectCode)) {
+      throw new ConflictException({ error: '关联采购项目已终止，公告不可发布（未创建）', code: 'TERMINATED_PROJECT' });
+    }
 
     // W2（B-004/B-009）：依法必招时间规则预检——置于建行之前，违者 400 且不留孤儿公告
     if (dto.type === 'BID_NOTICE' && status === 'PUBLISHED') {
@@ -337,11 +344,28 @@ export class AnnouncementService {
       // 2026-09-26 回收站体系：status 支持逗号分隔（回收站传 HIDDEN,OFFLINE），与 type 逗号语义一致
       const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
+      // 2026-11-16 用户裁定：纯草稿查询（KPI 弹窗/草稿筛选）排除定时待发布件——
+      // 它们已在主表以「待发布」展示，不重复计入待处理草稿
+      if (statuses.length === 1 && statuses[0] === 'DRAFT') {
+        where.AND = [...(where.AND ?? []), {
+          OR: [
+            { status: { not: 'DRAFT' } },
+            { metadata: { path: ['scheduledPublishDate'], equals: Prisma.DbNull } },
+          ],
+        }];
+      }
     } else {
       // 2026-09-26 回收站体系：默认排除回收站内容（隐藏/下架只在回收站可见，公开端本就只出 PUBLISHED）
-      // 2026-10-16 用户裁定：草稿不再混入管理端「全部」列表——草稿统一收纳进「待处理草稿」KPI 弹窗，
-      // 显式 status=DRAFT 仍可查（KPI 弹窗/草稿筛选用），仅默认「全部」排除
-      where.status = { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] };
+      // 2026-10-16 用户裁定：草稿不再混入管理端「全部」列表——纯草稿收纳进「待处理草稿」KPI 弹窗，
+      // 显式 status=DRAFT 仍可查（KPI 弹窗/草稿筛选用），仅默认「全部」排除纯草稿。
+      // 2026-11-16 用户裁定：定时待发布（DRAFT+scheduledPublishDate）直接进主表「待发布」；
+      // AND+OR 组合（search 分支覆写 where.OR，不能挂 OR 顶层）
+      where.AND = [...(where.AND ?? []), {
+        OR: [
+          { status: { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] } },
+          { status: 'DRAFT', metadata: { path: ['scheduledPublishDate'], not: Prisma.DbNull } },
+        ],
+      }];
     }
     if (params.search) {
       // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）
@@ -400,8 +424,13 @@ export class AnnouncementService {
       const statuses = params.status.split(',').map((s: string) => s.trim()).filter(Boolean);
       where.status = statuses.length > 1 ? { in: statuses } : params.status;
     } else {
-      // 与 list() 同口径：默认「全部」排除草稿（2026-10-16），公司分组计数与列表一致
-      where.status = { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] };
+      // 与 list() 同口径（2026-11-16 含定时待发布件）：默认「全部」排除纯草稿，公司分组计数与列表一致
+      where.AND = [...(where.AND ?? []), {
+        OR: [
+          { status: { notIn: ['HIDDEN', 'OFFLINE', 'DRAFT'] } },
+          { status: 'DRAFT', metadata: { path: ['scheduledPublishDate'], not: Prisma.DbNull } },
+        ],
+      }];
     }
     if (params.search) {
       // 2026-10-14：补 relatedProjectCode——项目编号可搜（:3002 顶栏/列表、:3004 公告中心、:3005 管理端共用本口径）
@@ -620,6 +649,50 @@ export class AnnouncementService {
     return sections.map((l) => `<p>${esc(l)}</p>`).join('');
   }
 
+  /** 判定关联项目是否已终止（2026-11-16 用户裁定）：
+   *  relatedProjectCode 直配 PMI.projectCode，或经 BidProject.projectCode→projectManagementItemId 桥接。
+   *  仅认 PMI.status=TERMINATED（开标前流标 ABORTED 不在此闸——那是流标语义、另有处置）。 */
+  private async isLinkedProjectTerminated(relatedProjectCode?: string | null): Promise<boolean> {
+    const code = relatedProjectCode?.trim();
+    if (!code) return false;
+    const pmDirect = await this.prisma.projectManagementItem.findUnique({
+      where: { projectCode: code },
+      select: { status: true },
+    });
+    if (pmDirect?.status === 'TERMINATED') return true;
+    const bp = await this.prisma.bidProject.findUnique({
+      where: { projectCode: code },
+      select: { projectManagementItemId: true },
+    });
+    if (bp?.projectManagementItemId) {
+      const pm = await this.prisma.projectManagementItem.findUnique({
+        where: { id: bp.projectManagementItemId },
+        select: { status: true },
+      });
+      if (pm?.status === 'TERMINATED') return true;
+    }
+    return false;
+  }
+
+  /** 终止发布闸内部回收（与 applyRecycle(HIDDEN) 同构）：HIDDEN + metadata.recycle 快照 + HIDE 历史。
+   *  操作人留痕=「系统（项目终止联动）」——该路径无用户操作上下文（定时发布/批量发布同汇于此）。 */
+  private async recycleForTerminatedProject(ann: {
+    id: string; title: string; type: string; status: string; metadata: unknown;
+  }) {
+    const meta = { ...((ann.metadata as Record<string, any> | null) ?? {}) };
+    meta.recycle = { from: ann.status ?? 'DRAFT', action: 'HIDDEN', at: new Date().toISOString(), by: '系统（项目终止联动）' };
+    await this.prisma.announcement.update({
+      where: { id: ann.id },
+      data: { status: 'HIDDEN', metadata: meta as any },
+    });
+    await this.prisma.announcementHistory.create({
+      data: {
+        announcementId: ann.id, action: 'HIDE', title: ann.title, type: ann.type,
+        status: 'HIDDEN', changedFields: ['status'], operatorName: '系统（项目终止联动）',
+      },
+    }).catch(e => this.logger.warn(`终止发布闸回收留痕失败（不阻塞）: ${(e as Error).message}`));
+  }
+
   async update(id: string, dto: UpdateAnnouncementDto) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
     if (!announcement) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
@@ -630,6 +703,7 @@ export class AnnouncementService {
     if (announcement.status === 'PUBLISHED' && dto.status === 'DRAFT') {
       throw new BadRequestException({ error: '公告已发布，不能转回草稿；如需撤回请使用下架', code: 'PUBLISHED_NO_DEMOTE' });
     }
+
 
     const title = dto.title ?? announcement.title;
     const type = dto.type ?? announcement.type;
@@ -646,6 +720,21 @@ export class AnnouncementService {
     const isPublishTransition =
       announcement.status !== 'PUBLISHED' &&
       targetStatus === 'PUBLISHED';
+    // 终止项目发布闸（2026-11-16 用户裁定）：终止后未发布的关联公告不得发布——
+    // 直接移入回收站（HIDDEN+recycle 快照+HIDE 历史）并以 409 拒绝发布请求。
+    // 置于补遗/公示期等发布闸之前：项目终止是最根本的不可发布事由。
+    if (isPublishTransition) {
+      const effectiveCode = dto.relatedProjectCode
+        ?? announcement.relatedProjectCode
+        ?? ((announcement.metadata as Record<string, any> | null)?.projectCode);
+      if (await this.isLinkedProjectTerminated(effectiveCode)) {
+        await this.recycleForTerminatedProject(announcement);
+        throw new ConflictException({
+          error: '关联采购项目已终止，公告未发布、已移入回收站（可在管理端回收站中查看或恢复）',
+          code: 'TERMINATED_PROJECT',
+        });
+      }
+    }
     // 补遗闸（2026-11-06 用户裁定）：项目已进入开标确认及以后步骤不可发布补遗（update 路径：
     // 编辑转发布/定时到点发布/批量发布均汇于此）
     if (isPublishTransition && (dto.type ?? announcement.type) === 'ADDENDUM') {
@@ -1690,7 +1779,8 @@ export class AnnouncementService {
       this.prisma.announcement.count({ where: { ...where, type: 'BID_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'WIN_NOTICE', status: 'PUBLISHED' } }),
       this.prisma.announcement.count({ where: { ...where, type: 'POLICY', status: 'PUBLISHED' } }),
-      this.prisma.announcement.count({ where: { ...where, status: 'DRAFT' } }),
+      // 待处理草稿（2026-11-16 用户裁定）：排除定时待发布件——它们已在主表「待发布」展示，不重复计数
+      this.prisma.announcement.count({ where: { ...where, status: 'DRAFT', metadata: { path: ['scheduledPublishDate'], equals: Prisma.DbNull } } }),
       this.prisma.announcement.count({ where: { ...where, status: 'PUBLISHED', publishDate: { gte: monthStart } } }),
       this.prisma.announcement.aggregate({ where: { ...where, status: 'PUBLISHED' }, _sum: { viewCount: true } }),
     ]);
@@ -1990,10 +2080,16 @@ export class AnnouncementService {
       select: {
         id: true, title: true, type: true, status: true,
         publishDate: true, relatedProjectCode: true,
+        metadata: true, // 2026-11-16 用户裁定：查重提示带公示起止（metadata.announcementStart/publicityEnd/publicityPeriod）
       },
       orderBy: [{ publishDate: 'desc' }, { createdAt: 'desc' }],
       take: 5,
     });
-    return { matches };
+    return {
+      matches: matches.map((m) => ({
+        ...m,
+        metadata: m.metadata as Record<string, unknown> | null,
+      })),
+    };
   }
 }

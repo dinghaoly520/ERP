@@ -51,7 +51,7 @@ export class AuthGuard implements CanActivate {
     const fromExpertCookie = portalCookies?.token_expert === token;
     try {
       const payload = await this.jwt.verifyAsync(token);
-      // 复查用户启用状态：confirmRetire / setAvailability(false) 已置 isActive=false，
+      // 复查用户启用状态：setAvailability(false) / updateProfileStatus(RETIRED) 已置 isActive=false，
       // 此处即时止损，避免退役/停用用户的 JWT 在自然过期前继续有效。
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },

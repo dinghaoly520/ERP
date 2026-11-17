@@ -39,16 +39,20 @@ export function PurchaserPickerDialog({
     <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4 py-6">
       <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-md" onClick={onClose} />
       <div className="relative z-10 flex w-full max-w-[640px] flex-col overflow-hidden wb-modal-shell">
-        <div className="px-6 py-4" style={{ borderBottom: "1px solid oklch(0.6 0.04 258 / 0.16)" }}>
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-[color:var(--foreground)]">选择采购人</div>
-            <button type="button" onClick={onClose} className="neu-btn-xs" aria-label="关闭">
-              <X size={14} />
-            </button>
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+              <UserRound size={14} />
+            </span>
+            <h2 className="text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)]">选择采购人</h2>
           </div>
+          <button type="button" onClick={onClose} className="neu-btn-xs" aria-label="关闭">
+            <X size={14} />
+          </button>
         </div>
+        <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-6">
           {entries === null && !error ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-[color:var(--muted-foreground)]">
               <Loader2 size={16} className="animate-spin" />

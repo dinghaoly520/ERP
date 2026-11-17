@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getSupplierTimeline } from '@/lib/api/supplier';
 import type { SupplierTimeline, TimelineEvent } from '@/lib/api/supplier';
 import {
-  Loader2, UserPlus, CheckCircle2, XCircle, RotateCcw, Ban, ShieldOff, Trash2,
+  Loader2, UserPlus, CheckCircle2, XCircle, RotateCcw, Ban, ShieldOff,
   RefreshCw, Send, Activity, FileEdit, Award, Briefcase, Package, FileText,
   ArrowRightLeft,
 } from 'lucide-react';
@@ -21,7 +21,6 @@ const typeConfig: Record<string, TypeConfig> = {
   // 状态变更
   SUPPLIER_DISABLED:          { color: 'oklch(0.55 0.05 70)',  bg: 'oklch(0.55 0.05 70)',  icon: Ban },
   SUPPLIER_BLACKLIST:         { color: 'var(--danger)',        bg: 'var(--danger)',        icon: ShieldOff },
-  SUPPLIER_ELIMINATED:        { color: 'var(--danger)',        bg: 'var(--danger)',        icon: Trash2 },
   SUPPLIER_RESTORED:          { color: 'var(--success)',       bg: 'var(--success)',       icon: RefreshCw },
   SUPPLIER_RESUBMITTED:       { color: 'var(--accent)',        bg: 'var(--accent)',        icon: Send },
   SUPPLIER_REACTIVATED:       { color: 'var(--success)',       bg: 'var(--success)',       icon: Activity },

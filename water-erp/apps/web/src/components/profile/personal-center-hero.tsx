@@ -125,24 +125,25 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
       {showLoginHistory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-[var(--background)]/60 backdrop-blur-sm" onClick={() => setShowLoginHistory(false)} />
-          <div className="relative w-full max-w-[min(640px,92vw)] max-h-[80vh] overflow-y-auto wb-modal-shell p-6" role="dialog" aria-modal="true">
-            <div className="flex items-start justify-between gap-4 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="neu-icon-well flex h-9 w-9 items-center justify-center rounded-[10px]">
-                  <CalendarClock size={15} className="text-[var(--accent)]" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-extrabold text-[var(--foreground)]">近期登录记录</h2>
-                  <p className="text-[11px] text-[var(--muted-foreground)]">展示账号最近的登录活动</p>
+          <div className="relative flex w-full max-w-[min(640px,92vw)] max-h-[80vh] flex-col overflow-hidden wb-modal-shell" role="dialog" aria-modal="true">
+            {/* A 版图标井头部（2026-11-16 全系统推广） */}
+            <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+                  <CalendarClock size={14} />
+                </span>
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">近期登录记录</h2>
+                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">展示账号最近的登录活动</p>
                 </div>
               </div>
               <button onClick={() => setShowLoginHistory(false)} className="neu-btn-xs" aria-label="关闭">
                 <X size={14} />
               </button>
             </div>
+            <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
-            <hr className="wb-section-rule" />
-
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-6">
             {loadingHistory ? (
               <div className="flex flex-col items-center justify-center gap-3 py-10">
                 <Loader2 size={20} className="animate-spin text-[var(--accent)]" />
@@ -156,7 +157,7 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
                 <span className="text-[13px] text-[var(--muted-foreground)]">暂无登录记录</span>
               </div>
             ) : (
-              <div className="neu-table-card mt-4 overflow-hidden">
+              <div className="neu-table-card overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="neu-table w-full">
                     <thead>
@@ -186,6 +187,7 @@ export function PersonalCenterHero({ user, onOpenBasicInfo, onOpenPreferences, o
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
       )}

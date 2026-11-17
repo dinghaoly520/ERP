@@ -8,6 +8,11 @@ import { IsBoolean, IsString, IsNotEmpty} from 'class-validator';
 export class SetAvailabilityDto {
   @IsBoolean()
   available!: boolean;
+
+  /** 2026-11-16 两态裁定：停用/启用一律必填理由（留痕入操作历史） */
+  @IsString()
+  @IsNotEmpty({ message: '停用/启用理由不能为空' })
+  reason!: string;
 }
 
 /** 人工确认专家退库 */

@@ -554,8 +554,8 @@ function FailedBidAnnouncementPreview({
 
         {/* 四 */}
         <div>
-          <p>四、开标结果公示信息</p>
-          <p>{PV(draft.resultInfo, "{{开标结果公示信息}}", "resultInfo", true)}</p>
+          <p>四、流标原因</p>
+          <p>{PV(draft.resultInfo, "{{流标原因}}", "resultInfo", true)}</p>
         </div>
 
         {/* 五 */}

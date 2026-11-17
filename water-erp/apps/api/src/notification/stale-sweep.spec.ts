@@ -242,21 +242,6 @@ describe('sweepStaleActionableNotifications', () => {
     expect(prisma._unresolved().sort()).toEqual(['c3']);
   });
 
-  it('批量报告型：每用户仅保留最新一批（含同毫秒并列按 id 决出）', async () => {
-    const t = (h: number) => new Date(Date.now() - h * 3600_000);
-    const prisma = makePrisma({
-      notifications: [
-        // CATALOG_PRICE_ALERT 已随功能移除（2026-10-26），夹具改用 EXPERT_RETIRE_CANDIDATE
-        // 双用户覆盖同一规则语义（每用户仅留最新一批）
-        { id: 'r-old-a', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u1', createdAt: t(48) },
-        { id: 'r-new-a', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u1', createdAt: t(1) },
-        { id: 'r-old-b', type: 'EXPERT_RETIRE_CANDIDATE', link: '/expert/retirement', content: '', resolvedAt: null, userId: 'u2', createdAt: t(24) },
-      ],
-    });
-    await sweepStaleActionableNotifications(prisma as any);
-    expect(prisma._unresolved().sort()).toEqual(['r-new-a', 'r-old-b']);
-  });
-
   it('幂等：复跑第二轮零消解', async () => {
     const prisma = makePrisma({
       notifications: [

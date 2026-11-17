@@ -511,6 +511,36 @@ describe('AiService', () => {
       expect(res.content).toBe('自合同签订之日起60日内完成供货');
     });
   });
+
+  describe('generateTenderFieldContent（事实摘取字段：联系电话/邮箱宁空勿假，2026-11-16）', () => {
+    it('contactPhone：资料中无电话 → 空 content 为合法结果直接放行（不重试不报错）', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '' });
+      const res = await service.generateTenderFieldContent({
+        fieldKey: 'contactPhone', fieldLabel: '联系电话', currentValue: '', context: {},
+      });
+      expect(res.content).toBe('');
+      expect((service as any).llm.chatJson).toHaveBeenCalledTimes(1);
+    });
+
+    it('contactEmail：摘取到真实值 → 原样返回', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: 'zhangwg@sch.example.cn' });
+      const res = await service.generateTenderFieldContent({
+        fieldKey: 'contactEmail', fieldLabel: '联系邮箱', currentValue: '', context: {},
+      });
+      expect(res.content).toBe('zhangwg@sch.example.cn');
+    });
+
+    it('事实字段系统提示含「宁空勿假」约束（软约束引导 + 硬放行双层）', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({ content: '' });
+      await service.generateTenderFieldContent({
+        fieldKey: 'contactPhone', fieldLabel: '联系电话', currentValue: '', context: {},
+      });
+      const systemPrompt = (service as any).llm.chatJson.mock.calls[0][0] as string;
+      expect(systemPrompt).toContain('事实摘取字段');
+      expect(systemPrompt).toContain('宁空勿假');
+      expect(systemPrompt).not.toContain('content 字段不得为空字符串');
+    });
+  });
 });
 
 describe('AiController — 供应商名称不允许 AI 生成（2026-10-16 用户裁定）', () => {

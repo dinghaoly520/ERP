@@ -189,18 +189,19 @@ export function updateAnnouncement(id: string, data: Partial<{
   return api.put<AnnouncementPublishResult>(`/announcements/${id}`, data);
 }
 
-/* ── 回收站（2026-09-26：隐藏/下架/恢复取代删除）── */
+/* ── 回收站（2026-11-16：「下架」UI 退役——隐藏/恢复/永久删除）── */
 
 export function hideAnnouncement(id: string) {
   return api.post<AnnouncementListItem>(`/announcements/${id}/hide`, {});
 }
 
-export function offlineAnnouncement(id: string) {
-  return api.post<AnnouncementListItem>(`/announcements/${id}/offline`, {});
-}
-
 export function restoreAnnouncement(id: string) {
   return api.post<AnnouncementListItem>(`/announcements/${id}/restore`, {});
+}
+
+/** 永久删除（回收站内）：走既有 DELETE 端点——BID_IN_PROGRESS 闸门在后端，历史留痕删前快照 */
+export function deleteAnnouncement(id: string) {
+  return api.delete<{ deleted: boolean }>(`/announcements/${id}`);
 }
 
 /** 招标公示投标情况：参与供应商 + 是否已投标（只读） */
@@ -240,6 +241,8 @@ export interface AnnouncementDuplicateMatch {
   status: string;
   publishDate: string | null;
   relatedProjectCode?: string | null;
+  /** 2026-11-16：查重提示带公示起止——metadata.announcementStart/publicityEnd（或 publicityPeriod 文本） */
+  metadata?: Record<string, unknown> | null;
 }
 export function checkAnnouncementDuplicate(payload: { title: string; relatedProjectCode?: string; type?: string }) {
   return api.post<{ matches: AnnouncementDuplicateMatch[] }>('/announcements/check-duplicate', payload);

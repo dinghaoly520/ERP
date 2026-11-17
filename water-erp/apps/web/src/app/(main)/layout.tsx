@@ -42,7 +42,6 @@ const routeToKey: Record<string, string> = {
   "/supplier/repository": "supplier-repo",
   "/supplier/dashboard": "supplier-repo",
   "/supplier/selection": "supplier-select",
-  "/supplier/elimination": "supplier-repo",
   "/supplier/qualification-alerts": "supplier-repo",
   "/supplier": "supplier-approval",
   // 专家管理

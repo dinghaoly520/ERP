@@ -3,7 +3,6 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notification/notification.service';
 import { ExpertAdminService } from '../expert/expert-admin.service';
-import { SupplierService } from '../supplier/supplier.service';
 import { BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS } from '@water-erp/shared';
 import { AnnouncementService } from '../announcement/announcement.service';
 import { parseScheduledPublishDate } from '../announcement/scheduled-publish.util';
@@ -66,7 +65,6 @@ export class SchedulerService {
     private prisma: PrismaService,
     private notification: NotificationService,
     private expertAdmin: ExpertAdminService,
-    private supplierService: SupplierService,
     private announcementService: AnnouncementService,
     private bidService: BidService,
   ) {}
@@ -501,22 +499,6 @@ export class SchedulerService {
       } catch { /* 发送失败不占坑——明日重扫重发 */ }
     }
     if (sent > 0) this.logger.log(`[C4] 响应担保逐家退还提醒已发 ${sent} 项`);
-  }
-
-  /** 每周一 01:00 扫描专家退库 / 供应商淘汰候选（仅预警通知，不自动改状态——决策 #3）。 */
-  @Cron('0 1 * * 1')
-  async scanRetirementAndEliminationCandidates() {
-    const [experts, suppliers] = await Promise.all([
-      this.expertAdmin.reviewRetirementCandidates().catch((e: Error) => {
-        this.logger.error(`专家退库扫描失败：${e.message}`);
-        return [];
-      }),
-      this.supplierService.reviewEliminationCandidates().catch((e: Error) => {
-        this.logger.error(`供应商淘汰扫描失败：${e.message}`);
-        return [];
-      }),
-    ]);
-    this.logger.log(`退库/淘汰预警扫描完成：专家候选 ${experts.length} 名，供应商候选 ${suppliers.length} 家`);
   }
 
   /** 每分钟扫描定时公告（status=DRAFT + metadata.scheduledPublishDate），到期发布。

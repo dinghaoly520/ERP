@@ -532,7 +532,7 @@ describe('ProjectManagementService', () => {
       currentStage: 'INITIATION',
       status: 'ACTIVE',
     });
-    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 7 });
+    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 8 });
     prisma.attachment.create.mockResolvedValue({ id: 'att-01' });
 
     await expect(
@@ -563,9 +563,10 @@ describe('ProjectManagementService', () => {
     });
 
     // 公开招标不在方式模板表（METHOD_STAGE_TEMPLATES）中 → 回落「询比采购」模板（与前端矩阵一致）；
-    // 仅立项表（hasDemand=false）→ 去掉 PROCUREMENT_DEMAND（8 − 1 = 7），
+    // 仅立项表 → 需求步骤保留 NOT_STARTED（2026-11-16：未传文件不再裁剪步骤，建项后显示「待补充」），
     // INITIATION is COMPLETED, TENDER_DOCUMENT is the first IN_PROGRESS stage.
     const expectedStages = [
+      { key: 'PROCUREMENT_DEMAND', label: '采购需求', status: 'NOT_STARTED' },
       { key: 'INITIATION', label: '采购立项', status: 'COMPLETED' },
       { key: 'TENDER_DOCUMENT', label: '采购文件', status: 'IN_PROGRESS' },
       { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示', status: 'NOT_STARTED' },
@@ -585,6 +586,44 @@ describe('ProjectManagementService', () => {
         status: stage.status,
       })),
     });
+  });
+
+  // 小额采购分支（API 直调可达，UI 五方式不含）：需求/立项步骤恒在不裁剪（2026-11-16）
+  it('小额采购建项：未传表的需求/立项步骤保留 NOT_STARTED（待补充），不再按上传裁剪', async () => {
+    const { service, prisma } = makeService();
+    prisma.department.upsert.mockResolvedValue({ id: 'dept-01', name: '采购中心' });
+    prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-small', title: '小额', status: 'ACTIVE' });
+    prisma.projectManagementStage.createMany.mockResolvedValue({ count: 3 });
+
+    await service.createFromInitiation({
+      requesterName: '李四',
+      requesterDepartment: '采购中心',
+      procurementTitle: '小额办公采购',
+      procurementMethod: '小额采购',
+      procurementCategory: '货物',
+      procurementOrganizationForm: '自行招标',
+      budgetAmount: 5000,
+      isAnnualBudget: false,
+      hasProcurementDemand: false,
+      projectReason: '测试',
+      supplierRequirements: '无',
+      initiationAttachment: {
+        fileName: '采购立项申请表.pdf',
+        objectKey: 'uploads/initiation-small.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 12345,
+        uploadedById: 'user-01',
+      },
+    } as never);
+
+    const rows = prisma.projectManagementStage.createMany.mock.calls[0][0].data as Array<{
+      stageKey: string; status: string;
+    }>;
+    expect(rows.map((r) => `${r.stageKey}:${r.status}`)).toEqual([
+      'PROCUREMENT_DEMAND:NOT_STARTED', // 未传需求表 → 保留待补充
+      'INITIATION:COMPLETED',
+      'CONTRACT:IN_PROGRESS',
+    ]);
   });
 
   it('extracts demand fields from the Chen Yingying demand form without pulling approval-flow text into labeled fields', async () => {
@@ -2082,7 +2121,7 @@ describe('ProjectManagementService', () => {
       const res = await service.getProjectAttributions({ sub: 'staff-1', username: 's', role: 'staff' });
       const where = prisma.projectManagementItem.findMany.mock.calls[0][0].where;
       expect(where.companyId).toEqual({ in: ['co-test'] }); // 数据库层过滤，非全量算完再减
-      expect(where.status).toEqual({ not: 'RECYCLED' }); // 既有口径不回归
+      expect(where.status).toEqual({ notIn: ['RECYCLED', 'TERMINATED'] }); // 已终止不计数（2026-11-16）
       expect(res).toHaveLength(1);
       expect(res[0]).toMatchObject({ name: '引大济岷工程', contractNumber: 'HT-1', usageCount: 1 });
     });
@@ -2663,5 +2702,64 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
       await expect((service as any).buildArchiveScoreDetail('pmi-1')).resolves.toBeNull();
     });
   });
-});
 
+
+  describe('项目终止·关联公告回收站联动（2026-11-16 用户裁定：终止→公告移入回收站）', () => {
+    it('终止时关联已发布公告移入回收站：HIDDEN + metadata.recycle 快照 + 历史 HIDE（按操作人姓名）', async () => {
+      const { service, prisma } = makeService();
+      // 终止链路独有模型 mock（harness 默认未挂）：Object.assign 本地补齐
+      Object.assign(prisma, {
+        project: { ...prisma.project, upsert: jest.fn().mockResolvedValue({ id: 'proj-1' }) },
+        announcement: { ...prisma.announcement, update: jest.fn().mockResolvedValue({}), updateMany: jest.fn() },
+        announcementHistory: { create: jest.fn().mockResolvedValue({}) },
+        workArrangement: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+        bidProject: { ...prisma.bidProject, update: jest.fn().mockResolvedValue({}) },
+        procurementRound: { ...prisma.procurementRound, findFirst: jest.fn().mockResolvedValue(null) },
+      });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01', title: '竞价采购测试', projectCode: 'JJ-TEST-01',
+        procurementMethod: '竞价采购', procurementCategory: '货物', projectReason: '测试',
+        budgetAmount: 100, requesterDepartment: '采购中心', companyId: 'co-1', companyName: '测试公司',
+        currentStage: 'BID_EVALUATION', status: 'ACTIVE', createdById: 'u-1',
+      });
+      prisma.projectManagementStage.findMany.mockResolvedValue([]);
+      prisma.bidProject.findMany.mockResolvedValue([
+        { id: 'bp-01', name: '竞价项目', stage: 'SUBMIT', projectCode: 'SWHI-JJ-X', procurementMethod: '竞价采购', assignedHostUserId: null },
+      ]);
+      prisma.department.findFirst.mockResolvedValue({ id: 'dept-1' });
+      prisma.procurementRound.create.mockResolvedValue({ id: 'round-1' });
+      prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: 'TERMINATED' });
+      prisma.user.findUnique.mockResolvedValue({ displayName: '采购中心领导 02', username: 'Swhi-CGZX-02' });
+      // 关联公告三态：PUBLISHED 收、DRAFT（发布中竞态）收、已在回收站的跳过。
+      // findMany 按 where.status.in + 已收集合模拟 DB 状态（in-tx 收走后事务后补扫应空转）
+      const ANN_FIXTURES = [
+        { id: 'ann-1', status: 'PUBLISHED', title: '竞价采购公告 X', type: 'BID_NOTICE', metadata: { foo: 1 } },
+        { id: 'ann-2', status: 'DRAFT', title: '发布中草稿', type: 'BID_NOTICE', metadata: null },
+        { id: 'ann-3', status: 'HIDDEN', title: '已在回收站', type: 'BID_NOTICE', metadata: {} },
+      ];
+      const hiddenIds = new Set<string>();
+      prisma.announcement.update.mockImplementation(async (args: any) => { hiddenIds.add(args.where.id); return {}; });
+      prisma.announcement.findMany.mockImplementation(async (args: any) =>
+        ANN_FIXTURES.filter(a => (args?.where?.status?.in ?? []).includes(a.status) && !hiddenIds.has(a.id)));
+
+      const res = await service.terminateProject('pm-01', { reason: '需求取消' }, 'u-1', { sub: 'u-1', id: 'u-1', role: 'staff' } as any);
+
+      expect(res.status).toBe('TERMINATED');
+      // 收进回收站的 id 集合 = ann-1(PUBLISHED) + ann-2(DRAFT)；ann-3 已在回收站（HIDDEN）不再收；
+      // 事务后补扫对已收件空转（总调用恰 2 次而非重复收）
+      expect(new Set(hiddenIds)).toEqual(new Set(['ann-1', 'ann-2']));
+      expect(prisma.announcement.update).toHaveBeenCalledTimes(2);
+      const first = prisma.announcement.update.mock.calls.find((c: any[]) => c[0].where.id === 'ann-1')![0];
+      expect(first.data.status).toBe('HIDDEN');
+      expect(first.data.metadata.recycle).toMatchObject({ from: 'PUBLISHED', action: 'HIDDEN', by: '采购中心领导 02' });
+      expect(first.data.metadata.foo).toBe(1); // 其余 metadata 键保留
+      expect(prisma.announcementHistory.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          announcementId: 'ann-1', action: 'HIDE', status: 'HIDDEN', changedFields: ['status'],
+          operatorId: 'u-1', operatorName: '采购中心领导 02',
+        }),
+      });
+    });
+  });
+});

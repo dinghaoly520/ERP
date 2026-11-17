@@ -5053,6 +5053,15 @@ textarea.neu-input {
 .workbench-table tbody tr:hover {
   background: oklch(0.97 0.008 258);
 }
+/* ── 对齐出口（2026-11-16）：workbench-table 版对齐落地闸 ──
+   与 .neu-table 同族问题（见 5551 处 2026-10-22 注）：th 基类 text-align:left
+   未分层、特异性 0,1,1 盖过 @layer utilities 的裸 text-center——供应商操作
+   历史表头不居中实录（2026-11-16，曾以 !text-center 旁路）。此组规则把
+   className 里显式声明的对齐翻译回真实样式；未声明者维持基类默认。
+   td 无 vertical-align 基类规则，align-top 无需闸。 */
+.workbench-table th[class*="text-left"],   .workbench-table td[class*="text-left"]   { text-align: left; }
+.workbench-table th[class*="text-right"],  .workbench-table td[class*="text-right"]  { text-align: right; }
+.workbench-table th[class*="text-center"], .workbench-table td[class*="text-center"] { text-align: center; }
 .row-clickable {
   cursor: pointer;
 }

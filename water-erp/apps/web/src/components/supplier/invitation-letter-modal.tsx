@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, Loader2, RefreshCw, X } from 'lucide-react';
+import { Download, Loader2, Mail, RefreshCw, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { uploadProjectStageAttachment } from '@/lib/api/project-management';
 import { apiFetch } from '@/lib/api/api-fetch';
@@ -143,20 +143,26 @@ export function InvitationLetterModal({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-[color:var(--background)]/70 backdrop-blur-[6px]" onClick={onClose} />
-      <div className="neu-dialog relative flex max-h-[90vh] w-full max-w-[min(760px,92vw)] flex-col">
-        <button type="button" onClick={onClose} className="neu-btn-xs absolute right-4 top-4 z-[2]"><X size={16} /></button>
-
-        <div className="flex-shrink-0 pr-[3.8rem]">
-          <h2 className="text-[clamp(1.34rem,2.7vw,1.58rem)] font-semibold leading-tight tracking-[-0.05em] text-[color:var(--foreground)]">采购邀请书</h2>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-            AI 依据项目信息起草的公文体正文，可直接修改后导出 Word；导出后自动加入附件清单。
-            {result && result.source === 'fallback' && '（AI 服务暂不可用，已按项目数据成稿）'}
-          </p>
+      <div className="wb-modal-shell relative flex max-h-[90vh] w-full max-w-[min(760px,92vw)] flex-col overflow-hidden">
+        {/* A 版图标井头部（2026-11-16 全系统推广） */}
+        <div className="flex shrink-0 items-start justify-between gap-4 px-6 pb-4 pt-6">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+              <Mail size={14} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold tracking-[-0.02em] text-[color:var(--foreground)]">采购邀请书</h2>
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                AI 依据项目信息起草的公文体正文，可直接修改后导出 Word；导出后自动加入附件清单。
+                {result && result.source === 'fallback' && '（AI 服务暂不可用，已按项目数据成稿）'}
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="neu-btn-xs shrink-0"><X size={16} /></button>
         </div>
+        <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
 
-        <div className="wb-section-rule mt-4 flex-shrink-0" />
-
-        <div className="flex-1 min-h-0 mt-4 px-[1.7rem] overflow-y-auto pb-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pt-4 pb-4">
           {loading ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
               <Loader2 size={26} className="animate-spin text-[var(--accent)]" />
@@ -177,7 +183,9 @@ export function InvitationLetterModal({
           )}
         </div>
 
-        <div className="flex-shrink-0 px-[1.7rem] py-4" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.16)' }}>
+        {/* A 版底栏（2026-11-16 全系统推广） */}
+        <div className="flex-shrink-0 px-6 pb-6 pt-3">
+          <hr className="wb-section-rule mb-4" />
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => void runGenerate()} disabled={loading || exporting} className="neu-btn-soft h-[38px] gap-2">
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />

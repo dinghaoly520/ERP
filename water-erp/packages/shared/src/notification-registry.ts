@@ -506,9 +506,7 @@ const EXPERT_SPECS: NotificationTypeSpec[] = [
   { code: 'EXPERT_INVITATION_OVERRIDDEN', label: '专家邀请变更', domain: 'expert', icon: 'RefreshCw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP }, // 2026-10-21 代为变更设计适配：工作人员把专家「确认参加」改为「婉拒」时通知本人（含理由与操作人），事件同步计入邀请轨迹
   { code: 'EXPERT_DECLINE_STREAK', label: '专家连续婉拒预警', domain: 'expert', icon: 'AlertTriangle', tone: 'red', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: (ctx) => `/expert/${ctx.userId}?tab=overview` }, // 2026-11-03 直达该专家「评审项目」页签（连拒记录与历次邀请在此复核）；2026-10-21 邀请信用：连续 3 次拒绝评审邀请触发一次预警（同段连拒期不重复）
   { code: 'EXPERT_DISPUTE_RESOLVED', label: '专家异议结果', domain: 'expert', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
-  { code: 'EXPERT_RETIRE_CANDIDATE', label: '专家退库预警', domain: 'expert', icon: 'UserMinus', tone: 'orange', actionable: true, sharedResolve: true,
-    // 2026-09-26 超界修复：专家库管理事件归 :3005（leader+staff 复核），不进 bid_host/admin；link 指 :3005 退库复核页
-    audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP, link: () => '/expert/retirement' }, // sharedResolve（2026-11-12）：批报复核共享，新批取代钩子本就跨全员整组消解；旧收件人（如存量 bid_host）不再收新批、永不被取代，靠整组口径兜住
+  // EXPERT_RETIRE_CANDIDATE（专家退库预警）已删——2026-11-16 两态裁定：退库预警链（扫描/复核页/确认端点）整体下线，退库唯一入口=停用列表行按钮
   // 报告确认重开（受控数据更正）：主持人/管理员书面理由解锁，评分历史保留、须重新确认后重生成结果
   {
     code: 'EVALUATION_REOPEN',
@@ -540,7 +538,7 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_RETURNED', label: '退回补正', domain: 'supplier', icon: 'RotateCcw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_BLACKLISTED', label: '供应商拉黑', domain: 'supplier', icon: 'Ban', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_UNBLACKLISTED', label: '供应商解除拉黑', domain: 'supplier', icon: 'CircleCheck', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
-  { code: 'SUPPLIER_ELIMINATE_CANDIDATE', label: '供应商淘汰预警', domain: 'supplier', icon: 'UserMinus', tone: 'orange', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['leader', 'staff'] }], channels: IN_APP }, // 2026-09-26 已去 admin；sharedResolve（2026-11-12）：与专家退库批报同构的群发复核型
+  // SUPPLIER_ELIMINATE_CANDIDATE（供应商淘汰预警）已删——2026-11-16 两态裁定：处置只余停用/黑名单，淘汰候选扫描/复核页/确认端点同日整体下线
   { code: 'SUPPLIER_VISIT_REGISTERED', label: '供应商来访登记', domain: 'supplier', icon: 'CalendarCheck', tone: 'blue', actionable: false, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP }, // 门户来访登记表单（:3002 /contact/visitor，@Public 匿名提交）：实际投递=访问单位（Company.name 精确匹配）归属公司 staff，无人回退平台 admin
   { code: 'SUPPLIER_REVIEW_URGE', label: '供应商催审', domain: 'supplier', icon: 'Clock', tone: 'orange', actionable: true, audiences: LEGACY('现按归属公司工作人员+回退全体，挂起待议'), channels: IN_APP },
   { code: 'PREQUAL_RESULT', label: '资格预审结果', domain: 'supplier', icon: 'FileCheck2', tone: 'blue', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },

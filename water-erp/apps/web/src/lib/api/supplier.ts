@@ -578,15 +578,6 @@ export function notifyQualificationAlert(qualificationId: string) {
   return api.post<{ success: boolean }>(`/supplier/qualification-alerts/${qualificationId}/notify`, {});
 }
 
-// 淘汰候选（按公司视野）
-export interface EliminationCandidate { supplierId: string; name: string; reason: string; }
-export function getEliminationCandidates(companyId?: string) {
-  return api.get<EliminationCandidate[]>(`/supplier/eliminate-candidates${companyQuery(companyId)}`);
-}
-export function confirmEliminate(id: string, reason: string) {
-  return api.post<{ success: boolean }>(`/supplier/${id}/eliminate`, { reason });
-}
-
 /** 管理员直接修改供应商业务标签（2-8 个，不走审批） */
 export function updateSupplierTags(supplierId: string, tags: string[]) {
   return api.patch<{ tags: string[] }>(`/supplier/${supplierId}/tags`, { tags });

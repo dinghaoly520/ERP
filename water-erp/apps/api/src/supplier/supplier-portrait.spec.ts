@@ -7,7 +7,7 @@ import { NotificationService } from '../notification/notification.service';
 import { LlmService } from '../local-ai/llm.service';
 import { CompanyScopeService } from '../company/company-scope';
 
-describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
+describe('SupplierService — portrait (Track E §3.3)', () => {
   let service: SupplierService;
   let prisma: any;
   let notification: any;
@@ -21,7 +21,6 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
       bidEvaluationResult: { findMany: jest.fn(), findFirst: jest.fn() },
       user: { update: jest.fn() },
     };
-    notification = { create: jest.fn(), sendToRole: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -29,7 +28,7 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
         SupplierService,
         { provide: VerificationService, useValue: {} },
         { provide: PrismaService, useValue: prisma },
-        { provide: NotificationService, useValue: notification },
+        { provide: NotificationService, useValue: { create: jest.fn(), sendToRole: jest.fn(), sendToUser: jest.fn() } },
         // SupplierService 构造器 @Inject('REDIS_CLIENT')（口径同 verification.service.spec.ts）
         { provide: 'REDIS_CLIENT', useValue: { get: jest.fn(), set: jest.fn(), del: jest.fn(), incr: jest.fn(), expire: jest.fn(), ttl: jest.fn() } },
         // 构造器第 4 参（本 spec 不触达 LLM，空 mock 即可）
@@ -67,50 +66,4 @@ describe('SupplierService — portrait & eliminate (Track E §3.3)', () => {
     });
   });
 
-  describe('reviewEliminationCandidates', () => {
-    it('连续3次E级供应商为候选，但不改 status', async () => {
-      prisma.supplier.findMany.mockResolvedValue([{ id: 's1', name: '差供应商' }]);
-      prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e1', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e2', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-        { supplierId: 's1', finalGrade: 'E', evaluatorId: 'e3', projectId: 'p1', createdAt: new Date(), updatedAt: new Date() },
-      ]);
-
-      const candidates = await service.reviewEliminationCandidates();
-      expect(candidates).toHaveLength(1);
-      expect(candidates[0].supplierId).toBe('s1');
-      expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
-      expect(notification.sendToRole).toHaveBeenCalled();
-    });
-
-    it('绩效正常的供应商不进候选', async () => {
-      prisma.supplier.findMany.mockResolvedValue([{ id: 's2', name: '好供应商' }]);
-      prisma.supplierEvaluation.findMany.mockResolvedValue([
-        { finalGrade: 'A' }, { finalGrade: 'B' }, { finalGrade: 'A' },
-      ]);
-      const candidates = await service.reviewEliminationCandidates();
-      expect(candidates).toHaveLength(0);
-    });
-  });
-
-  describe('confirmEliminate', () => {
-    it('置 status=DISABLED', async () => {
-      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', status: 'APPROVED', name: '差供应商', userId: 'u1' });
-      prisma.supplier.updateMany.mockResolvedValue({ count: 1 });
-      prisma.user.update.mockResolvedValue({ id: 'u1' });
-      const res = await service.confirmEliminate('s1', '连续差评');
-      expect(res.success).toBe(true);
-      expect(prisma.supplier.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 's1', status: 'APPROVED' },
-          data: expect.objectContaining({ status: 'DISABLED' }),
-        }),
-      );
-    });
-
-    it('供应商不存在时抛 NotFoundException', async () => {
-      prisma.supplier.findUnique.mockResolvedValue(null);
-      await expect(service.confirmEliminate('nope', 'x')).rejects.toBeInstanceOf(NotFoundException);
-    });
-  });
 });

@@ -727,6 +727,17 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     const pmiOpening = toDatetimeLocal(project.bidOpeningTime ?? '');
 
     const preTender = buildPrefillFromProject(project, tt) as ReadyTenderDraft;
+    // 2026-11-16 用户裁定：公告自动引入采购文件编写草稿的监督块与开标地点——
+    // 03 步骤填写/选择的值优先覆盖 PMI 预填（此前向导只从项目数据组预填，
+    // 采购文件里选的监督人/开标地点无带入通道；直接采购 supplierName 先例同源 localStorage）
+    try {
+      const raw = localStorage.getItem(tenderDraftStorageKey(project.id, project.currentRound ?? 1));
+      const td = raw ? ((JSON.parse(raw)?.[tt] ?? {}) as Record<string, string>) : {};
+      for (const k of ['supervisionDepartment', 'supervisionAddress', 'supervisionContact', 'supervisionPhone', 'bidOpeningPlace']) {
+        const v = td[k]?.trim();
+        if (v) (preTender as Record<string, string>)[k] = v;
+      }
+    } catch { /* 采购文件草稿缺失/损坏：PMI 预填兜底 */ }
     setTenderDraftForDialog(preTender);
 
     // ★ 缓存命中 —— 恢复上次完整状态，跳过全新预填
@@ -799,6 +810,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!fd.maxPriceNumeric?.trim() && project.budgetAmount != null) fd.maxPriceNumeric = String(project.budgetAmount);
       if (!fd.projectOverview?.trim() && project.projectOverview?.trim()) fd.projectOverview = project.projectOverview;
       if (!fd.qualificationRequirements?.trim() && project.supplierRequirements?.trim()) fd.qualificationRequirements = project.supplierRequirements;
+      // 流标/中标公告「项目简要说明」（2026-11-16）：项目概况优先、采购事由兜底——
+      // 该字段此前无预填通道（AUTO_FILL 表无映射），向导内恒空显示「待补充」
+      if ('projectBriefDescription' in fd && !fd.projectBriefDescription?.trim()) {
+        fd.projectBriefDescription = project.projectOverview?.trim() || project.projectReason?.trim() || '';
+      }
 
       // 开标/采购时间（2026-11-09 权威序）：基本信息优先，采购文件编写草稿降为兜底；源随缓存记录
       openSync = syncOpeningTimeFromPmi(fd, project, tt, undefined);
@@ -1379,13 +1395,39 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           type: announcementType,
         });
         if (dup.matches.length > 0) {
+          // 命中行排版（2026-11-16 用户裁定：分行结构化——标题一行、属性一行括注）。
+          // 弹窗正文 whitespace-pre-line：换行保留、行首空格折叠——缩进用「（…）」括注行表达层级
           const dupLines = dup.matches.map((m) => {
             const when = m.publishDate ? `${new Date(m.publishDate).toLocaleDateString('zh-CN')} 发布` : '未发布';
-            return `· ${m.title}（${when} · ${m.status === 'PUBLISHED' ? '已发布' : '已归档'}）`;
-          }).join('\n');
+            const statusTxt = m.status === 'PUBLISHED' ? '已发布' : '已归档';
+            const md = (m.metadata ?? {}) as Record<string, unknown>;
+            const fmtDup = (v: unknown) => {
+              const d = v ? new Date(String(v)) : null;
+              return d && !Number.isNaN(d.getTime())
+                ? d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+                : '';
+            };
+            const startTxt = fmtDup(md.announcementStart);
+            const endTxt = fmtDup(md.publicityEnd);
+            const periodTxt = startTxt && endTxt
+              ? `${startTxt} 至 ${endTxt}`
+              : startTxt ? `${startTxt} 起` : endTxt ? `至 ${endTxt}` : '';
+            const period = periodTxt
+              ? `公告起止 ${periodTxt}`
+              : typeof md.publicityPeriod === 'string' && md.publicityPeriod.trim()
+                ? `公告起止 ${md.publicityPeriod}`
+                : '';
+            // 属性段：仅收录有值项，「｜」分隔——避免「至 —」空占位
+            const attrs = [
+              m.relatedProjectCode?.trim() ? `编号 ${m.relatedProjectCode}` : '',
+              period,
+              `${when} · ${statusTxt}`,
+            ].filter(Boolean).join(' ～ ');
+            return `· ${m.title}\n（${attrs}）`;
+          }).join('\n\n');
           const okDup = await confirmDialog({
             title: '疑似重复发布',
-            message: `检出 ${dup.matches.length} 条内容相同/相关的公告：\n${dupLines}\n\n确认仍要发布？`,
+            message: `检出 ${dup.matches.length} 条内容相同/相关的公告：\n\n${dupLines}\n\n确认仍要发布？`,
             confirmText: '仍要发布',
             cancelText: '返回检查',
             danger: true,

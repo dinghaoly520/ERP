@@ -175,7 +175,6 @@ const ACTION_LABEL: Record<string, string> = {
   SUPPLIER_CHANGE_APPROVED: '供应商资料变更 · 通过',
   SUPPLIER_CHANGE_REJECTED: '供应商资料变更 · 拒绝',
   SUPPLIER_CONVERTED_REGULAR: '临时供应商转正式',
-  SUPPLIER_ELIMINATED: '淘汰供应商',
   SUPPLIER_EVALUATION_UPDATED: '更新供应商评价',
   SUPPLIER_REACTIVATED: '复活被拒供应商申请',
   SUPPLIER_TAGS_UPDATED: '更新业务标签',

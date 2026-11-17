@@ -1258,31 +1258,16 @@ ${shortlist}
 
     type StageKey = typeof PROJECT_WORKFLOW_STAGES[number]['key'];
 
-    // For small purchases, the first stage depends on which document was uploaded:
-    // - Only demand → 采购需求
-    // - Only initiation → 项目立项
-    // - Both → 采购需求 + 项目立项
     const SMALL_PURCHASE_DEMAND_STAGE = { key: 'PROCUREMENT_DEMAND' as StageKey, label: '采购需求' };
     const SMALL_PURCHASE_INITIATION_STAGE = { key: 'INITIATION' as StageKey, label: '项目立项' };
     const CONTRACT_STAGE = { key: 'CONTRACT' as StageKey, label: '合同' };
 
     // Build stages list
-    let stagesToCreate: Array<{ readonly key: StageKey; readonly label: string }>;
-    if (isSmallPurchase) {
-      const firstStages: Array<{ readonly key: StageKey; readonly label: string }> = [];
-      if (hasDemand) firstStages.push(SMALL_PURCHASE_DEMAND_STAGE);
-      if (hasInitiation) firstStages.push(SMALL_PURCHASE_INITIATION_STAGE);
-      if (firstStages.length === 0) firstStages.push(SMALL_PURCHASE_DEMAND_STAGE);
-      stagesToCreate = [...firstStages, CONTRACT_STAGE];
-    } else {
-      // 按采购方式取完整阶段模板（与前端定义矩阵一致）
-      const template = METHOD_STAGE_TEMPLATES[dto.procurementMethod] ?? METHOD_STAGE_TEMPLATES['询比采购'];
-      stagesToCreate = template as Array<{ readonly key: StageKey; readonly label: string }>;
-      // Only initiation form → remove PROCUREMENT_DEMAND from stages
-      if (!hasDemand && hasInitiation) {
-        stagesToCreate = stagesToCreate.filter((s) => s.key !== 'PROCUREMENT_DEMAND');
-      }
-    }
+    // 采购需求/采购立项步骤恒在（2026-11-16 用户裁定）：未上传对应文件的步骤保留 NOT_STARTED，
+    // 建项后被 currentStage 越过即由读端「待补充」机制接管（补传补录）——不再按上传裁剪步骤
+    const stagesToCreate: Array<{ readonly key: StageKey; readonly label: string }> = isSmallPurchase
+      ? [SMALL_PURCHASE_DEMAND_STAGE, SMALL_PURCHASE_INITIATION_STAGE, CONTRACT_STAGE]
+      : (METHOD_STAGE_TEMPLATES[dto.procurementMethod] ?? METHOD_STAGE_TEMPLATES['询比采购']) as Array<{ readonly key: StageKey; readonly label: string }>;
 
     // Determine the first active stage based on which documents were uploaded
     let firstActiveStage: StageKey;
@@ -4193,6 +4178,33 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     const terminatedAt = new Date();
 
+    // 终止操作人（事务前解析，联动①留痕与联动②回收快照共用；2026-10-27 串码修复口径：姓名快照）
+    const terminator = userId
+      ? await this.prisma.user.findUnique({ where: { id: userId }, select: { displayName: true, username: true } })
+      : null;
+    const terminatorLabel = terminator ? (terminator.displayName?.trim() || terminator.username) : null;
+
+    // 联动②回收配方（事务内与事务后补扫共用，2026-11-16 用户裁定）：
+    // HIDDEN + metadata.recycle 快照 + 历史 HIDE——与 AnnouncementService.applyRecycle 同构
+    const recycleTerminatedAnnouncement = async (
+      db: any,
+      ann: { id: string; status: string; title: string; type: string; metadata: unknown },
+    ) => {
+      const meta = { ...((ann.metadata as Record<string, any> | null) ?? {}) };
+      meta.recycle = { from: ann.status, action: 'HIDDEN', at: terminatedAt.toISOString(), by: terminatorLabel ?? '系统（项目终止联动）' };
+      await db.announcement.update({
+        where: { id: ann.id },
+        data: { status: 'HIDDEN', metadata: meta as any },
+      });
+      await db.announcementHistory.create({
+        data: {
+          announcementId: ann.id, action: 'HIDE', title: ann.title, type: ann.type,
+          status: 'HIDDEN', changedFields: ['status'],
+          operatorId: userId ?? null, operatorName: terminatorLabel,
+        },
+      });
+    };
+
     // 下游联动调查（事务前取数）：关联招标项目 + 公告编号
     const linkedBidProjects = await this.prisma.bidProject.findMany({
       where: { projectManagementItemId: projectId },
@@ -4268,10 +4280,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
       });
 
       // 下游联动①：关联招标项目流标（2026-09-21 拍板：终止必须闭环下游）
-      const terminator = userId
-        ? await tx.user.findUnique({ where: { id: userId }, select: { displayName: true, username: true } })
-        : null;
-      const terminatorLabel = terminator ? (terminator.displayName?.trim() || terminator.username) : null;
       // ABORTED 后供应商端「可投标项目」（stage∈DOWNLOAD/SUBMIT）自动排除；
       // ARCHIVED 终态跳过（归档数据不可扰动）；监督时间线留痕联动原因。
       for (const bp of activeBidProjects) {
@@ -4290,12 +4298,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
         });
       }
 
-      // 下游联动②：已发布公告下架（PUBLISHED→ARCHIVED，publicList 只列 PUBLISHED → 公开门户即时不可见）
+      // 下游联动②：关联公告移入回收站（2026-11-16 用户裁定，替换旧「PUBLISHED→ARCHIVED 下架留痕」）——
+      // 终止项目的公告进回收站：公开端/供应商端即时不可见，管理端回收站可恢复/删除，历史留 HIDE 档。
+      // 语义与 AnnouncementService.applyRecycle(HIDDEN) 同构（HIDDEN + metadata.recycle 快照 + 历史 HIDE），
+      // 就地走 tx 保持与流标同一事务。范围含 DRAFT——2026-11-16 实录竞态：发布与终止并发时，
+      // 旧 `status:'PUBLISHED'` 过滤在公告尚为 DRAFT 的瞬间漏收，终止后公告照常发布公示（SWHI-JJ-2026111602）。
       if (linkedProjectCodes.length > 0) {
-        await tx.announcement.updateMany({
-          where: { relatedProjectCode: { in: linkedProjectCodes }, status: 'PUBLISHED' },
-          data: { status: 'ARCHIVED' },
+        const linkedAnnouncements = await tx.announcement.findMany({
+          where: { relatedProjectCode: { in: linkedProjectCodes }, status: { in: ['PUBLISHED', 'DRAFT'] } },
+          select: { id: true, status: true, title: true, type: true, metadata: true },
         });
+        for (const ann of linkedAnnouncements) {
+          await recycleTerminatedAnnouncement(tx, ann);
+        }
       }
 
       // 下游联动③：未完成工作安排自动取消（TODO/IN_PROGRESS/BLOCKED → CANCELLED）
@@ -4306,6 +4321,24 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
       return updated;
     }).then(async (updated) => {
+
+    // 联动②事务后补扫（2026-11-16 用户裁定）：终止事务进行中并发提交的关联公告
+    // （发布/建行竞态漏网——SWHI-JJ-2026111602 实录同源窗口）再收一轮；
+    // best-effort：失败仅告警不阻断终止，残留件由发布闸（announcement.update/create）兜底。
+    if (linkedProjectCodes.length > 0) {
+      try {
+        const late = await this.prisma.announcement.findMany({
+          where: { relatedProjectCode: { in: linkedProjectCodes }, status: { in: ['PUBLISHED', 'DRAFT'] } },
+          select: { id: true, status: true, title: true, type: true, metadata: true },
+        });
+        for (const ann of late) {
+          await recycleTerminatedAnnouncement(this.prisma, ann);
+          this.logger.log(`项目终止联动②补扫：公告 ${ann.id} 移入回收站`);
+        }
+      } catch (err) {
+        this.logger.error(`项目终止联动②补扫失败（不阻断）projectId=${projectId}: ${(err as Error).message}`);
+      }
+    }
 
     // 终止通知（事务后发送，失败不阻断终止）：notify 由用户在终止弹窗选择
     // 收件人解析：InvitationRsvp 兼容 PMI id / BidProject id 两个 projectId 空间（与归档快照同口径）；
@@ -7061,7 +7094,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const archivedProjects = await this.prisma.projectManagementItem.findMany({
       where: {
         demandProject: { not: null },
-        status: { not: 'RECYCLED' }, // 回收站项目不入库（已删除的归属污染选项）
+        // 回收站/已终止项目不入库不计数（回收站=已删除归属污染选项；已终止=2026-11-16
+        // 用户裁定「计数不计入已终止的项目」——终止项目不再贡献使用次数）
+        status: { notIn: ['RECYCLED', 'TERMINATED'] },
         ...scopeWhere,
       },
       select: {

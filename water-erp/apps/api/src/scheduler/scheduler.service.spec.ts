@@ -21,7 +21,7 @@ describe('autoNudgePendingBidders — 截止 24h（P0-2 第六写点）', () => 
       bidSupplier: { findMany: jest.fn() },
     };
     const notification: any = { create: jest.fn() };
-    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any, {} as any);
+    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any);
     return { scheduler, prisma, notification };
   };
 
@@ -73,7 +73,7 @@ describe('scanConfirmTimeouts — #61回归A 确认超时扫描（10min cron 薄
       autoCloseExpiredConfirmations: jest.fn().mockResolvedValue(undefined),
       autoHandoverIfDone: jest.fn().mockResolvedValue(undefined),
     };
-    const scheduler = new SchedulerService(prisma, {} as any, {} as any, {} as any, {} as any, bidService);
+    const scheduler = new SchedulerService(prisma, {} as any, {} as any, {} as any, bidService);
     return { scheduler, prisma, bidService };
   };
 
@@ -118,7 +118,7 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
       systemConfig: { findUnique: jest.fn(), upsert: jest.fn().mockResolvedValue({}) }, // 源码 upsert 链 .catch，须回 Promise
     };
     const notification: any = { create: jest.fn(), sendToRole: jest.fn().mockResolvedValue({}), sendToUser: jest.fn().mockResolvedValue({}) }; // 源码发送链 .catch，须回 Promise
-    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any, {} as any);
+    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any);
     return { scheduler, prisma, notification };
   };
 
@@ -238,7 +238,7 @@ describe('publishScheduledAnnouncements — P0-2 走 announcementService.update 
       update: jest.fn().mockResolvedValue({ id: 'a1', status: 'PUBLISHED' }),
       notifySuppliersOnPublish: jest.fn().mockResolvedValue({}),
     };
-    const scheduler = new SchedulerService(prisma, { create: jest.fn() } as any, {} as any, {} as any, announcementService, {} as any);
+    const scheduler = new SchedulerService(prisma, { create: jest.fn() } as any, {} as any, announcementService, {} as any);
     return { scheduler, prisma, announcementService };
   };
 
@@ -312,7 +312,7 @@ describe('scanExpiringQualifications — 7 天幂等（2026-11-04 堆积治理�
       notification: { findMany: jest.fn().mockResolvedValue([]) },
     };
     const notification: any = { create: jest.fn() };
-    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any, {} as any);
+    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any);
     return { scheduler, prisma, notification };
   };
 
@@ -377,7 +377,7 @@ describe('scanSupplierCertExpiry — 档位幂等推进', () => {
       supplier: { findUnique: jest.fn().mockResolvedValue({ userId: 'u-supplier' }) },
     };
     const notification: any = { create: jest.fn() };
-    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any, {} as any);
+    const scheduler = new SchedulerService(prisma, notification, {} as any, {} as any, {} as any);
     return { scheduler, prisma, notification };
   };
   const DAY = 24 * 3600 * 1000;

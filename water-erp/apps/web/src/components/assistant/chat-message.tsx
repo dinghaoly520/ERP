@@ -164,8 +164,13 @@ export function ChatMessage({
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-[var(--background)]/70 backdrop-blur-sm" onClick={() => setChartModalOpen(false)} />
             <div className="relative flex max-h-[85vh] w-full max-w-[min(720px,92vw)] flex-col wb-modal-shell" role="dialog" aria-modal="true">
-              <div className="flex shrink-0 items-center justify-between px-6 pb-3 pt-5">
-                <span className="text-sm font-bold text-[var(--foreground)]">数据图表</span>
+              <div className="flex shrink-0 items-center justify-between gap-4 px-6 pb-4 pt-6">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]">
+                    <BarChart3 size={14} />
+                  </span>
+                  <h2 className="text-lg font-bold tracking-[-0.02em] text-[var(--foreground)]">数据图表</h2>
+                </div>
                 <button onClick={() => setChartModalOpen(false)} className="neu-btn-xs"><X size={14} /></button>
               </div>
               <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  getAnnouncement, updateAnnouncement, hideAnnouncement, offlineAnnouncement,
+  getAnnouncement, updateAnnouncement, hideAnnouncement,
   listAttachments, addAttachment, removeAttachment, uploadFile,
   getBidDocument, uploadBidDocument, updateBidDocumentConfig, confirmBidDocPayment, removeBidDocument,
   generateSummary, confirmWinnerNotice, getParticipants,
@@ -17,7 +17,7 @@ import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ArrowLeft, Pencil, X, EyeOff, Lock, PackageX, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
+import { ArrowLeft, Pencil, X, EyeOff, Lock, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
@@ -94,7 +94,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   // 系统生成类：字段与发布向导写入的 canonical meta / 公告草稿键对齐
   FAILED_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
-    { key: 'openTime', label: '开标时间', date: true }, { key: 'resultInfo', label: '开标结果公示信息', area: true },
+    { key: 'openTime', label: '开标时间', date: true }, { key: 'resultInfo', label: '流标原因', area: true },
   ],
   WIN_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
@@ -131,18 +131,10 @@ export default function NoticeDetailPage() {
     </div>
   );
   const handleHide = async () => {
-    if (!ann || !(await confirm({ message: `确认隐藏「${ann.title}」？隐藏后进入回收站，可在公告发布中心右上角回收站中恢复。` }))) return;
+    if (!ann || !(await confirm({ message: `确认隐藏「${ann.title}」？隐藏后进入回收站，可在公告发布中心右上角回收站中恢复。`, danger: true }))) return;
     hideAnnouncement(ann.id)
       .then(() => { toast.success("已隐藏，可在回收站中恢复"); router.push("/notice"); })
       .catch((e: any) => toast.error(e?.message || "隐藏失败"));
-  };
-
-  const handleOffline = async () => {
-    // v2 拍板：下架为终态——进回收站「已下架」节，不可恢复
-    if (!ann || !(await confirm({ message: `确认下架「${ann.title}」？下架后公开门户不再可见，进入回收站且不可恢复。`, danger: true }))) return;
-    offlineAnnouncement(ann.id)
-      .then(() => { toast.success("已下架（不可恢复）"); router.push("/notice"); })
-      .catch((e: any) => toast.error(e?.message || "下架失败"));
   };
 
   if (!ann) return (
@@ -207,11 +199,6 @@ export default function NoticeDetailPage() {
                   {ann.status !== 'HIDDEN' && ann.status !== 'OFFLINE' && (
                     <button onClick={() => setEditing(true)} className="neu-btn-soft"><Pencil size={14} /> 编辑</button>
                   )}
-                  <button
-                    onClick={handleOffline}
-                    className="neu-btn-soft is-warning"
-                    disabled={ann.status === 'HIDDEN' || ann.status === 'OFFLINE'}
-                  ><PackageX size={14} /> 下架</button>
                   <button
                     onClick={handleHide}
                     className="neu-btn-soft is-danger"
@@ -648,7 +635,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">状态</label>
             {/* R7-3③：状态下拉是死控件（save 用保存/发布按钮决定的状态，此处从不被读取）——
-                改只读展示，状态变更请用下方「保存草稿/发布/下架」按钮 */}
+                改只读展示，状态变更请用下方「保存草稿/发布」按钮（下架入口 2026-11-16 已移除） */}
             <span className="neu-input inline-flex items-center px-3 text-sm text-[var(--muted-foreground)]">{ANN_STATUS_LABEL[status] ?? status}</span>
           </div>
           <div>

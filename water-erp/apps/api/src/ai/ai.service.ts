@@ -43,6 +43,11 @@ import { openPiiForMask } from '../common/crypto/sm-field-crypto';
  *  硬校验在 generateTenderFieldContent；前端 templates.ts 的 aiPrompt 是软约束（首次即合规引导）。 */
 const TENDER_NUMERIC_AMOUNT_FIELDS = new Set(['responseDepositAmount', 'performanceDepositAmount']);
 
+/** 采购文件事实摘取字段（2026-11-16 用户裁定）：联系电话/邮箱只能从资料中拾取真实值，
+ *  资料没有则返回空（字段保持待补充）——空是合法结果不重试不报错；曾因「生成」式
+ *  提示词 +「content 不得为空」约束被 LLM 编造假号码/邮箱（实录 028-84156293）。 */
+const TENDER_FACT_EXTRACT_FIELDS = new Set(['contactPhone', 'contactEmail']);
+
 /** 采购文件长文字段（分级编号长文，2026-11-11 用户裁定延长响应）：商务要求/技术要求
  *  （采购需求章节）与特定资格要求——单次生成量大、叠加思维链墙钟长，默认
  *  180s/16384 常被掐成「AI 响应超时」。预算与超时成对提升（llm.service 铁律：
@@ -2587,6 +2592,8 @@ stageMatch 字段需要输出两部分判断结果：
     const isNumericAmountField = TENDER_NUMERIC_AMOUNT_FIELDS.has(payload.fieldKey);
     // 长文字段走加档预算/超时（chatJson 全参签名：temperature/signal/seed 占位后传 options）
     const isLongTextField = TENDER_LONG_TEXT_FIELDS.has(payload.fieldKey);
+    // 事实摘取字段（联系电话/邮箱）：只能摘取资料中真实存在的值，空为合法结果
+    const isFactExtractField = TENDER_FACT_EXTRACT_FIELDS.has(payload.fieldKey);
     const systemPrompt =
       `你是招标/采购文件编写专家。默认以采购方（招标方）立场行文，向供应商提出要求、规范其投标与报价行为；` +
       `若字段要求中明确指定以供应商口吻填写（如供应商填报的报价清单），则按该字段指定口吻生成。` +
@@ -2596,7 +2603,10 @@ stageMatch 字段需要输出两部分判断结果：
       (isNumericAmountField
         ? `本字段为金额数字字段：只输出一个纯阿拉伯数字（单位为元，如 50000），严禁任何单位（元/万元/人民币/¥）、大写金额、标点与说明文字。`
         : '') +
-      `现为"${payload.fieldLabel}"字段生成内容。只返回 JSON: {"content": "正文"}，content 字段不得为空字符串。`;
+      (isFactExtractField
+        ? `本字段为事实摘取字段（联系方式类）：仅当上下文资料中明确写有该联系信息时原样输出；资料中没有则 content 输出空字符串。严禁编造、猜测或套用示例号码/地址——宁空勿假。`
+        : '') +
+      `现为"${payload.fieldLabel}"字段生成内容。只返回 JSON: {"content": "正文"}${isFactExtractField ? '（资料中无该信息时 content 为空字符串）' : '，content 字段不得为空字符串'}。`;
     const userPrompt =
       `字段: ${payload.fieldKey}\n当前值: ${payload.currentValue}\n` +
       `要求: ${payload.aiPrompt || '生成专业内容'}\n上下文: ${JSON.stringify(payload.context || {})}`;
@@ -2619,6 +2629,9 @@ stageMatch 字段需要输出两部分判断结果：
           nonNumericCount++;
         } else if (content) {
           return { content };
+        } else if (isFactExtractField) {
+          // 事实摘取字段：空 = 资料中无该信息（合法结果，字段保持待补充），不重试
+          return { content: '' };
         } else {
           // chatJson 成功但 content 为空 —— 记录以便区分错误类型
           emptyCount++;

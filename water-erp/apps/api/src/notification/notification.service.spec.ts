@@ -272,18 +272,17 @@ describe('NotificationService', () => {
       'ACCOUNT_SECURITY_FEEDBACK',
       'ARCHIVE_INTEGRITY_ALERT',
       'EXPERT_DECLINE_STREAK',
-      'EXPERT_RETIRE_CANDIDATE',
       'PRE_WIN_CONFIRM_DUE',
       'SUPPLIER_CLEANUP_DUE',
       'SUPPLIER_DECLINE_STREAK',
-      'SUPPLIER_ELIMINATE_CANDIDATE',
     ]);
   });
 
   it('resolveOwn 整组消解走事务：本人行与群发副本行同生共死（部分失败=半消解僵尸组）', async () => {
     prisma.notification.findUnique.mockReset().mockResolvedValue({
-      id: 'n1', userId: 'u1', type: 'EXPERT_RETIRE_CANDIDATE', resolvedAt: null, isRead: false,
-      link: '/expert/retirement', content: '172 名专家进入退库候选',
+      // EXPERT_RETIRE_CANDIDATE 已随 2026-11-16 退库预警链下线——夹具改用仍在线的群发复核型
+      id: 'n1', userId: 'u1', type: 'SUPPLIER_CLEANUP_DUE', resolvedAt: null, isRead: false,
+      link: '/supplier', content: '3 家供应商进入清理复核',
     });
     prisma.notification.update.mockClear().mockResolvedValue({ id: 'n1' });
     prisma.notification.updateMany.mockClear().mockResolvedValue({ count: 5 });

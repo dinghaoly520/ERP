@@ -403,6 +403,37 @@ Modal 壳之上的内容层标准结构（范本：`apps/web/src/components/admi
 5. **弹窗内竖排导航 = `neu-modal-nav-item`**（globals.css 标准件）：默认透明融入、hover 品牌淡染、**激活 = 凸起纯白瓷片 + 品牌蓝粗体**（与 neu-tab v2 同语义），点击滚动定位 + 滚动回写激活。
 
 存量手搓壳已于 2026-11-11 同日全量迁移完毕（五门户 + mobile；expert .exp-dialog 退役、bid .bid-dialog/supplier .gdlg-pn 族/mobile .m-sheet-panel 均换统一配方），全仓库 cgzxui 红牌硬性违规清零。壳底色沿革：近实底→彩色渐变→纯白瓷（2026-11-11 同日终版），勿复活前两版。
+### 确认弹窗标准形态 + 按钮配色语义（2026-11-16 用户裁定定版）
+
+**确认类弹窗**（二选一确认 / 警示单钮）= A 版紧凑五件套。标准实现：web `components/workbench/use-confirm.tsx`（全 :3005 共用；2026-11-16 已迁移 15 处存量手搓壳——旧 `neu-dialog` 渐变壳、内联样式壳、text-sm/extrabold/clamp 旧字阶一律勿复活）：
+
+```
+┌────────────────────────────────┐
+│ ▢⚠  标题（text-lg font-bold）      │ ← 28px 图标井 + 14px Lucide 图标
+│ ────────────────────────────── │ ← hairline（mx-6 h-px）
+│ 正文（text-sm leading-relaxed）    │ ← 内容区 pt-4 pb-2（compact）
+│ ────────────────────────────── │ ← 底栏 hr wb-section-rule mb-3
+│                   [取消] [确认]  │ ← 右对齐 gap-3、38px 等高
+└────────────────────────────────┘
+```
+
+- 头部：`neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]` + 图标 14px + 标题 `text-lg font-bold tracking-[-0.02em]`
+- 危险语义图标井染红（破坏性确认/错误弹窗）：`bg-[color-mix(in_oklch,var(--danger)_12%,oklch(0.99_0.004_258))] text-[color:var(--danger)]`
+- 壳 `max-w-[min(420px,92vw)]`、蒙层 `wb-overlay-backdrop`；需叠在已开 Modal 上层时 `z-[700]`（useConfirm 先例——规避共享 Modal 单实例约束）
+- 类名以 web `globals.css` 为准；其他门户缺同名类时按同语义映射自家按钮体系
+
+**按钮配色按业务语义（确认/取消对，`danger` 标志即语义开关）**：
+
+| 业务语义 | 取消 | 确认 |
+|---|---|---|
+| **破坏性**（删除/移除/隐藏等，`danger:true`） | 黑：`neu-btn-soft is-porcelain` | 红：`neu-btn-primary is-water is-danger !h-[38px]` |
+| **正向/中性**（`danger` 缺省） | 红：`neu-btn-soft is-danger` | 灰：`neu-btn-soft` 默认 |
+
+- 破坏性动作的确认调用点必须传 `danger:true`（「隐藏」属破坏性——2026-11-16 用户点名）
+- 不适用：向导「返回/继续」按钮对（非确认对，保持白瓷主按钮）；命令面板（⌘K global-search，输入框即头部）；全屏工作面板（project-detail-panel 等，走 page-hero 规范非弹窗）
+- 单动作正向钮（「重试通知」「我知道了」等）：主作 `neu-btn-primary is-water`、次作 `neu-btn-soft` 灰，无红黑对仗
+
+
 
 ## ？帮助气泡（.pm-help-dot / .pm-help-tip，2026-09-26 定版）
 
