@@ -461,7 +461,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     className="sp-notif-mark-all"
                     onClick={() => { markAllAsRead().then(fetchUnreadCount).catch(() => {}); }}
                   >
-                    全部已读
+                    知会全部已读
                   </button>
                 </div>
                 {recentNotifs.length === 0 ? (

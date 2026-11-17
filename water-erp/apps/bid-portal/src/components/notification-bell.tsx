@@ -6,6 +6,7 @@ import * as LucideIcons from 'lucide-react';
 import { getNotifications, getUnreadNotificationCount, markNotificationRead, markAllNotificationsRead, resolveNotification, type BellNotification } from '@/lib/api/supplier';
 import { getNotificationMeta, getNotificationLabel } from '@water-erp/shared';
 import { resolveBidLink } from './notification/realtime-notifications';
+import { toast } from 'sonner';
 import { Bell, CheckCheck, CheckCircle2 } from 'lucide-react';
 
 /** 类型图标从 shared 注册表派生（2026-09-26 单一事实源；原本地 9 条兜底表已删） */
@@ -60,13 +61,14 @@ export default function NotificationBell() {
    *（2026-09-27）下 markAllAsRead 只清知会类、markAsRead 对未办结待办是
    * no-op，本地全置已读会在 30s 轮询/重开面板时「复活」（2026-11-05 实录：
    * 全部已读看似无效）。 */
-  const refresh = async () => {
+  const refresh = async (): Promise<number | null> => {
     const [cnt, list] = await Promise.all([
       getUnreadNotificationCount().catch(() => null),
       getNotifications(1, 10).catch(() => null),
     ]);
     if (cnt) setUnread(cnt.count);
     if (list) setItems(list.items);
+    return cnt ? cnt.count : null;
   };
 
   const handleItemClick = async (n: BellNotification) => {
@@ -87,9 +89,16 @@ export default function NotificationBell() {
   };
 
   const handleAllRead = async () => {
-    await markAllNotificationsRead().catch(() => {});
-    // 只清知会类：剩余未读=待办（本面板逐条「标记已办」消解），角标如实显示
-    await refresh();
+    const res = await markAllNotificationsRead().catch(() => null);
+    // 只清知会类（后端 READONLY_TYPES 刻意不动待办——防「已读兜底归已办」清空待办）。
+    // bug#125 裁定 A+B：文案收窄 + 结果 toast 明示，消解「点了没反应」感知
+    const remaining = await refresh();
+    if (res === null || remaining === null) { toast.error('操作结果未知，请刷新查看'); return; } // 评审 P2：接口失败不假成功
+    const readN = res?.count ?? 0;
+    if (readN > 0 && (remaining ?? 0) > 0) toast.success(`已读 ${readN} 条知会通知；还有 ${remaining} 条待办需逐条办结`);
+    else if (readN > 0) toast.success(`已读 ${readN} 条知会通知`);
+    else if ((remaining ?? 0) > 0) toast.message(`${remaining} 条为待办通知，需逐条办结`);
+    else toast.success('知会通知已全部标记已读');
   };
 
   return (
@@ -111,7 +120,7 @@ export default function NotificationBell() {
             </span>
             {unread > 0 && (
               <button onClick={handleAllRead} className="flex items-center gap-1 text-[12px] text-[oklch(0.42_0.14_260)] hover:text-[oklch(0.50_0.16_258)] font-medium tracking-tight transition-colors">
-                <CheckCheck size={13} strokeWidth={1.5} /> 全部已读
+                <CheckCheck size={13} strokeWidth={1.5} /> 知会全部已读
               </button>
             )}
           </div>

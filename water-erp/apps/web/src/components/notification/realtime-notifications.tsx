@@ -77,7 +77,10 @@ export function RealtimeNotifications() {
         query: { portal: "web" }, // 同源握手无 Origin/X-Portal——自报门户选 cookie 命名空间（2026-11-09）
         reconnection: false,
         timeout: 8000,
-        transports: ["websocket", "polling"], // polling 兜底：外网转发器剥 Upgrade 头时降级保通（2026-11-04 路线③）
+        // bug#163（2026-11-17）：改轮询优先+机会升级（原 WS 优先在「门户自代理 /socket.io」拓扑下
+        // 升级恒败且不回退——升级请求过不了 proxy/rewrites，WS-first 客户端反复重试 5 次后停连）。
+        // 轮询先建立保通（同 2026-11-04 路线③语义），WS 升级失败静默留轮询。
+        transports: ["polling", "websocket"],
       });
       socketRef.current = socket;
 

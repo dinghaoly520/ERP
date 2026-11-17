@@ -1,0 +1,17 @@
+场景: 生产同款域名模式 http://supplier-ssyc.scsfjt.com:3004（host 映射→dev 机）
+流程: 种子供应商登录 → /dashboard（(main) 布局 → RealtimeNotifications 自动连 /notifications）
+最终 URL: http://supplier-ssyc.scsfjt.com:3004/dashboard
+socket.io 轮询 200 × 4（组件真实连接；修复前该链路 404 无一成功）
+RESP 308 GET http://supplier-ssyc.scsfjt.com:3004/socket.io/?portal=supplier&EIO=4&transport=polling&t=2x07iw7z
+RESP 308 GET http://supplier-ssyc.scsfjt.com:3004/socket.io/?portal=supplier&EIO=4&transport=polling&t=2x07odce
+RESP 200 GET http://supplier-ssyc.scsfjt.com:3004/socket.io?portal=supplier&EIO=4&transport=polling&t=2x07iw7z
+RESP 200 GET http://supplier-ssyc.scsfjt.com:3004/socket.io?portal=supplier&EIO=4&transport=polling&t=2x07odce
+RESP 308 POST http://supplier-ssyc.scsfjt.com:3004/socket.io/?portal=supplier&EIO=4&transport=polling&t=2x09xsbz&sid=VHKIlItwUiFWhD_8AABh
+RESP 308 GET http://supplier-ssyc.scsfjt.com:3004/socket.io/?portal=supplier&EIO=4&transport=polling&t=2x09yrn2&sid=VHKIlItwUiFWhD_8AABh
+RESP 200 POST http://supplier-ssyc.scsfjt.com:3004/socket.io?portal=supplier&EIO=4&transport=polling&t=2x09xsbz&sid=VHKIlItwUiFWhD_8AABh
+RESP 200 GET http://supplier-ssyc.scsfjt.com:3004/socket.io?portal=supplier&EIO=4&transport=polling&t=2x09yrn2&sid=VHKIlItwUiFWhD_8AABh
+RESP 308 GET http://supplier-ssyc.scsfjt.com:3004/socket.io/?portal=supplier&EIO=4&transport=polling&t=2x0axek1&sid=VHKIlItwUiFWhD_8AABh
+RESP 200 GET http://supplier-ssyc.scsfjt.com:3004/socket.io?portal=supplier&EIO=4&transport=polling&t=2x0axek1&sid=VHKIlItwUiFWhD_8AABh
+RESP 308 POST http://supplier-ssyc.scsfjt.com:3004/socket.io/?portal=supplier&EIO=4&transport=polling&t=2xjjp8py&sid=VHKIlItwUiFWhD_8AABh
+RESP 308 GET http://supplier-ssyc.scsfjt.com:3004/socket.io/?portal=supplier&EIO=4&transport=polling&t=2xjjp25r&sid=VHKIlItwUiFWhD_8AABh
+RESP 200 POST http://supplier-ssyc.scsfjt.com:3004/socket.io?portal=supplier&EIO=4&transport=polling&t=2xjjp8py&sid=VHKIlItwUiFWhD_8AABh

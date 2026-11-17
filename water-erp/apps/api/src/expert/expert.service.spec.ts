@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
+import * as childProcess from 'child_process';
 import { ExpertService } from './expert.service';
 import { sealPii, openPii } from '../common/crypto/sm-field-crypto';
 
@@ -3022,6 +3023,104 @@ describe('ExpertService', () => {
         }),
       }));
     });
+
+    it('bug#169：docx 转换失败（LibreOffice 不可用）诚实降级——原名+真实 Word mime，不再贴 application/pdf 标签回发 Word 字节', async () => {
+      const plaintext = Buffer.from('PK\u0003\u0004 fake docx bytes');
+      const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+      const wrapped = wrapKey(decryptKey, process.env.KMS_SECRET!);
+      prisma.bidDocument.findFirst.mockResolvedValue({
+        id: 'bd-1', title: '招标文件', decryptKey: wrapped,
+        fileAsset: { id: 'fa-1', key: 'seed/hero/tender.docx', originalName: '采购文件.docx' },
+      });
+      jest.spyOn(minioClient, 'getObject').mockResolvedValue({
+        async *[Symbol.asyncIterator]() { yield ciphertext; },
+      } as any);
+      // 模拟生产 B 机缺 LibreOffice（#166_276 实锤）：execFileSync 直接抛错
+      jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => { throw new Error('spawn libreoffice ENOENT'); });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.downloadTenderDocument('user-1', 'proj-1');
+
+      expect(result.buffer.equals(plaintext)).toBe(true);
+      expect(result.fileName).toBe('采购文件.docx');
+      expect(result.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    });
+
+    it('bug#169：docx 转换成功 → .pdf 名 + application/pdf + 转换产物字节', async () => {
+      const fakePdf = Buffer.from('%PDF-1.7 converted tender');
+      const plaintext = Buffer.from('PK\u0003\u0004 fake docx bytes');
+      const { ciphertext, decryptKey } = encryptBuffer(plaintext);
+      const wrapped = wrapKey(decryptKey, process.env.KMS_SECRET!);
+      prisma.bidDocument.findFirst.mockResolvedValue({
+        id: 'bd-1', title: '招标文件', decryptKey: wrapped,
+        fileAsset: { id: 'fa-1', key: 'seed/hero/tender.docx', originalName: '采购文件.docx' },
+      });
+      jest.spyOn(minioClient, 'getObject').mockResolvedValue({
+        async *[Symbol.asyncIterator]() { yield ciphertext; },
+      } as any);
+      // 模拟 libreoffice 成功：从命令行参数推出 outdir，落一份假 pdf 产物
+      jest.spyOn(childProcess, 'execFileSync').mockImplementation(((_cmd: string, args: string[]) => {
+        const outdir = args[4];
+        const docxPath = args[5];
+        if (outdir && docxPath) {
+          const fsMod = require('fs') as typeof import('fs');
+          fsMod.writeFileSync(require('path').join(outdir, 'input.pdf'), fakePdf);
+        }
+        return '';
+      }) as any);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const result = await service.downloadTenderDocument('user-1', 'proj-1');
+
+      expect(result.buffer.equals(fakePdf)).toBe(true);
+      expect(result.fileName).toBe('采购文件.pdf');
+      expect(result.mimeType).toBe('application/pdf');
+    });
+  });
+
+  describe('bug#169 诚实 MIME 收口——LibreOffice 转换失败不再以 PDF 标签回发 Word 字节（docx 贴 application/pdf 曾致 Chrome 查看器「未能加载PDF文档」无从排障）', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    it('谈判轨 finishNegotiationDownload：docx 转换失败 → 原名+真实 Word mime（存量 mimeType 为 null 也不得说谎）', async () => {
+      jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => { throw new Error('libreoffice not available'); });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const out = await (service as any).finishNegotiationDownload(
+        Buffer.from('docx-bytes'), '谈判采购文件.docx', null,
+        { expertName: '王建国' }, 'proj-1',
+      );
+
+      expect(out.fileName).toBe('谈判采购文件.docx');
+      expect(out.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      expect(out.buffer.equals(Buffer.from('docx-bytes'))).toBe(true);
+    });
+
+    it('转换器：非 Word 文件 → 未转换（null）；.doc 老格式失败同样诚实降级为 application/msword', async () => {
+      expect((service as any).maybeConvertDocxToPdf(Buffer.from('%PDF-1.4'), '原件.pdf')).toBeNull();
+
+      jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => { throw new Error('ENOENT'); });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      const out = await (service as any).finishNegotiationDownload(
+        Buffer.from('doc-bytes'), '旧版文件.doc', 'application/msword',
+        { expertName: '王建国' }, 'proj-1',
+      );
+      expect(out.fileName).toBe('旧版文件.doc');
+      expect(out.mimeType).toBe('application/msword');
+    });
+
+    it('转换器：libreoffice 正常退出但未产出 pdf → 同样按未转换降级', async () => {
+      jest.spyOn(childProcess, 'execFileSync').mockReturnValue('' as any);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      const out = await (service as any).finishNegotiationDownload(
+        Buffer.from('docx-bytes'), '谈判采购文件.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        { expertName: '王建国' }, 'proj-1',
+      );
+
+      expect(out.fileName).toBe('谈判采购文件.docx');
+      expect(out.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      expect(out.buffer.equals(Buffer.from('docx-bytes'))).toBe(true);
+    });
   });
 
   describe('谈判采购文件轨（2026-10-20：谈判项目不发布采购公告，BidDocument 恒空；采购文件经 Redis negotiation-config 交付——专家端镜像供应商端修复 14f55c5f）', () => {
@@ -3147,7 +3246,7 @@ describe('ExpertService', () => {
           .rejects.toMatchObject({ response: { code: 'FILE_NOT_IN_CONFIG' } });
       });
 
-      it('Attachment 主轨：本地磁盘读取 + docx 命名转 PDF + 写监督日志', async () => {
+      it('Attachment 主轨：本地磁盘读取 + 转换失败诚实降级（原名+真实 Word mime，bug#169）+ 写监督日志', async () => {
         const fs = require('fs');
         const buf = Buffer.from('fake docx content');
         jest.spyOn(fs.promises, 'readFile').mockResolvedValue(buf);
@@ -3160,9 +3259,9 @@ describe('ExpertService', () => {
 
         const result = await service.downloadNegotiationFile('user-1', 'proj-1', 'att-1');
 
-        expect(result.buffer).toBe(buf); // 转换被 mock 失败 → 原样返回
-        expect(result.fileName).toBe('谈判采购文件.pdf');
-        expect(result.mimeType).toBe('application/pdf');
+        expect(result.buffer).toBe(buf); // 转换被 mock 失败（未产出 pdf）→ 原样返回
+        expect(result.fileName).toBe('谈判采购文件.docx'); // bug#169：不再伪称 .pdf
+        expect(result.mimeType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document'); // bug#169：不再伪称 application/pdf
         expect(prisma.bidSupervisionLog.create).toHaveBeenCalledWith(expect.objectContaining({
           data: expect.objectContaining({
             projectId: 'proj-1',
@@ -3191,7 +3290,7 @@ describe('ExpertService', () => {
         const result = await service.downloadNegotiationFile('user-1', 'proj-1', 'fa-invite-1');
 
         expect(result.buffer.equals(buf)).toBe(true); // streamToBuffer 拼接产生新 Buffer，按内容比对
-        expect(result.fileName).toBe('采购邀请书.pdf');
+        expect(result.fileName).toBe('采购邀请书.docx'); // bug#169：转换 mock 失败 → 原名，不再伪称 .pdf
         spy.mockRestore();
       });
 
@@ -3695,10 +3794,10 @@ describe('ExpertService', () => {
      
     const childProcess = require('child_process');
 
-    it('非 Word 文件应原样返回，不触发任何转换', () => {
+    it('非 Word 文件不触发任何转换，返回 null（未转换——bug#169 新契约：降级判定交调用方）', () => {
       const spy = jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => undefined as any);
       const buf = Buffer.from('plain');
-      expect((service as any).maybeConvertDocxToPdf(buf, 'report.pdf')).toBe(buf);
+      expect((service as any).maybeConvertDocxToPdf(buf, 'report.pdf')).toBeNull();
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
     });
@@ -3708,7 +3807,7 @@ describe('ExpertService', () => {
       const buf = Buffer.from('fake docx');
       const malicious = '$(touch /tmp/pwned)`id`;"rm -rf".docx';
       const out = (service as any).maybeConvertDocxToPdf(buf, malicious);
-      expect(out).toBe(buf); // 被 mock 的转换不产生 pdf → 原样返回
+      expect(out).toBeNull(); // 被 mock 的转换不产生 pdf → 未转换（bug#169：不再原样回发 Buffer）
       expect(spy).toHaveBeenCalledTimes(1);
       const [cmd, args] = spy.mock.calls[0] as unknown as [string, string[]];
       expect(cmd).toBe('libreoffice');

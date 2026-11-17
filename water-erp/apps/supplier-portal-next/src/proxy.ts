@@ -28,7 +28,14 @@ function isInFlowNavigation(request: NextRequest): boolean {
 
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  // bug#163（2026-11-17）：/socket.io 同道转发（同源反代——生产门户 vhost nginx 无此 location）；
+  // 鉴权在 API 网关握手层做（cookie 重建透传 + x-portal 注入正好补上握手门户判定）；
+  // 本门户直连 fetch 无超时计时器，engine.io 长轮询（~25s 挂起）不会被腰斩。
+  if (
+    request.nextUrl.pathname.startsWith('/api/')
+    || request.nextUrl.pathname === '/socket.io'
+    || request.nextUrl.pathname.startsWith('/socket.io/')
+  ) {
     const targetUrl = `${apiLoopbackOrigin()}${request.nextUrl.pathname}${request.nextUrl.search}`;
 
     const headers = new Headers();

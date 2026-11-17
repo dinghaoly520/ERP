@@ -55,6 +55,8 @@ export interface NotificationPushPayload {
 @WebSocketGateway({
   namespace: 'notifications',
   cors: { origin: wsCorsOrigin(), credentials: true },
+  // bug#163：同 bid.gateway——双形式握手兼容（详见彼处注释）
+  addTrailingSlash: false,
 })
 @Injectable()
 export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
