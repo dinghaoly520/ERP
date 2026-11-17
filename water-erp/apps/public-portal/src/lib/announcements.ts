@@ -24,7 +24,7 @@ export interface AnnouncementItem {
   /** 已下线标题壳（2026-09-26 v2）：公示期满/存量下线——2026-10-20 改可点，详情为提示页 */
   titleOnly?: boolean;
   /** 已下线归因（2026-10-20）：PUBLICITY_ENDED=公示期满；OFFLINED=手动下线 */
-  offlinedReason?: 'PUBLICITY_ENDED' | 'OFFLINED';
+  offlinedReason?: 'PUBLICITY_ENDED' | 'OFFLINED' | 'RECYCLED';
   /** 公告附件（2026-10-28）：公告组成部分，公告中心/信息门户/项目机会三端可下载；标题壳服务端已剥除 */
   attachments?: AnnouncementAttachmentInfo[];
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Download, FileText, Inbox, Loader2, Paperclip, PhoneCall, TriangleAlert } from 'lucide-react';
+import { Ban, Download, FileText, Inbox, Loader2, Paperclip, PhoneCall, TriangleAlert } from 'lucide-react';
 import { fetchPublicAnnouncement, downloadAnnouncementAttachment, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
@@ -120,7 +120,14 @@ export default function AnnouncementDetailPage() {
           </div>
 
           {/* 公示期满/已下线提示页（2026-10-20 用户裁定）：标题等元信息保留，正文不再显示 */}
-          {item.titleOnly && (
+          {item.titleOnly && item.offlinedReason === 'RECYCLED' ? (
+            /* 回收站公告（2026-11-16 用户裁定）：红图标「该公告已失效」提示页 */
+            <div className="announce-note-tint mb-6 rounded-2xl px-6 py-10 text-center">
+              <Ban size={36} className="mb-4 text-[var(--color-danger)]" />
+              <p className="text-lg font-bold text-[#18243a] mb-2">该公告已失效</p>
+              <p className="text-sm text-[#8a96aa]">公告内容不再显示；如有疑问请联系采购单位。</p>
+            </div>
+          ) : item.titleOnly && (
             <div className="announce-note-tint mb-6 rounded-2xl px-6 py-10 text-center">
               <Inbox size={36} className="mb-4 text-[#8a96aa]" />
               <p className="text-lg font-bold text-[#18243a] mb-2">

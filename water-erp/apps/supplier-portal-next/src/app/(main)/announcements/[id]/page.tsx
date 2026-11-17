@@ -152,10 +152,14 @@ export default function AnnouncementDetailPage() {
 
   const isBidNotice = announcement?.type === "BID_NOTICE";
   // 已下线壳（2026-10-20）：公示期满/手动下线 → 提示页形态（标题等元信息保留，正文与采购文件不展示）
+  // 2026-11-16 用户裁定：回收站公告（RECYCLED）→ 「该公告已失效」+ 红色警示
   const offlined = announcement?.titleOnly === true;
+  const recycled = announcement?.offlinedReason === "RECYCLED";
   const offlineText = announcement?.offlinedReason === "PUBLICITY_ENDED"
     ? "该公告公示期已过，不再显示公示内容"
-    : "该公告已下线";
+    : recycled
+      ? "该公告已失效"
+      : "该公告已下线";
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -272,11 +276,13 @@ export default function AnnouncementDetailPage() {
 
           {offlined ? (
             <div className="bid-doc-section">
-              <div className="ann-alert ann-alert--info">
-                <span className="ann-alert__icon"><Info size={16} strokeWidth={2} /></span>
+              <div className={`ann-alert ${recycled ? "ann-alert--danger" : "ann-alert--info"}`}>
+                <span className="ann-alert__icon">
+                  {recycled ? <TriangleAlert size={16} strokeWidth={2} /> : <Info size={16} strokeWidth={2} />}
+                </span>
                 {offlineText}
               </div>
-              {isBidNotice && (
+              {isBidNotice && !recycled && (
                 <p className="bid-doc-hint">
                   公示期满不代表截标/开标时间已到——如需公告原文与采购文件，请前往「项目机会」查看完整信息。
                 </p>

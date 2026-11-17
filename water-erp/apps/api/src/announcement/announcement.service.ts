@@ -535,8 +535,10 @@ export class AnnouncementService {
   /** 已下线归因（2026-10-20）：PUBLICITY_ENDED=公示期满（公告渠道内容展示窗口关闭）；
    *  OFFLINED=存量手动下线（ARCHIVED）。门户据此出差异化提示文案
    *  （「公示期已过，不再显示公示内容」vs「该公告已下线」）。 */
-  private offlinedReason(a: any): 'PUBLICITY_ENDED' | 'OFFLINED' | null {
+  private offlinedReason(a: any): 'PUBLICITY_ENDED' | 'OFFLINED' | 'RECYCLED' | null {
     if (a.status === 'ARCHIVED') return 'OFFLINED';
+    // 回收站公告（2026-11-16 用户裁定）：单独归因——门户渲染「该公告已失效」红图标提示页
+    if (a.status === 'HIDDEN') return 'RECYCLED';
     if (a.status === 'PUBLISHED' && a.publicityEnd && new Date(a.publicityEnd).getTime() < Date.now()) return 'PUBLICITY_ENDED';
     return null;
   }
@@ -591,8 +593,10 @@ export class AnnouncementService {
     }
     if (announcement.status !== 'PUBLISHED') {
       // 2026-10-20 用户裁定：ARCHIVED（已下线）不再 400 拒绝——返回标题壳（offlinedReason），
-      // 门户点进去渲染「该公告已下线」提示页；未发布（DRAFT 等）仍拒绝
-      if (announcement.status === 'ARCHIVED') {
+      // 门户点进去渲染「该公告已下线」提示页；未发布（DRAFT 等）仍拒绝。
+      // 2026-11-16 用户裁定：回收站（HIDDEN）同出标题壳（RECYCLED）——门户渲染
+      // 「该公告已失效」红图标提示页（通知/历史里的旧链接点进去不再是「公告未发布」裸错误）
+      if (announcement.status === 'ARCHIVED' || announcement.status === 'HIDDEN') {
         return this.titleOnlyStub(announcement);
       }
       throw new BadRequestException({ error: '公告未发布', code: 'NOT_PUBLISHED' });

@@ -169,6 +169,8 @@
 }
 .ann-alert__icon { display: inline-flex; flex-shrink: 0; margin-right: 8px; }
 .ann-alert--info { color: #909399; }
+/* 回收站失效公告（2026-11-16 用户裁定）：红图标「该公告已失效」 */
+.ann-alert--danger { color: var(--danger); }
 /* el-form-item 原生等价（付款凭证弹窗） */
 .ann-form-item .neu-input { flex: 1; min-width: 0; }
 

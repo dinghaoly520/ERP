@@ -796,6 +796,9 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     prisma.announcement.findUnique.mockResolvedValue({ id: 'g3', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', content: 'c', publicityEnd: new Date(Date.now() + 86400000), dataClass: null, metadata: {} });
     prisma.announcement.update.mockResolvedValue({});
     await expect(service.getPublic('g3')).resolves.toMatchObject({ id: 'g3', content: '<p>c</p>' });
+    // 2026-11-16 用户裁定：回收站（HIDDEN）公告 → 标题壳 RECYCLED——门户渲染「该公告已失效」红图标提示页
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'g6', title: 't', type: 'BID_NOTICE', status: 'HIDDEN', content: 'c', dataClass: null, metadata: {} });
+    await expect(service.getPublic('g6')).resolves.toMatchObject({ id: 'g6', titleOnly: true, offlinedReason: 'RECYCLED', content: '' });
   });
 
   it('getPublic：保密级/定向非本人——公示期满也先过闸 400 NOT_PUBLIC（壳不裸出 metadata，2026-10-21 加固）', async () => {
