@@ -12,6 +12,9 @@ const COMPANY = { id: 'co-swhi-sjy', name: '四川水发勘测设计研究有限
 /** 方式名归一（2026-11-17 用户裁定）：旧名/变体 → 平台 canon——
  *  竞争性谈判|谈判→谈判采购；询比|询价|询价采购→询比采购；单一来源采购|单源直接采购→直接采购；
  *  内部竞标|竞价→竞价采购（直接委托/邀请招标/续约照录）。 */
+/** 部门名归一（2026-11-17 用户裁定）：勘察分院并入工程勘察院 */
+const normalizeDept = (d: string) => ({ '勘察分院': '工程勘察院' }[d.trim()] ?? d.trim());
+
 const normalizeMethod = (m: string) => ({
   '竞争性谈判': '谈判采购', '谈判': '谈判采购',
   '询比': '询比采购', '询价': '询比采购', '询价采购': '询比采购',
@@ -44,7 +47,7 @@ async function main() {
 
   const execute = process.argv.includes('--execute');
   const groups: Group[] = require('/tmp/xlswork/groups.json');
-  const deptNames = [...new Set(groups.flatMap(g => g.rounds.map(r => r.department)).filter(Boolean))];
+  const deptNames = [...new Set(groups.flatMap(g => g.rounds.map(r => normalizeDept(r.department))).filter(Boolean))];
   const existingDepts = await prisma.department.count({ where: { name: { in: deptNames } } });
   const deptMap = new Map<string, string>();
   for (const n of deptNames) {
@@ -78,7 +81,7 @@ async function main() {
           name: g.name,
           businessCategory: normalizeMethod(g.rounds[0].method),
           description: `历史台账导入（微信 Excel，${g.rounds.length} 轮）`,
-          ...(g.rounds[0].department ? { requestingDepartmentId: deptMap.get(g.rounds[0].department) } : {}),
+          ...(g.rounds[0].department ? { requestingDepartmentId: deptMap.get(normalizeDept(g.rounds[0].department)) } : {}),
         },
       });
       for (const [i, r] of g.rounds.entries()) {
@@ -88,7 +91,7 @@ async function main() {
             roundNo: i + 1,
             ...(r.date ? { procurementDate: new Date(r.date) } : {}),
             procurementMethod: normalizeMethod(r.method) || '未填',
-            ...(r.department ? { departmentId: deptMap.get(r.department) } : {}),
+            ...(r.department ? { departmentId: deptMap.get(normalizeDept(r.department)) } : {}),
             ...(r.budget != null ? { budgetAmount: String(r.budget) } : {}),
             ...(r.control != null ? { controlAmount: String(r.control) } : {}),
             ...(r.supplier
