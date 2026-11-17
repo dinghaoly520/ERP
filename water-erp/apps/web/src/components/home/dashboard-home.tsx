@@ -749,13 +749,13 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px] md:col-span-2 lg:col-span-1"><SupplierConcentrationPanel profile={data} index={9} reducedMotion={reducedMotion}/></div>
       </div>
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[1fr_1fr]">
-        <div className="h-full min-h-[240px]"><SupplierCards suppliers={suppliers} index={13} reducedMotion={reducedMotion}/></div>
+        <div className="h-full min-h-[240px]"><MethodEfficiencyPanel profile={data} index={13} reducedMotion={reducedMotion}/></div>
         <div className="h-full min-h-[240px]"><DepartmentPanel profile={data} index={14} reducedMotion={reducedMotion}/></div>
       </div>
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-3">
         <div className="min-h-[280px]"><ProjectScalePanel profile={data} index={10} reducedMotion={reducedMotion}/></div>
         <div className="min-h-[280px]"><MethodPieChartPanel profile={data} index={11} reducedMotion={reducedMotion}/></div>
-        <div className="min-h-[280px]"><MethodEfficiencyPanel profile={data} index={12} reducedMotion={reducedMotion}/></div>
+
       </div>
       <AwardResultPanel startDate={startDate || undefined} endDate={endDate || undefined} companyId={companyId}/>
       {data && <ReportMaterialModal open={reportOpen} onClose={()=>setReportOpen(false)} data={data} companyId={companyId}/>}

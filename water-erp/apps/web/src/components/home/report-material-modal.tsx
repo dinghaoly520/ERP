@@ -19,8 +19,7 @@ import { api } from '@/lib/api';
 import type { DashboardData } from '@/lib/api/dashboard';
 import {
   KpiCard, SavingsRankingPanel, ProjectScalePanel, MethodPieChartPanel,
-  SupplierCards, TrendChartPanel, DepartmentPanel,
-  type SupplierDetail, type SavingsRankingItem,
+  TrendChartPanel, DepartmentPanel, type SavingsRankingItem,
 } from '@/components/home/dashboard-home';
 
 /* ── PDF 导出：自包含 HTML 报告构建（镜像数据库页图表设计，纯字符串 SVG/HTML）── */
@@ -228,7 +227,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       methodStats: data.methodStats.map(m => ({ name: m.name, count: m.count, amountLabel: m.amountLabel, share: m.share })),
       scaleSegments,
       savingsRanking: data.savingsRanking.slice(0, 5).map(r => ({ project: r.project, method: r.method, savingsLabel: r.savingsLabel, savingsRate: r.savingsRate, controlAmountLabel: r.controlAmountLabel, awardAmountLabel: r.awardAmountLabel })),
-      supplierStats: data.supplierStats.slice(0, 6).map(s => ({ name: s.name, participatedCount: s.participatedCount, winCount: s.winCount, hitRate: s.hitRate, awardAmountLabel: s.awardAmountLabel })),
+      supplierStats: (data.supplierConcentration ?? []).slice(0, 6).map(s => ({ name: s.name, winCount: s.count, awardAmountLabel: s.amountLabel, share: s.share })),
     };
   }, [data]);
 
@@ -251,11 +250,6 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
     })();
     return () => { cancelled = true; };
   }, [open, payload, companyId]);
-
-  const suppliers: SupplierDetail[] = useMemo(
-    () => data ? data.supplierStats.map(s => ({ ...s, id: s.name })) : [],
-    [data],
-  );
 
   /* 署名随公司选择器（2026-11-17 用户裁定）：全部=「集团及各子公司」；
      单公司=公司名；多公司（逗号分隔）=「、」连接。数据源同 CompanySelect。 */
@@ -311,10 +305,10 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
   const rankNote = data.savingsRanking.length
     ? `按节约资金（控制金额 − 成交金额）排序的 Top 项目。${rankTop ? `节约最多的是「${rankTop.project.slice(0, 24)}」（${rankTop.savingsLabel}，节约率 ${rankTop.savingsRate}%，方式 ${rankTop.method}）` : ''}；区间合计节约 ${s.totalSavingsLabel}、节资率 ${savingsRate.toFixed(1)}%。`
     : '暂无节约数据（需已成交项目）。';
-  const supTop = data.supplierStats[0];
-  const supNote = data.supplierStats.length
-    ? `${supTop ? `${supTop.name} 中标 ${supTop.winCount} 次（参与 ${supTop.participatedCount} 次、中标率 ${supTop.hitRate}%、累计 ${supTop.awardAmountLabel}）` : ''}。卡片展示参与/中标活跃度与主要活跃部门，供供应商集中度研判。`
-    : '暂无供应商参与数据。';
+  const supTop = (data.supplierConcentration ?? [])[0];
+  const supNote = (data.supplierConcentration ?? []).length
+    ? `前五供应商成交金额占全部成交的 ${data.supplierCr5 ?? 0}%（CR5）。${supTop ? `${supTop.name} 累计成交 ${supTop.amountLabel}（${supTop.count} 笔、占 ${supTop.share}%）居首` : ''}；占比过高提示竞争充分性风险。`
+    : '暂无已成交供应商数据。';
 
   return (
     <Modal
@@ -419,7 +413,21 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
 
         {/* ⑥ 重点供应商动态（复用 SupplierCards） */}
         <Section n={6} note={aiLoading ? <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> 正在生成说明…</span> : (ai?.sections?.supplier || supNote)}>
-          <SupplierCards suppliers={suppliers} index={6} reducedMotion />
+          <section className="wb-panel h-full">
+            <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--warning)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">供应商集中度</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--warning)_25%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--warning)]">CR5 {data.supplierCr5 ?? 0}%</div></div>
+            <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
+              {(data.supplierConcentration ?? []).map(s => (
+                <div key={s.name} className="flex items-center gap-3">
+                  <span className="w-[150px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={s.name}>{s.name}</span>
+                  <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
+                    <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (s.amount / Math.max(...(data.supplierConcentration ?? [{ amount: 1 }]).map(x => x.amount), 1)) * 100)}%`, background: `oklch(${(0.66 - 0.24 * (s.amount / Math.max(...(data.supplierConcentration ?? [{ amount: 1 }]).map(x => x.amount), 1))).toFixed(3)} 0.12 258)` }} />
+                  </div>
+                  <span className="w-[112px] shrink-0 text-right leading-tight"><span className="block text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{s.amountLabel} · {s.share}%</span><span className="block text-[10px] text-[var(--muted-foreground)]">{s.count} 笔</span></span>
+                </div>
+              ))}
+              {(data.supplierConcentration ?? []).length === 0 && <div className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无已成交供应商数据</div>}
+            </div>
+          </section>
         </Section>
 
       </div>
