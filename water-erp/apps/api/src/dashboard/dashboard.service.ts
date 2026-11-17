@@ -928,13 +928,14 @@ export class DashboardService {
     const supplierAmountTotal = rounds
       .filter(r => r.resultStatus === ResultStatus.AWARDED && r.awardedSupplierName?.trim())
       .reduce((s, r) => s + decimalToNumber(r.awardAmount), 0);
-    const concentrationBySupplier = new Map<string, { count: number; amount: number; topProject: string }>();
+    const concentrationBySupplier = new Map<string, { count: number; amount: number; projects: Array<{ name: string; date: string; method: string; awardLabel: string }> }>();
     for (const r of rounds) {
       if (r.resultStatus !== ResultStatus.AWARDED || !r.awardedSupplierName?.trim()) continue;
       const key = r.awardedSupplierName.trim();
-      const cur = concentrationBySupplier.get(key) ?? { count: 0, amount: 0, topProject: r.project.name };
+      const cur = concentrationBySupplier.get(key) ?? { count: 0, amount: 0, projects: [] };
       cur.count += 1;
       cur.amount += decimalToNumber(r.awardAmount);
+      cur.projects.push({ name: r.project.name, date: procurementDateLabel(r), method: r.procurementMethod ?? '未填', awardLabel: formatWan(decimalToNumber(r.awardAmount)) });
       concentrationBySupplier.set(key, cur);
     }
     const supplierConcentration = [...concentrationBySupplier.entries()]
@@ -944,7 +945,7 @@ export class DashboardService {
         amount: v.amount,
         amountLabel: formatWan(v.amount),
         share: supplierAmountTotal > 0 ? Math.round((v.amount / supplierAmountTotal) * 100) : 0,
-        topProject: v.topProject,
+        projects: v.projects.slice(-8),
       }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 8);

@@ -212,60 +212,28 @@ export function SavingsRankingPanel({ items, index, reducedMotion }: { items: Sa
   );
 }
 
-export // Supplier Concentration（2026-11-17 用户裁定：替换「风险项目预警」——归档域数据稀疏，
-// 风险/未成交两面板长期空转；供应商集中度基于轮次成交供应商文本聚合，竞争充分性视角）
+export // Supplier Concentration（2026-11-17 用户裁定：替换「风险项目预警」；2026-11-17 二次返工——
+// 照 ProjectScalePanel 原设计形态重造：横条行 + motion 宽度动画 + 点击下钻成交项目 Modal）
 function SupplierConcentrationPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const items = profile.supplierConcentration ?? [];
-  const max = Math.max(...items.map(i => i.amount), 1);
-  return (
-    <motion.div {...{ initial, animate, transition }} className="h-full">
-      <section className="wb-panel h-full">
-        <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--warning)]"/><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">供应商集中度</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--warning)_25%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--warning)]">CR5 {profile.supplierCr5 ?? 0}%</div></div>
-        <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
-          {items.length === 0 && <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--muted-foreground)]">暂无已成交供应商数据</div>}
-          {items.map((s, i) => (
-            <div key={s.name} className="flex items-center gap-3">
-              <span className="w-[150px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={s.name}>{s.name}</span>
-              <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
-                <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (s.amount / max) * 100)}%`, background: `oklch(${(0.66 - 0.24 * (s.amount / max)).toFixed(3)} 0.12 258)` }} title={`${s.topProject} 等`}/>
-              </div>
-              <span className="w-[112px] shrink-0 text-right leading-tight"><span className="block text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{s.amountLabel} · {s.share}%</span><span className="block text-[10px] text-[var(--muted-foreground)]">{s.count} 笔</span></span>
-            </div>
-          ))}
-          {items.length > 0 && <p className="mt-1 text-[10px] leading-4 text-[var(--muted-foreground)]">CR5 = 前五供应商成交金额占全部成交的比例；占比过高提示竞争充分性风险（建议 ≥3 家有效竞争）。</p>}
-        </div>
-      </section>
-    </motion.div>
-  );
-}
+  const [active, setActive] = useState<(typeof items)[number] | null>(null);
+  const total = items.reduce((s, x) => s + x.count, 0);
+  const mc = Math.max(...items.map(s => s.amount), 1);
 
-// Method Efficiency（2026-11-17 用户裁定：替换「未成交原因分析」——各方式节资率，
-// ≥2 笔入榜防单笔失真；节资口径同 summary：仅 AWARDED 且 budget≥award）
-function MethodEfficiencyPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
-  const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
-  const items = profile.methodEfficiency ?? [];
-  const max = Math.max(...items.map(i => i.savingsRate), 1);
-  const rateColor = (v: number) => (v >= 15 ? 'var(--success)' : v >= 5 ? 'var(--warning)' : 'var(--muted-foreground)');
   return (
-    <motion.div {...{ initial, animate, transition }} className="h-full">
-      <section className="wb-panel h-full">
-        <div className="wb-panel-header"><div className="flex items-center gap-2"><Target size={15} className="text-[var(--success)]"/><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购方式效益</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--success)_25%,transparent)] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]">{items.length} 类 ≥2 笔</div></div>
-        <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
-          {items.length === 0 && <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--muted-foreground)]">暂无方式效益数据（需已成交项目）</div>}
-          {items.map(m => (
-            <div key={m.name} className="flex items-center gap-3">
-              <span className="w-[92px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={m.name}>{m.name}</span>
-              <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
-                <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (m.savingsRate / max) * 100)}%`, background: 'var(--success)', opacity: 0.75 }} title={`预算 ${m.budgetLabel} → 成交 ${m.awardLabel}`}/>
-              </div>
-              <span className="w-[118px] shrink-0 text-right leading-tight"><span className="block text-[11px] font-bold tabular-nums" style={{ color: rateColor(m.savingsRate) }}>{m.savingsRate.toFixed(1)}%</span><span className="block text-[10px] text-[var(--muted-foreground)]">{m.count} 笔 · {m.awardLabel}</span></span>
-            </div>
-          ))}
-          {items.length > 0 && <p className="mt-1 text-[10px] leading-4 text-[var(--muted-foreground)]">节资率 =（方式内预算合计 − 成交合计）÷ 预算合计，仅计已成交且预算 ≥ 成交的轮次。</p>}
-        </div>
-      </section>
-    </motion.div>
+    <>
+      <motion.div {...{ initial, animate, transition }} className="h-full">
+        <section className="wb-panel h-full">
+          <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--warning)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">供应商集中度</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--warning)_25%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--warning)]">CR5 {profile.supplierCr5 ?? 0}% · {total} 笔</div></div>
+          <div className="wb-panel-body gap-2 flex flex-col">
+            {items.map((seg, i) => { const bw = (seg.amount / mc) * 100; return <button key={seg.name} onClick={() => setActive(seg)} className="scale-row group flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_4px_oklch(1_0_0/0.6)]"><div className="flex shrink-0 w-[150px] flex-col items-start leading-tight"><span className="truncate text-[11px] font-semibold text-[var(--foreground)]" title={seg.name}>{seg.name}</span><span className="text-[10px] text-[var(--muted-foreground)]">{seg.count} 笔</span></div><div className="flex-1 h-5 min-w-0 rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] overflow-hidden"><motion.div initial={{width:0}} animate={{width:`${bw}%`}} transition={{duration:0.6,delay:i*0.1,ease:easeOutQuint}} className="h-full rounded-[5px] opacity-85" style={{backgroundColor:"var(--warning)"}}/></div><div className="flex shrink-0 w-[86px] flex-col items-end leading-tight"><span className="text-[11px] font-bold text-[var(--warning)]">{seg.share}%</span><span className="text-[10px] text-[var(--muted-foreground)]">{seg.amountLabel}</span></div><ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)] transition-transform duration-200 group-hover:translate-x-0.5"/></button>;})}
+            {items.length===0&&<div className="flex flex-1 items-center justify-center text-[11px] text-[var(--muted-foreground)]">暂无已成交供应商数据</div>}
+          </div>
+        </section>
+      </motion.div>
+      {active && <Modal open onClose={()=>setActive(null)} size="md" title={<span className="flex items-center gap-3"><Building2 size={20} className="text-[var(--warning)] shrink-0"/><span className="max-w-[380px] truncate text-base font-semibold tracking-[-0.03em] text-[var(--foreground)]" title={active.name}>{active.name}</span></span>} description={<span className="flex items-center gap-2"><span className="text-[11px] font-bold text-[var(--warning)]">{active.count} 笔 · {active.share}%</span><span className="text-xs text-[var(--muted-foreground)]">累计成交 {active.amountLabel}（CR5 视角：占比过高提示竞争充分性风险）</span></span>}><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-[var(--muted-foreground)] mb-2"><FolderKanban size={12}/> 成交项目</div><div className="space-y-1.5 max-h-[320px] overflow-y-auto">{active.projects.map((p,idx)=><div key={idx} className="neu-card-static rounded-[10px] flex items-center gap-3 px-3 py-2"><div className="flex-1 min-w-0"><div className="truncate text-[11px] font-medium text-[var(--foreground)]" title={p.name}>{p.name}</div><div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--muted-foreground)]"><span>{p.date}</span><span>·</span><span>{p.method}</span></div></div><div className="text-xs font-bold text-[var(--success)] shrink-0">{p.awardLabel}</div></div>)}</div></Modal>}
+    </>
   );
 }
 
@@ -349,7 +317,7 @@ export function MethodPieChartPanel({ profile, index, reducedMotion }: { profile
           <div className="wb-panel-header"><div className="flex items-center gap-2.5"><Layers size={15} className="text-[var(--success)]"/><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购方式分布</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--success)_25%,transparent)] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]">{total} 项</div></div>
           <div className="wb-panel-body flex items-center gap-4">
             <div className="relative shrink-0"><svg width="200" height="200" viewBox="0 0 200 200">{segs.map((seg,i)=>{const sr=((seg.sa-90)*Math.PI)/180,er=((seg.ea-90)*Math.PI)/180,la=seg.ea-seg.sa>180?1:0;const x1=cx+r*Math.cos(sr),y1=cy+r*Math.sin(sr),x2=cx+r*Math.cos(er),y2=cy+r*Math.sin(er),x3=cx+ir*Math.cos(er),y3=cy+ir*Math.sin(er),x4=cx+ir*Math.cos(sr),y4=cy+ir*Math.sin(sr);return <path key={i} d={`M ${x1} ${y1} A ${r} ${r} 0 ${la} 1 ${x2} ${y2} L ${x3} ${y3} A ${ir} ${ir} 0 ${la} 0 ${x4} ${y4} Z`} fill={seg.c} opacity={hi===i?1:0.85} className="cursor-pointer transition-all duration-200" onMouseEnter={()=>setHi(i)} onMouseLeave={()=>setHi(null)} onClick={()=>setAm(seg.m as MethodDetail)} style={{transform:hi===i?"scale(1.02)":"scale(1)",transformOrigin:"center"}}/>;})}<text x={cx} y={cy-5} textAnchor="middle" className="fill-[var(--foreground)]" style={{fontSize:"18px",fontWeight:"700"}}>{total}</text><text x={cx} y={cy+12} textAnchor="middle" className="fill-[var(--muted-foreground)]" style={{fontSize:"10px"}}>总项目</text></svg></div>
-            <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">{profile.methodStats.slice(0,6).map((m,i)=><button key={m.name} className={`flex items-center gap-2 rounded-[8px] px-2 py-1.5 cursor-pointer text-left w-full ${hi===i?"bg-[color-mix(in_oklch,var(--success)_8%,transparent)]":"hover:bg-[color-mix(in_oklch,var(--success)_4%,transparent)]"}`} onMouseEnter={()=>setHi(i)} onMouseLeave={()=>setHi(null)} onClick={()=>setAm(m as MethodDetail)}><div className="h-3 w-3 shrink-0 rounded-[4px]" style={{backgroundColor:PC[i%PC.length]}}/><span className="flex-1 truncate text-[11px] font-medium text-[var(--foreground)]">{m.name}</span><span className="text-[11px] font-bold" style={{color:PC[i%PC.length]}}>{m.share}%</span></button>)}</div>
+            <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto">{profile.methodStats.slice(0,6).map((m,i)=>{const eff=(profile.methodEfficiency??[]).find(e=>e.name===m.name);return <button key={m.name} className={`flex items-center gap-2 rounded-[8px] px-2 py-1.5 cursor-pointer text-left w-full ${hi===i?"bg-[color-mix(in_oklch,var(--success)_8%,transparent)]":"hover:bg-[color-mix(in_oklch,var(--success)_4%,transparent)]"}`} onMouseEnter={()=>setHi(i)} onMouseLeave={()=>setHi(null)} onClick={()=>setAm(m as MethodDetail)}><div className="h-3 w-3 shrink-0 rounded-[4px]" style={{backgroundColor:PC[i%PC.length]}}/><span className="flex-1 truncate text-[11px] font-medium text-[var(--foreground)]">{m.name}</span>{eff&&<span className="text-[10px] font-bold text-[var(--success)]" title={`节资率 ${eff.savingsRate}%（${eff.count} 笔）`}>节{eff.savingsRate}%</span>}<span className="text-[11px] font-bold" style={{color:PC[i%PC.length]}}>{m.share}%</span></button>;})}</div>
           </div>
         </section>
       </motion.div>
@@ -749,7 +717,6 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px] md:col-span-2 lg:col-span-1"><SupplierConcentrationPanel profile={data} index={9} reducedMotion={reducedMotion}/></div>
       </div>
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[1fr_1fr]">
-        <div className="h-full min-h-[240px]"><MethodEfficiencyPanel profile={data} index={13} reducedMotion={reducedMotion}/></div>
         <div className="h-full min-h-[240px]"><DepartmentPanel profile={data} index={14} reducedMotion={reducedMotion}/></div>
       </div>
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-3">
