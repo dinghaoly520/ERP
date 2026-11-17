@@ -2722,7 +2722,7 @@ export function ExpertExtractPage({
 
             <div className="flex items-center justify-between pt-4 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
-                <ShieldCheck size={13} className="text-[var(--success)]" />抽取已完成；如需调整可返回「抽取配置」重新抽取（确认后整体替换），仅换个别人员请在后续步骤补选
+                <ShieldCheck size={13} className="text-[var(--success)]" />抽取已完成；开始抽取后不可返回「抽取配置」重新抽取，如需调整个别人员请在后续步骤使用补选/替换
               </span>
               <div className="flex items-center gap-3">
                 {step3Confirmed || confirmedExpertIds.length > 0 ? (
