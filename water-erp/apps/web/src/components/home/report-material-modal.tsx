@@ -13,7 +13,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/workbench';
-import { FileDown, Loader2, Printer, Sparkles } from 'lucide-react';
+import { Building2, FileDown, Loader2, Printer, Sparkles } from 'lucide-react';
 import { fetchReportMaterialAnalysis, fetchReportMaterialCache, type ReportMaterialResult } from '@/lib/api/ai';
 import { api } from '@/lib/api';
 import type { DashboardData } from '@/lib/api/dashboard';
@@ -97,7 +97,10 @@ function tableHtml(head: string[], rows: string[][], widths?: number[]): string 
 }
 
 /** 组装自包含 HTML 报告并唤起新窗口打印（用户选「存储为 PDF」得长档） */
-function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null, companyName: string) {
+function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null, companyName: string, companyId: string) {
+  // 视角迁移（2026-11-17 用户裁定）：全部公司=各公司维度；单公司=部门维度
+  const dimStats = companyId === 'all' ? data.companyStats : data.departmentStats;
+  const dimLabel = companyId === 'all' ? '公司' : '部门';
   const s = data.summary;
   const seg = (min: number, max: number) => data.trendSeries.reduce((n, t) => n + t.projects.filter(p => {
     const bs = String(p.budgetLabel || '');
@@ -161,7 +164,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 ${aiBlock}
 <section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '控制金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]), [24, 13, 13, 13, 13, 12, 12])}${note('savings')}</section>
 <section class="card"><h2>二、采购执行趋势</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
-<section class="card"><h2>三、部门采购分析</h2>${hbarsHtml([...data.departmentStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
+<section class="card"><h2>三、${dimLabel}采购分析</h2>${hbarsHtml([...dimStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
 <section class="card"><h2>四、采购方式分布</h2>${donutSvg(data.methodStats, '总项目')}${note('method')}</section>
 <section class="card"><h2>五、项目规模分析</h2>${hbarsHtml(scaleItems, v => `${v} 项`)}${note('scale')}</section>
 <section class="card"><h2>六、重点供应商动态</h2>${tableHtml(['供应商', '参与', '中标', '中标率', '累计成交'], data.supplierStats.slice(0, 8).map(x => [x.name, `${x.participatedCount} 次`, `${x.winCount} 次`, `${x.hitRate}%`, x.awardAmountLabel]))}${note('supplier')}</section>
@@ -220,7 +223,8 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
         doneRate: `${data.summary.totalCount > 0 ? Math.round((data.summary.completedCount / data.summary.totalCount) * 100) : 0}%`,
       },
       trendSeries: data.trendSeries.map(t => ({ label: t.label, count: t.count, amount: t.amount, initiated: t.initiated, archived: t.archived, active: t.active })),
-      departmentStats: data.departmentStats.map(d => ({ name: d.name, amountLabel: d.amountLabel, completedRate: d.completedRate, topMethod: d.topMethod, projectCount: d.projects.length })),
+      // 视角迁移（2026-11-17 用户裁定）：全部公司时本维度送公司统计（AI 按公司解读）；单公司送部门
+      departmentStats: (companyId === 'all' ? data.companyStats : data.departmentStats).map(d => ({ name: d.name, amountLabel: d.amountLabel, completedRate: d.completedRate, topMethod: d.topMethod, projectCount: d.projects.length })),
       methodStats: data.methodStats.map(m => ({ name: m.name, count: m.count, amountLabel: m.amountLabel, share: m.share })),
       scaleSegments,
       savingsRanking: data.savingsRanking.slice(0, 5).map(r => ({ project: r.project, method: r.method, savingsLabel: r.savingsLabel, savingsRate: r.savingsRate, controlAmountLabel: r.controlAmountLabel, awardAmountLabel: r.awardAmountLabel })),
@@ -284,11 +288,13 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
   const trendNote = S.length
     ? `区间共 ${S.length} 个统计桶、采购 ${s.totalCount} 项、成交金额合计 ${totalAmount.toFixed(1)} 万元。成交金额峰值出现在 ${peak.label}（${peak.amount.toFixed(1)} 万元）；最近有采购活动的月份为 ${lastActive?.label ?? '—'}。副带柱体上行为立项节点、下行为归档节点，虚线阶梯为在执行净值（累计立项减累计归档）。`
     : '区间内暂无采购活动。';
-  const deptTop = data.departmentStats[0];
-  const deptTop2 = data.departmentStats[1];
-  const deptNote = data.departmentStats.length
-    ? `共 ${data.departmentStats.length} 个部门发生采购。${deptTop ? `${deptTop.name} 金额最高（${deptTop.amountLabel}，完成率 ${deptTop.completedRate}%，主要方式 ${deptTop.topMethod || '—'}）` : ''}${deptTop2 ? `；其次为 ${deptTop2.name}（${deptTop2.amountLabel}）` : ''}。完成率=该部门已成交项目占其项目总数的比例。`
-    : '暂无部门数据。';
+  const dimStats = companyId === 'all' ? data.companyStats : data.departmentStats;
+  const deptTop = dimStats[0];
+  const deptTop2 = dimStats[1];
+  const dimLabel = companyId === 'all' ? '公司' : '部门';
+  const deptNote = dimStats.length
+    ? `共 ${dimStats.length} 个${dimLabel}发生采购。${deptTop ? `${deptTop.name} 金额最高（${deptTop.amountLabel}，完成率 ${deptTop.completedRate}%，主要方式 ${deptTop.topMethod || '—'}）` : ''}${deptTop2 ? `；其次为 ${deptTop2.name}（${deptTop2.amountLabel}）` : ''}。完成率=该${dimLabel}已成交项目占其项目总数的比例。`
+    : `暂无${dimLabel}数据。`;
   const mTop = data.methodStats[0];
   const mTop2 = data.methodStats[1];
   const methodNote = data.methodStats.length
@@ -321,7 +327,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       footer={
         <>
           <button onClick={onClose} className="neu-btn-soft">关闭</button>
-          <button onClick={() => exportReportPdf(data, ai, companyName)} disabled={aiLoading} className="neu-btn-primary is-water !h-[38px] gap-1.5">
+          <button onClick={() => exportReportPdf(data, ai, companyName, companyId)} disabled={aiLoading} className="neu-btn-primary is-water !h-[38px] gap-1.5">
             <Printer size={14} /> {aiLoading ? '说明生成中…' : '导出 PDF'}
           </button>
         </>
@@ -378,9 +384,27 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
           <TrendChartPanel profile={data} index={2} reducedMotion />
         </Section>
 
-        {/* ③ 部门采购分析（复用 DepartmentPanel） */}
+        {/* ③ 维度采购分析（2026-11-17 用户裁定：全部公司=各公司视角；单公司=部门） */}
         <Section n={3} note={aiLoading ? <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> 正在生成说明…</span> : (ai?.sections?.department || deptNote)}>
-          <DepartmentPanel profile={data} index={3} reducedMotion />
+          {companyId === 'all' ? (
+            <section className="wb-panel h-full">
+              <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--accent)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">各公司采购分析</h2></div></div>
+              <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
+                {[...data.companyStats].sort((a, b) => b.amount - a.amount).map(c => (
+                  <div key={c.name} className="flex items-center gap-3">
+                    <span className="w-[150px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={c.name}>{c.name}</span>
+                    <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
+                      <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (c.amount / Math.max(...data.companyStats.map(x => x.amount), 1)) * 100)}%`, background: 'var(--accent)' }} />
+                    </div>
+                    <span className="w-[72px] shrink-0 text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{c.amountLabel}</span>
+                  </div>
+                ))}
+                {data.companyStats.length === 0 && <div className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无公司数据</div>}
+              </div>
+            </section>
+          ) : (
+            <DepartmentPanel profile={data} index={3} reducedMotion />
+          )}
         </Section>
 
         {/* ④ 采购方式分布（复用 MethodPieChartPanel） */}

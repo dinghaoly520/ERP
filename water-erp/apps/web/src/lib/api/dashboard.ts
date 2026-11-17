@@ -73,6 +73,17 @@ export type DashboardData = {
       status: string;
     }>;
   }>;
+  /** 公司维度统计（全部公司视野下替代部门维度——2026-11-17 用户裁定：视角迁移） */
+  companyStats: Array<{
+    name: string;
+    amount: number;
+    amountLabel: string;
+    completedRate: number;
+    topMethod: string;
+    projects: Array<{
+      name: string; date: string; method: string; budgetLabel: string; awardLabel: string; status: string;
+    }>;
+  }>;
   attachmentProgress: Array<{
     label: string;
     rate: number;
