@@ -553,7 +553,7 @@ export default function OpeningHallPage() {
 
       <div className="right">
         {supplierId ? (
-          <ChatPanel projectId={projectId} supplierId={supplierId} supplierName={supplierName} userId={auth.user?.id ?? ""} stage={stage} sessionReady={!!(project as any)?.openingSession} sessionEnded={!!(project as any)?.openingSession?.handoverAt} />
+          <ChatPanel projectId={projectId} supplierId={supplierId} supplierName={supplierName} userId={auth.user?.id ?? ""} stage={stage} sessionReady={!!(project as any)?.openingSession} sessionEnded={!!(project as any)?.openingSession?.handoverAt} initialControl={(project as any)?.openingSession?.exchangeControl ?? "OPEN"} />
         ) : profileError ? (
           <section className="hall-card">
             <div className="hall-card__body">

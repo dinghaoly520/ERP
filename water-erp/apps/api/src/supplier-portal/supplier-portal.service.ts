@@ -2132,7 +2132,7 @@ export class SupplierPortalService {
         // （此前 select 无此字段，前端读 openingSession 恒 undefined=死功能）
         // handoverAt（2026-11-05）：完成开标·移交只写 handoverAt 不改 stage——
         // 供应商大厅交流面板需据此判定「开标已结束」，否则误显「尚未组建开标会话」
-        openingSession: { select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true, handoverAt: true } },
+        openingSession: { select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true, handoverAt: true, exchangeControl: true } }, // exchangeControl（2026-11-17 生产反馈）：ChatPanel 控制态原仅 WS 事件驱动——供应商中途进入/事件丢失时禁言不生效
       },
     });
     // 影子项目（自定义抽取）不对供应商可见

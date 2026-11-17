@@ -13,7 +13,7 @@ import { useBidWebSocket } from "@/hooks/use-bid-websocket";
  */
 type Msg = { id: string; senderId: string; senderRole: string; senderName: string; content: string; createdAt: string; roomType: string };
 
-export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId, stage, sessionReady = true, sessionEnded = false }: {
+export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, userId, stage, sessionReady = true, sessionEnded = false, initialControl = "OPEN" }: {
   stage?: string;
   projectId: string;
   supplierId: string;
@@ -24,6 +24,9 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   /** 会话已终局（2026-11-05）：完成开标·移交只写 handoverAt、stage 停留 OPENING——
    *  此态 stageClosed 判不到、sessionOpen 又为 true，曾误显「尚未组建开标会话」；据此独立关交流 */
   sessionEnded?: boolean;
+  /** 交流控制初值（2026-11-17 生产反馈）：来自项目载荷 openingSession.exchangeControl——
+   *  控制态原仅 WS 事件驱动，供应商中途进入/事件丢失时禁言不生效（能发出请求被 403 拒） */
+  initialControl?: "OPEN" | "MUTED" | "CLOSED";
 }) {
   const [tab, setTab] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [publicMsgs, setPublicMsgs] = useState<Msg[]>([]);
@@ -32,7 +35,7 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   const [privateUnread, setPrivateUnread] = useState(0);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [exchangeControl, setExchangeControl] = useState<"OPEN" | "MUTED" | "CLOSED">("OPEN");
+  const [exchangeControl, setExchangeControl] = useState<"OPEN" | "MUTED" | "CLOSED">(initialControl);
   // R4：stage:change 离开 OPENING 后关闭互动；B4-1（2026-09-30）：初始化即按传入 stage 判定
   // ——评标中/归档后从「开标记录」进大厅回看时不会再收到 stage:change，此前输入框可发送但必被后端 403 拒
   const [stageClosed, setStageClosed] = useState(() => !!stage && stage !== "OPENING");
@@ -45,6 +48,10 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
   // （评审收紧：数据源单调 ≠ 送达单调）。
   useEffect(() => { if (sessionReady) setSessionOpen(true); }, [sessionReady]);
   useEffect(() => { if (stage && stage !== "OPENING") setStageClosed(true); }, [stage]);
+  // 控制态同步（2026-11-17 生产反馈）：面板先于 project 挂载，一次性 useState 初值会锁在
+  // null 阶段的 OPEN——project 载荷晚到时校正；一旦 WS 控制事件到达过，事件为实时权威，prop 不再覆写
+  useEffect(() => { if (!controlFromWsRef.current) setExchangeControl(initialControl); }, [initialControl]);
+  const controlFromWsRef = useRef(false); // 控制态来源标记：WS 事件优先于项目载荷初值
   const hydratedRef = useRef(false); // R3：首次加载完成后才在重连时做 REST 补齐
   const wasConnectedRef = useRef(false); // R3：区分首连与断线重连——首连的补齐由挂载 hydrate 覆盖，不重复拉取
   const listEl = useRef<HTMLDivElement | null>(null);
@@ -88,7 +95,7 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
 
   const { connection, reconnectNow } = useBidWebSocket(projectId, () => ({
     onHallMessage: pushMsg,
-    onHallExchangeControl: (d) => { setExchangeControl(d.control); },
+    onHallExchangeControl: (d) => { controlFromWsRef.current = true; setExchangeControl(d.control); },
     // R4：阶段离开 OPENING → 关闭输入（大厅互动仅在开标阶段开放）
     onStageChange: (d) => { if (d.to && d.to !== "OPENING") setStageClosed(true); },
     // 组建开标会话 → 解除输入闸（后端 SESSION_NOT_CREATED 的前端镜像；会话只建不删，翻转只升不降）
@@ -171,8 +178,13 @@ export function ChatPanel({ projectId, supplierId, supplierName: _supplierName, 
         content,
       });
       setInput("");
-    } catch {
-      // U5：业务错误消息已由全局 API 层统一弹出，此处不重复提示
+    } catch (e: any) {
+      // U5：业务错误消息已由全局 API 层统一弹出，此处不重复提示。
+      // 自愈（2026-11-17 生产反馈）：WS 控制事件丢失时本地 control 停留 OPEN——按服务端
+      // 权威拒绝码同步本地态，输入即时禁用并显示正确提示词，不再重复撞墙
+      if (e?.code === "EXCHANGE_MUTED") setExchangeControl("MUTED");
+      else if (e?.code === "EXCHANGE_CLOSED") setExchangeControl("CLOSED");
+      else if (e?.code === "HALL_CLOSED") setStageClosed(true);
     } finally {
       setSending(false);
     }
