@@ -4,8 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { listExperts, listSpecialties, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics, clearExpertRoster } from '@/lib/api/expert';
-import { EXPERT_TITLES } from '@/lib/expert-standard-options';
+import { listExperts, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics, clearExpertRoster } from '@/lib/api/expert';
 import { exportExpertsToExcel } from '@/lib/excel-export';
 import type { ExpertListItem } from '@/lib/api/expert';
 import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
@@ -34,7 +33,6 @@ export default function ExpertRepositoryPage() {
   const router = useRouter();
   const [experts, setExperts] = useState<ExpertListItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [specialties, setSpecialties] = useState<string[]>([]);
   // 公司级数据隔离（2026-09-24）：admin 右上角 CompanySelect 切换视野，全部公司=按公司分组；
   // 非 admin 无选择器，后端强制本公司
   const [isAdmin, setIsAdmin] = useState(false);
@@ -55,7 +53,6 @@ export default function ExpertRepositoryPage() {
       return v === 'PENDING' || v === 'DISABLED' || v === 'RETIRED' ? v : 'ACTIVE';
     })()
   );
-  const [specialty, setSpecialty] = useState('');
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
   // 批量操作
@@ -64,10 +61,6 @@ export default function ExpertRepositoryPage() {
   const [batchAction, setBatchAction] = useState<'enable' | 'disable'>('disable');
   const [batchReason, setBatchReason] = useState('');
   const [batchSaving, setBatchSaving] = useState(false);
-  // 高级搜索
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [advTitle, setAdvTitle] = useState('');
-  const [advEmployer, setAdvEmployer] = useState('');
   // 启用/停用二次确认
   const [confirmToggle, setConfirmToggle] = useState<ExpertListItem | null>(null);
   const [toggling, setToggling] = useState(false);
@@ -168,7 +161,7 @@ export default function ExpertRepositoryPage() {
     const rid = ++loadReqIdRef.current;
     setLoading(true); setErrored(false);
     try {
-      const res = await listExperts({ search: query || undefined, specialty: specialty || undefined, page, pageSize: PAGE_SIZE, companyId, statusTab });
+      const res = await listExperts({ search: query || undefined, page, pageSize: PAGE_SIZE, companyId, statusTab });
       if (rid !== loadReqIdRef.current) return;
       // 兼容新旧 API 返回格式：新版返回 { total, items }，旧版返回数组
       if (Array.isArray(res)) {
@@ -183,20 +176,19 @@ export default function ExpertRepositoryPage() {
       setErrored(true); toast.error(err?.message || '加载专家列表失败');
     }
     setLoading(false);
-  }, [query, specialty, page, companyId, statusTab]);
+  }, [query, page, companyId, statusTab]);
   useEffect(() => { load(); }, [load]);
   // 切 tab 回第一页（不同 tab 分页互不复用）
   useEffect(() => { setPage(1); }, [statusTab]);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
   useEffect(() => { void fetchCurrentUser().then(u => { setIsAdmin(u.role === 'admin'); setCanManageStatus(u.role === 'admin' || u.role === 'leader'); }).catch(() => {}); }, []);
-  useEffect(() => { listSpecialties(companyId).then(setSpecialties).catch(() => {}); }, [companyId]);
   // admin 全部公司视图：拉后端全量分组计数（与列表同 where），分组标题用全量口径不因分页失真
   useEffect(() => {
     if (!isAdmin || companyId !== 'all') { setCompanyCounts(null); return; }
-    fetchExpertCompanyCounts({ search: query || undefined, specialty: specialty || undefined })
+    fetchExpertCompanyCounts({ search: query || undefined })
       .then(setCompanyCounts)
       .catch(() => setCompanyCounts(null));
-  }, [isAdmin, companyId, query, specialty]);
+  }, [isAdmin, companyId, query]);
 
   // 停用/启用理由（2026-11-16 两态裁定：一律必填，留痕入操作历史）
   const [toggleReason, setToggleReason] = useState('');
@@ -237,13 +229,7 @@ export default function ExpertRepositoryPage() {
     } catch (e: any) { toast.error(e?.message || '导出失败'); }
   };
   const { sortKey, sortDir, toggle: sortToggle, sorted } = useSort<ExpertListItem>('displayName', 'asc');
-  // 高级筛选（前端二次过滤，仅作用于当前页——后续可考虑后端过滤）
-  const filteredExperts = useMemo(() => {
-    let list = sorted(experts);
-    if (advTitle) list = list.filter(e => (e.expertProfile?.title || '').includes(advTitle));
-    if (advEmployer) list = list.filter(e => (e.expertProfile?.employer || '').includes(advEmployer));
-    return list;
-  }, [experts, advTitle, advEmployer, sortKey, sortDir, sorted]);
+  const filteredExperts = useMemo(() => sorted(experts), [sorted]);
 
   // 分页：total 来自服务端；高级筛选无匹配时可能少于 pageSize
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -540,15 +526,7 @@ export default function ExpertRepositoryPage() {
             </button>
           ))}
         </div>
-        <div className="relative ml-auto w-[280px] shrink-0">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
-          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input neu-input-sm !pl-9" />
-          {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
-        </div>
-        <select value={specialty} onChange={e => { setSpecialty(e.target.value); setPage(1); }} className="workbench-input workbench-input-sm !w-auto min-w-[110px]"><option value="">全部专业</option>{specialties.map(s => <option key={s} value={s}>{s}</option>)}</select>
-        {(search || specialty) && <button onClick={() => { setSearch(''); setSpecialty(''); setPage(1); }} className="neu-btn-xs">重置</button>}
         <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
-          <button onClick={() => setShowAdvanced(v => !v)} className={`neu-btn-xs ${showAdvanced ? 'is-active' : ''}`}>高级筛选</button>
           {/* 批量启停仅限在库/已停用分区（2026-11-16：已退库/待审核行批量启用会铸出
               entryStatus=RETIRED + 账号启用的脏态；处置走单行按钮） */}
           {!batchMode ? (
@@ -564,16 +542,14 @@ export default function ExpertRepositoryPage() {
           )}
           <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         </div>
-      </div>
-
-      {/* 高级筛选 */}
-      {showAdvanced && (
-        <div className="neu-table-card p-4 flex flex-wrap items-end gap-3">
-          <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">职称</span><select value={advTitle} onChange={e => setAdvTitle(e.target.value)} className="workbench-input !w-[150px]"><option value="">全部职称</option>{EXPERT_TITLES.map(t => <option key={t} value={t}>{t}</option>)}</select></label>
-          <label className="space-y-1"><span className="text-[10px] font-semibold text-[var(--muted-foreground)]">工作单位</span><input value={advEmployer} onChange={e => setAdvEmployer(e.target.value)} placeholder="单位名称" className="workbench-input !w-[180px]" /></label>
-          <button onClick={() => { setAdvTitle(''); setAdvEmployer(''); }} className="neu-btn-xs">清除筛选</button>
+        {/* 搜索框靠右（2026-11-17 用户裁定：删高级筛选与专业下拉，搜索即唯一筛入口——
+            后端 search 本就覆盖姓名/专业/单位模糊匹配） */}
+        <div className="relative w-[280px] shrink-0">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
+          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input neu-input-sm !pl-9" />
+          {search && <button onClick={() => { setSearch(''); setPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
         </div>
-      )}
+      </div>
 
       {/* 批量操作栏 */}
       {batchMode && (
