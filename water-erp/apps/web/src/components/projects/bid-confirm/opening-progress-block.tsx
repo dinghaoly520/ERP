@@ -26,11 +26,6 @@ function formatDateTime(iso: string | null): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** 开标文件包落盘下载（bug#114/#143 2026-11-12）：直链 <a> × 后端 inline disposition × JSON 本体
- *  → 新标签内联渲染「代码页面」。改为 fetch→blob→download 带中文名落盘；href 保留作兜底。
- *  评审必改已采纳：走 apiFetch 补 tab 级 X-Web-Token（token_web 全局一份，裸 fetch 在多标签
- *  双账号下会以他人身份请求——审计归因错人，正是 apiFetch 约定要防的串台类）。 */
-
 function ProgressStat({
   icon, label, done, total, tone, title, plain,
 }: {

@@ -66,8 +66,6 @@ import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, no
 import { BidIntentOversightService } from '../supplier/bid-intent-oversight.service';
 import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 import JSZip = require('jszip');
-import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
-import { streamToBuffer } from '../announcement/bid-document.crypto';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -1172,13 +1170,6 @@ export class BidService {
     return this.startOpeningInternal(projectId, dto, userId);
   }
 
-  /**
-   * 完成开标·资料移交（幂等，不改 stage）。
-   * 开标执行端 :3007 在开标完成后调用：生成开标文件包（JSON + sha256）存 MinIO，
-   * FileAsset 引用挂到 BidOpeningSession，WS 广播 opening:completed，
-   * 并向 leader/staff 发站内信（深链直达 :3005 开标确认面板）。
-   * 非闸门：:3005 启动评标不依赖本动作（H4 口径独立满足即可）。
-   */
   /** #114（2026-11-17 用户裁定）：开标文件包 zip 人工通道——JSON 本体（机器通道不变，:3005
    *  fetch 直接消费）+ 校验指纹.txt 打包 attachment 落盘；镜像 #115 evidence-zip 模式
    *  （人只触达文件，不再新标签页直开 JSON 乱码页）。 */
@@ -1189,10 +1180,9 @@ export class BidService {
     if (!session?.handoverAssetId) throw new NotFoundException({ error: '开标文件包尚未生成', code: 'HANDOVER_NOT_GENERATED' });
     const asset = await this.prisma.fileAsset.findUnique({ where: { id: session.handoverAssetId } });
     if (!asset) throw new NotFoundException({ error: '开标文件包资产不存在', code: 'NOT_FOUND' });
-    const stream = await minioClient.getObject(MINIO_BUCKET, asset.key);
-    const jsonBuf = await streamToBuffer(stream);
+    const jsonBuf = await this.storage.download(asset.key); // 已注入 StorageService（与 buildEvidenceZip 同轨，勿裸用 minioClient）
     const zip = new JSZip();
-    zip.file(asset.originalName || `开标文件包-${project.projectCode}.json`, jsonBuf);
+    zip.file((asset.originalName || `开标文件包-${project.projectCode}.json`).replace(/[/\\]/g, '_'), jsonBuf); // originalName 入库自由文本——剥路径分隔符（CR-06 同 #115）
     zip.file('校验指纹.txt', [
       `开标文件包 SHA-256：${asset.sha256 ?? '（未记录）'}`,
       `生成时间：${(session.handoverAt ?? asset.createdAt).toISOString()}`,
@@ -1202,6 +1192,13 @@ export class BidService {
     return { buffer, fileName: `开标文件包-${project.projectCode}.zip` };
   }
 
+  /**
+   * 完成开标·资料移交（幂等，不改 stage）。
+   * 开标执行端 :3007 在开标完成后调用：生成开标文件包（JSON + sha256）存 MinIO，
+   * FileAsset 引用挂到 BidOpeningSession，WS 广播 opening:completed，
+   * 并向 leader/staff 发站内信（深链直达 :3005 开标确认面板）。
+   * 非闸门：:3005 启动评标不依赖本动作（H4 口径独立满足即可）。
+   */
   async completeOpening(id: string, actorId?: string, opts?: { auto?: boolean; trigger?: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
