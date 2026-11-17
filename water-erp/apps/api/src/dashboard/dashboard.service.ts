@@ -923,6 +923,61 @@ export class DashboardService {
             ),
     }));
 
+    // 供应商集中度（2026-11-17 用户裁定替换「风险项目预警」）：AWARDED 轮次按成交供应商
+    // 文本聚合——Top 金额占比与 CR5（前五金额集中度），竞争充分性视角；无归属供应商不计。
+    const supplierAmountTotal = rounds
+      .filter(r => r.resultStatus === ResultStatus.AWARDED && r.awardedSupplierName?.trim())
+      .reduce((s, r) => s + decimalToNumber(r.awardAmount), 0);
+    const concentrationBySupplier = new Map<string, { count: number; amount: number; topProject: string }>();
+    for (const r of rounds) {
+      if (r.resultStatus !== ResultStatus.AWARDED || !r.awardedSupplierName?.trim()) continue;
+      const key = r.awardedSupplierName.trim();
+      const cur = concentrationBySupplier.get(key) ?? { count: 0, amount: 0, topProject: r.project.name };
+      cur.count += 1;
+      cur.amount += decimalToNumber(r.awardAmount);
+      concentrationBySupplier.set(key, cur);
+    }
+    const supplierConcentration = [...concentrationBySupplier.entries()]
+      .map(([name, v]) => ({
+        name,
+        count: v.count,
+        amount: v.amount,
+        amountLabel: formatWan(v.amount),
+        share: supplierAmountTotal > 0 ? Math.round((v.amount / supplierAmountTotal) * 100) : 0,
+        topProject: v.topProject,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 8);
+    const supplierCr5 = supplierAmountTotal > 0
+      ? Math.round((supplierConcentration.slice(0, 5).reduce((s, x) => s + x.amount, 0) / supplierAmountTotal) * 100)
+      : 0;
+
+    // 采购方式效益（2026-11-17 用户裁定替换「未成交原因分析」）：各方式 AWARDED 轮次的
+    // 预算/成交/节资率——哪种方式更省钱；节资口径同 summary（budget>=award 才计入差值）。
+    const efficiencyByMethod = new Map<string, { count: number; budget: number; award: number }>();
+    for (const r of rounds) {
+      if (r.resultStatus !== ResultStatus.AWARDED) continue;
+      const key = r.procurementMethod || '未填';
+      const cur = efficiencyByMethod.get(key) ?? { count: 0, budget: 0, award: 0 };
+      const b = decimalToNumber(r.budgetAmount), a = decimalToNumber(r.awardAmount);
+      cur.count += 1;
+      cur.budget += b; cur.award += a;
+      efficiencyByMethod.set(key, cur);
+    }
+    const methodEfficiency = [...efficiencyByMethod.entries()]
+      .map(([name, v]) => ({
+        name,
+        count: v.count,
+        budgetLabel: formatWan(v.budget),
+        awardLabel: formatWan(v.award),
+        savingsRate: v.budget > 0 && v.award > 0 && v.budget >= v.award
+          ? Math.round(((v.budget - v.award) / v.budget) * 1000) / 10
+          : 0,
+      }))
+      .filter(x => x.count >= 2) // 单笔方式比率不稳，不入榜
+      .sort((a, b) => b.savingsRate - a.savingsRate)
+      .slice(0, 8);
+
     // 环比上期块（compare=true 才算）：等长前移窗口六指标，口径全部镜像主 summary
     let compareBlock:
       | {
@@ -1003,6 +1058,9 @@ export class DashboardService {
       nonAwardReasons,
       savingsRanking,
       riskProjects,
+      supplierConcentration,
+      supplierCr5,
+      methodEfficiency,
       ...(compare ? { compare: compareBlock } : {}),
     };
   }

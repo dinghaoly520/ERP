@@ -121,6 +121,11 @@ export type DashboardData = {
     amountLabel: string;
     accent: string;
   }>;
+  /** 供应商集中度（2026-11-17 替换风险项目预警）：Top 成交供应商金额占比 + CR5 */
+  supplierConcentration: Array<{ name: string; count: number; amount: number; amountLabel: string; share: number; topProject: string }>;
+  supplierCr5: number;
+  /** 采购方式效益（2026-11-17 替换未成交原因分析）：各方式节资率（≥2 笔） */
+  methodEfficiency: Array<{ name: string; count: number; budgetLabel: string; awardLabel: string; savingsRate: number }>;
   nonAwardReasons: Array<{
     label: string;
     count: number;

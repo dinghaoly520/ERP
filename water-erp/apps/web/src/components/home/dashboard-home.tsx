@@ -212,7 +212,64 @@ export function SavingsRankingPanel({ items, index, reducedMotion }: { items: Sa
   );
 }
 
-export function RiskProjectsPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+export // Supplier Concentration（2026-11-17 用户裁定：替换「风险项目预警」——归档域数据稀疏，
+// 风险/未成交两面板长期空转；供应商集中度基于轮次成交供应商文本聚合，竞争充分性视角）
+function SupplierConcentrationPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+  const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
+  const items = profile.supplierConcentration ?? [];
+  const max = Math.max(...items.map(i => i.amount), 1);
+  return (
+    <motion.div {...{ initial, animate, transition }} className="h-full">
+      <section className="wb-panel h-full">
+        <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--warning)]"/><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">供应商集中度</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--warning)_25%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--warning)]">CR5 {profile.supplierCr5 ?? 0}%</div></div>
+        <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
+          {items.length === 0 && <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--muted-foreground)]">暂无已成交供应商数据</div>}
+          {items.map((s, i) => (
+            <div key={s.name} className="flex items-center gap-3">
+              <span className="w-[150px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={s.name}>{s.name}</span>
+              <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
+                <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (s.amount / max) * 100)}%`, background: `oklch(${(0.66 - 0.24 * (s.amount / max)).toFixed(3)} 0.12 258)` }} title={`${s.topProject} 等`}/>
+              </div>
+              <span className="w-[112px] shrink-0 text-right leading-tight"><span className="block text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{s.amountLabel} · {s.share}%</span><span className="block text-[10px] text-[var(--muted-foreground)]">{s.count} 笔</span></span>
+            </div>
+          ))}
+          {items.length > 0 && <p className="mt-1 text-[10px] leading-4 text-[var(--muted-foreground)]">CR5 = 前五供应商成交金额占全部成交的比例；占比过高提示竞争充分性风险（建议 ≥3 家有效竞争）。</p>}
+        </div>
+      </section>
+    </motion.div>
+  );
+}
+
+// Method Efficiency（2026-11-17 用户裁定：替换「未成交原因分析」——各方式节资率，
+// ≥2 笔入榜防单笔失真；节资口径同 summary：仅 AWARDED 且 budget≥award）
+function MethodEfficiencyPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+  const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
+  const items = profile.methodEfficiency ?? [];
+  const max = Math.max(...items.map(i => i.savingsRate), 1);
+  const rateColor = (v: number) => (v >= 15 ? 'var(--success)' : v >= 5 ? 'var(--warning)' : 'var(--muted-foreground)');
+  return (
+    <motion.div {...{ initial, animate, transition }} className="h-full">
+      <section className="wb-panel h-full">
+        <div className="wb-panel-header"><div className="flex items-center gap-2"><Target size={15} className="text-[var(--success)]"/><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购方式效益</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--success)_25%,transparent)] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--success)]">{items.length} 类 ≥2 笔</div></div>
+        <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
+          {items.length === 0 && <div className="flex flex-1 items-center justify-center text-[11px] text-[var(--muted-foreground)]">暂无方式效益数据（需已成交项目）</div>}
+          {items.map(m => (
+            <div key={m.name} className="flex items-center gap-3">
+              <span className="w-[92px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={m.name}>{m.name}</span>
+              <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
+                <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (m.savingsRate / max) * 100)}%`, background: 'var(--success)', opacity: 0.75 }} title={`预算 ${m.budgetLabel} → 成交 ${m.awardLabel}`}/>
+              </div>
+              <span className="w-[118px] shrink-0 text-right leading-tight"><span className="block text-[11px] font-bold tabular-nums" style={{ color: rateColor(m.savingsRate) }}>{m.savingsRate.toFixed(1)}%</span><span className="block text-[10px] text-[var(--muted-foreground)]">{m.count} 笔 · {m.awardLabel}</span></span>
+            </div>
+          ))}
+          {items.length > 0 && <p className="mt-1 text-[10px] leading-4 text-[var(--muted-foreground)]">节资率 =（方式内预算合计 − 成交合计）÷ 预算合计，仅计已成交且预算 ≥ 成交的轮次。</p>}
+        </div>
+      </section>
+    </motion.div>
+  );
+}
+
+function RiskProjectsPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const sev = { 高:{bg:"bg-[color-mix(in_oklch,var(--danger)_12%,transparent)]",t:"text-[var(--danger)]"}, 中:{bg:"bg-[color-mix(in_oklch,var(--warning)_12%,transparent)]",t:"text-[var(--warning)]"}, 低:{bg:"bg-[color-mix(in_oklch,var(--accent)_12%,transparent)]",t:"text-[var(--accent)]"} } as const;
   const display = profile.riskProjects.slice(0, 5);
@@ -689,7 +746,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>void forceAnalysis()} index={7} reducedMotion={reducedMotion} manualPrompt={companyId.includes(",")}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={8} reducedMotion={reducedMotion}/></div>
-        <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px] md:col-span-2 lg:col-span-1"><RiskProjectsPanel profile={data} index={9} reducedMotion={reducedMotion}/></div>
+        <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px] md:col-span-2 lg:col-span-1"><SupplierConcentrationPanel profile={data} index={9} reducedMotion={reducedMotion}/></div>
       </div>
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[1fr_1fr]">
         <div className="h-full min-h-[240px]"><SupplierCards suppliers={suppliers} index={13} reducedMotion={reducedMotion}/></div>
@@ -698,7 +755,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-3">
         <div className="min-h-[280px]"><ProjectScalePanel profile={data} index={10} reducedMotion={reducedMotion}/></div>
         <div className="min-h-[280px]"><MethodPieChartPanel profile={data} index={11} reducedMotion={reducedMotion}/></div>
-        <div className="min-h-[280px]"><NonAwardDonutPanel profile={data} index={12} reducedMotion={reducedMotion}/></div>
+        <div className="min-h-[280px]"><MethodEfficiencyPanel profile={data} index={12} reducedMotion={reducedMotion}/></div>
       </div>
       <AwardResultPanel startDate={startDate || undefined} endDate={endDate || undefined} companyId={companyId}/>
       {data && <ReportMaterialModal open={reportOpen} onClose={()=>setReportOpen(false)} data={data} companyId={companyId}/>}
