@@ -94,7 +94,6 @@ export function AwardResultPanel({ startDate, endDate, companyId }: { startDate?
         <span className="flex items-center gap-2 text-[13px] font-semibold tracking-[-0.01em] text-[color:var(--foreground)]">
           <Trophy size={15} className="text-[color:var(--accent)]" />
           项目中标结果
-          <span className="text-[10px] font-normal text-[color:var(--muted-foreground)]">CTS A-203 · 标段与中标信息关联</span>
         </span>
         <span className="flex items-center gap-2">
           {items && <span className="text-[11px] text-[color:var(--muted-foreground)]">共 {filtered?.length ?? 0} 项已定标</span>}
@@ -138,7 +137,7 @@ export function AwardResultPanel({ startDate, endDate, companyId }: { startDate?
             全部项目中标结果
           </span>
         }
-        description={`CTS A-203 · 标段与中标信息关联 · 共 ${filtered?.length ?? 0} 项已定标 · 点击任一行查看详情`}
+        description={`共 ${filtered?.length ?? 0} 项已定标 · 点击任一行查看详情`}
       >
         <div className="neu-table-card">
           <div className="overflow-x-auto">
