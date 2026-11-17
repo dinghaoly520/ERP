@@ -6,7 +6,7 @@
  * 时按步长抽稀；首桶落在 0 格点天然显示，末桶强制显示兜住右边界。
  * （悬停桶是否强制显示属交互层，由 TrendChartPanel 自行叠加。）
  */
-export const TREND_LABEL_MIN_SLOT_PX = 46;
+export const TREND_LABEL_MIN_SLOT_PX = 72; // 2026-11-17 用户裁定：横轴数字密度降低 46→72
 
 export function trendLabelStep(bucketCount: number, availableWidth: number): number {
   if (bucketCount <= 0 || availableWidth <= 0) return 1;

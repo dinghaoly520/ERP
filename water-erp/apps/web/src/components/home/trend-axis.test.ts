@@ -16,7 +16,8 @@ test("trendLabelStep keeps every label when buckets have enough horizontal room"
 });
 
 test("trendLabelStep thins labels when buckets get denser than the minimum slot", () => {
-  // 30 桶挤在 1200px：slot=40px < 46px → 每隔 2 桶显示一个
+  // 2026-11-17 用户裁定：最小槽宽 46→72（数字密度降低）。
+  // 30 桶挤在 1200px：slot=40px < 72px → 每隔 2 桶显示一个
   assert.equal(trendLabelStep(30, 1200), 2);
   const shown = Array.from({ length: 30 }, (_, i) => i).filter((i) =>
     isTrendLabelShown(i, 30, 2),
@@ -37,8 +38,8 @@ test("degenerate inputs never divide by zero and never show labels for an empty 
   assert.equal(isTrendLabelShown(0, 0, 1), false);
 });
 
-test("minimum slot constant is a deliberate design value (label ~28px + 间隙)", () => {
-  assert.equal(TREND_LABEL_MIN_SLOT_PX, 46);
+test("minimum slot constant is a deliberate design value (2026-11-17 用户裁定 46→72 降低密度)", () => {
+  assert.equal(TREND_LABEL_MIN_SLOT_PX, 72);
 });
 
 test("isMonthBoundary flags the first bucket and every month change", () => {

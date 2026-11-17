@@ -49,10 +49,14 @@ function trendSvg(S: DashboardData['trendSeries']): string {
   const stepD = S.map((it, i) => { const x0 = xc(i) - (bw + gap) / 2, x1 = xc(i) + (bw + gap) / 2; return `${i === 0 ? 'M' : 'L'} ${x0} ${actY(it.active ?? 0)} L ${x1} ${actY(it.active ?? 0)}`; }).join(' ');
   const grid = [0, 0.5, 1].map(t => { const y = tp + (1 - t) * mh; return `<line x1="${lp}" y1="${y}" x2="${W - rp}" y2="${y}" stroke="oklch(0.65 0.03 250 / 0.22)" stroke-dasharray="${t === 0 ? 'none' : '3 4'}"/><text x="${lp - 6}" y="${y + 3}" text-anchor="end" class="ax">${(t * ma).toFixed(0)}万</text>`; }).join('');
   const rAxis = [0, 0.5, 1].map(t => { const y = cy - t * mi / 1 * bandHalf; return `<text x="${W - rp + 6}" y="${y + 3}" text-anchor="start" class="ax">${Math.round(t * mi)}${t === 1 ? '项' : ''}</text>`; }).join('');
+  // x 轴标签抽稀（2026-11-17 用户裁定：数字密度降低）——桶距 <72px 隔 N 桶；末桶+换月桶保显
+  const lStep = Math.max(1, Math.ceil(72 / Math.max((caw / dc), 1)));
+  const isLabeled = (i: number) => i % lStep === 0 || i === dc - 1 || (i > 0 && S[i].date.slice(0, 7) !== S[i - 1].date.slice(0, 7));
   const bars = S.map((it, i) => {
     const x = sx + i * (bw + gap); const ih = initH(it.initiated ?? 0), ah = initH(it.archived ?? 0);
-    const lbl = `<line x1="${x + bw / 2}" x2="${x + bw / 2}" y1="${axisY}" y2="${axisY + 5}" stroke="oklch(0.55 0.05 250 / 0.6)"/><text x="${x + bw / 2}" y="${ch - 6}" text-anchor="middle" class="ax">${it.label}</text>`;
-    return `${ih > 0 ? `<rect x="${x}" y="${cy - ih}" width="${bw}" height="${ih}" rx="3" fill="oklch(0.63 0.128 247 / 0.85)"/>` : ''}${ah > 0 ? `<rect x="${x}" y="${cy}" width="${bw}" height="${ah}" rx="3" fill="oklch(0.6 0.13 175 / 0.85)"/>` : ''}${lbl}`;
+    const tick = `<line x1="${x + bw / 2}" x2="${x + bw / 2}" y1="${axisY}" y2="${axisY + 5}" stroke="oklch(0.55 0.05 250 / 0.6)"/>`;
+    const lbl = isLabeled(i) ? `<text x="${x + bw / 2}" y="${ch - 6}" text-anchor="middle" class="ax">${it.label}</text>` : '';
+    return `${ih > 0 ? `<rect x="${x}" y="${cy - ih}" width="${bw}" height="${ih}" rx="3" fill="oklch(0.63 0.128 247 / 0.85)"/>` : ''}${ah > 0 ? `<rect x="${x}" y="${cy}" width="${bw}" height="${ah}" rx="3" fill="oklch(0.6 0.13 175 / 0.85)"/>` : ''}${tick}${lbl}`;
   }).join('');
   const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="oklch(0.58 0.14 164)" stroke="oklch(1 0 0 / 0.95)" stroke-width="2"/>`).join('');
   return `<svg viewBox="0 0 ${W} ${ch}" style="width:100%">
@@ -78,7 +82,7 @@ function donutSvg(items: Array<{ name: string; count: number; share: number; amo
     const x3 = cx + ir * Math.cos(er), y3 = cy + ir * Math.sin(er), x4 = cx + ir * Math.cos(sr), y4 = cy + ir * Math.sin(sr);
     return `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${la} 1 ${x2} ${y2} L ${x3} ${y3} A ${ir} ${ir} 0 ${la} 0 ${x4} ${y4} Z" fill="${seg.c}" opacity="0.9"/>`;
   }).join('');
-  const legend = items.slice(0, 8).map((m, i) => `<li><i class="sq" style="background:${PC_PDF[i % PC_PDF.length]}"></i><span class="nm">${esc(m.name)}</span><b>${m.share}%</b><span class="mut">${m.count} 项${m.amountLabel ? ` · ${esc(m.amountLabel)}` : ''}</span></li>`).join('');
+  const legend = items.slice(0, 8).map((m, i) => `<li><i class="sq" style="background:${PC_PDF[i % PC_PDF.length]}"></i><span class="nm">${esc(m.name)}</span><b>${m.share}%</b><span class="mut">${m.count} 项</span><span class="amt">${m.amountLabel ? esc(m.amountLabel) : '—'}</span></li>`).join('');
   return `<div class="duo"><svg viewBox="0 0 180 180" style="width:180px">${paths}<text x="${cx}" y="${cy - 3}" text-anchor="middle" style="font-size:17px;font-weight:700;fill:oklch(0.28 0.03 258)">${total}</text><text x="${cx}" y="${cy + 13}" text-anchor="middle" style="font-size:9px;fill:oklch(0.55 0.03 258)">${esc(centerLabel)}</text></svg><ul class="dl">${legend}</ul></div>`;
 }
 
@@ -141,7 +145,8 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 .tb td.ctr { text-align: center; }
 .duo { display: flex; gap: 16px; align-items: center; }
 .dl { list-style: none; flex: 1; } .dl li { display: flex; align-items: center; gap: 6px; padding: 2.5px 0; font-size: 11px; }
-.dl .nm { flex: 1; } .dl b { color: oklch(0.42 0.03 258); }
+.dl .nm { flex: 1; } .dl b { width: 44px; text-align: right; color: oklch(0.42 0.03 258); }
+.dl .mut { width: 52px; text-align: right; } .dl .amt { width: 72px; text-align: right; font-weight: 600; }
 .sq { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; }
 .sw { width: 16px; height: 3px; border-radius: 2px; display: inline-block; flex: none; }
 .dash { width: 14px; border-top: 2px dashed oklch(0.55 0.14 280 / 0.85); display: inline-block; flex: none; }
@@ -165,7 +170,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
   ].map(([l, v]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
 ${aiBlock}
 <section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '预算金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]), [24, 13, 13, 13, 13, 12, 12], 1)}${note('savings')}</section>
-<section class="card"><h2>二、采购执行趋势</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
+<section class="card"><h2>二、采购时间点</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
 <section class="card"><h2>三、${dimLabel}采购分析</h2>${hbarsHtml([...dimStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
 <section class="card"><h2>四、采购方式分布</h2>${donutSvg(data.methodStats, '总项目')}${note('method')}</section>
 <section class="card"><h2>五、项目规模分析</h2>${hbarsHtml(scaleItems, v => `${v} 项`)}${note('scale')}</section>
