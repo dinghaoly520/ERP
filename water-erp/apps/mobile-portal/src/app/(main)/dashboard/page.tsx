@@ -35,6 +35,7 @@ import { fetchDashboardAnalysis, fetchMobileBrief, type DashboardAnalysisResult,
 import { fetchAlertsOverview, fetchPerformanceMetrics, type AlertsOverview, type PerformanceMetrics } from "@/lib/api/cockpit";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
+import { RangePicker, RANGE_LABELS, type RangeKey } from "@/components/m/range-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
@@ -53,10 +54,6 @@ type DashboardSavedFilters = { rangeKey: RangeKey; companyIds: string[] };
 
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-type RangeKey = "month" | "quarter" | "year" | "all";
-
-const RANGE_LABELS: Record<string, string> = { month: "本月", quarter: "本季", year: "本年", all: "全部" };
 
 /* 分析中心宫格（2026-11-17 一屏总览 spec）：首屏外的分析卡分五组收进弹层——
  * 排行=龙虎榜+节资Top5 / 构成=方式+规模+结果+未成交原因 / 公司=各公司分布+项目质效 /
@@ -217,10 +214,6 @@ export default function DashboardPage() {
   const [rangeKey, setRangeKey] = useState<RangeKey>(
     () => readSavedFilters<DashboardSavedFilters>("dashboard").rangeKey ?? "year",
   );
-  const [showCustom, setShowCustom] = useState(false);
-  const [customStart, setCustomStart] = useState("");
-  const [customError, setCustomError] = useState<string | null>(null);
-  const [customEnd, setCustomEnd] = useState("");
   const [customApplied, setCustomApplied] = useState<{ startDate?: string; endDate?: string }>({});
 
   const [data, setData] = useState<DashboardData | null>(null);
@@ -522,65 +515,18 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* ── 顶部控制行：范围 + 公司 ── */}
-      <div className="mb-3 space-y-2">
-        <div className="flex gap-2 overflow-x-auto pb-0.5">
-          {(Object.keys(RANGE_LABELS) as RangeKey[]).map((key) => (
-            <Chip
-              key={key}
-              active={rangeKey === key && !usingCustom}
-              onClick={() => {
-                setRangeKey(key);
-                setCustomApplied({});
-                setCustomStart("");
-                setCustomEnd("");
-                saveFilters("dashboard", { rangeKey: key, companyIds } satisfies DashboardSavedFilters);
-              }}
-            >
-              {RANGE_LABELS[key]}
-            </Chip>
-          ))}
-          <Chip active={showCustom} onClick={() => setShowCustom((v) => !v)}>
-            自定义
-          </Chip>
-        </div>
-        {showCustom ? (
-          <div className="neu-card-static rounded-[14px] p-2.5">
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={customStart}
-                onChange={(e) => { setCustomStart(e.target.value); setCustomError(null); }}
-                aria-label="开始日期"
-                className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
-              />
-              <span className="shrink-0 text-[15px] text-[var(--muted-foreground)]">至</span>
-              <input
-                type="date"
-                value={customEnd}
-                onChange={(e) => { setCustomEnd(e.target.value); setCustomError(null); }}
-                aria-label="结束日期"
-                className="m-input h-10 min-w-0 flex-1 px-2 tabular-nums"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  /* 防错（P2，2026-11-03）：开始晚于结束直接发请求只会得到空数据集 */
-                  if (customStart && customEnd && customStart > customEnd) {
-                    setCustomError("开始日期不能晚于结束日期");
-                    return;
-                  }
-                  setCustomError(null);
-                  setCustomApplied({ startDate: customStart || undefined, endDate: customEnd || undefined });
-                }}
-                className="neu-btn-soft h-10 shrink-0 rounded-[9px] px-3 text-[15px]"
-              >
-                应用
-              </button>
-            </div>
-            {customError ? <div className="mt-1.5 px-1 text-[12px] text-[var(--danger)]">{customError}</div> : null}
-          </div>
-        ) : null}
+      {/* ── 顶部控制行：范围 + 公司（2026-11-17 改版：chips 横滚行 → 下拉按钮+弹层，RangePicker 与 CompanyPicker 同构）── */}
+      <div className="mb-3 flex gap-2">
+        <RangePicker
+          className="mb-0 flex-1"
+          value={{ rangeKey, custom: customApplied }}
+          onPickKey={(key) => {
+            setRangeKey(key);
+            setCustomApplied({});
+            saveFilters("dashboard", { rangeKey: key, companyIds } satisfies DashboardSavedFilters);
+          }}
+          onApplyCustom={(c) => setCustomApplied(c)}
+        />
         {role === "admin" ? (
           <CompanyPicker
             value={companyIds}
@@ -589,7 +535,7 @@ export default function DashboardPage() {
               setCompanyIds(next);
               saveFilters("dashboard", { rangeKey, companyIds: next } satisfies DashboardSavedFilters);
             }}
-            className="mb-0"
+            className="mb-0 flex-1"
           />
         ) : null}
       </div>
