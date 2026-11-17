@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dayjs from "dayjs";
 import {
-  ArrowRight,
   Bell,
   FilePen,
   FileX,
@@ -239,7 +238,8 @@ export default function AnnouncementListPage() {
                   {a.offlinedReason === "PUBLICITY_ENDED" ? "公示期满" : "已下线"}
                 </span>
                 <span className="ann-row-date">{dayjs(a.publishDate || a.createdAt).format("YYYY-MM-DD")}</span>
-                <ArrowRight size={16} className="ann-arrow" strokeWidth={1.75} />
+                {/* 行尾引导箭头（cgzxui 规范）：SVG chevron，勿用带杆长箭头/文本字符 */}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ann-arrow" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
               </div>
             </Link>
           ) : (
@@ -263,7 +263,8 @@ export default function AnnouncementListPage() {
                 {a.isTop ? <span className="top-badge">置顶</span> : null}
                 {isNew(a.publishDate || a.createdAt) ? <span className="new-badge">NEW</span> : null}
                 <span className="ann-row-date">{dayjs(a.publishDate || a.createdAt).format("YYYY-MM-DD")}</span>
-                <ArrowRight size={16} className="ann-arrow" strokeWidth={1.75} />
+                {/* 行尾引导箭头（cgzxui 规范）：SVG chevron，勿用带杆长箭头/文本字符 */}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ann-arrow" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
               </div>
             </Link>
           ))}
