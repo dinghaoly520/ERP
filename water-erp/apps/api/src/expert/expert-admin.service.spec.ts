@@ -1162,6 +1162,8 @@ describe('ExpertAdminService', () => {
       expect(res.isTemp).toBe(true);
       expect(res.reused).toBe(false);
       const createArgs = prisma.user.create.mock.calls[0][0];
+      // 登录名=姓名、初始口令=身份证号（2026-11-17 用户裁定，与专家注册凭证同口径）
+      expect(createArgs.data.username).toBe('张三');
       // email 密封落 User（PII 国密）：非明文
       expect(createArgs.data.email).toBeTruthy();
       expect(createArgs.data.email).not.toContain('zhang@ex.com');

@@ -122,8 +122,8 @@ export class ExpertAdminController {
 
   @Post('demand-rep/external')
   @ApiOperation({
-    summary: '手动录入需求方代表（库外人员，2026-11-05）：建临时专家账号（username/初始口令=身份证号）',
-    description: '登录与 :3006 功能同正式专家，但仅项目存续期有效——确认抽取入组后可登录；项目归档/流标/终止/废标或重抽换人后，登录与会话即时失效（TEMP_ACCOUNT_EXPIRED）。身份证号已绑定库内专家时报 409 引导改从库内指定。',
+    summary: '手动录入需求方代表（库外人员，2026-11-05）：建临时专家账号（登录名=姓名、初始口令=身份证号）',
+    description: '登录与 :3006 功能同正式专家（2026-11-17 凭证口径与专家注册一致），但仅项目存续期有效——确认抽取入组后可登录；项目归档/流标/终止/废标或重抽换人后，登录与会话即时失效（TEMP_ACCOUNT_EXPIRED）。身份证号已绑定库内专家、或姓名与既有专家账号同名时报 409 引导改从库内指定。',
   })
   createExternalDemandRep(
     @Body() body: {

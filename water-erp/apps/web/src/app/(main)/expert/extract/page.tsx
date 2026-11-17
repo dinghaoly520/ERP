@@ -295,7 +295,7 @@ export function ExpertExtractPage({
         : [...prev, { userId: res.userId, name: res.name, specialty: res.specialty || '', employer: res.employer ?? undefined, reason: '手动录入需求方代表', isTemp: true }]);
       setExtRepOpen(false);
       setExtRepForm(EMPTY_EXT_REP_FORM);
-      toast.success(`${res.reused ? '已复用既有临时账号' : '临时账号已创建'}：${res.name}`, { description: '专家门户登录名与初始口令均为其身份证号；仅本项目评标期间可登录，项目结束后自动失效' });
+      toast.success(`${res.reused ? '已复用既有临时账号' : '临时账号已创建'}：${res.name}`, { description: '专家门户登录名为其姓名、初始口令为其身份证号；仅本项目评标期间可登录，项目结束后自动失效' });
     } catch (e: any) {
       toast.error(e?.message || '录入失败');
     } finally {
@@ -3953,7 +3953,7 @@ export function ExpertExtractPage({
           <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5">
             <Info size={14} className="mt-0.5 shrink-0 text-[var(--warning)]" />
             <p className="text-xs leading-5 text-[var(--foreground)]">
-              登录名与初始口令均为<strong>身份证号</strong>，仅本项目评标期间可登录专家门户；项目结束、归档或流标后账号<strong>自动失效</strong>。
+              登录名为<strong>专家姓名</strong>、初始口令为<strong>身份证号</strong>（与专家注册同口径），仅本项目评标期间可登录专家门户；项目结束、归档或流标后账号<strong>自动失效</strong>。
             </p>
           </div>
 
@@ -3966,7 +3966,7 @@ export function ExpertExtractPage({
                 <input value={extRepForm.name} onChange={e => setExtRepForm(p => ({ ...p, name: e.target.value }))} placeholder="真实姓名" className="workbench-input w-full" />
               </label>
               {/* 右列凭证说明（与专家录入①同构占位，双列边缘对齐不断行） */}
-              <div className="flex items-end pb-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]/70">登录凭证自动生成：账号与初始口令均为身份证号</div>
+              <div className="flex items-end pb-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]/70">登录凭证自动生成：账号=姓名，初始口令=身份证号</div>
             </div>
           </fieldset>
           <hr className="wb-section-rule" />
@@ -4013,7 +4013,7 @@ export function ExpertExtractPage({
               </label>
               <label className="space-y-1 md:col-span-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">身份证号 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.idCard} onChange={e => setExtRepForm(p => ({ ...p, idCard: e.target.value }))} placeholder="18 位，将作为登录名与初始口令" className="workbench-input w-full font-mono" />
+                <input value={extRepForm.idCard} onChange={e => setExtRepForm(p => ({ ...p, idCard: e.target.value }))} placeholder="18 位，将作为初始口令" className="workbench-input w-full font-mono" />
               </label>
             </div>
           </fieldset>

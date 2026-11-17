@@ -738,7 +738,8 @@ export class ExpertAdminService {
 
   /**
    * 手动录入需求方代表（2026-11-05 用户裁定）：抽取配置允许录入库外人员（姓名/身份证号/手机号）。
-   * 建临时专家账号（isTempExpert）：username=身份证号、初始口令=身份证号（库内专家口令同口径）、
+   * 建临时专家账号（isTempExpert）：登录名=姓名、初始口令=身份证号（2026-11-17 用户裁定——与专家注册
+   * 凭证同口径，此前 username=身份证号废止单位不一；同名即拒同 createExpert）、
    * 档案 availability='停用'（不入抽取池/代表目录；库列表按 isTempExpert 过滤）。
    * 生效链：确认抽取写入 BidExpert 后方可登录 :3006（功能与正式专家一致）；
    * 项目归档/流标/终止/废标/重抽换人后无未终态绑定，登录与会话即时失效（auth 双闸）。
@@ -761,10 +762,18 @@ export class ExpertAdminService {
     if (!/^1\d{10}$/.test(phone)) throw new BadRequestException({ error: '手机号格式不正确（11 位）', code: 'PHONE_INVALID' });
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException({ error: '电子邮箱格式不正确', code: 'EMAIL_INVALID' });
 
-    const existing = await this.prisma.user.findFirst({
-      where: { username: idCard, role: 'bid_expert' },
-      select: { id: true, isTempExpert: true },
+    // 幂等同人判定（2026-11-17 登录名改姓名后，不能再按 username=证件号定位既有临时账号）：
+    // 临时账号量级小，isTempExpert 全量拆封 idNumber 比对（复用库内判重同模式，毫秒级）
+    const tempAccounts = await this.prisma.user.findMany({
+      where: { role: 'bid_expert', isTempExpert: true },
+      select: { id: true, username: true, displayName: true, expertProfile: { select: { idNumber: true } } },
     });
+    const existing = tempAccounts.find(u => {
+      if (!u.expertProfile?.idNumber) return false;
+      let plain: string | null = null;
+      try { plain = openPiiForMask(u.expertProfile.idNumber); } catch { plain = null; }
+      return plain != null && plain.trim().toUpperCase() === idCard;
+    }) ?? null;
     // 库内重复判定（2026-11-05 用户裁定：姓名+身份证号均一致才提示「已在库，请库内指定」）。
     // 库内专家 username=姓名（非证件号），username 查重抓不到；ExpertProfile.idNumber 密文无盲索引，
     // 按库容（~180）全量拆封比对——毫秒级，库容上量再演进盲索引列。
@@ -775,7 +784,7 @@ export class ExpertAdminService {
       });
       const idHit = libExperts.find((u) => {
         if (!u.expertProfile?.idNumber) return false;
-        // 拆封失败容错（密钥轮转期/个别坏行）：跳过该行而非打断录入（无匹配=允许建号，username 查重仍兜底）
+        // 拆封失败容错（密钥轮转期/个别坏行）：跳过该行而非打断录入（无匹配=允许建号，同名闸仍兜底）
         let plain: string | null = null;
         try { plain = openPiiForMask(u.expertProfile.idNumber); } catch { plain = null; }
         return plain != null && plain.trim().toUpperCase() === idCard;
@@ -794,8 +803,16 @@ export class ExpertAdminService {
         });
       }
     }
-    if (existing && !existing.isTempExpert) {
-      throw new BadRequestException({ error: '该身份证号已是库内专家账号——请直接在库内指定该人员为代表', code: 'ID_OCCUPIED_BY_EXPERT' });
+    if (!existing) {
+      // 同名闸（2026-11-17 登录名=姓名后必须）：与 createExpert 同口径——专家以姓名登录，同名不可重复；
+      // 撞库内专家或另一临时代表（不同证件的同名者）均拒。
+      const nameHit = await this.prisma.user.findFirst({ where: { username: name, role: 'bid_expert' }, select: { id: true } });
+      if (nameHit) {
+        throw new BadRequestException({
+          error: `姓名「${name}」的专家账号已存在（专家以姓名登录，同名不可重复）——如为库内人员请直接在库内指定其为需求方代表`,
+          code: 'DUPLICATE_USERNAME',
+        });
+      }
     }
     if (existing) {
       // 幂等复用：同一人重复录入时更新联系方式/单位/专业与档案字段（2026-11-17 扩面），不重复建号
@@ -840,7 +857,7 @@ export class ExpertAdminService {
 
     const user = await this.prisma.user.create({
       data: {
-        username: idCard,
+        username: name, // 登录名=姓名（2026-11-17 用户裁定，与专家注册凭证同口径）
         displayName: name,
         passwordHash: hashSync(idCard, 10), // 初始口令=身份证号（原文哈希）
         role: 'bid_expert',
@@ -870,9 +887,9 @@ export class ExpertAdminService {
       },
       select: { id: true },
     }).catch((err: unknown) => {
-      // 并发竞态（判重查过→他请求先建同 idCard）触发 [username, role] 唯一键 P2002 → 转 409 语义而非 500（createExpert 同口径）
+      // 并发竞态（判重查过→他请求先建同姓名账号）触发 [username, role] 唯一键 P2002 → 转 409 语义而非 500（createExpert 同口径）
       if (err instanceof Error && (err as { code?: string }).code === 'P2002') {
-        throw new BadRequestException({ error: '该身份证号的临时账号已存在，请重试（将自动复用既有账号）', code: 'DUPLICATE_USERNAME' });
+        throw new BadRequestException({ error: `姓名「${name}」的账号刚被创建（并发录入），请重试——将自动复用既有账号`, code: 'DUPLICATE_USERNAME' });
       }
       throw err;
     });
