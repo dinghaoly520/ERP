@@ -253,16 +253,20 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
     [data],
   );
 
-  /* 署名随公司选择器（2026-11-17 用户裁定）：当前哪个公司就署名哪个公司；
-     全部公司=集团口径。数据源同 CompanySelect（/companies）。 */
-  const [companyName, setCompanyName] = useState('四川水发集团');
+  /* 署名随公司选择器（2026-11-17 用户裁定）：全部=「集团及各子公司」；
+     单公司=公司名；多公司（逗号分隔）=「、」连接。数据源同 CompanySelect。 */
+  const [companyName, setCompanyName] = useState('集团及各子公司');
   useEffect(() => {
     if (!open) return;
-    if (companyId === 'all') { setCompanyName('四川水发集团'); return; }
+    if (companyId === 'all') { setCompanyName('集团及各子公司'); return; }
     let cancelled = false;
     api.get<Array<{ id: string; name: string }>>('/companies')
-      .then(list => { if (!cancelled) setCompanyName(list.find(c => c.id === companyId)?.name ?? '四川水发集团'); })
-      .catch(() => { if (!cancelled) setCompanyName('四川水发集团'); });
+      .then(list => {
+        if (cancelled) return;
+        const names = companyId.split(',').map(id => list.find(c => c.id === id.trim())?.name).filter(Boolean) as string[];
+        setCompanyName(names.length > 0 ? names.join('、') : '集团及各子公司');
+      })
+      .catch(() => { if (!cancelled) setCompanyName('集团及各子公司'); });
     return () => { cancelled = true; };
   }, [open, companyId]);
 
