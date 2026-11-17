@@ -744,15 +744,22 @@ export class ExpertAdminService {
    * 项目归档/流标/终止/废标/重抽换人后无未终态绑定，登录与会话即时失效（auth 双闸）。
    */
   async createExternalDemandRep(
-    dto: { name: string; idCard: string; phone: string; employer?: string; departmentName?: string; specialty?: string },
+    dto: {
+      name: string; idCard: string; phone: string;
+      employer?: string; departmentName?: string; specialty?: string;
+      // 专家注册同套档案字段（2026-11-17 用户裁定）：职称/执业资格/邮箱/民族/学历/执业资格证号/备注
+      title?: string; qualifications?: string; email?: string; ethnicity?: string; education?: string; licenseNo?: string; notes?: string;
+    },
     operatorId?: string,
   ) {
     const name = (dto.name || '').trim();
     const idCard = (dto.idCard || '').trim().toUpperCase();
     const phone = (dto.phone || '').trim();
+    const email = dto.email?.trim() || '';
     if (!name) throw new BadRequestException({ error: '请填写姓名', code: 'NAME_REQUIRED' });
     if (!/^\d{17}[\dX]$/.test(idCard)) throw new BadRequestException({ error: '身份证号格式不正确（18 位）', code: 'IDCARD_INVALID' });
     if (!/^1\d{10}$/.test(phone)) throw new BadRequestException({ error: '手机号格式不正确（11 位）', code: 'PHONE_INVALID' });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException({ error: '电子邮箱格式不正确', code: 'EMAIL_INVALID' });
 
     const existing = await this.prisma.user.findFirst({
       where: { username: idCard, role: 'bid_expert' },
@@ -791,15 +798,23 @@ export class ExpertAdminService {
       throw new BadRequestException({ error: '该身份证号已是库内专家账号——请直接在库内指定该人员为代表', code: 'ID_OCCUPIED_BY_EXPERT' });
     }
     if (existing) {
-      // 幂等复用：同一人重复录入时更新联系方式/单位/专业，不重复建号
+      // 幂等复用：同一人重复录入时更新联系方式/单位/专业与档案字段（2026-11-17 扩面），不重复建号
       await this.prisma.$transaction(async (tx) => {
-        await tx.user.update({ where: { id: existing.id }, data: { displayName: name } });
+        await tx.user.update({
+          where: { id: existing.id },
+          data: { displayName: name, ...(email ? { email: sealPii(email) ?? null } : {}) },
+        });
         await tx.expertProfile.update({
           where: { userId: existing.id },
           data: {
             phone: sealPii(phone) ?? null,
             ...(dto.employer?.trim() ? { employer: dto.employer.trim() } : {}),
             ...(dto.specialty?.trim() ? { specialty: dto.specialty.trim() } : {}),
+            ...(dto.title?.trim() ? { title: dto.title.trim() } : {}),
+            ...(dto.qualifications?.trim() ? { qualifications: dto.qualifications.trim() } : {}),
+            ...(dto.ethnicity?.trim() ? { ethnicity: dto.ethnicity.trim() } : {}),
+            ...(dto.education?.trim() ? { education: dto.education.trim() } : {}),
+            ...(dto.licenseNo?.trim() ? { licenseNo: dto.licenseNo.trim() } : {}),
           },
         });
       });
@@ -831,6 +846,7 @@ export class ExpertAdminService {
         role: 'bid_expert',
         isActive: true,
         isTempExpert: true,
+        ...(email ? { email: sealPii(email) ?? null } : {}), // PII 国密密封（与 createExpert 同口径）
         ...(departmentId && { departmentId }),
         ...(companyId && { companyId, company: companyName }),
         expertProfile: {
@@ -839,9 +855,16 @@ export class ExpertAdminService {
             employer,
             phone: sealPii(phone) ?? null,
             idNumber: sealPii(idCard) ?? null,
+            // 专家注册同套档案字段（2026-11-17 用户裁定）：临时代表录入同面信息
+            ...(dto.title?.trim() ? { title: dto.title.trim() } : {}),
+            ...(dto.qualifications?.trim() ? { qualifications: dto.qualifications.trim() } : {}),
+            ...(dto.ethnicity?.trim() ? { ethnicity: dto.ethnicity.trim() } : {}),
+            ...(dto.education?.trim() ? { education: dto.education.trim() } : {}),
+            ...(dto.licenseNo?.trim() ? { licenseNo: dto.licenseNo.trim() } : {}),
             availability: '停用', // 不入抽取池/代表目录——临时账号仅经确认抽取以 BidExpert 绑定项目
             entryStatus: 'ACTIVE',
-            notes: '临时需求方代表账号（项目存续期有效，项目归档/流标后登录失效）',
+            // 临时标记保留（判定/展示依赖）；用户备注（专家注册「补充信息」）并入
+            notes: `临时需求方代表账号（项目存续期有效，项目归档/流标后登录失效）${dto.notes?.trim() ? `；补充：${dto.notes.trim()}` : ''}`,
           },
         },
       },

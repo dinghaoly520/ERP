@@ -126,7 +126,11 @@ export class ExpertAdminController {
     description: '登录与 :3006 功能同正式专家，但仅项目存续期有效——确认抽取入组后可登录；项目归档/流标/终止/废标或重抽换人后，登录与会话即时失效（TEMP_ACCOUNT_EXPIRED）。身份证号已绑定库内专家时报 409 引导改从库内指定。',
   })
   createExternalDemandRep(
-    @Body() body: { name?: string; idCard?: string; phone?: string; employer?: string; departmentName?: string; specialty?: string },
+    @Body() body: {
+      name?: string; idCard?: string; phone?: string;
+      employer?: string; departmentName?: string; specialty?: string;
+      title?: string; qualifications?: string; email?: string; ethnicity?: string; education?: string; licenseNo?: string; notes?: string;
+    },
     @Request() req: any = {},
   ) {
     return this.expertAdminService.createExternalDemandRep(
@@ -137,6 +141,13 @@ export class ExpertAdminController {
         employer: body?.employer,
         departmentName: body?.departmentName,
         specialty: body?.specialty,
+        title: body?.title,
+        qualifications: body?.qualifications,
+        email: body?.email,
+        ethnicity: body?.ethnicity,
+        education: body?.education,
+        licenseNo: body?.licenseNo,
+        notes: body?.notes,
       },
       req.user?.sub,
     );

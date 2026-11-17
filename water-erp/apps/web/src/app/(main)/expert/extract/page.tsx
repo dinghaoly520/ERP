@@ -15,6 +15,7 @@ import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
 import { CopyIconButton } from '@/components/copy-icon-button';
 import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Plus, Clock, FileText, UserCircle, UserRoundPlus, Search, ClipboardList, Upload, Loader2, Brain, Send, MapPin } from 'lucide-react';
+import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
 import { STAGE_LABEL } from '@water-erp/shared';
 
 /** 兼容新旧 API：新版返回 { total, items }，旧版返回数组 */
@@ -79,6 +80,10 @@ const aiRowsToQuotas = (rows: { specialty?: string; specialties?: string[]; comp
 type ExtractMode = 'specialty_match' | 'random' | 'merit_best' | 'manual';
 type ApiExtractMode = Exclude<ExtractMode, 'manual'>;
 const MODE_LABELS: Record<ExtractMode, string> = { specialty_match: '专业匹配', random: '随机抽取', merit_best: '综合择优', manual: '专家选取' };
+// 手动录入需求方代表·档案选项集（2026-11-17 与专家录入同款；职称/执业资格走标准集，民族/学历同清单）
+const EXT_REP_EDUCATIONS = ['博士', '硕士', '本科', '大专', '其他'];
+const EXT_REP_ETHNICITIES = ['汉族', '蒙古族', '回族', '藏族', '维吾尔族', '苗族', '彝族', '壮族', '布依族', '朝鲜族', '满族', '侗族', '瑶族', '白族', '土家族', '其他'];
+const EXT_REP_STEP = ({ n }: { n: number }) => <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold bg-[var(--accent)] text-white">{n}</span>;
 const MODE_DESCS: Record<ExtractMode, string> = {
   specialty_match: '按专业契合度加权抽取，优先专业对口，AI 推断各专业配比',
   random: '在各专业配额内加密随机抽签，公平合规、机会均等，不做能力排序',
@@ -255,25 +260,41 @@ export function ExpertExtractPage({
   const [demandRepDept, setDemandRepDept] = useState('');
   const [demandRepDeptSpecialty, setDemandRepDeptSpecialty] = useState('');
   const [demandRepSearch, setDemandRepSearch] = useState('');
-  // 手动录入需求方代表（2026-11-05）：库外人员建临时专家账号（登录名/初始口令=身份证号），仅项目存续期可登录
+  // 手动录入需求方代表（2026-11-05；2026-11-17 扩面专家注册同套档案字段）：库外人员建临时专家账号
   const [extRepOpen, setExtRepOpen] = useState(false);
   const [extRepSaving, setExtRepSaving] = useState(false);
-  const [extRepForm, setExtRepForm] = useState({ name: '', idCard: '', phone: '', employer: '', departmentName: '', specialty: '' });
+  const EMPTY_EXT_REP_FORM = { name: '', idCard: '', phone: '', employer: '', departmentName: '', specialty: '', title: '', qualifications: '', email: '', ethnicity: '', education: '', licenseNo: '', notes: '' };
+  const [extRepForm, setExtRepForm] = useState(EMPTY_EXT_REP_FORM);
   const submitExtRep = async () => {
-    const { name, idCard, phone, employer, departmentName, specialty } = extRepForm;
-    if (!name.trim() || !idCard.trim() || !phone.trim()) { toast.error('姓名、身份证号、手机号为必填'); return; }
+    const f = extRepForm;
+    // 必填口径与专家录入一致（2026-11-17 用户裁定：信息采用专家注册的那些信息）
+    const missing: string[] = [];
+    if (!f.name.trim()) missing.push('姓名');
+    if (!f.specialty.trim()) missing.push('专业');
+    if (!f.title.trim()) missing.push('职称');
+    if (!f.employer.trim()) missing.push('工作单位');
+    if (!f.departmentName.trim()) missing.push('所属部门');
+    if (!f.phone.trim()) missing.push('手机号');
+    if (!f.email.trim()) missing.push('电子邮箱');
+    if (!f.idCard.trim()) missing.push('身份证号');
+    if (!f.ethnicity.trim()) missing.push('民族');
+    if (!f.education.trim()) missing.push('学历');
+    if (!f.notes.trim()) missing.push('备注');
+    if (missing.length > 0) { toast.error(`请填写：${missing.join('、')}`); return; }
     if (demandRepPersons.length >= demandRepCount) { toast.error(`代表人数已达上限（${demandRepCount} 名）`); return; }
     setExtRepSaving(true);
     try {
       const res = await createExternalDemandRep({
-        name: name.trim(), idCard: idCard.trim(), phone: phone.trim(),
-        employer: employer.trim() || undefined, departmentName: departmentName.trim() || undefined, specialty: specialty.trim() || undefined,
+        name: f.name.trim(), idCard: f.idCard.trim(), phone: f.phone.trim(),
+        employer: f.employer.trim() || undefined, departmentName: f.departmentName.trim() || undefined, specialty: f.specialty.trim() || undefined,
+        title: f.title.trim() || undefined, qualifications: f.qualifications.trim() || undefined, email: f.email.trim() || undefined,
+        ethnicity: f.ethnicity.trim() || undefined, education: f.education.trim() || undefined, licenseNo: f.licenseNo.trim() || undefined, notes: f.notes.trim() || undefined,
       });
       setDemandRepPersons(prev => prev.some(x => x.userId === res.userId)
         ? prev
         : [...prev, { userId: res.userId, name: res.name, specialty: res.specialty || '', employer: res.employer ?? undefined, reason: '手动录入需求方代表', isTemp: true }]);
       setExtRepOpen(false);
-      setExtRepForm({ name: '', idCard: '', phone: '', employer: '', departmentName: '', specialty: '' });
+      setExtRepForm(EMPTY_EXT_REP_FORM);
       toast.success(`${res.reused ? '已复用既有临时账号' : '临时账号已创建'}：${res.name}`, { description: '专家门户登录名与初始口令均为其身份证号；仅本项目评标期间可登录，项目结束后自动失效' });
     } catch (e: any) {
       toast.error(e?.message || '录入失败');
@@ -3914,7 +3935,7 @@ export function ExpertExtractPage({
         <Modal
           open
           onClose={() => setExtRepOpen(false)}
-          size="md"
+          size="lg"
           icon={<UserRoundPlus size={14} />}
           title="手动录入需求方代表"
           description="库外人员创建临时专家账号，确认抽取入组后生效"
@@ -3935,30 +3956,95 @@ export function ExpertExtractPage({
               登录名与初始口令均为<strong>身份证号</strong>，仅本项目评标期间可登录专家门户；项目结束、归档或流标后账号<strong>自动失效</strong>。
             </p>
           </div>
-          {/* 字段排版对齐专家录入表单（2026-11-17 用户裁定）：space-y-1 标签距、
-              text-xs font-semibold muted 标签（弱化不抢输入）、gap-4 栅格、身份证号 mono */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {([
-              { key: 'name', label: '姓名', placeholder: '真实姓名', required: true },
-              { key: 'idCard', label: '身份证号', placeholder: '18 位', required: true, mono: true },
-              { key: 'phone', label: '手机号', placeholder: '11 位，通知触达用', required: true },
-              { key: 'employer', label: '工作单位', placeholder: '选填', required: false },
-              { key: 'departmentName', label: '部门', placeholder: '选填', required: false },
-              { key: 'specialty', label: '专业', placeholder: '选填，默认「综合」', required: false },
-            ] as const).map(f => (
-              <label key={f.key} className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">
-                  {f.label}{f.required && <span className="ml-0.5 text-[var(--danger)]">*</span>}
-                </span>
-                <input
-                  value={(extRepForm as any)[f.key]}
-                  onChange={(e) => setExtRepForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  className={`workbench-input${(f as any).mono ? ' font-mono' : ''}`}
-                />
+
+          {/* 五节表单（2026-11-17 用户裁定）：信息与分节均采用专家注册同款——fieldset/legend/Step 序号 */}
+          <fieldset>
+            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={1} />基本信息</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">专家姓名 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.name} onChange={e => setExtRepForm(p => ({ ...p, name: e.target.value }))} placeholder="真实姓名" className="workbench-input" />
               </label>
-            ))}
-          </div>
+            </div>
+          </fieldset>
+          <hr className="wb-section-rule" />
+
+          <fieldset>
+            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={2} />专业资质</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.specialty} onChange={e => setExtRepForm(p => ({ ...p, specialty: e.target.value }))} placeholder="输入专业，默认「综合」" className="workbench-input" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.title} onChange={e => setExtRepForm(p => ({ ...p, title: e.target.value }))} list="ext-rep-title-list" placeholder="输入或选择职称" className="workbench-input" />
+                <datalist id="ext-rep-title-list">{EXPERT_TITLES.map(t => <option key={t} value={t} />)}</datalist>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.employer} onChange={e => setExtRepForm(p => ({ ...p, employer: e.target.value }))} placeholder="输入公司名称" className="workbench-input" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.departmentName} onChange={e => setExtRepForm(p => ({ ...p, departmentName: e.target.value }))} placeholder="输入部门" className="workbench-input" />
+              </label>
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span>
+                <input value={extRepForm.qualifications} onChange={e => setExtRepForm(p => ({ ...p, qualifications: e.target.value }))} list="ext-rep-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className="workbench-input" />
+                <datalist id="ext-rep-qual-list">{EXPERT_QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist>
+              </label>
+            </div>
+          </fieldset>
+          <hr className="wb-section-rule" />
+
+          <fieldset>
+            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={3} />联系信息</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">手机号 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.phone} onChange={e => setExtRepForm(p => ({ ...p, phone: e.target.value }))} placeholder="11 位，通知触达用" className="workbench-input" />
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">电子邮箱 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.email} onChange={e => setExtRepForm(p => ({ ...p, email: e.target.value }))} placeholder="example@domain.com" className="workbench-input" />
+              </label>
+              <label className="space-y-1 md:col-span-2">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">身份证号 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.idCard} onChange={e => setExtRepForm(p => ({ ...p, idCard: e.target.value }))} placeholder="18 位，将作为登录名与初始口令" className="workbench-input font-mono" />
+              </label>
+            </div>
+          </fieldset>
+          <hr className="wb-section-rule" />
+
+          <fieldset>
+            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={4} />档案信息</legend>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">民族 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.ethnicity} onChange={e => setExtRepForm(p => ({ ...p, ethnicity: e.target.value }))} list="ext-rep-eth-list" placeholder="如 汉族" className="workbench-input" />
+                <datalist id="ext-rep-eth-list">{EXT_REP_ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">学历 <span className="text-[var(--danger)]">*</span></span>
+                <input value={extRepForm.education} onChange={e => setExtRepForm(p => ({ ...p, education: e.target.value }))} list="ext-rep-edu-list" placeholder="如 硕士" className="workbench-input" />
+                <datalist id="ext-rep-edu-list">{EXT_REP_EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span>
+                <input value={extRepForm.licenseNo} onChange={e => setExtRepForm(p => ({ ...p, licenseNo: e.target.value }))} placeholder="选填" className="workbench-input font-mono" />
+              </label>
+            </div>
+          </fieldset>
+          <hr className="wb-section-rule" />
+
+          <fieldset>
+            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={5} />补充信息</legend>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注 <span className="text-[var(--danger)]">*</span></span>
+              <textarea value={extRepForm.notes} onChange={e => setExtRepForm(p => ({ ...p, notes: e.target.value }))} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className="workbench-input resize-y" />
+            </label>
+          </fieldset>
         </Modal>
       )}
 

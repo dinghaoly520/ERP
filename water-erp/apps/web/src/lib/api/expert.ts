@@ -214,7 +214,12 @@ export function fetchCommitteeAnalysis(projectId: string) {
 }
 
 /** 手动录入需求方代表（2026-11-05）：库外人员建临时专家账号——仅项目存续期可登录 :3006 */
-export function createExternalDemandRep(data: { name: string; idCard: string; phone: string; employer?: string; departmentName?: string; specialty?: string }) {
+/** 手动录入需求方代表（2026-11-17 扩面）：专家注册同套档案字段（职称/执业资格/邮箱/民族/学历/证号/备注） */
+export function createExternalDemandRep(data: {
+  name: string; idCard: string; phone: string;
+  employer?: string; departmentName?: string; specialty?: string;
+  title?: string; qualifications?: string; email?: string; ethnicity?: string; education?: string; licenseNo?: string; notes?: string;
+}) {
   return api.post<{ userId: string; name: string; specialty: string; employer: string | null; isTemp: true; reused: boolean }>('/expert-admin/demand-rep/external', data);
 }
 

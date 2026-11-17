@@ -1144,6 +1144,43 @@ describe('ExpertAdminService', () => {
       }));
     });
   });
+  describe('createExternalDemandRep（临时需求方代表·专家注册全字段，2026-11-17 用户裁定）', () => {
+    it('全字段落库：email 密封入 User；职称/执业资格/民族/学历/证号入 ExpertProfile；备注并入临时标记 notes', async () => {
+      prisma.department = { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'dep-1' }) }; // harness 默认未挂
+      prisma.user.findFirst.mockResolvedValue(null); // 无既有临时账号
+      prisma.user.findMany.mockResolvedValue([]); // 库内专家空（身份证判重路径空转）
+      prisma.company.findFirst.mockResolvedValue(null); // 单位自由文本轨
+      prisma.user.create.mockResolvedValue({ id: 'u-temp-1' });
+
+      const res = await service.createExternalDemandRep({
+        name: '张三', idCard: '510000199001011234', phone: '13800000000',
+        employer: '某外部咨询公司', departmentName: '工程部', specialty: '水工结构',
+        title: '高级工程师', qualifications: '一级建造师', email: 'zhang@ex.com',
+        ethnicity: '汉族', education: '硕士', licenseNo: 'LIC-001', notes: '回避事项：无',
+      }, 'op-1');
+
+      expect(res.isTemp).toBe(true);
+      expect(res.reused).toBe(false);
+      const createArgs = prisma.user.create.mock.calls[0][0];
+      // email 密封落 User（PII 国密）：非明文
+      expect(createArgs.data.email).toBeTruthy();
+      expect(createArgs.data.email).not.toContain('zhang@ex.com');
+      const profile = createArgs.data.expertProfile.create;
+      expect(profile.title).toBe('高级工程师');
+      expect(profile.qualifications).toBe('一级建造师');
+      expect(profile.ethnicity).toBe('汉族');
+      expect(profile.education).toBe('硕士');
+      expect(profile.licenseNo).toBe('LIC-001');
+      expect(profile.notes).toContain('临时需求方代表账号'); // 临时标记保留
+      expect(profile.notes).toContain('回避事项：无'); // 用户备注并入
+    });
+
+    it('邮箱格式非法 → 400 EMAIL_INVALID', async () => {
+      await expect(service.createExternalDemandRep({
+        name: '张三', idCard: '510000199001011234', phone: '13800000000', email: 'bad-mail',
+      } as any)).rejects.toMatchObject({ response: { code: 'EMAIL_INVALID' } });
+    });
+  });
 });
 
 
@@ -1410,4 +1447,6 @@ describe('expertBreachEventsFromLogs（毁约归因）', () => {
     expect(out).toHaveLength(1);
     expect(out[0].reason).toBe('第一次毁约');
   });
+
+
 });
