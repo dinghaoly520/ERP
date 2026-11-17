@@ -300,7 +300,9 @@ export function ProjectScalePanel({ profile, index, reducedMotion }: { profile: 
 // Method Pie
 
 type MethodDetail = { name:string;count:number;amount:number;amountLabel:string;share:number;projects:Array<{name:string;date:string;department:string;budgetLabel:string;awardLabel:string;status:string}> };
-const PC = ["oklch(0.63 0.128 247)","oklch(0.55 0.14 164)","oklch(0.65 0.15 83)","oklch(0.55 0.14 280)","oklch(0.6 0.15 27)","oklch(0.55 0.12 175)"];
+// 方式环形八色（2026-11-17 用户裁定：各方式颜色必须互不相同——旧 164°/175° 两绿难辨；
+// dataviz 校验器 PASS：亮度带/彩度底/CVD 分离/常态下限全过，橙色对底 <3:1 由列表直标缓解）
+const PC = ["#4a7fd6","#31a06a","#c98f2e","#7b5bd6","#d96a5a","#0e85b8","#4c3fa0","#c94f7c"];
 
 export function MethodPieChartPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);

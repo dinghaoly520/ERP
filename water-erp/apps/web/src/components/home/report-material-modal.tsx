@@ -69,7 +69,8 @@ ${bars}${stepD ? `<path d="${stepD}" fill="none" stroke="oklch(0.55 0.14 280 / 0
 }
 
 /** 环形图 SVG（镜像 MethodPieChartPanel：六色环 + 中心总数）+ 右侧图例 */
-const PC_PDF = ['oklch(0.63 0.128 247)', 'oklch(0.55 0.14 164)', 'oklch(0.65 0.15 83)', 'oklch(0.55 0.14 280)', 'oklch(0.6 0.15 27)', 'oklch(0.55 0.12 175)'];
+// 同页面 PC 八色（2026-11-17 用户裁定：互不相同；dataviz 校验 PASS）
+const PC_PDF = ["#4a7fd6","#31a06a","#c98f2e","#7b5bd6","#d96a5a","#0e85b8","#4c3fa0","#c94f7c"];
 function donutSvg(items: Array<{ name: string; count: number; share: number; amountLabel?: string }>, centerLabel: string): string {
   if (!items.length) return '<p class="empty">暂无数据</p>';
   let a = 0;
