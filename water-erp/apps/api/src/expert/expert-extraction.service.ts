@@ -535,7 +535,10 @@ export class ExpertExtractionService {
         where: {
           userId,
           projectId: { not: projectId },
-          project: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT', 'DOWNLOAD'] }, openTime: { not: null } },
+          // 注意：此处不加 openTime 判空过滤——Prisma 6 对可空 DateTime 的 `not: null`/`not: DbNull`
+          // 均在查询构造期抛 PrismaClientValidationError（2026-11-17 confirm 全量 500 实录，
+          // 单测 mock 不校验 DSL 故 spec 未拦）；null 行由下方 find 内 `r.project?.openTime &&` 守卫跳过
+          project: { stage: { in: ['OPENING', 'EVALUATING', 'SUBMIT', 'DOWNLOAD'] } },
         },
         select: { project: { select: { openTime: true, name: true } } },
       });
