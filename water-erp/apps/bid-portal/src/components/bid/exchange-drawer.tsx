@@ -533,7 +533,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
             ) : (
               // 气泡式：己方（HOST）右对齐品牌气泡，供应商左对齐带头像 + 凸起玻璃泡
               <div key={m.id} className={`my-3 flex items-start gap-2 ${m.senderRole === 'HOST' ? 'flex-row-reverse' : ''}`}>
-                <div className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-semibold text-white ${m.senderRole === 'HOST' ? 'bg-[oklch(0.32_0.04_258)]' : 'bg-[var(--accent-strong)]'}`}>
+                <div className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-semibold ${m.senderRole === 'HOST' ? 'bg-[oklch(0.5_0.17_255)] text-white' : 'bg-[oklch(0.82_0.15_85)] text-[oklch(0.33_0.09_75)]'}`}>
                   {(m.senderName || '?').slice(0, 1)}
                 </div>
                 <div className={`flex max-w-[74%] flex-col ${m.senderRole === 'HOST' ? 'items-end' : 'items-start'}`}>
