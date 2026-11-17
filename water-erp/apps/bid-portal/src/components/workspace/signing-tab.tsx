@@ -26,10 +26,11 @@ const STATUS_LABEL: Record<string, string> = {
 async function downloadAsBlob(url: string, fallbackName: string) {
   try {
     const res = await fetch(url, { credentials: 'include', headers: { 'X-Portal': 'bid' } });
-    if (!res.ok) throw new Error(`HTTP \${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const cd = res.headers.get('Content-Disposition') ?? '';
     const m = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(cd);
-    const name = m ? decodeURIComponent(m[1]) : fallbackName;
+    let name = fallbackName;
+    if (m) { try { name = decodeURIComponent(m[1]) || fallbackName; } catch { name = m[1].includes('%') ? fallbackName : m[1]; } } // P3：decode 失败不丢下载——含 % 判非编码名回退
     const blob = await res.blob();
     const u = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -408,7 +409,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                 href={data.packet.downloadUrl}
                 onClick={(e) => {
                   e.preventDefault();
-                  void downloadAsBlob(data.packet!.downloadUrl, `评标签字包-\${projectId.slice(-8)}.pdf`);
+                  void downloadAsBlob(data.packet!.downloadUrl, `评标签字包-${projectId.slice(-8)}.pdf`);
                 }}
                 className="neu-btn-soft !h-[34px] !text-xs"
               >
