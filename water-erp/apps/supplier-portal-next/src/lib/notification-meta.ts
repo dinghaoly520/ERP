@@ -1,3 +1,5 @@
+import { NOTIFICATION_REGISTRY_MAP } from "@water-erp/shared";
+
 export type NotificationGroup = "todo" | "project" | "approval" | "contract" | "system";
 export type NotificationTone = "success" | "danger" | "warning" | "info" | "accent" | "neutral";
 
@@ -64,6 +66,30 @@ const FALLBACK_META: NotificationMeta = { label: "其他消息", group: "system"
 
 export function getNotificationMeta(type: string): NotificationMeta {
   return META[type] ?? FALLBACK_META;
+}
+
+/**
+ * 后端五段模型真值（shared 注册表 = API ACTIONABLE_TYPES 同源）：actionable 类型未办结时
+ * 「标为已读」在后端是 no-op（点开≠办结，2026-09-29 裁定）、markAllAsRead 只清知会类。
+ * 本地 META 与注册表存在口径漂移（CERT_EXPIRY_REMIDER 前端曾落 fallback 当知会类、
+ * SELECTION_NOTIFY 前端 todo 而注册表非 actionable）——判定一律取注册表，勿用本地 META。
+ */
+export function isRegistryActionable(type: string): boolean {
+  return NOTIFICATION_REGISTRY_MAP[type]?.actionable === true;
+}
+
+export interface NotificationActionMode {
+  /** 待办未办结 → 提供「标记已办」（POST /notifications/:id/resolve） */
+  canResolve: boolean;
+  /** 知会类/已办结未读 → 「标为已读」真实生效 */
+  canMarkRead: boolean;
+}
+
+/** 行动按钮裁决：供应商端按钮渲染唯一入口，防「标为已读」对 actionable 静默失效（2026-11-17）。 */
+export function notificationActionMode(n: { type: string; isRead: boolean; resolvedAt?: string | null }): NotificationActionMode {
+  if (n.isRead) return { canResolve: false, canMarkRead: false };
+  if (isRegistryActionable(n.type) && !n.resolvedAt) return { canResolve: true, canMarkRead: false };
+  return { canResolve: false, canMarkRead: true };
 }
 
 /** 「与您相关」标题前缀（后端定向标记，2026-11-10 裁定：⟺收件人被点名/真参与，广播永不标）。

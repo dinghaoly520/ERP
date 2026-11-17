@@ -427,10 +427,17 @@ export class NotificationService {
   }
 
   async markAllAsRead(userId: string) {
-    // 2026-09-27 修复：仅置「知会类」（READONLY_TYPES）已读，不动 actionable 待办——
+    // 2026-09-27 修复：仅置「知会类」已读，不动 actionable 待办——
     // 否则「全部标已读」会因"已读兜底归已办"把待办瞬间清空（语义陷阱）。
+    // 2026-11-17 口径修正：豁免面从「READONLY_TYPES 白名单」改为「actionable 且未办结」
+    // （与单条 markAsRead 同语义）——白名单制会漏掉未注册进注册表的历史类型
+    // （SUPPLIER_LINK_WITHDRAWN/BID_OPENING 等），mark-all 永远清不到它们、角标到不了 0。
     return this.prisma.notification.updateMany({
-      where: { userId, isRead: false, type: { in: READONLY_TYPES } },
+      where: {
+        userId,
+        isRead: false,
+        OR: [{ type: { notIn: ACTIONABLE_TYPES } }, { resolvedAt: { not: null } }],
+      },
       data: { isRead: true, readAt: new Date() },
     });
   }

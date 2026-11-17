@@ -459,7 +459,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <button
                     type="button"
                     className="sp-notif-mark-all"
-                    onClick={() => { markAllAsRead().then(fetchUnreadCount).catch(() => {}); }}
+                    onClick={() => {
+                      // 2026-11-17：后端只清知会类——mark-all 后必须回拉列表，浮层里待办行
+                      // 保持未读样式、角标落真实余量（此前乐观全读+清零再弹回=「点了没反应」）
+                      markAllAsRead()
+                        .then(() => fetchNotifications(1, 5))
+                        .catch(() => {});
+                    }}
                   >
                     知会全部已读
                   </button>

@@ -29,6 +29,10 @@ export const notificationApi = {
   markAsRead(id: string) {
     return api.post<any>(`/notifications/${id}/read`, {}, { silent: true });
   },
+  /** 办结自己的待办（resolvedAt+isRead 落库）——actionable 未办结时 markAsRead 后端是 no-op，勿混用（对齐 :3005） */
+  resolveNotification(id: string) {
+    return api.post<any>(`/notifications/${id}/resolve`, {}, { silent: true });
+  },
   markAllAsRead() {
     return api.post<any>("/notifications/mark-all-read", {}, { silent: true });
   },

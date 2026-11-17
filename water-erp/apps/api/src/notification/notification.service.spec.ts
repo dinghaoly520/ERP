@@ -160,6 +160,24 @@ describe('NotificationService', () => {
     });
   });
 
+  it('markAllAsRead 豁免面=actionable 未办结（2026-11-17）：未注册历史类型也纳入清理——此前 in-READONLY 白名单漏掉它们，「全部已读」后角标永不到 0（供应商端实录）', async () => {
+    prisma.notification.updateMany.mockResolvedValue({ count: 3 });
+    await service.markAllAsRead('u1');
+    const actionable = NOTIFICATION_REGISTRY.filter((s) => s.actionable).map((s) => s.code);
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: 'u1',
+        isRead: false,
+        // 与单条 markAsRead 同语义：只豁免 actionable 且未办结（非白名单制——白名单漏未注册类型）
+        OR: [
+          { type: { notIn: actionable } },
+          { resolvedAt: { not: null } },
+        ],
+      },
+      data: { isRead: true, readAt: expect.any(Date) },
+    });
+  });
+
   it('resolveActionableBySupplierName 按供应商名过滤（广播待办不牵连并行在审者），空名不动', async () => {
     prisma.notification.updateMany.mockResolvedValue({ count: 1 });
     await service.resolveActionableBySupplierName(

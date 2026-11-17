@@ -12,7 +12,7 @@ import {
 import { notificationApi, type SupplierNotification } from "@/lib/api/notification";
 import { useNotifications } from "@/lib/notification-context";
 import {
-  getNotificationMeta, notificationTypesForGroup, resolveNotificationLink,
+  getNotificationMeta, notificationActionMode, notificationTypesForGroup, resolveNotificationLink,
   splitRelevanceMarker, summarizeNotification, type NotificationGroup, type NotificationTone,
 } from "@/lib/notification-meta";
 import { SpPageHero } from "@/components/sp-page-hero";
@@ -139,12 +139,36 @@ export default function NotificationListPage() {
     }
   }
 
+  /** 办结待办（2026-11-17）：actionable 未办结的「标为已读」后端是 no-op（点开≠办结），
+   *  供应商端此前没有任何办结出口——预警类待办（资质到期等）永挂未读、角标只增不减。
+   *  与 :3005 处理窗同款唯一出口：POST /notifications/:id/resolve（办结即落已读）。 */
+  async function resolveTodo(id: string) {
+    try {
+      await notificationApi.resolveNotification(id);
+      const resolvedAt = new Date().toISOString();
+      setItems((current) => current.map((item) => item.id === id ? { ...item, isRead: true, resolvedAt: item.resolvedAt ?? resolvedAt } : item));
+      setDetail((current) => current?.id === id ? { ...current, isRead: true, resolvedAt: current.resolvedAt ?? resolvedAt } : current);
+      await fetchUnreadCount();
+      toast.success("已标记为已办");
+    } catch {
+      toast.error("办结失败，请重试");
+    }
+  }
+
   async function markAllRead() {
     try {
       await notificationApi.markAllAsRead();
-      setItems((current) => current.map((item) => ({ ...item, isRead: true })));
+      // 后端只清知会类（READONLY_TYPES）——待办保持未读，本地镜像同口径，避免 30s 轮询回弹闪变
+      setItems((current) => current.map((item) => (
+        notificationActionMode(item).canMarkRead ? { ...item, isRead: true } : item
+      )));
       await fetchUnreadCount();
-      toast.success("已全部标为已读");
+      const { count } = await notificationApi.getUnreadCount();
+      if (count > 0) {
+        toast.success(`知会类消息已全部标为已读；剩余 ${count} 条待办需逐条办结`);
+      } else {
+        toast.success("已全部标为已读");
+      }
     } catch {
       toast.error("操作失败，请重试");
     }
@@ -248,10 +272,15 @@ export default function NotificationListPage() {
                         {meta.actionLabel}
                       </button>
                     )}
-                    {!notification.isRead && groupFilter !== "todo" && (
+                    {notificationActionMode(notification).canResolve && (
+                      /* 2026-11-17：注册表 actionable 未办结——「标为已读」后端 no-op（点开≠办结），
+                         换成办结出口；预警类待办（资质/证书到期，无业务 resolve 调用点）这是唯一出口 */
+                      <button type="button" className="nd-btn nd-btn--xs nd-btn--danger" onClick={() => void resolveTodo(notification.id)}>标记已办</button>
+                    )}
+                    {notificationActionMode(notification).canMarkRead && groupFilter !== "todo" && (
                       /* B4-4（2026-09-30）：仅非待办组提供「标为已读」——待办组是可操作事项的唯一
                          归属分类（后端 todo 段只回未读），标读会让待签收通知书等从唯一分类消失、
-                         行动按钮也没了；待办项应点「去完成」而非读掉 */
+                         行动按钮也没了；待办项应点「去完成」/「标记已办」而非读掉 */
                       <button type="button" className="nd-btn nd-btn--xs nd-btn--danger" onClick={() => void markRead(notification.id)}>标为已读</button>
                     )}
                   </div>
@@ -285,7 +314,10 @@ export default function NotificationListPage() {
         width={600}
         footer={(
           <div className="nd-footer">
-            {detail && !detail.isRead && (
+            {detail && notificationActionMode(detail).canResolve && (
+              <button type="button" className="nd-btn nd-btn--danger" onClick={() => void resolveTodo(detail.id)}>标记已办</button>
+            )}
+            {detail && notificationActionMode(detail).canMarkRead && (
               <button type="button" className="nd-btn nd-btn--danger" onClick={() => void markRead(detail.id)}>标为已读</button>
             )}
             {detailLink && (

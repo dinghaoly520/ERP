@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
 import { getNotificationLabel } from "@water-erp/shared";
-import { splitRelevanceMarker } from "@/lib/notification-meta";
+import { splitRelevanceMarker, isRegistryActionable } from "@/lib/notification-meta";
 import { getSupplierToken } from "@/lib/session-store";
 
 /**
@@ -182,13 +182,16 @@ export function RealtimeNotifications() {
               <p className="mt-0.5 line-clamp-2 break-words text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">{n.content}</p>
               <div className="mt-1.5 flex items-center justify-between">
                 <span className="text-[9px] uppercase tracking-wider text-[color:var(--sp-gray-400)]/70">{getNotificationLabel(n.type)}</span>
-                <button
-                  type="button"
-                  onClick={(e) => markRead(e, n)}
-                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent)] transition-colors hover:underline"
-                >
-                  <CheckCheck size={10} strokeWidth={2.2} /> 标为已读
-                </button>
+                {/* 2026-11-17：actionable 未办结的「标为已读」后端 no-op——不渲染（点击卡片即「去完成」路径） */}
+                {!isRegistryActionable(n.type) && (
+                  <button
+                    type="button"
+                    onClick={(e) => markRead(e, n)}
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--accent)] transition-colors hover:underline"
+                  >
+                    <CheckCheck size={10} strokeWidth={2.2} /> 标为已读
+                  </button>
+                )}
               </div>
             </div>
           </div>
