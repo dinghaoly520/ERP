@@ -137,7 +137,7 @@ test("记住密码未勾选：登录不保存预填，并清除此前记住的�
   assert.equal(readLoginPrefill(), null, "取消勾选后的登录应撤销旧预填");
 });
 
-test("手动登出：保留记住的密码预填（记住语义），仅清 tab 级 token", async () => {
+test("手动登出：保留记住的密码预填，仅清除当前标签页的登录令牌", async () => {
   installWindowMock();
   stubFetchOk({ success: true, access_token: "tok-3", role: "staff", username: "u1" });
 

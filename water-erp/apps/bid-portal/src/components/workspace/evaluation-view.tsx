@@ -883,7 +883,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         <StatTile
           label="可生成结果" value={results.length > 0 ? '已生成' : canGenerate ? '是' : '否'}
           sub={results.length > 0
-            ? (canGenerate ? '已生成，可重新生成' : '重生成须先完成专家确认')
+            ? (canGenerate ? '已生成，可重新生成' : '重新生成前须先完成专家确认')
             : canGenerate ? '正选报告均已确认' : `仍有 ${unconfirmed.length} 位正选未确认`}
           pct={results.length > 0 || canGenerate ? 100 : 0} color={results.length > 0 || canGenerate ? 'var(--success)' : 'var(--muted-foreground)'}
         />
@@ -1175,7 +1175,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       setReopenDialogOpen(true);
                     }}
                     disabled={reportsDone <= 0}
-                    title={reportsDone <= 0 ? '尚无已确认报告的专家，无需重开' : '受控数据更正：解锁已确认报告的专家评分（书面理由必填，评分历史保留）'}
+                    title={reportsDone <= 0 ? '尚无已确认报告的专家，无需重开' : '解锁已确认报告的专家评分（须填写书面理由，原评分记录保留）'}
                     className="neu-btn-soft !h-[28px] !text-[11px] shrink-0 disabled:opacity-40"
                   >
                     <RotateCcw size={12} /> 重开评审确认{reportsDone > 0 ? `（${reportsDone}）` : ''}
@@ -1386,7 +1386,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 ? `官方评标结果（${evalAggTokens}）`
                 : liveOfficial
                   ? `官方口径实时预览（${evalAggTokens}）`
-                  : '实时均分参考（未生成官方结果）'}
+                  : '实时平均分参考（评标结果尚未生成）'}
             </span>
           </div>
           {/* 评标结果拉取失败可见化（存疑-7）——已生成结果的读取失败不再无声回退预览序 */}
@@ -1475,7 +1475,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                         （该态排序键），绝不显示均分×专家数的近似总分 */}
                     <span className="font-mono text-xs font-bold tabular-nums text-[var(--accent-strong)]">
                       {official ? Number(official.totalScore).toFixed(2) : live ? live.totalScore.toFixed(2) : avg.toFixed(1)}
-                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '均分(用于排序)'}</span>
+                      <span className="ml-1 text-[9px] font-normal text-[var(--muted-foreground)]">{official ? '官方总分' : live ? '预览总分' : '专家平均分'}</span>
                     </span>
                     {!official && live && (
                       <span className="font-mono text-[10px] tabular-nums text-[var(--muted-foreground)]">

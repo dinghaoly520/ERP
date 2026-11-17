@@ -65,12 +65,12 @@ export function ScoreDetailCard({ project }: Props) {
       }
       cell.set(key, c);
     }
-    return { defs, records, suppliers, supplierName, pfItemIds, cell, expertCount: new Set(records.map((r) => r.expertId)).size };
+    return { defs, suppliers, supplierName, pfItemIds, cell, expertCount: new Set(records.map((r) => r.expertId)).size };
   }, [project]);
 
   if (!pkg) return null;
 
-  const { defs, records, suppliers, supplierName, pfItemIds, cell, expertCount } = pkg;
+  const { defs, suppliers, supplierName, pfItemIds, cell, expertCount } = pkg;
   const supLabel = (id: string) => supplierName.get(id) ?? `供应商 ${id.slice(-6)}`;
 
   return (
@@ -81,7 +81,7 @@ export function ScoreDetailCard({ project }: Props) {
           评分明细与汇总
         </span>
         <span className="text-[10px] text-[var(--muted-foreground)]">
-          评分项 {defs.length} 项 · 评分记录 {records.length} 条 · 专家 {expertCount} 人
+          评分项 {defs.length} 项 · 评审专家 {expertCount} 人
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -140,7 +140,7 @@ export function ScoreDetailCard({ project }: Props) {
           </tbody>
         </table>
         <div className="border-t border-[oklch(0.6_0.04_258/0.08)] px-3.5 py-2 text-[10px] text-[var(--muted-foreground)]">
-          矩阵为各评分项正选专家合计分（结果生成后列序按官方名次排列）
+          表中每格为全体评审专家对该评分项的合计打分；评标结果生成后，供应商按名次先后排列
         </div>
       </div>
     </div>
