@@ -7,7 +7,9 @@ import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
-import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem, stampExpertExtractFinalized } from '@/lib/api/expert';
+import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, fetchExpertDepartmentOptions, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem, stampExpertExtractFinalized } from '@/lib/api/expert';
+import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
+import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
@@ -265,6 +267,32 @@ export function ExpertExtractPage({
   const [extRepSaving, setExtRepSaving] = useState(false);
   const EMPTY_EXT_REP_FORM = { name: '', idCard: '', phone: '', employer: '', departmentName: '', specialty: '', title: '', qualifications: '', email: '', ethnicity: '', education: '', licenseNo: '', notes: '' };
   const [extRepForm, setExtRepForm] = useState(EMPTY_EXT_REP_FORM);
+  // 专业/职称/单位/部门四件套与专家录入同款（2026-11-17 用户裁定）：TypeaheadCombobox + UnitSearchSelect + 部门随单位级联
+  const [extRepSpecialties, setExtRepSpecialties] = useState<string[]>([]);
+  const [extRepDepartments, setExtRepDepartments] = useState<string[]>([]);
+  useEffect(() => {
+    if (!extRepOpen) return;
+    let cancelled = false;
+    listSpecialties().then(rows => { if (!cancelled) setExtRepSpecialties(rows); }).catch(() => setExtRepSpecialties([]));
+    return () => { cancelled = true; };
+  }, [extRepOpen]);
+  useEffect(() => {
+    const company = extRepForm.employer.trim();
+    if (!company) { setExtRepDepartments([]); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchExpertDepartmentOptions(company)
+        .then(rows => { if (!cancelled) setExtRepDepartments(rows.map(r => r.name)); })
+        .catch(() => { if (!cancelled) setExtRepDepartments([]); });
+    }, 300); // 防抖同专家录入口径
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [extRepForm.employer]);
+  const handleExtRepEmployerChange = (v: string) => {
+    // 换公司后原部门大概率不属于新公司：级联清空（同专家录入 handleEmployerChange）
+    if (v !== extRepForm.employer) {
+      setExtRepForm(prev => ({ ...prev, employer: v, ...(prev.departmentName ? { departmentName: '' } : {}) }));
+    }
+  };
   const submitExtRep = async () => {
     const f = extRepForm;
     // 必填口径与专家录入一致（2026-11-17 用户裁定：信息采用专家注册的那些信息）
@@ -3976,21 +4004,29 @@ export function ExpertExtractPage({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.specialty} onChange={e => setExtRepForm(p => ({ ...p, specialty: e.target.value }))} placeholder="输入专业，默认「综合」" className="workbench-input w-full" />
+                <TypeaheadCombobox value={extRepForm.specialty} onChange={v => setExtRepForm(p => ({ ...p, specialty: v }))} options={extRepSpecialties} allowCustom placeholder="输入或选择专业" emptyText="无匹配专业" />
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.title} onChange={e => setExtRepForm(p => ({ ...p, title: e.target.value }))} list="ext-rep-title-list" placeholder="输入或选择职称" className="workbench-input w-full" />
-                <datalist id="ext-rep-title-list">{EXPERT_TITLES.map(t => <option key={t} value={t} />)}</datalist>
+                <TypeaheadCombobox value={extRepForm.title} onChange={v => setExtRepForm(p => ({ ...p, title: v }))} options={[...EXPERT_TITLES]} allowCustom placeholder="输入或选择职称" emptyText="无匹配职称" />
               </label>
-              <label className="space-y-1">
+              <div className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.employer} onChange={e => setExtRepForm(p => ({ ...p, employer: e.target.value }))} placeholder="输入公司名称" className="workbench-input w-full" />
-              </label>
-              <label className="space-y-1">
+                <UnitSearchSelect value={extRepForm.employer} onChange={handleExtRepEmployerChange} />
+              </div>
+              <div className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.departmentName} onChange={e => setExtRepForm(p => ({ ...p, departmentName: e.target.value }))} placeholder="输入部门" className="workbench-input w-full" />
-              </label>
+                <TypeaheadCombobox
+                  value={extRepForm.departmentName}
+                  onChange={v => setExtRepForm(p => ({ ...p, departmentName: v }))}
+                  options={extRepDepartments}
+                  allowCustom
+                  placeholder="选择或输入部门"
+                  emptyText={extRepForm.employer.trim() ? '该公司暂无部门记录，可直接输入' : '请先选择工作单位，或直接输入部门'}
+                  customHint="直接使用"
+                  triggerClassName="!h-[40px]"
+                />
+              </div>
               <label className="space-y-1 md:col-span-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span>
                 <input value={extRepForm.qualifications} onChange={e => setExtRepForm(p => ({ ...p, qualifications: e.target.value }))} list="ext-rep-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className="workbench-input w-full" />
