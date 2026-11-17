@@ -14,7 +14,7 @@ import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
 import { CopyIconButton } from '@/components/copy-icon-button';
-import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Plus, Clock, FileText, UserCircle, Search, ClipboardList, Upload, Loader2, Brain, Send, MapPin } from 'lucide-react';
+import { Sparkles, ShieldCheck, AlertTriangle, Check, X, RefreshCw, UsersRound, Info, MessageSquare, Bell, Plus, Clock, FileText, UserCircle, UserRoundPlus, Search, ClipboardList, Upload, Loader2, Brain, Send, MapPin } from 'lucide-react';
 import { STAGE_LABEL } from '@water-erp/shared';
 
 /** 兼容新旧 API：新版返回 { total, items }，旧版返回数组 */
@@ -3907,25 +3907,44 @@ export function ExpertExtractPage({
       )}
 
       {/* 选用理由查看弹窗（确认表「选用理由」列按钮唤起——理由长文不入表） */}
-      {/* 手动录入需求方代表（2026-11-05）：库外人员建临时专家账号——确认抽取入组后可登录 :3006，项目终态自动失效 */}
+      {/* 手动录入需求方代表（2026-11-05）：库外人员建临时专家账号——确认抽取入组后可登录 :3006，项目终态自动失效。
+          2026-11-17 弹窗规范 A 版 + 表单内容范式：图标井头部（Modal icon/title/description）、
+          临时账号口径入 warning 淡底警示条、输入回归 workbench-input 标准 40px、底栏走 Modal footer（38px 等高） */}
       {extRepOpen && (
-        <Modal open onClose={() => setExtRepOpen(false)} size="md">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-base font-bold text-[color:var(--foreground)]">手动录入需求方代表</h3>
-              <p className="mt-1 text-xs text-[var(--muted-foreground)]">库外人员将创建临时专家账号：登录名与初始口令均为身份证号，仅本项目评标期间可登录专家门户，项目结束/归档/流标后自动失效</p>
-            </div>
+        <Modal
+          open
+          onClose={() => setExtRepOpen(false)}
+          size="md"
+          icon={<UserRoundPlus size={14} />}
+          title="手动录入需求方代表"
+          description="库外人员创建临时专家账号，确认抽取入组后生效"
+          footer={
+            <>
+              <button onClick={() => setExtRepOpen(false)} className="neu-btn-soft">取消</button>
+              <button onClick={() => void submitExtRep()} disabled={extRepSaving} className="neu-btn-primary !h-[38px] gap-1.5">
+                {extRepSaving ? <Loader2 size={14} className="animate-spin" /> : null}
+                {extRepSaving ? '创建中…' : '创建临时账号'}
+              </button>
+            </>
+          }
+        >
+          {/* 影响面提示（表单范式 #5）：临时账号口径——warning 淡底条 + 关键词加粗，不用裸灰字 */}
+          <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5">
+            <Info size={14} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+            <p className="text-xs leading-5 text-[var(--foreground)]">
+              登录名与初始口令均为<strong>身份证号</strong>，仅本项目评标期间可登录专家门户；项目结束、归档或流标后账号<strong>自动失效</strong>。
+            </p>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {([
-              { key: 'name', label: '姓名', placeholder: '必填', required: true },
-              { key: 'idCard', label: '身份证号', placeholder: '必填（18 位，将作为登录名与初始口令）', required: true },
-              { key: 'phone', label: '手机号', placeholder: '必填（11 位，通知触达用）', required: true },
+              { key: 'name', label: '姓名', placeholder: '请输入姓名', required: true },
+              { key: 'idCard', label: '身份证号', placeholder: '18 位', required: true },
+              { key: 'phone', label: '手机号', placeholder: '11 位，通知触达用', required: true },
               { key: 'employer', label: '工作单位', placeholder: '选填', required: false },
               { key: 'departmentName', label: '部门', placeholder: '选填', required: false },
               { key: 'specialty', label: '专业', placeholder: '选填，默认「综合」', required: false },
             ] as const).map(f => (
-              <div key={f.key} className="space-y-1">
+              <div key={f.key} className="space-y-1.5">
                 <label className="text-xs font-bold text-[var(--foreground)]">
                   {f.label}{f.required && <span className="ml-0.5 text-[var(--danger)]">*</span>}
                 </label>
@@ -3933,16 +3952,10 @@ export function ExpertExtractPage({
                   value={(extRepForm as any)[f.key]}
                   onChange={(e) => setExtRepForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                   placeholder={f.placeholder}
-                  className="workbench-input !h-8 text-xs"
+                  className="workbench-input"
                 />
               </div>
             ))}
-          </div>
-          <div className="mt-5 flex items-center justify-end gap-2">
-            <button onClick={() => setExtRepOpen(false)} className="neu-btn-soft">取消</button>
-            <button onClick={() => void submitExtRep()} disabled={extRepSaving} className="neu-btn-primary gap-1.5">
-              {extRepSaving ? '创建中…' : '创建临时账号'}
-            </button>
           </div>
         </Modal>
       )}
