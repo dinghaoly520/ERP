@@ -152,7 +152,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 </style></head><body>
 <div class="pfoot">四川水发勘测设计研究有限公司</div>
 <h1>四川水发勘测设计研究有限公司采购数据汇报材料</h1>
-<p class="meta">${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')}</p>
+<p class="meta">${new Date().toLocaleDateString('zh-CN')}</p>
 <div class="kpis">${[
     ['预算总金额', s.totalBudgetLabel], ['已成交预算', s.awardedBudgetLabel], ['成交总额', s.totalAwardLabel],
     ['节约资金', s.totalSavingsLabel], ['节资率', `${savingsRate}%`], ['成交率', `${doneRate}%（${s.completedCount}/${s.totalCount}）`],
@@ -291,7 +291,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       size="4xl"
       icon={<FileDown size={14} />}
       title="采购数据汇报材料"
-      description={`${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')}`}
+      description={new Date().toLocaleDateString('zh-CN')}
       footer={
         <>
           <button onClick={onClose} className="neu-btn-soft">关闭</button>
