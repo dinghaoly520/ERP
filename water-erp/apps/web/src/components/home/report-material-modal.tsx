@@ -403,8 +403,8 @@ export function ReportMaterialModal({ open, onClose, data, companyId, currentUse
               <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
                 {[...data.companyStats].sort((a, b) => b.amount - a.amount).map(c => (
                   <div key={c.name} className="flex items-center gap-3">
-                    <span className="w-[150px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={c.name}>{c.name}</span>
-                    <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
+                    <span className="min-w-0 flex-1 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={c.name}>{c.name}</span>
+                    <div className="h-[16px] w-[110px] shrink-0 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
                       <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (c.amount / Math.max(...data.companyStats.map(x => x.amount), 1)) * 100)}%`, background: 'var(--accent)' }} />
                     </div>
                     <span className="w-[72px] shrink-0 text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{c.amountLabel}</span>
@@ -435,8 +435,8 @@ export function ReportMaterialModal({ open, onClose, data, companyId, currentUse
             <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
               {(data.supplierConcentration ?? []).map(s => (
                 <div key={s.name} className="flex items-center gap-3">
-                  <span className="w-[150px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={s.name}>{s.name}</span>
-                  <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
+                  <span className="min-w-0 flex-1 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={s.name}>{s.name}</span>
+                  <div className="h-[16px] w-[110px] shrink-0 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
                     <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (s.amount / Math.max(...(data.supplierConcentration ?? [{ amount: 1 }]).map(x => x.amount), 1)) * 100)}%`, background: `oklch(${(0.66 - 0.24 * (s.amount / Math.max(...(data.supplierConcentration ?? [{ amount: 1 }]).map(x => x.amount), 1))).toFixed(3)} 0.12 258)` }} />
                   </div>
                   <span className="w-[112px] shrink-0 text-right leading-tight"><span className="block text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{s.amountLabel} · {s.share}%</span><span className="block text-[10px] text-[var(--muted-foreground)]">{s.count} 笔</span></span>
