@@ -132,7 +132,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 .note { background: oklch(0.95 0.02 258); border-radius: 8px; padding: 8px 10px; font-size: 11px; margin-top: 8px; }
 .note b { color: oklch(0.5 0.12 258); }
 .tb { width: 100%; border-collapse: collapse; font-size: 10.5px; }
-.tb th { text-align: left; color: oklch(0.55 0.03 258); font-size: 10px; border-bottom: 1px solid oklch(0.85 0.02 258); padding: 4px 6px; }
+.tb th { text-align: center; color: oklch(0.55 0.03 258); font-size: 10px; border-bottom: 1px solid oklch(0.85 0.02 258); padding: 4px 6px; }
 .tb td { border-bottom: 1px solid oklch(0.93 0.02 258); padding: 5px 6px; }
 .tb.fixed { table-layout: fixed; }
 .tb.fixed td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -161,7 +161,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
     ['节约资金', s.totalSavingsLabel], ['节资率', `${savingsRate}%`], ['成交率', `${doneRate}%（${s.completedCount}/${s.totalCount}）`],
   ].map(([l, v]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
 ${aiBlock}
-<section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '控制金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]), [24, 13, 13, 13, 13, 12, 12])}${note('savings')}</section>
+<section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '预算金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]), [24, 13, 13, 13, 13, 12, 12])}${note('savings')}</section>
 <section class="card"><h2>二、采购执行趋势</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
 <section class="card"><h2>三、${dimLabel}采购分析</h2>${hbarsHtml([...dimStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
 <section class="card"><h2>四、采购方式分布</h2>${donutSvg(data.methodStats, '总项目')}${note('method')}</section>
@@ -303,7 +303,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
   const scaleNote = `按预算金额四档分层：小额（<10 万）${smallN} 项、中小/中型（10-200 万）${segsOf(100000, 500000) + segsOf(500000, 2000000)} 项、大型（>200 万）${bigN} 项。小额高频与大型低频的结构是否符合业务预期，可结合部门与方式分布交叉解读。`;
   const rankTop = data.savingsRanking[0];
   const rankNote = data.savingsRanking.length
-    ? `按节约资金（控制金额 − 成交金额）排序的 Top 项目。${rankTop ? `节约最多的是「${rankTop.project.slice(0, 24)}」（${rankTop.savingsLabel}，节约率 ${rankTop.savingsRate}%，方式 ${rankTop.method}）` : ''}；区间合计节约 ${s.totalSavingsLabel}、节资率 ${savingsRate.toFixed(1)}%。`
+    ? `按节约资金（预算金额 − 成交金额）排序的 Top 项目。${rankTop ? `节约最多的是「${rankTop.project.slice(0, 24)}」（${rankTop.savingsLabel}，节约率 ${rankTop.savingsRate}%，方式 ${rankTop.method}）` : ''}；区间合计节约 ${s.totalSavingsLabel}、节资率 ${savingsRate.toFixed(1)}%。`
     : '暂无节约数据（需已成交项目）。';
   const supTop = (data.supplierConcentration ?? [])[0];
   const supNote = (data.supplierConcentration ?? []).length
