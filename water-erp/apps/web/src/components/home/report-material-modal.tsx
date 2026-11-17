@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/workbench';
 import { FileDown, Loader2, Printer, Sparkles } from 'lucide-react';
 import { fetchReportMaterialAnalysis, fetchReportMaterialCache, type ReportMaterialResult } from '@/lib/api/ai';
+import { api } from '@/lib/api';
 import type { DashboardData } from '@/lib/api/dashboard';
 import {
   KpiCard, SavingsRankingPanel, ProjectScalePanel, MethodPieChartPanel,
@@ -96,7 +97,7 @@ function tableHtml(head: string[], rows: string[][], widths?: number[]): string 
 }
 
 /** 组装自包含 HTML 报告并唤起新窗口打印（用户选「存储为 PDF」得长档） */
-function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null) {
+function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null, companyName: string) {
   const s = data.summary;
   const seg = (min: number, max: number) => data.trendSeries.reduce((n, t) => n + t.projects.filter(p => {
     const bs = String(p.budgetLabel || '');
@@ -111,7 +112,7 @@ function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null) {
   const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
   const note = (k: string) => `<p class="note"><b>说明：</b>${esc(ai?.sections?.[k as keyof typeof ai.sections] || '')}</p>`;
   const aiBlock = ai?.overview ? `<section class="card ai"><h2>AI 综合分析</h2><p class="ov">${esc(ai.overview)}</p><div class="tri">${([['主要亮点', ai.highlights], ['关注事项', ai.concerns], ['工作建议', ai.suggestions]] as const).map(([t, l]) => `<div><h4>${t}</h4><ul>${l.slice(0, 5).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div></section>` : '';
-  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>四川水发勘测设计研究有限公司采购数据汇报材料</title><style>
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>${companyName}采购数据汇报材料</title><style>
 @page { size: A4; margin: 0; }
 .pfoot { position: fixed; left: 0; right: 0; bottom: 6mm; text-align: center; font-size: 9px; color: oklch(0.62 0.03 258); }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -150,8 +151,8 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 .empty { color: oklch(0.55 0.03 258); text-align: center; padding: 20px 0; }
 .no-print { display: none; }
 </style></head><body>
-<div class="pfoot">四川水发勘测设计研究有限公司</div>
-<h1>四川水发勘测设计研究有限公司采购数据汇报材料</h1>
+<div class="pfoot">${companyName}</div>
+<h1>${companyName}采购数据汇报材料</h1>
 <p class="meta">${new Date().toLocaleDateString('zh-CN')}</p>
 <div class="kpis">${[
     ['预算总金额', s.totalBudgetLabel], ['已成交预算', s.awardedBudgetLabel], ['成交总额', s.totalAwardLabel],
@@ -252,6 +253,19 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
     [data],
   );
 
+  /* 署名随公司选择器（2026-11-17 用户裁定）：当前哪个公司就署名哪个公司；
+     全部公司=集团口径。数据源同 CompanySelect（/companies）。 */
+  const [companyName, setCompanyName] = useState('四川水发集团');
+  useEffect(() => {
+    if (!open) return;
+    if (companyId === 'all') { setCompanyName('四川水发集团'); return; }
+    let cancelled = false;
+    api.get<Array<{ id: string; name: string }>>('/companies')
+      .then(list => { if (!cancelled) setCompanyName(list.find(c => c.id === companyId)?.name ?? '四川水发集团'); })
+      .catch(() => { if (!cancelled) setCompanyName('四川水发集团'); });
+    return () => { cancelled = true; };
+  }, [open, companyId]);
+
   if (!data) return null;
   const s = data.summary;
   const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
@@ -303,7 +317,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       footer={
         <>
           <button onClick={onClose} className="neu-btn-soft">关闭</button>
-          <button onClick={() => exportReportPdf(data, ai)} disabled={aiLoading} className="neu-btn-primary is-water !h-[38px] gap-1.5">
+          <button onClick={() => exportReportPdf(data, ai, companyName)} disabled={aiLoading} className="neu-btn-primary is-water !h-[38px] gap-1.5">
             <Printer size={14} /> {aiLoading ? '说明生成中…' : '导出 PDF'}
           </button>
         </>
