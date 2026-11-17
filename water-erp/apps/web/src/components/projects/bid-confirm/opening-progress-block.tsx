@@ -49,7 +49,7 @@ async function downloadHandoverAsset(fileAssetId: string, fileName: string) {
 }
 
 function ProgressStat({
-  icon, label, done, total, tone, title,
+  icon, label, done, total, tone, title, plain,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -58,6 +58,10 @@ function ProgressStat({
   tone: 'accent' | 'success' | 'warning' | 'danger';
   /** 悬浮说明（2026-11-12 bug#144 裁定）：口径不透明的统计项加原生 title 防误读 */
   title?: string;
+  /** D 形态（2026-11-17 bug#144 裁定）：单值计数形态——「计数=待办」项（如待裁决异议）与
+   *  「计数=完成」项共用 done/total 骨架会被读成进度（0/3 歧义），改显 n 家 + 状态语、
+   *  条形按有无待办整条填充；total 仅进度形态使用 */
+  plain?: boolean;
 }) {
   const color =
     tone === 'success' ? 'var(--success)' :
@@ -72,11 +76,20 @@ function ProgressStat({
       </div>
       <div className="mb-1.5 flex items-baseline gap-1">
         <span className="text-xl font-black tabular-nums tracking-[-0.03em] text-[var(--foreground)]">{done}</span>
-        <span className="text-[11px] tabular-nums text-[var(--muted-foreground)]">/ {total}</span>
-        <span className="ml-auto text-[10px] font-bold tabular-nums" style={{ color }}>{pct}%</span>
+        {plain ? (
+          <>
+            <span className="text-[11px] text-[var(--muted-foreground)]">家</span>
+            <span className="ml-auto text-[10px] font-bold" style={{ color }}>{done > 0 ? '待裁决' : '无待裁决'}</span>
+          </>
+        ) : (
+          <>
+            <span className="text-[11px] tabular-nums text-[var(--muted-foreground)]">/ {total}</span>
+            <span className="ml-auto text-[10px] font-bold tabular-nums" style={{ color }}>{pct}%</span>
+          </>
+        )}
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-[oklch(0.9_0.01_258/0.8)]">
-        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
+        <div className="h-full rounded-full transition-all" style={{ width: plain ? (done > 0 ? '100%' : '0%') : `${pct}%`, background: color }} />
       </div>
     </div>
   );
@@ -191,7 +204,7 @@ export function OpeningProgressBlock({ detail, onAbort }: Props) {
             <ProgressStat icon={<KeyRound size={12} />} label="标书解密" done={decrypted} total={total} tone={decrypted === total && total > 0 ? 'success' : 'accent'} />
             <ProgressStat icon={<FileCheck size={12} />} label="唱标录入" done={Math.min(recorded, total)} total={total} tone={recorded >= total && total > 0 ? 'success' : 'accent'} />
             <ProgressStat icon={<UserCheck size={12} />} label="供应商确认" done={confirmed} total={total} tone={confirmed === total && total > 0 ? 'success' : 'accent'} />
-            <ProgressStat icon={<AlertTriangle size={12} />} label="待处理异议" done={disputed} total={total} tone={disputed > 0 ? 'danger' : 'success'} title="统计已提交开标异议、且尚未经主持人裁决的供应商家数；已裁决完毕的异议不计入此数" />
+            <ProgressStat icon={<AlertTriangle size={12} />} label="开标异议" done={disputed} total={total} plain tone={disputed > 0 ? 'danger' : 'success'} title="统计已提交开标异议、且尚未经主持人裁决的供应商家数；已裁决完毕的异议不计入此数" />
           </div>
 
           {openingDone && stage === 'OPENING' && (
