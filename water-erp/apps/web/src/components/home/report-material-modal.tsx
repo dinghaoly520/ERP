@@ -70,6 +70,8 @@ ${bars}${stepD ? `<path d="${stepD}" fill="none" stroke="oklch(0.55 0.14 280 / 0
 
 /** 环形图 SVG（镜像 MethodPieChartPanel：六色环 + 中心总数）+ 右侧图例 */
 // 同页面 PC 八色（2026-11-17 用户裁定：互不相同；dataviz 校验 PASS）
+// 集中度行色（2026-11-17：参照部门分布 DBC 逐行配色，与页面同源）
+const MODAL_DBC = ['var(--accent)', 'var(--success)', 'var(--warning)', 'oklch(0.55 0.14 280)', 'var(--danger)', 'oklch(0.55 0.12 175)'];
 const PC_PDF = ["#4a7fd6","#31a06a","#c98f2e","#7b5bd6","#d96a5a","#0e85b8","#4c3fa0","#c94f7c"];
 function donutSvg(items: Array<{ name: string; count: number; share: number; amountLabel?: string }>, centerLabel: string): string {
   if (!items.length) return '<p class="empty">暂无数据</p>';
@@ -433,11 +435,11 @@ export function ReportMaterialModal({ open, onClose, data, companyId, currentUse
           <section className="wb-panel h-full">
             <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--warning)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">供应商集中度</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--warning)_25%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--warning)]">CR5 {data.supplierCr5 ?? 0}%</div></div>
             <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
-              {(data.supplierConcentration ?? []).map(s => (
+              {(data.supplierConcentration ?? []).map((s, idx) => (
                 <div key={s.name} className="flex items-center gap-3">
                   <span className="min-w-0 flex-1 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={s.name}>{s.name}</span>
                   <div className="h-[16px] w-[110px] shrink-0 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
-                    <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (s.amount / Math.max(...(data.supplierConcentration ?? [{ amount: 1 }]).map(x => x.amount), 1)) * 100)}%`, background: `oklch(${(0.66 - 0.24 * (s.amount / Math.max(...(data.supplierConcentration ?? [{ amount: 1 }]).map(x => x.amount), 1))).toFixed(3)} 0.12 258)` }} />
+                    <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (s.amount / Math.max(...(data.supplierConcentration ?? [{ amount: 1 }]).map(x => x.amount), 1)) * 100)}%`, background: MODAL_DBC[idx % MODAL_DBC.length] }} />
                   </div>
                   <span className="w-[112px] shrink-0 text-right leading-tight"><span className="block text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{s.amountLabel} · {s.share}%</span><span className="block text-[10px] text-[var(--muted-foreground)]">{s.count} 笔</span></span>
                 </div>
