@@ -204,10 +204,22 @@ export class AiController {
 
   @Post('report-material')
   @Throttle({ default: { limit: 6, ttl: 60_000 } })
-  @ApiOperation({ summary: '汇报材料 AI 分析（2026-11-17）：总评 + 六板块（节资榜/趋势/部门/方式/规模/供应商）逐段说明——每段引用具体数字、结论先行；未开标=在途非异常口径' })
+  @ApiOperation({ summary: '汇报材料 AI 分析（2026-11-17）：总评 + 六板块（节资榜/趋势/部门/方式/规模/供应商）逐段说明——每段引用具体数字、结论先行；未开标=在途非异常口径。生成成功按登录人 scope 落服务端缓存' })
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  async reportMaterial(@Body() payload: ReportMaterialDto) {
-    return this.aiService.analyzeReportMaterial(payload);
+  async reportMaterial(@CurrentUser() user: AuthenticatedUser, @Body() payload: ReportMaterialDto) {
+    return this.aiService.analyzeReportMaterial(payload, user);
+  }
+
+  @Get('report-material/cache')
+  @ApiOperation({ summary: '汇报材料 AI 分析缓存提取（2026-11-17 用户裁定）：按登录人 scope + 日期区间取最新一份，台账数据指纹未变即命中' })
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  async reportMaterialCache(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('companyId') companyId = 'all',
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.aiService.getReportMaterialCache(user, companyId, startDate, endDate);
   }
 
   @Get('dashboard-analysis/cache')

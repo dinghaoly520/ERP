@@ -2525,6 +2525,8 @@ stageMatch 字段需要输出两部分判断结果：
    *  未变即时提取、不重请求生成）。键/指纹/读写已收口 common/company-data-fingerprint
    *  （与进度洞察同源），此处仅声明命名空间。 */
   private static readonly DASH_INSIGHT_NS = 'dash-ai-analysis';
+  /** 汇报材料 AI 分析缓存命名空间（2026-11-17：指纹同 ledger 变体——材料数据源=台账） */
+  private static readonly REPORT_MATERIAL_NS = 'report-material-ai';
 
   /**
    * 汇报材料 AI 分析（2026-11-17 用户裁定：各板块说明由 AI 生成——模板文字太简单无意义）。
@@ -2533,7 +2535,7 @@ stageMatch 字段需要输出两部分判断结果：
    * 口径：区间末端尚未开标的项目=正常在途采购，非异常（用户 2026-11-17 裁定）。
    * 按需生成不入服务端缓存（汇报低频），限流在控制器层。
    */
-  async analyzeReportMaterial(payload: any) {
+  async analyzeReportMaterial(payload: any, user?: AuthenticatedUser) {
     const systemPrompt = [
       '你是"水叮当"——四川省水利发展集团有限公司招采ERP的 AI 采购运营分析师，为《采购数据汇报材料》撰写各板块解说文字。',
       '',
@@ -2543,6 +2545,7 @@ stageMatch 字段需要输出两部分判断结果：
       '- 禁止复述图表可见的结构（如"上图展示了各部门金额"），禁止空洞评价（如"整体运行良好"）。',
       '- 禁止编造、推算或假设不存在的数据。',
       '- 口径铁律：区间末端尚未开标/尚未采购的项目是正常在途业务，不是异常、不是风险，不得作为问题强调。',
+      '- 比率铁律：节资率、完成率等比率一律引用输入 summary 中提供的现成数值（savingsRate/doneRate），禁止自行除法计算——避免舍入漂移与口径不一致。',
       '',
       '# 板块说明写法（sections.*，每段 60-100 字）',
       '- savings（节约资金排行）：结合榜首项目节约额/率与合计节资水平，点评成本管控成效与可推广做法。',
@@ -2588,16 +2591,31 @@ stageMatch 字段需要输出两部分判断结果：
       for (const k of ['savings', 'trend', 'department', 'method', 'scale', 'supplier']) {
         sections[k] = await clean(src[k]);
       }
-      return {
+      const result = {
         overview: await clean(raw?.overview),
         sections,
         highlights: await cleanArr(raw?.highlights),
         concerns: await cleanArr(raw?.concerns),
         suggestions: await cleanArr(raw?.suggestions),
       };
+      // 空总评=异常兜底不入缓存；成功才落存（scope 同驾驶舱：admin=选择器、非 admin=本公司）
+      if (result.overview) {
+        const scopeKey = await this.dashCacheScopeKey(user, payload.companyId);
+        if (scopeKey !== null) {
+          await writeInsightCache(this.prisma, AiService.REPORT_MATERIAL_NS, scopeKey, result, payload.startDate, payload.endDate, 'ledger').catch(() => {});
+        }
+      }
+      return result;
     } catch {
       return { overview: '', sections: {} as Record<string, string>, highlights: [], concerns: [], suggestions: [] };
     }
+  }
+
+  /** 汇报材料缓存提取（2026-11-17 用户裁定：生成后写入缓存，数据（台账）指纹未变直接命中不再请求 LLM） */
+  async getReportMaterialCache(user: AuthenticatedUser | undefined, companyId = 'all', startDate?: string, endDate?: string) {
+    const scopeKey = await this.dashCacheScopeKey(user, companyId);
+    if (scopeKey === null) return { hit: false as const, fingerprint: '' };
+    return readInsightCache(this.prisma, AiService.REPORT_MATERIAL_NS, scopeKey, startDate, endDate, 'ledger');
   }
 
   /** 缓存键公司段：与数据端点同款 scope 解析（admin=选择器参数；非 admin=本人公司，

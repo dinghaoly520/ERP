@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/workbench';
 import { FileDown, Loader2, Printer, Sparkles } from 'lucide-react';
-import { fetchReportMaterialAnalysis, type ReportMaterialResult } from '@/lib/api/ai';
+import { fetchReportMaterialAnalysis, fetchReportMaterialCache, type ReportMaterialResult } from '@/lib/api/ai';
 import type { DashboardData } from '@/lib/api/dashboard';
 import {
   KpiCard, SavingsRankingPanel, ProjectScalePanel, MethodPieChartPanel,
@@ -212,7 +212,12 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       startDate: data.range.startDate ?? undefined,
       endDate: data.range.endDate ?? undefined,
       rangeLabel: `${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'}（区间末端尚未开标的项目为正常在途采购，不属于异常或风险）`,
-      summary: data.summary,
+      // 权威比率随载荷下发（2026-11-17：LLM 自行除法有舍入漂移——15.148% 被写成 15.2%）
+      summary: {
+        ...data.summary,
+        savingsRate: `${data.summary.awardedBudget > 0 ? ((data.summary.totalSavings / data.summary.awardedBudget) * 100).toFixed(1) : '0'}%`,
+        doneRate: `${data.summary.totalCount > 0 ? Math.round((data.summary.completedCount / data.summary.totalCount) * 100) : 0}%`,
+      },
       trendSeries: data.trendSeries.map(t => ({ label: t.label, count: t.count, amount: t.amount, initiated: t.initiated, archived: t.archived, active: t.active })),
       departmentStats: data.departmentStats.map(d => ({ name: d.name, amountLabel: d.amountLabel, completedRate: d.completedRate, topMethod: d.topMethod, projectCount: d.projects.length })),
       methodStats: data.methodStats.map(m => ({ name: m.name, count: m.count, amountLabel: m.amountLabel, share: m.share })),
@@ -223,11 +228,14 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
   }, [data]);
 
   useEffect(() => {
-    if (!open || !payload) return;
+    if (!open || !payload || !data) return;
     let cancelled = false;
     setAi(null); setAiError(false); setAiLoading(true);
     (async () => {
       try {
+        // 缓存优先（2026-11-17 用户裁定：数据未变直接命中，不再每次请求 LLM）
+        const cache = await fetchReportMaterialCache(companyId, data.range.startDate ?? undefined, data.range.endDate ?? undefined);
+        if (!cancelled && cache.hit && cache.result) { setAi(cache.result); setAiLoading(false); return; }
         const res = await fetchReportMaterialAnalysis(payload, companyId);
         if (!cancelled) setAi(res);
       } catch {

@@ -111,3 +111,15 @@ export type ReportMaterialPayload = {
 export async function fetchReportMaterialAnalysis(payload: ReportMaterialPayload, companyId?: string): Promise<ReportMaterialResult> {
   return api.post<ReportMaterialResult>('/ai/report-material', { ...payload, ...(companyId && companyId !== 'all' && { companyId }) });
 }
+
+/** 汇报材料 AI 分析缓存提取（数据/区间未变即命中，不再请求 LLM） */
+export async function fetchReportMaterialCache(
+  companyId: string,
+  startDate?: string,
+  endDate?: string,
+): Promise<{ hit: boolean; result?: ReportMaterialResult }> {
+  const q = new URLSearchParams({ companyId });
+  if (startDate) q.set('startDate', startDate);
+  if (endDate) q.set('endDate', endDate);
+  return api.get(`/ai/report-material/cache?${q.toString()}`);
+}
