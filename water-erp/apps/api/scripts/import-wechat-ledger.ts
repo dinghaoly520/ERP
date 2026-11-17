@@ -9,6 +9,15 @@
 import { PrismaClient, ResultStatus, SourceType } from '@prisma/client';
 
 const COMPANY = { id: 'co-swhi-sjy', name: '四川水发勘测设计研究有限公司' };
+/** 方式名归一（2026-11-17 用户裁定）：旧名/变体 → 平台 canon——
+ *  竞争性谈判|谈判→谈判采购；询比|询价|询价采购→询比采购；单一来源采购|单源直接采购→直接采购；
+ *  内部竞标|竞价→竞价采购（直接委托/邀请招标/续约照录）。 */
+const normalizeMethod = (m: string) => ({
+  '竞争性谈判': '谈判采购', '谈判': '谈判采购',
+  '询比': '询比采购', '询价': '询比采购', '询价采购': '询比采购',
+  '单一来源采购': '直接采购', '单源直接采购': '直接采购',
+  '内部竞标': '竞价采购', '竞价': '竞价采购',
+}[m.trim()] ?? m.trim());
 const UPLOADED_BY = 'cmrai35fx0001koddsw3fw8d1'; // Swhi-CGZX-admin
 
 type Round = {
@@ -67,7 +76,7 @@ async function main() {
       const project = await tx.project.create({
         data: {
           name: g.name,
-          businessCategory: g.rounds[0].method,
+          businessCategory: normalizeMethod(g.rounds[0].method),
           description: `历史台账导入（微信 Excel，${g.rounds.length} 轮）`,
           ...(g.rounds[0].department ? { requestingDepartmentId: deptMap.get(g.rounds[0].department) } : {}),
         },
@@ -78,7 +87,7 @@ async function main() {
             projectId: project.id,
             roundNo: i + 1,
             ...(r.date ? { procurementDate: new Date(r.date) } : {}),
-            procurementMethod: r.method || '未填',
+            procurementMethod: normalizeMethod(r.method) || '未填',
             ...(r.department ? { departmentId: deptMap.get(r.department) } : {}),
             ...(r.budget != null ? { budgetAmount: String(r.budget) } : {}),
             ...(r.control != null ? { controlAmount: String(r.control) } : {}),
