@@ -55,9 +55,10 @@ export default function ExpertRepositoryPage() {
   );
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
-  // 批量操作
+  // 批量操作（2026-11-17 供应商库同款：勾选框常驻表格、选中即浮条；
+  // batchBarOpen 仅供工具行「批量操作」按钮主动展开，不 gating 勾选框渲染）
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [batchMode, setBatchMode] = useState(false);
+  const [batchBarOpen, setBatchBarOpen] = useState(false);
   const [batchAction, setBatchAction] = useState<'enable' | 'disable'>('disable');
   const [batchReason, setBatchReason] = useState('');
   const [batchSaving, setBatchSaving] = useState(false);
@@ -215,7 +216,7 @@ export default function ExpertRepositoryPage() {
     try {
       await batchOperation({ action: batchAction, ids: [...selectedIds], reason: batchAction === 'disable' && batchReason ? batchReason : undefined });
       toast.success(`${batchAction === 'enable' ? '启用' : '停用'} ${selectedIds.size} 位专家${batchAction === 'disable' && batchReason.trim() ? `（原因：${batchReason.trim()}）` : ''}，已记录至操作日志`);
-      setConfirmBatch(false); setSelectedIds(new Set()); setBatchMode(false); setBatchReason(''); load(); void refreshExpStats();
+      setConfirmBatch(false); setSelectedIds(new Set()); setBatchBarOpen(false); setBatchReason(''); load(); void refreshExpStats();
     } catch (e: any) { toast.error(e?.message || '批量操作失败'); }
     setBatchSaving(false);
   };
@@ -230,6 +231,8 @@ export default function ExpertRepositoryPage() {
   };
   const { sortKey, sortDir, toggle: sortToggle, sorted } = useSort<ExpertListItem>('displayName', 'asc');
   const filteredExperts = useMemo(() => sorted(experts), [sorted]);
+  // 勾选框仅在有批量处置语义的分区渲染（在库/已停用；已退库/待审核行批量启用会铸脏态）
+  const showCheckbox = statusTab === 'ACTIVE' || statusTab === 'DISABLED';
 
   // 分页：total 来自服务端；高级筛选无匹配时可能少于 pageSize
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -255,7 +258,7 @@ export default function ExpertRepositoryPage() {
             {/* 固定列宽（2026-11-02）：全部公司视图每组一张表，table-fixed+colgroup
                 让所有分组表同名列严格对齐（此前各组自适应宽，组间列错位） */}
             <colgroup>
-              {batchMode && <col style={{ width: 44 }} />}
+              {showCheckbox && <col style={{ width: 44 }} />}
               <col style={{ width: 120 }} />
               <col style={{ width: 135 }} />
               <col style={{ width: 130 }} />
@@ -269,7 +272,7 @@ export default function ExpertRepositoryPage() {
             </colgroup>
             <thead>
               <tr>
-                {batchMode && (
+                {showCheckbox && (
                   <th style={{ width: 44 }}>
                     <button onClick={toggleAll} className="neu-btn-xs">
                       {selectedIds.size === displayedExperts.length && displayedExperts.length > 0 ? <CheckSquare size={15} /> : <Square size={15} />}
@@ -290,9 +293,9 @@ export default function ExpertRepositoryPage() {
             </thead>
             <tbody>
               {loading ? (
-                <TableSkeleton cols={batchMode ? 11 : 10} rows={5} />
+                <TableSkeleton cols={showCheckbox ? 11 : 10} rows={5} />
               ) : errored ? (
-                <tr><td colSpan={batchMode ? 11 : 10} className="px-4 py-16">
+                <tr><td colSpan={showCheckbox ? 11 : 10} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><AlertTriangle size={22} className="text-[var(--danger)]" /></div>
                     <p className="text-sm font-semibold text-[var(--danger)]">专家列表加载失败</p>
@@ -300,7 +303,7 @@ export default function ExpertRepositoryPage() {
                   </div>
                 </td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={batchMode ? 11 : 10} className="px-4 py-16">
+                <tr><td colSpan={showCheckbox ? 11 : 10} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl"><UsersRound size={22} className="text-[var(--muted-foreground)]" /></div>
                     <p className="text-sm text-[var(--muted-foreground)]">暂无专家</p>
@@ -310,8 +313,8 @@ export default function ExpertRepositoryPage() {
                 </td></tr>
               ) : rows.map(e => {
                 return (
-                  <tr key={e.id} className="row-clickable" onClick={() => !batchMode && router.push(`/expert/${e.id}`)}>
-                    {batchMode && (
+                  <tr key={e.id} className="row-clickable" onClick={() => router.push(`/expert/${e.id}`)}>
+                    {showCheckbox && (
                       <td onClick={ev => ev.stopPropagation()} className="text-center">
                         <input type="checkbox" className="neu-checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} aria-label={`选择 ${e.displayName}`} />
                       </td>
@@ -465,7 +468,7 @@ export default function ExpertRepositoryPage() {
             <div className="page-hero__icon"><UsersRound size={17} /></div>
             <div>
               <div className="page-hero__title">专家管理</div>
-              <div className="page-hero__sub">维护评审专家名录与专业分类——停用、退库与恢复管理（处置链：在库 → 停用 → 退库）</div>
+              <div className="page-hero__sub">维护评审专家名录与专业分类——停用、退库与恢复管理</div>
             </div>
           </div>
           <div className="page-hero__right">
@@ -527,32 +530,26 @@ export default function ExpertRepositoryPage() {
           ))}
         </div>
         <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
-          {/* 批量启停仅限在库/已停用分区（2026-11-16：已退库/待审核行批量启用会铸出
-              entryStatus=RETIRED + 账号启用的脏态；处置走单行按钮） */}
-          {!batchMode ? (
-            (statusTab === 'ACTIVE' || statusTab === 'DISABLED') && <button onClick={() => setBatchMode(true)} className="neu-btn-xs">批量操作</button>
-          ) : (
-            <button onClick={() => { setBatchMode(false); setSelectedIds(new Set()); }} className="neu-btn-xs is-danger">退出批量</button>
-          )}
           {/* 录入专家仅 admin（2026-10-15 用户裁定）；导出对全部工作台角色保留 */}
           {isAdmin && <button onClick={() => setShowEntryModal(true)} className="neu-btn-xs"><PlusCircle size={12} />录入专家</button>}
           {/* 一键清空（2026-11-09；同日二次裁定撤生产环境闸——全环境可用，保险=确认词+勾选+在评拦截+审计） */}
           {isAdmin && (
             <button onClick={() => void openClearModal()} className="neu-btn-xs is-danger"><AlertTriangle size={12} />清空专家列表</button>
           )}
-          <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         </div>
-        {/* 搜索框靠右（2026-11-17 用户裁定：删高级筛选与专业下拉，搜索即唯一筛入口——
-            后端 search 本就覆盖姓名/专业/单位模糊匹配） */}
+        {/* 搜索框（2026-11-17 用户裁定：删高级筛选与专业下拉，搜索即唯一筛入口——
+            后端 search 本就覆盖姓名/专业/单位模糊匹配）；右侧依次＝批量操作、导出Excel */}
         <div className="relative w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input neu-input-sm !pl-9" />
           {search && <button onClick={() => { setSearch(''); setPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
         </div>
+        {showCheckbox && <button onClick={() => setBatchBarOpen(v => !v)} className="neu-btn-xs">批量操作</button>}
+        <button onClick={doExport} className="neu-btn-xs shrink-0" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
       </div>
 
-      {/* 批量操作栏 */}
-      {batchMode && (
+      {/* 批量操作栏（供应商库同款：勾选即浮出；「批量操作」按钮可主动展开/收起） */}
+      {showCheckbox && (batchBarOpen || selectedIds.size > 0) && (
         <div className={`neu-batch-bar ${selectedIds.size === 0 ? 'opacity-50' : ''}`}>
           <span className="neu-batch-bar-count">已选 <strong>{selectedIds.size}</strong> 位</span>
           {selectedIds.size > 0 && totalPages > 1 && <span className="text-[10px] text-[var(--muted-foreground)] ml-2">跨页已保留 · 翻页不丢失</span>}
@@ -565,7 +562,7 @@ export default function ExpertRepositoryPage() {
               <button onClick={() => setConfirmBatch(true)} disabled={batchSaving} className="neu-btn-xs is-warning">{batchSaving ? '处理中...' : '执行'}</button>
             </>
           )}
-          <button onClick={() => { setSelectedIds(new Set()); setBatchMode(false); }} className="neu-btn-xs">取消选择</button>
+          <button onClick={() => { setSelectedIds(new Set()); setBatchBarOpen(false); }} className="neu-btn-xs">取消选择</button>
         </div>
       )}
 
