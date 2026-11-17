@@ -2526,6 +2526,80 @@ stageMatch 字段需要输出两部分判断结果：
    *  （与进度洞察同源），此处仅声明命名空间。 */
   private static readonly DASH_INSIGHT_NS = 'dash-ai-analysis';
 
+  /**
+   * 汇报材料 AI 分析（2026-11-17 用户裁定：各板块说明由 AI 生成——模板文字太简单无意义）。
+   * 一次 LLM 调用产出总评 + 六个板块（节资榜/趋势/部门/方式/规模/供应商）逐段说明；
+   * 每段须引用具体数字、结论先行、给一条解读或建议，禁空话。
+   * 口径：区间末端尚未开标的项目=正常在途采购，非异常（用户 2026-11-17 裁定）。
+   * 按需生成不入服务端缓存（汇报低频），限流在控制器层。
+   */
+  async analyzeReportMaterial(payload: any) {
+    const systemPrompt = [
+      '你是"水叮当"——四川省水利发展集团有限公司招采ERP的 AI 采购运营分析师，为《采购数据汇报材料》撰写各板块解说文字。',
+      '',
+      '# 角色与文风',
+      '- 10 年水利行业采购运营经验；为向管理层汇报的正式材料配文。',
+      '- 结论先行、每句话都有信息量；必须引用输入数据中明确存在的数字。',
+      '- 禁止复述图表可见的结构（如"上图展示了各部门金额"），禁止空洞评价（如"整体运行良好"）。',
+      '- 禁止编造、推算或假设不存在的数据。',
+      '- 口径铁律：区间末端尚未开标/尚未采购的项目是正常在途业务，不是异常、不是风险，不得作为问题强调。',
+      '',
+      '# 板块说明写法（sections.*，每段 60-100 字）',
+      '- savings（节约资金排行）：结合榜首项目节约额/率与合计节资水平，点评成本管控成效与可推广做法。',
+      '- trend（采购执行趋势）：解读成交金额峰谷月份及其业务背景，结合立项/归档/在执行净值判断节奏是否均衡。',
+      '- department（部门采购分析）：点评金额与完成率领先部门，指出预算大但完成率低的部门（如有）及可能的推进瓶颈。',
+      '- method（采购方式分布）：解读方式结构是否符合合规与竞争要求；竞价/续约/直接委托占比过高时提示竞争充分性。',
+      '- scale（项目规模分析）：解读小额高频与大型低频结构是否匹配业务特征，提示大额项目的关注点。',
+      '- supplier（重点供应商动态）：点评头部供应商中标活跃度与集中度，如集中度过高提示资源池拓展。',
+      '',
+      '# 输出格式',
+      '严格返回 JSON（不要任何其他文本）：',
+      '{',
+      '  "overview": "100字左右的总评：完成率、节资率、最值得管理层关注的一件事",',
+      '  "sections": {',
+      '    "savings": "…", "trend": "…", "department": "…",',
+      '    "method": "…", "scale": "…", "supplier": "…"',
+      '  },',
+      '  "highlights": ["具体亮点1", "具体亮点2"],',
+      '  "concerns": ["具体风险1", "具体风险2"],',
+      '  "suggestions": ["可执行建议1", "可执行建议2", "可执行建议3"]',
+      '}',
+    ].join('\n');
+
+    const userPrompt = JSON.stringify({
+      range: { label: payload.rangeLabel, startDate: payload.startDate, endDate: payload.endDate },
+      summary: payload.summary,
+      trendSeries: payload.trendSeries,
+      departmentStats: payload.departmentStats,
+      methodStats: payload.methodStats,
+      scaleSegments: payload.scaleSegments,
+      savingsRanking: payload.savingsRanking,
+      supplierStats: payload.supplierStats,
+    }, null, 2);
+
+    try {
+      const raw = await this.llm.chatJson<any>(systemPrompt, userPrompt, 0.35);
+      const clean = async (s: unknown) => this.sanitizeAiText(typeof s === 'string' ? s : '');
+      const cleanArr = async (arr: unknown) => Promise.all(
+        (Array.isArray(arr) ? arr : []).map((x: unknown) => this.sanitizeAiText(typeof x === 'string' ? x : '')),
+      );
+      const src = (raw?.sections ?? {}) as Record<string, unknown>;
+      const sections: Record<string, string> = {};
+      for (const k of ['savings', 'trend', 'department', 'method', 'scale', 'supplier']) {
+        sections[k] = await clean(src[k]);
+      }
+      return {
+        overview: await clean(raw?.overview),
+        sections,
+        highlights: await cleanArr(raw?.highlights),
+        concerns: await cleanArr(raw?.concerns),
+        suggestions: await cleanArr(raw?.suggestions),
+      };
+    } catch {
+      return { overview: '', sections: {} as Record<string, string>, highlights: [], concerns: [], suggestions: [] };
+    }
+  }
+
   /** 缓存键公司段：与数据端点同款 scope 解析（admin=选择器参数；非 admin=本人公司，
    *  传参忽略）——非 admin 同样吃本公司缓存（不因越权收紧而每次重生成），且只能
    *  读写自家条目，键不来自客户端（污染面为零）。无登录上下文返回 null=不缓存 */

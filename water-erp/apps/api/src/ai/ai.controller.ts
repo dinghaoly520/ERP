@@ -11,6 +11,7 @@ import { SupplierQualificationMatchService } from './supplier-qualification-matc
 import { InvitationLetterService } from './invitation-letter.service';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import { DashboardAnalysisDto } from './dto/dashboard-analysis.dto';
+import { ReportMaterialDto } from './dto/report-material.dto';
 import { MobileGreetingService } from './mobile-greeting.service';
 import { MobileBriefService } from './mobile-brief.service';
 import { portalSourceOf } from '../common/portal-source.util';
@@ -199,6 +200,14 @@ export class AiController {
   @Roles('admin', 'bid_host', 'leader', 'staff')
   async dashboardAnalysis(@CurrentUser() user: AuthenticatedUser, @Body() payload: DashboardAnalysisDto) {
     return this.aiService.analyzeDashboard(payload, user);
+  }
+
+  @Post('report-material')
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
+  @ApiOperation({ summary: '汇报材料 AI 分析（2026-11-17）：总评 + 六板块（节资榜/趋势/部门/方式/规模/供应商）逐段说明——每段引用具体数字、结论先行；未开标=在途非异常口径' })
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  async reportMaterial(@Body() payload: ReportMaterialDto) {
+    return this.aiService.analyzeReportMaterial(payload);
   }
 
   @Get('dashboard-analysis/cache')

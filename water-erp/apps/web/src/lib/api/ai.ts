@@ -84,3 +84,30 @@ export async function fetchDashboardAnalysisCache(
   if (endDate) q.set('endDate', endDate);
   return api.get(`/ai/dashboard-analysis/cache?${q.toString()}`);
 }
+
+/** 汇报材料 AI 分析结果（2026-11-17）：总评 + 六板块逐段说明 */
+export type ReportMaterialResult = {
+  overview: string;
+  sections: Record<'savings' | 'trend' | 'department' | 'method' | 'scale' | 'supplier', string>;
+  highlights: string[];
+  concerns: string[];
+  suggestions: string[];
+};
+
+export type ReportMaterialPayload = {
+  startDate?: string;
+  endDate?: string;
+  rangeLabel?: string;
+  summary?: unknown;
+  trendSeries?: unknown[];
+  departmentStats?: unknown[];
+  methodStats?: unknown[];
+  scaleSegments?: unknown[];
+  savingsRanking?: unknown[];
+  supplierStats?: unknown[];
+};
+
+/** 汇报材料各板块说明（AI 生成，按需调用无缓存；未开标=在途非异常口径已入提示词） */
+export async function fetchReportMaterialAnalysis(payload: ReportMaterialPayload, companyId?: string): Promise<ReportMaterialResult> {
+  return api.post<ReportMaterialResult>('/ai/report-material', { ...payload, ...(companyId && companyId !== 'all' && { companyId }) });
+}
