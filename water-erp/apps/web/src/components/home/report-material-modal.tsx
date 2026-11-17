@@ -7,7 +7,9 @@
  * 同一组件同一设计，非重绘仿制；每面板配数据要点文字说明（前端从数据计算，确定性）。
  * AI 总述走 /ai/dashboard-analysis（缓存优先；载荷 rangeLabel 已注入「未开标=在途非异常」口径，
  * 避免 AI 把区间末端尚未采购的项目当风险强调——2026-11-17 用户裁定）。
- * 打印：footer 打印钮 window.print + @media print visibility 隔离（globals.css）。
+ * 导出 PDF（2026-11-17 用户裁定：window.print 受弹窗 fixed+滚动容器所限只出可视域）：
+ * 新窗口写入自包含 HTML 报告（与页面同设计的 SVG 图表 + AI 说明 + @page 分页样式），
+ * 长内容自然分页后自动唤起打印对话框——用户选「存储为 PDF」即得全文长档。
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/workbench';
@@ -19,6 +21,152 @@ import {
   SupplierCards, TrendChartPanel, DepartmentPanel,
   type SupplierDetail, type SavingsRankingItem,
 } from '@/components/home/dashboard-home';
+
+/* ── PDF 导出：自包含 HTML 报告构建（镜像数据库页图表设计，纯字符串 SVG/HTML）── */
+
+const esc = (s: unknown) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const fmtWanPdf = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)} 万` : `${Math.round(v)} 元`);
+
+/** 月度趋势 SVG（镜像 TrendChartPanel：金额渐变曲线+面积、立项↑/归档↓镜像柱、在执行阶梯线、双轴刻度） */
+function trendSvg(S: DashboardData['trendSeries']): string {
+  if (!S.length) return '<p class="empty">区间内暂无采购活动</p>';
+  const W = 1000, lp = 46, rp = 46, tp = 22, mh = 104, bandHalf = 44;
+  const cy = tp + mh + bandHalf + 12, axisY = cy + bandHalf + 6, ch = axisY + 26;
+  const caw = W - lp - rp, dc = S.length;
+  const bw = Math.max(14, Math.min(44, (caw / dc) * 0.5)), gap = Math.max(6, Math.min(16, bw * 0.4));
+  const tw = dc * (bw + gap) - gap, sx = lp + Math.max(0, (caw - tw) / 2);
+  const xc = (i: number) => sx + i * (bw + gap) + bw / 2;
+  const ma = Math.max(...S.map(i => i.amount), 1);
+  const mi = Math.max(...S.map(i => Math.max(i.initiated ?? 0, i.archived ?? 0)), 1);
+  const mAct = Math.max(...S.map(i => i.active ?? 0), 1);
+  const amtY = (v: number) => tp + (1 - v / ma) * mh;
+  const initH = (v: number) => Math.max(v > 0 ? 3 : 0, (v / mi) * bandHalf);
+  const actY = (v: number) => cy - (v / mAct) * (bandHalf - 8) - 4;
+  const pts = S.map((it, i) => ({ x: xc(i), y: amtY(it.amount) }));
+  const lineD = pts.map((p, i) => i === 0 ? `M ${p.x} ${p.y}` : `C ${pts[i - 1].x + (p.x - pts[i - 1].x) * 0.4} ${pts[i - 1].y}, ${p.x - (p.x - pts[i - 1].x) * 0.4} ${p.y}, ${p.x} ${p.y}`).join(' ');
+  const areaD = `${lineD} L ${pts[pts.length - 1].x} ${tp + mh} L ${pts[0].x} ${tp + mh} Z`;
+  const stepD = S.map((it, i) => { const x0 = xc(i) - (bw + gap) / 2, x1 = xc(i) + (bw + gap) / 2; return `${i === 0 ? 'M' : 'L'} ${x0} ${actY(it.active ?? 0)} L ${x1} ${actY(it.active ?? 0)}`; }).join(' ');
+  const grid = [0, 0.5, 1].map(t => { const y = tp + (1 - t) * mh; return `<line x1="${lp}" y1="${y}" x2="${W - rp}" y2="${y}" stroke="oklch(0.65 0.03 250 / 0.22)" stroke-dasharray="${t === 0 ? 'none' : '3 4'}"/><text x="${lp - 6}" y="${y + 3}" text-anchor="end" class="ax">${(t * ma).toFixed(0)}万</text>`; }).join('');
+  const rAxis = [0, 0.5, 1].map(t => { const y = cy - t * mi / 1 * bandHalf; return `<text x="${W - rp + 6}" y="${y + 3}" text-anchor="start" class="ax">${Math.round(t * mi)}${t === 1 ? '项' : ''}</text>`; }).join('');
+  const bars = S.map((it, i) => {
+    const x = sx + i * (bw + gap); const ih = initH(it.initiated ?? 0), ah = initH(it.archived ?? 0);
+    const lbl = `<line x1="${x + bw / 2}" x2="${x + bw / 2}" y1="${axisY}" y2="${axisY + 5}" stroke="oklch(0.55 0.05 250 / 0.6)"/><text x="${x + bw / 2}" y="${ch - 6}" text-anchor="middle" class="ax">${it.label}</text>`;
+    return `${ih > 0 ? `<rect x="${x}" y="${cy - ih}" width="${bw}" height="${ih}" rx="3" fill="oklch(0.63 0.128 247 / 0.85)"/>` : ''}${ah > 0 ? `<rect x="${x}" y="${cy}" width="${bw}" height="${ah}" rx="3" fill="oklch(0.6 0.13 175 / 0.85)"/>` : ''}${lbl}`;
+  }).join('');
+  const dots = pts.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="oklch(0.58 0.14 164)" stroke="oklch(1 0 0 / 0.95)" stroke-width="2"/>`).join('');
+  return `<svg viewBox="0 0 ${W} ${ch}" style="width:100%">
+<defs><linearGradient id="amtl" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="oklch(0.63 0.128 247)"/><stop offset="55%" stop-color="oklch(0.58 0.14 164)"/><stop offset="100%" stop-color="oklch(0.6 0.13 175)"/></linearGradient>
+<linearGradient id="amta" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="oklch(0.58 0.14 164 / 0.22)"/><stop offset="100%" stop-color="oklch(0.58 0.14 164 / 0.02)"/></linearGradient></defs>
+${grid}${rAxis}<line x1="${lp}" y1="${cy}" x2="${W - rp}" y2="${cy}" stroke="oklch(0.6 0.05 250 / 0.4)"/><line x1="${lp}" y1="${axisY}" x2="${W - rp}" y2="${axisY}" stroke="oklch(0.6 0.05 250 / 0.3)"/>
+${bars}${stepD ? `<path d="${stepD}" fill="none" stroke="oklch(0.55 0.14 280 / 0.85)" stroke-width="1.5" stroke-dasharray="4 2.5" stroke-linecap="round"/>` : ''}
+<path d="${areaD}" fill="url(#amta)"/><path d="${lineD}" fill="none" stroke="url(#amtl)" stroke-width="5" opacity="0.16" stroke-linecap="round"/><path d="${lineD}" fill="none" stroke="url(#amtl)" stroke-width="2.4" stroke-linecap="round"/>${dots}</svg>
+<div class="lg"><span><i class="sw" style="background:linear-gradient(90deg,oklch(0.63 0.128 247),oklch(0.6 0.13 175))"></i>成交金额</span><span><i class="sq" style="background:oklch(0.63 0.128 247)"></i>立项</span><span><i class="sq" style="background:oklch(0.6 0.13 175)"></i>归档</span><span><i class="dash"></i>在执行</span></div>`;
+}
+
+/** 环形图 SVG（镜像 MethodPieChartPanel：六色环 + 中心总数）+ 右侧图例 */
+const PC_PDF = ['oklch(0.63 0.128 247)', 'oklch(0.55 0.14 164)', 'oklch(0.65 0.15 83)', 'oklch(0.55 0.14 280)', 'oklch(0.6 0.15 27)', 'oklch(0.55 0.12 175)'];
+function donutSvg(items: Array<{ name: string; count: number; share: number; amountLabel?: string }>, centerLabel: string): string {
+  if (!items.length) return '<p class="empty">暂无数据</p>';
+  let a = 0;
+  const segs = items.map((m, i) => { const ang = (m.share / 100) * 360; const s = { sa: a, ea: a + ang, c: PC_PDF[i % PC_PDF.length], m }; a += ang; return s; });
+  const total = items.reduce((s, m) => s + m.count, 0);
+  const cx = 90, cy = 90, r = 64, ir = 41;
+  const paths = segs.map(seg => {
+    const sr = ((seg.sa - 90) * Math.PI) / 180, er = ((seg.ea - 90) * Math.PI) / 180, la = seg.ea - seg.sa > 180 ? 1 : 0;
+    const x1 = cx + r * Math.cos(sr), y1 = cy + r * Math.sin(sr), x2 = cx + r * Math.cos(er), y2 = cy + r * Math.sin(er);
+    const x3 = cx + ir * Math.cos(er), y3 = cy + ir * Math.sin(er), x4 = cx + ir * Math.cos(sr), y4 = cy + ir * Math.sin(sr);
+    return `<path d="M ${x1} ${y1} A ${r} ${r} 0 ${la} 1 ${x2} ${y2} L ${x3} ${y3} A ${ir} ${ir} 0 ${la} 0 ${x4} ${y4} Z" fill="${seg.c}" opacity="0.9"/>`;
+  }).join('');
+  const legend = items.slice(0, 8).map((m, i) => `<li><i class="sq" style="background:${PC_PDF[i % PC_PDF.length]}"></i><span class="nm">${esc(m.name)}</span><b>${m.share}%</b><span class="mut">${m.count} 项${m.amountLabel ? ` · ${esc(m.amountLabel)}` : ''}</span></li>`).join('');
+  return `<div class="duo"><svg viewBox="0 0 180 180" style="width:180px">${paths}<text x="${cx}" y="${cy - 3}" text-anchor="middle" style="font-size:17px;font-weight:700;fill:oklch(0.28 0.03 258)">${total}</text><text x="${cx}" y="${cy + 13}" text-anchor="middle" style="font-size:9px;fill:oklch(0.55 0.03 258)">${esc(centerLabel)}</text></svg><ul class="dl">${legend}</ul></div>`;
+}
+
+/** 横条组（镜像页面横条：值深浅单 hue + 右端数值） */
+function hbarsHtml(items: Array<{ label: string; value: number }>, fmt: (v: number) => string): string {
+  if (!items.length) return '<p class="empty">暂无数据</p>';
+  const max = Math.max(1, ...items.map(i => i.value));
+  return `<div class="hb">${items.map(it => `<div class="row"><span class="lb">${esc(it.label)}</span><div class="tr"><div class="fill" style="width:${Math.max(1.5, (it.value / max) * 100)}%;background:oklch(${(0.66 - 0.24 * (it.value / max)).toFixed(3)} 0.12 258)"></div></div><b>${esc(fmt(it.value))}</b></div>`).join('')}</div>`;
+}
+
+/** 通用表格 */
+function tableHtml(head: string[], rows: string[][]): string {
+  if (!rows.length) return '<p class="empty">暂无数据</p>';
+  return `<table class="tb"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+/** 组装自包含 HTML 报告并唤起新窗口打印（用户选「存储为 PDF」得长档） */
+function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null) {
+  const s = data.summary;
+  const seg = (min: number, max: number) => data.trendSeries.reduce((n, t) => n + t.projects.filter(p => {
+    const bs = String(p.budgetLabel || '');
+    const b = bs.includes('万') ? parseFloat(bs.replace('万', '').replace(/,/g, '').trim()) * 10000 : parseFloat(bs.replace('元', '').replace(/,/g, '')) || 0;
+    return b >= min && b < max;
+  }).length, 0);
+  const scaleItems = [
+    { label: '小额 <10万', value: seg(0, 100000) }, { label: '中小 10-50万', value: seg(100000, 500000) },
+    { label: '中型 50-200万', value: seg(500000, 2000000) }, { label: '大型 >200万', value: seg(2000000, Infinity) },
+  ];
+  const savingsRate = s.totalBudget > 0 ? ((s.totalSavings / s.totalBudget) * 100).toFixed(1) : '0';
+  const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
+  const note = (k: string) => `<p class="note"><b>说明：</b>${esc(ai?.sections?.[k as keyof typeof ai.sections] || '')}</p>`;
+  const aiBlock = ai?.overview ? `<section class="card ai"><h2>AI 综合分析</h2><p class="ov">${esc(ai.overview)}</p><div class="tri">${([['主要亮点', ai.highlights], ['关注事项', ai.concerns], ['工作建议', ai.suggestions]] as const).map(([t, l]) => `<div><h4>${t}</h4><ul>${l.slice(0, 5).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div></section>` : '';
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>采购数据汇报材料</title><style>
+@page { size: A4; margin: 14mm 12mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: "PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif; color: oklch(0.28 0.03 258); font-size: 12px; line-height: 1.6; background: #fff; }
+h1 { font-size: 20px; letter-spacing: -0.02em; }
+.meta { color: oklch(0.55 0.03 258); font-size: 11px; margin: 4px 0 14px; }
+.card { border-top: 2px solid oklch(0.5 0.12 258); padding: 10px 0 4px; margin: 14px 0; page-break-inside: avoid; }
+.card h2 { font-size: 14px; margin-bottom: 8px; }
+.kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 12px 0; }
+.kpi { border: 1px solid oklch(0.88 0.02 258); border-radius: 8px; padding: 8px 4px; text-align: center; page-break-inside: avoid; }
+.kpi .l { font-size: 10px; color: oklch(0.55 0.03 258); } .kpi .v { font-size: 14px; font-weight: 800; margin-top: 3px; }
+.tri { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+.tri h4 { font-size: 11px; margin-bottom: 4px; } .tri ul { padding-left: 14px; } .tri li { font-size: 10.5px; color: oklch(0.47 0.03 258); margin-bottom: 2px; }
+.ov { font-size: 11.5px; }
+.note { background: oklch(0.95 0.02 258); border-radius: 8px; padding: 8px 10px; font-size: 11px; margin-top: 8px; }
+.note b { color: oklch(0.5 0.12 258); }
+.tb { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.tb th { text-align: left; color: oklch(0.55 0.03 258); font-size: 10px; border-bottom: 1px solid oklch(0.85 0.02 258); padding: 4px 6px; }
+.tb td { border-bottom: 1px solid oklch(0.93 0.02 258); padding: 5px 6px; }
+.duo { display: flex; gap: 16px; align-items: center; }
+.dl { list-style: none; flex: 1; } .dl li { display: flex; align-items: center; gap: 6px; padding: 2.5px 0; font-size: 11px; }
+.dl .nm { flex: 1; } .dl b { color: oklch(0.42 0.03 258); }
+.sq { width: 11px; height: 11px; border-radius: 3px; display: inline-block; flex: none; }
+.sw { width: 16px; height: 3px; border-radius: 2px; display: inline-block; flex: none; }
+.dash { width: 14px; border-top: 2px dashed oklch(0.55 0.14 280 / 0.85); display: inline-block; flex: none; }
+.lg { display: flex; justify-content: center; gap: 14px; font-size: 10px; color: oklch(0.55 0.03 258); margin-top: 4px; }
+.lg span { display: inline-flex; align-items: center; gap: 4px; }
+.hb .row { display: flex; align-items: center; gap: 8px; padding: 2.5px 0; }
+.hb .lb { width: 110px; text-align: right; font-size: 10.5px; color: oklch(0.55 0.03 258); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hb .tr { flex: 1; height: 13px; background: oklch(0.94 0.01 258); border-radius: 4px; overflow: hidden; }
+.hb .fill { height: 100%; border-radius: 4px; }
+.hb b { width: 64px; font-size: 10.5px; }
+.ax { font-size: 9px; fill: oklch(0.6 0.06 250); }
+.empty { color: oklch(0.55 0.03 258); text-align: center; padding: 20px 0; }
+.no-print { display: none; }
+</style></head><body>
+<h1>采购数据汇报材料</h1>
+<p class="meta">${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')} · 四川水发集团采购口径</p>
+<div class="kpis">${[
+    ['预算总金额', s.totalBudgetLabel], ['已成交预算', s.awardedBudgetLabel], ['成交总额', s.totalAwardLabel],
+    ['节约资金', s.totalSavingsLabel], ['节资率', `${savingsRate}%`], ['成交率', `${doneRate}%（${s.completedCount}/${s.totalCount}）`],
+  ].map(([l, v]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
+${aiBlock}
+<section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '控制金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]))}${note('savings')}</section>
+<section class="card"><h2>二、采购执行趋势</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
+<section class="card"><h2>三、部门采购分析</h2>${hbarsHtml([...data.departmentStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
+<section class="card"><h2>四、采购方式分布</h2>${donutSvg(data.methodStats, '总项目')}${note('method')}</section>
+<section class="card"><h2>五、项目规模分析</h2>${hbarsHtml(scaleItems, v => `${v} 项`)}${note('scale')}</section>
+<section class="card"><h2>六、重点供应商动态</h2>${tableHtml(['供应商', '参与', '中标', '中标率', '累计成交'], data.supplierStats.slice(0, 8).map(x => [x.name, `${x.participatedCount} 次`, `${x.winCount} 次`, `${x.hitRate}%`, x.awardAmountLabel]))}${note('supplier')}</section>
+</body></html>`;
+  const w = window.open('', '_blank', 'width=1080,height=860');
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try { w.print(); } catch { /* 用户可手动 Ctrl+P */ } }, 400);
+}
 
 /** 汇报小节：编号徽标 + 面板（复用数据库页组件，自带题名）+ AI 说明（失败回退模板要点） */
 function Section({ n, note, children }: { n: number; note: React.ReactNode; children: React.ReactNode }) {
@@ -141,8 +289,8 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       footer={
         <>
           <button onClick={onClose} className="neu-btn-soft">关闭</button>
-          <button onClick={() => window.print()} className="neu-btn-primary is-water !h-[38px] gap-1.5">
-            <Printer size={14} /> 打印
+          <button onClick={() => exportReportPdf(data, ai)} disabled={aiLoading} className="neu-btn-primary is-water !h-[38px] gap-1.5">
+            <Printer size={14} /> {aiLoading ? '说明生成中…' : '导出 PDF'}
           </button>
         </>
       }
