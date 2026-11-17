@@ -612,7 +612,6 @@ function SupplierRepositoryPageInner() {
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[var(--muted-foreground)] z-10"><X size={14} /></button>}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
 
         <button
           onClick={() => setFavFilter(f => !f)}
@@ -657,6 +656,9 @@ function SupplierRepositoryPageInner() {
             <option value="即将过期">即将过期</option>
             <option value="已过期">已过期</option>
           </select>
+          {/* 2026-11-17 用户裁定：重置筛选移入面板内（不与「高级筛选」并排）——
+              清空搜索与筛选条件，保留当前状态标签 */}
+          <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs !h-7 text-[11px]" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
         </div>
       )}
 
