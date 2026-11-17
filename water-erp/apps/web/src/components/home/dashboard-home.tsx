@@ -723,7 +723,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         <div className="min-h-[280px]"><DepartmentPanel profile={data} index={14} reducedMotion={reducedMotion}/></div>
       </div>
       <AwardResultPanel startDate={startDate || undefined} endDate={endDate || undefined} companyId={companyId}/>
-      {data && <ReportMaterialModal open={reportOpen} onClose={()=>setReportOpen(false)} data={data} companyId={companyId}/>}
+      {data && <ReportMaterialModal open={reportOpen} onClose={()=>setReportOpen(false)} data={data} companyId={companyId} currentUserRole={currentUserRole}/>}
       <PerformancePanel/>
       <TrendChartPanel profile={data} index={15} reducedMotion={reducedMotion}/>
     </motion.div>

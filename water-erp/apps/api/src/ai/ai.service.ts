@@ -2526,7 +2526,7 @@ stageMatch 字段需要输出两部分判断结果：
    *  （与进度洞察同源），此处仅声明命名空间。 */
   private static readonly DASH_INSIGHT_NS = 'dash-ai-analysis';
   /** 汇报材料 AI 分析缓存命名空间（2026-11-17：指纹同 ledger 变体——材料数据源=台账） */
-  private static readonly REPORT_MATERIAL_NS = 'report-material-ai';
+  private static readonly REPORT_MATERIAL_NS = 'report-material-ai-v2'; // v2：维度口径修正后旧缓存全失效
 
   /**
    * 汇报材料 AI 分析（2026-11-17 用户裁定：各板块说明由 AI 生成——模板文字太简单无意义）。

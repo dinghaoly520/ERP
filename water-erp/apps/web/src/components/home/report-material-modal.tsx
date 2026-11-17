@@ -16,6 +16,7 @@ import { Modal } from '@/components/workbench';
 import { Building2, FileDown, Loader2, Printer, Sparkles } from 'lucide-react';
 import { fetchReportMaterialAnalysis, fetchReportMaterialCache, type ReportMaterialResult } from '@/lib/api/ai';
 import { api } from '@/lib/api';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import type { DashboardData } from '@/lib/api/dashboard';
 import {
   KpiCard, SavingsRankingPanel, ProjectScalePanel, MethodPieChartPanel,
@@ -96,10 +97,10 @@ function tableHtml(head: string[], rows: string[][], widths?: number[]): string 
 }
 
 /** 组装自包含 HTML 报告并唤起新窗口打印（用户选「存储为 PDF」得长档） */
-function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null, companyName: string, companyId: string) {
-  // 视角迁移（2026-11-17 用户裁定）：全部公司=各公司维度；单公司=部门维度
-  const dimStats = companyId === 'all' ? data.companyStats : data.departmentStats;
-  const dimLabel = companyId === 'all' ? '公司' : '部门';
+function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null, companyName: string, isGroupView: boolean) {
+  // 视角迁移（2026-11-17）：仅 admin+全部=各公司维度；其余（含非 admin 的 all）=部门维度
+  const dimStats = isGroupView ? data.companyStats : data.departmentStats;
+  const dimLabel = isGroupView ? '公司' : '部门';
   const s = data.summary;
   const seg = (min: number, max: number) => data.trendSeries.reduce((n, t) => n + t.projects.filter(p => {
     const bs = String(p.budgetLabel || '');
@@ -189,9 +190,12 @@ function Section({ n, note, children }: { n: number; note: React.ReactNode; chil
   );
 }
 
-export function ReportMaterialModal({ open, onClose, data, companyId }: {
-  open: boolean; onClose: () => void; data: DashboardData | null; companyId: string;
+export function ReportMaterialModal({ open, onClose, data, companyId, currentUserRole }: {
+  open: boolean; onClose: () => void; data: DashboardData | null; companyId: string; currentUserRole?: string;
 }) {
+  // 真实视野（2026-11-17 用户裁定修正）：非 admin 前端 companyId 恒为 'all'（隔离在后端强制），
+  // 不能以它判集团口径——仅 admin 显式选「全部」才是公司/集团维度，否则一律部门维度
+  const isGroupView = currentUserRole === 'admin' && companyId === 'all';
   const [ai, setAi] = useState<ReportMaterialResult | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
@@ -223,7 +227,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       },
       trendSeries: data.trendSeries.map(t => ({ label: t.label, count: t.count, amount: t.amount, initiated: t.initiated, archived: t.archived, active: t.active })),
       // 视角迁移（2026-11-17 用户裁定）：全部公司时本维度送公司统计（AI 按公司解读）；单公司送部门
-      departmentStats: (companyId === 'all' ? data.companyStats : data.departmentStats).map(d => ({ name: d.name, amountLabel: d.amountLabel, completedRate: d.completedRate, topMethod: d.topMethod, projectCount: d.projects.length })),
+      departmentStats: (isGroupView ? data.companyStats : data.departmentStats).map(d => ({ name: d.name, amountLabel: d.amountLabel, completedRate: d.completedRate, topMethod: d.topMethod, projectCount: d.projects.length })),
       methodStats: data.methodStats.map(m => ({ name: m.name, count: m.count, amountLabel: m.amountLabel, share: m.share })),
       scaleSegments,
       savingsRanking: data.savingsRanking.slice(0, 5).map(r => ({ project: r.project, method: r.method, savingsLabel: r.savingsLabel, savingsRate: r.savingsRate, controlAmountLabel: r.controlAmountLabel, awardAmountLabel: r.awardAmountLabel })),
@@ -256,7 +260,12 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
   const [companyName, setCompanyName] = useState('集团及各子公司');
   useEffect(() => {
     if (!open) return;
-    if (companyId === 'all') { setCompanyName('集团及各子公司'); return; }
+    if (isGroupView) { setCompanyName('集团及各子公司'); return; }
+    if (currentUserRole !== 'admin') {
+      // 非 admin：公司隔离在后端强制为本人公司——署名取账号公司快照
+      fetchCurrentUser().then(u => { setCompanyName(u.company?.trim() || '集团及各子公司'); }).catch(() => setCompanyName('集团及各子公司'));
+      return;
+    }
     let cancelled = false;
     api.get<Array<{ id: string; name: string }>>('/companies')
       .then(list => {
@@ -266,7 +275,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       })
       .catch(() => { if (!cancelled) setCompanyName('集团及各子公司'); });
     return () => { cancelled = true; };
-  }, [open, companyId]);
+  }, [open, companyId, isGroupView, currentUserRole]);
 
   if (!data) return null;
   const s = data.summary;
@@ -282,7 +291,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
   const trendNote = S.length
     ? `区间共 ${S.length} 个统计桶、采购 ${s.totalCount} 项、成交金额合计 ${totalAmount.toFixed(1)} 万元。成交金额峰值出现在 ${peak.label}（${peak.amount.toFixed(1)} 万元）；最近有采购活动的月份为 ${lastActive?.label ?? '—'}。副带柱体上行为立项节点、下行为归档节点，虚线阶梯为在执行净值（累计立项减累计归档）。`
     : '区间内暂无采购活动。';
-  const dimStats = companyId === 'all' ? data.companyStats : data.departmentStats;
+  const dimStats = isGroupView ? data.companyStats : data.departmentStats;
   const deptTop = dimStats[0];
   const deptTop2 = dimStats[1];
   const dimLabel = companyId === 'all' ? '公司' : '部门';
@@ -321,7 +330,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
       footer={
         <>
           <button onClick={onClose} className="neu-btn-soft">关闭</button>
-          <button onClick={() => exportReportPdf(data, ai, companyName, companyId)} disabled={aiLoading} className="neu-btn-primary is-water !h-[38px] gap-1.5">
+          <button onClick={() => exportReportPdf(data, ai, companyName, isGroupView)} disabled={aiLoading} className="neu-btn-primary is-water !h-[38px] gap-1.5">
             <Printer size={14} /> {aiLoading ? '说明生成中…' : '导出 PDF'}
           </button>
         </>
@@ -380,7 +389,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
 
         {/* ③ 维度采购分析（2026-11-17 用户裁定：全部公司=各公司视角；单公司=部门） */}
         <Section n={3} note={aiLoading ? <span className="flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> 正在生成说明…</span> : (ai?.sections?.department || deptNote)}>
-          {companyId === 'all' ? (
+          {isGroupView ? (
             <section className="wb-panel h-full">
               <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--accent)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">各公司采购分析</h2></div></div>
               <div className="wb-panel-body flex flex-col justify-center gap-2.5 p-4">
