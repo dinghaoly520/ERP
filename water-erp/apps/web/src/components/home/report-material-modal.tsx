@@ -146,8 +146,8 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 .empty { color: oklch(0.55 0.03 258); text-align: center; padding: 20px 0; }
 .no-print { display: none; }
 </style></head><body>
-<h1>采购数据汇报材料</h1>
-<p class="meta">${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')} · 四川水发集团采购口径</p>
+<h1>四川水发勘测设计研究有限公司采购数据汇报材料</h1>
+<p class="meta">${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')}</p>
 <div class="kpis">${[
     ['预算总金额', s.totalBudgetLabel], ['已成交预算', s.awardedBudgetLabel], ['成交总额', s.totalAwardLabel],
     ['节约资金', s.totalSavingsLabel], ['节资率', `${savingsRate}%`], ['成交率', `${doneRate}%（${s.completedCount}/${s.totalCount}）`],
