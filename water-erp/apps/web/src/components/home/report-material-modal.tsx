@@ -169,7 +169,7 @@ ${aiBlock}
 <section class="card"><h2>三、${dimLabel}采购分析</h2>${hbarsHtml([...dimStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
 <section class="card"><h2>四、采购方式分布</h2>${donutSvg(data.methodStats, '总项目')}${note('method')}</section>
 <section class="card"><h2>五、项目规模分析</h2>${hbarsHtml(scaleItems, v => `${v} 项`)}${note('scale')}</section>
-<section class="card"><h2>六、重点供应商动态</h2>${tableHtml(['供应商', '参与', '中标', '中标率', '累计成交'], data.supplierStats.slice(0, 8).map(x => [x.name, `${x.participatedCount} 次`, `${x.winCount} 次`, `${x.hitRate}%`, x.awardAmountLabel]))}${note('supplier')}</section>
+<section class="card"><h2>六、供应商集中度</h2>${tableHtml(['供应商', '成交笔数', '占全部成交', '累计成交'], (data.supplierConcentration ?? []).slice(0, 8).map(x => [x.name, `${x.count} 笔`, `${x.share}%`, x.amountLabel]), undefined, 0)}${note('supplier')}</section>
 </body></html>`;
   const w = window.open('', '_blank', 'width=1080,height=860');
   if (!w) return;
