@@ -114,6 +114,10 @@ export class DashboardService {
       // 2026-10-28 口径收口：排除回收站轮次（与台账 buildListWhere 默认 ACTIVE 同口径——
       // 此前驾驶舱/移动端统计含已回收轮次，列表页不可见的行计入 KPI）
       isRecycled: false,
+      // 2026-11-17 用户裁定：数据库不记录已终止项目的数据——终止轮次（项目终止联动落账
+      // resultStatus=CANCELLED）从数据库视图与 KPI（趋势/部门/公司/方式/未成交预算等）整体排除；
+      // 台账（/procurements）保留终止轮次留痕，不受影响
+      resultStatus: { not: ResultStatus.CANCELLED },
       // R6-6②（2026-09-30 审计 A1）：单边日期也生效（与台账 buildListWhere 对齐）——
       // 此前 && 才拼过滤，用户只填起始日点"应用"→后端完全不过滤，按钮却显示已过滤区间。
       // 日期口径注明：此过滤只作用于 procurementDate；趋势分桶宣称"缺省回退立项日"
