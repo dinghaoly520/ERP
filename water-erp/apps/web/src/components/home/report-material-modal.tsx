@@ -16,18 +16,14 @@ import { fetchDashboardAnalysis, fetchDashboardAnalysisCache, type DashboardAnal
 import type { DashboardData } from '@/lib/api/dashboard';
 import {
   KpiCard, SavingsRankingPanel, ProjectScalePanel, MethodPieChartPanel,
-  NonAwardDonutPanel, SupplierCards, TrendChartPanel, DepartmentPanel,
+  SupplierCards, TrendChartPanel, DepartmentPanel,
   type SupplierDetail, type SavingsRankingItem,
 } from '@/components/home/dashboard-home';
 
-/** 汇报小节：编号 + 标题 + 面板（复用数据库页组件）+ 数据要点说明 */
-function Section({ n, title, note, children }: { n: number; title: string; note: string; children: React.ReactNode }) {
+/** 汇报小节：面板（复用数据库页组件，自带题名）+ 数据要点说明——外层不再重复标题 */
+function Section({ note, children }: { note: string; children: React.ReactNode }) {
   return (
     <section className="report-sheet break-inside-avoid">
-      <div className="mb-1.5 flex items-baseline gap-2">
-        <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold text-white" style={{ background: 'var(--accent)' }}>{n}</span>
-        <h3 className="text-sm font-bold text-[var(--foreground)]">{title}</h3>
-      </div>
       <div className="mb-3 min-h-[240px]">{children}</div>
       <p className="rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] px-3 py-2 text-xs leading-5 text-[var(--foreground)]"><strong className="text-[var(--accent)]">说明：</strong>{note}</p>
     </section>
@@ -97,11 +93,6 @@ export function ReportMaterialModal({ open, onClose, data, companyId, analysisPa
   }).length, 0);
   const smallN = segsOf(0, 100000), midN = segsOf(100000, 2000000), bigN = segsOf(2000000, Infinity);
   const scaleNote = `按预算金额四档分层：小额（<10 万）${smallN} 项、中小/中型（10-200 万）${segsOf(100000, 500000) + segsOf(500000, 2000000)} 项、大型（>200 万）${bigN} 项。小额高频与大型低频的结构是否符合业务预期，可结合部门与方式分布交叉解读。`;
-  const na = data.nonAwardReasons.reduce((x, r) => x + r.count, 0);
-  const naTop = [...data.nonAwardReasons].sort((a, b) => b.count - a.count)[0];
-  const nonAwardNote = na > 0
-    ? `未成交共 ${na} 项${naTop ? `，首要原因为「${naTop.label}」（${naTop.count} 项）` : ''}。注意：区间末端尚未开标的项目属正常在途采购，不计入未成交异常；本图仅统计已明确未成交的项目。`
-    : '无未成交项目。注意：区间末端尚未开标的项目属正常在途采购，不计入未成交。';
   const rankTop = data.savingsRanking[0];
   const rankNote = data.savingsRanking.length
     ? `按节约资金（控制金额 − 成交金额）排序的 Top 项目。${rankTop ? `节约最多的是「${rankTop.project.slice(0, 24)}」（${rankTop.savingsLabel}，节约率 ${rankTop.savingsRate}%，方式 ${rankTop.method}）` : ''}；区间合计节约 ${s.totalSavingsLabel}、节资率 ${savingsRate.toFixed(1)}%。`
@@ -169,39 +160,34 @@ export function ReportMaterialModal({ open, onClose, data, companyId, analysisPa
           ) : null}
         </section>
 
-        {/* ① 采购执行趋势（复用 TrendChartPanel） */}
-        <Section n={1} title="采购执行趋势" note={trendNote}>
-          <TrendChartPanel profile={data} index={1} reducedMotion />
+        {/* ① 节约资金排行（2026-11-17 用户裁定：提前至首位） */}
+        <Section note={rankNote}>
+          <SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={1} reducedMotion />
         </Section>
 
-        {/* ② 部门采购分析（复用 DepartmentPanel） */}
-        <Section n={2} title="部门采购分析" note={deptNote}>
-          <DepartmentPanel profile={data} index={2} reducedMotion />
+        {/* ② 采购执行趋势（复用 TrendChartPanel） */}
+        <Section note={trendNote}>
+          <TrendChartPanel profile={data} index={2} reducedMotion />
         </Section>
 
-        {/* ③ 采购方式分布（复用 MethodPieChartPanel） */}
-        <Section n={3} title="采购方式分布" note={methodNote}>
-          <MethodPieChartPanel profile={data} index={3} reducedMotion />
+        {/* ③ 部门采购分析（复用 DepartmentPanel） */}
+        <Section note={deptNote}>
+          <DepartmentPanel profile={data} index={3} reducedMotion />
         </Section>
 
-        {/* ④ 项目规模分析（复用 ProjectScalePanel） */}
-        <Section n={4} title="项目规模分析" note={scaleNote}>
-          <ProjectScalePanel profile={data} index={4} reducedMotion />
+        {/* ④ 采购方式分布（复用 MethodPieChartPanel） */}
+        <Section note={methodNote}>
+          <MethodPieChartPanel profile={data} index={4} reducedMotion />
         </Section>
 
-        {/* ⑤ 未成交原因分析（复用 NonAwardDonutPanel） */}
-        <Section n={5} title="未成交原因分析" note={nonAwardNote}>
-          <NonAwardDonutPanel profile={data} index={5} reducedMotion />
+        {/* ⑤ 项目规模分析（复用 ProjectScalePanel） */}
+        <Section note={scaleNote}>
+          <ProjectScalePanel profile={data} index={5} reducedMotion />
         </Section>
 
-        {/* ⑥ 节约资金排行（复用 SavingsRankingPanel） */}
-        <Section n={6} title="节约资金排行" note={rankNote}>
-          <SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={6} reducedMotion />
-        </Section>
-
-        {/* ⑦ 重点供应商动态（复用 SupplierCards） */}
-        <Section n={7} title="重点供应商动态" note={supNote}>
-          <SupplierCards suppliers={suppliers} index={7} reducedMotion />
+        {/* ⑥ 重点供应商动态（复用 SupplierCards） */}
+        <Section note={supNote}>
+          <SupplierCards suppliers={suppliers} index={6} reducedMotion />
         </Section>
 
       </div>
