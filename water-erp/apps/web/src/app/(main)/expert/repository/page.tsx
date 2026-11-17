@@ -15,7 +15,7 @@ import { useSort, SortableTh } from '@/lib/hooks/use-sort';
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, CheckSquare, Square, TrendingUp, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
+import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, TrendingUp, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
 import { SpecialtyBadge } from '@/components/expert/specialty-badge';
 import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
@@ -256,7 +256,7 @@ export default function ExpertRepositoryPage() {
             {/* 固定列宽（2026-11-02）：全部公司视图每组一张表，table-fixed+colgroup
                 让所有分组表同名列严格对齐（此前各组自适应宽，组间列错位） */}
             <colgroup>
-              {showCheckbox && <col style={{ width: 44 }} />}
+              {showCheckbox && <col style={{ width: 36 }} />}
               <col style={{ width: 120 }} />
               <col style={{ width: 135 }} />
               <col style={{ width: 130 }} />
@@ -271,10 +271,15 @@ export default function ExpertRepositoryPage() {
             <thead>
               <tr>
                 {showCheckbox && (
-                  <th style={{ width: 44 }}>
-                    <button onClick={toggleAll} className="neu-btn-xs">
-                      {selectedIds.size === displayedExperts.length && displayedExperts.length > 0 ? <CheckSquare size={15} /> : <Square size={15} />}
-                    </button>
+                  <th style={{ width: 36 }}>
+                    <input
+                      type="checkbox"
+                      className="neu-checkbox"
+                      checked={selectedIds.size > 0 && selectedIds.size === displayedExperts.length}
+                      ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < displayedExperts.length; }}
+                      onChange={toggleAll}
+                      aria-label="全选当前页"
+                    />
                   </th>
                 )}
                 <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
