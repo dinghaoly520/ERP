@@ -658,7 +658,7 @@ function SupplierRepositoryPageInner() {
           </select>
           {/* 2026-11-17 用户裁定：重置筛选移入面板内（不与「高级筛选」并排）——
               清空搜索与筛选条件，保留当前状态标签 */}
-          <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs !h-7 text-[11px]" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
+          <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs !h-7 ml-auto shrink-0 text-[11px]" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>
         </div>
       )}
 
