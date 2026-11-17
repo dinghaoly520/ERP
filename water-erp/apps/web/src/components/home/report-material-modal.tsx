@@ -1,95 +1,42 @@
 'use client';
 
 /**
- * 数据库「导出汇报材料」弹窗（2026-11-17 用户裁定）：
- * HTML 窗口展示 + 打印；AI 整体分析（/ai/dashboard-analysis，缓存优先）+
- * 多维度手写 SVG 图表（月度趋势/部门/方式/规模分层/成交状态），每图配简要文字说明。
- * 图表规范（dataviz）：magnitude 单 hue 亮度阶梯、薄标记 4px 圆角数据端、直接值标签、
- * 文字用文本 token 色不用系列色、单系列无 legend（标题即名）；打印为矢量 SVG。
+ * 数据库「导出汇报材料」弹窗（2026-11-17 用户裁定；同日二次返工）：
+ * 图表面板**直接复用数据库页组件本体**（TrendChartPanel/DepartmentPanel/MethodPieChartPanel/
+ * ProjectScalePanel/NonAwardDonutPanel/SavingsRankingPanel/SupplierCards/KpiCard）——
+ * 同一组件同一设计，非重绘仿制；每面板配数据要点文字说明（前端从数据计算，确定性）。
+ * AI 总述走 /ai/dashboard-analysis（缓存优先；载荷 rangeLabel 已注入「未开标=在途非异常」口径，
+ * 避免 AI 把区间末端尚未采购的项目当风险强调——2026-11-17 用户裁定）。
+ * 打印：footer 打印钮 window.print + @media print visibility 隔离（globals.css）。
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/workbench';
 import { FileDown, Loader2, Printer, Sparkles } from 'lucide-react';
 import { fetchDashboardAnalysis, fetchDashboardAnalysisCache, type DashboardAnalysisPayload, type DashboardAnalysisResult } from '@/lib/api/ai';
 import type { DashboardData } from '@/lib/api/dashboard';
+import {
+  KpiCard, SavingsRankingPanel, ProjectScalePanel, MethodPieChartPanel,
+  NonAwardDonutPanel, SupplierCards, TrendChartPanel, DepartmentPanel,
+  type SupplierDetail, type SavingsRankingItem,
+} from '@/components/home/dashboard-home';
 
-/* ── 通用小件 ── */
-
-/** 金额（元）→ 万元显示 */
-const wan = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(v >= 1e8 ? 0 : 1)}万` : `${Math.round(v)}元`);
-/** 单 hue 亮度阶梯（magnitude 编码）：值越大越深（oklch 0.66→0.42） */
-const ramp = (t: number) => `oklch(${(0.66 - 0.24 * Math.max(0, Math.min(1, t))).toFixed(3)} 0.12 258)`;
-
-/** 纵向柱图：月度趋势/规模分层共用。柱端 4px 圆角、基线锚定、顶端直接标签（选择性：峰值必标）。 */
-function VBars({ items, unit, barW = 34, gap = 14, h = 150 }: {
-  items: Array<{ label: string; value: number; note?: string }>; unit: string; barW?: number; gap?: number; h?: number;
-}) {
-  const max = Math.max(1, ...items.map(i => i.value));
-  const topIdx = items.findIndex(i => i.value === max);
-  const W = items.length * (barW + gap);
+/** 汇报小节：编号 + 标题 + 面板（复用数据库页组件）+ 数据要点说明 */
+function Section({ n, title, note, children }: { n: number; title: string; note: string; children: React.ReactNode }) {
   return (
-    <svg viewBox={`0 0 ${W} ${h + 42}`} className="w-full" role="img" aria-label={`柱状图，单位${unit}`}>
-      <line x1={0} y1={h} x2={W} y2={h} stroke="oklch(0.6 0.04 258 / 0.25)" strokeWidth={1} />
-      {items.map((it, i) => {
-        const bh = Math.max(it.value > 0 ? 4 : 0, (it.value / max) * (h - 14));
-        const x = i * (barW + gap);
-        const r = Math.min(4, barW / 2, bh);
-        // 顶端 4px 圆角、基线平贴（dataviz：数据端圆角+基线锚定）
-        const d = `M ${x} ${h} L ${x} ${h - bh + r} Q ${x} ${h - bh} ${x + r} ${h - bh} L ${x + barW - r} ${h - bh} Q ${x + barW} ${h - bh} ${x + barW} ${h - bh + r} L ${x + barW} ${h} Z`;
-        return (
-          <g key={i}>
-            <path d={d} fill={ramp(it.value / max)}>
-              <title>{`${it.label}：${it.value}${unit}${it.note ? `（${it.note}）` : ''}`}</title>
-            </path>
-            {(i === topIdx || items.length <= 14) && it.value > 0 && (
-              <text x={x + barW / 2} y={h - bh - 6} textAnchor="middle" style={{ fontSize: 10, fill: 'oklch(0.42 0.03 258)', fontWeight: i === topIdx ? 700 : 500 }}>{it.value}</text>
-            )}
-            <text x={x + barW / 2} y={h + 14} textAnchor="middle" style={{ fontSize: 9.5, fill: 'oklch(0.55 0.03 258)' }}>{it.label}</text>
-            {it.note && <text x={x + barW / 2} y={h + 27} textAnchor="middle" style={{ fontSize: 8.5, fill: 'oklch(0.62 0.03 258)' }}>{it.note}</text>}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-/** 横向条图：部门/方式共用。条端 4px 圆角、右端直接标签、按值深浅。 */
-function HBars({ items, fmt }: { items: Array<{ label: string; value: number }>; fmt: (v: number) => string }) {
-  const max = Math.max(1, ...items.map(i => i.value));
-  return (
-    <div className="flex flex-col gap-2">
-      {items.map((it, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <span className="w-[92px] shrink-0 truncate text-right text-[11px] text-[var(--muted-foreground)]" title={it.label}>{it.label}</span>
-          <div className="h-[16px] flex-1 overflow-hidden rounded-[4px]" style={{ background: 'oklch(0.94 0.01 258)' }}>
-            <div className="h-full rounded-[4px]" style={{ width: `${Math.max(1.5, (it.value / max) * 100)}%`, background: ramp(it.value / max) }} title={`${it.label}：${fmt(it.value)}`} />
-          </div>
-          <span className="w-[64px] shrink-0 text-[11px] font-semibold tabular-nums text-[var(--foreground)]">{fmt(it.value)}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** 汇报小节：编号标题 + 图 + 简要文字说明 */
-function Section({ n, title, desc, children }: { n: number; title: string; desc: string; children: React.ReactNode }) {
-  return (
-    <section className="report-sheet rounded-[14px] p-5" style={{ background: 'oklch(1 0 0 / 0.72)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 6px oklch(0.55 0.03 258 / 0.08)' }}>
-      <div className="mb-1 flex items-baseline gap-2">
+    <section className="report-sheet break-inside-avoid">
+      <div className="mb-1.5 flex items-baseline gap-2">
         <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold text-white" style={{ background: 'var(--accent)' }}>{n}</span>
         <h3 className="text-sm font-bold text-[var(--foreground)]">{title}</h3>
       </div>
-      <p className="mb-3 text-xs leading-5 text-[var(--muted-foreground)]">{desc}</p>
-      {children}
+      <div className="mb-3 min-h-[240px]">{children}</div>
+      <p className="rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_5%,transparent)] px-3 py-2 text-xs leading-5 text-[var(--foreground)]"><strong className="text-[var(--accent)]">说明：</strong>{note}</p>
     </section>
   );
 }
 
-/* ── 主体 ── */
-
 export function ReportMaterialModal({ open, onClose, data, companyId, analysisPayload }: {
   open: boolean; onClose: () => void; data: DashboardData | null; companyId: string;
-  /** AI 分析载荷（dashboard-home 的 bap() 规范形状——与移动端同源） */
+  /** AI 分析载荷（dashboard-home 的 bap() 规范形状——rangeLabel 已带在途口径注记） */
   analysisPayload: DashboardAnalysisPayload;
 }) {
   const [ai, setAi] = useState<DashboardAnalysisResult | null>(null);
@@ -115,47 +62,63 @@ export function ReportMaterialModal({ open, onClose, data, companyId, analysisPa
     return () => { cancelled = true; };
   }, [open, data, companyId, analysisPayload]);
 
-  /* 维度数据派生（图表口径与页面一致，纯前端计算） */
-  const dims = useMemo(() => {
-    if (!data) return null;
-    const trend = data.trendSeries.map(t => ({ label: t.label, value: t.count, note: t.amount > 0 ? wan(t.amount) : undefined }));
-    const dept = [...data.departmentStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount }));
-    const methods = [...data.methodStats].sort((a, b) => b.count - a.count).slice(0, 8).map(m => ({ label: m.name, value: m.count }));
-    // 规模分层（万元）：≤10 / 10-50 / 50-100 / 100-500 / >500
-    const buckets = [0, 0, 0, 0, 0];
-    data.trendSeries.forEach(t => t.projects.forEach(p => {
-      const s = String(p.budgetLabel || ''); let v = 0;
-      if (s.includes('万')) v = parseFloat(s.replace(/万|,/g, '')) * 10000; else v = parseFloat(s.replace(/元|,/g, '')) || 0;
-      if (!v) return;
-      if (v <= 100000) buckets[0]++; else if (v <= 500000) buckets[1]++; else if (v <= 1e6) buckets[2]++; else if (v <= 5e6) buckets[3]++; else buckets[4]++;
-    }));
-    const scale = [
-      { label: '≤10万', value: buckets[0] }, { label: '10-50万', value: buckets[1] }, { label: '50-100万', value: buckets[2] },
-      { label: '100-500万', value: buckets[3] }, { label: '>500万', value: buckets[4] },
-    ];
-    return { trend, dept, methods, scale };
-  }, [data]);
+  const suppliers: SupplierDetail[] = useMemo(
+    () => data ? data.supplierStats.map(s => ({ ...s, id: s.name })) : [],
+    [data],
+  );
 
-  if (!data || !dims) return null;
+  if (!data) return null;
   const s = data.summary;
   const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
-  const peak = dims.trend.reduce((m, t) => (t.value > m.value ? t : m), dims.trend[0]);
-  const avgPerMonth = dims.trend.length ? (s.totalCount / dims.trend.length).toFixed(1) : '0';
-  const deptTop = dims.dept[0];
-  const deptTopShare = s.totalBudget > 0 && deptTop ? Math.round((deptTop.value / s.totalBudget) * 100) : 0;
-  const mTop = dims.methods[0];
-  const mTopShare = s.totalCount > 0 && mTop ? Math.round((mTop.value / s.totalCount) * 100) : 0;
-  const smallCount = dims.scale[0].value + dims.scale[1].value;
-  const smallShare = s.totalCount > 0 ? Math.round((smallCount / s.totalCount) * 100) : 0;
+  const savingsRate = s.totalBudget > 0 ? (s.totalSavings / s.totalBudget) * 100 : 0;
+
+  /* —— 各维度数据要点（说明文字，前端确定性计算）—— */
+  const S = data.trendSeries;
+  const totalAmount = S.reduce((x, t) => x + t.amount, 0);
+  const peak = S.reduce((m, t) => (t.amount > m.amount ? t : m), S[0] ?? { label: '—', amount: 0, count: 0 } as never);
+  const lastActive = [...S].reverse().find(t => t.count > 0);
+  const trendNote = S.length
+    ? `区间共 ${S.length} 个统计桶、采购 ${s.totalCount} 项、成交金额合计 ${totalAmount.toFixed(1)} 万元。成交金额峰值出现在 ${peak.label}（${peak.amount.toFixed(1)} 万元）；最近有采购活动的月份为 ${lastActive?.label ?? '—'}。副带柱体上行为立项节点、下行为归档节点，虚线阶梯为在执行净值（累计立项减累计归档）。`
+    : '区间内暂无采购活动。';
+  const deptTop = data.departmentStats[0];
+  const deptTop2 = data.departmentStats[1];
+  const deptNote = data.departmentStats.length
+    ? `共 ${data.departmentStats.length} 个部门发生采购。${deptTop ? `${deptTop.name} 金额最高（${deptTop.amountLabel}，完成率 ${deptTop.completedRate}%，主要方式 ${deptTop.topMethod || '—'}）` : ''}${deptTop2 ? `；其次为 ${deptTop2.name}（${deptTop2.amountLabel}）` : ''}。完成率=该部门已成交项目占其项目总数的比例。`
+    : '暂无部门数据。';
+  const mTop = data.methodStats[0];
+  const mTop2 = data.methodStats[1];
+  const methodNote = data.methodStats.length
+    ? `${mTop ? `最主要采购方式为 ${mTop.name}（${mTop.count} 项、占 ${mTop.share}%、金额 ${mTop.amountLabel}）` : ''}${mTop2 ? `，其次 ${mTop2.name}（${mTop2.share}%）` : ''}。方式结构反映采购合规路径的分布，占比随公司采购制度要求动态变化。`
+    : '暂无方式数据。';
+  const segsOf = (min: number, max: number) => data.trendSeries.reduce((n, t) => n + t.projects.filter(p => {
+    const bs = String(p.budgetLabel || ''); let b = 0;
+    if (bs.includes('万')) b = parseFloat(bs.replace('万', '').replace(/,/g, '').trim()) * 10000; else b = parseFloat(bs.replace('元', '').replace(/,/g, '')) || 0;
+    return b >= min && b < max;
+  }).length, 0);
+  const smallN = segsOf(0, 100000), midN = segsOf(100000, 2000000), bigN = segsOf(2000000, Infinity);
+  const scaleNote = `按预算金额四档分层：小额（<10 万）${smallN} 项、中小/中型（10-200 万）${segsOf(100000, 500000) + segsOf(500000, 2000000)} 项、大型（>200 万）${bigN} 项。小额高频与大型低频的结构是否符合业务预期，可结合部门与方式分布交叉解读。`;
+  const na = data.nonAwardReasons.reduce((x, r) => x + r.count, 0);
+  const naTop = [...data.nonAwardReasons].sort((a, b) => b.count - a.count)[0];
+  const nonAwardNote = na > 0
+    ? `未成交共 ${na} 项${naTop ? `，首要原因为「${naTop.label}」（${naTop.count} 项）` : ''}。注意：区间末端尚未开标的项目属正常在途采购，不计入未成交异常；本图仅统计已明确未成交的项目。`
+    : '无未成交项目。注意：区间末端尚未开标的项目属正常在途采购，不计入未成交。';
+  const rankTop = data.savingsRanking[0];
+  const rankNote = data.savingsRanking.length
+    ? `按节约资金（控制金额 − 成交金额）排序的 Top 项目。${rankTop ? `节约最多的是「${rankTop.project.slice(0, 24)}」（${rankTop.savingsLabel}，节约率 ${rankTop.savingsRate}%，方式 ${rankTop.method}）` : ''}；区间合计节约 ${s.totalSavingsLabel}、节资率 ${savingsRate.toFixed(1)}%。`
+    : '暂无节约数据（需已成交项目）。';
+  const supTop = data.supplierStats[0];
+  const supNote = data.supplierStats.length
+    ? `${supTop ? `${supTop.name} 中标 ${supTop.winCount} 次（参与 ${supTop.participatedCount} 次、中标率 ${supTop.hitRate}%、累计 ${supTop.awardAmountLabel}）` : ''}。卡片展示参与/中标活跃度与主要活跃部门，供供应商集中度研判。`
+    : '暂无供应商参与数据。';
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      size="3xl"
+      size="4xl"
       icon={<FileDown size={14} />}
       title="采购数据汇报材料"
-      description={`${analysisPayload.rangeLabel || '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')}`}
+      description={`${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')}`}
       footer={
         <>
           <button onClick={onClose} className="neu-btn-soft">关闭</button>
@@ -165,25 +128,22 @@ export function ReportMaterialModal({ open, onClose, data, companyId, analysisPa
         </>
       }
     >
-      <div className="report-print-root flex flex-col gap-4">
+      <div className="report-print-root flex flex-col gap-5">
 
-        {/* KPI 摘要 */}
-        <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
-          {[
-            { l: '预算总金额', v: s.totalBudgetLabel }, { l: '已成交预算', v: s.awardedBudgetLabel },
-            { l: '成交总额', v: s.totalAwardLabel }, { l: '节约资金', v: s.totalSavingsLabel },
-            { l: '节资率', v: s.totalBudget > 0 ? `${((s.totalSavings / s.totalBudget) * 100).toFixed(1)}%` : '—' },
-            { l: '已成交项目', v: `${s.completedCount}/${s.totalCount}` },
-          ].map((k, i) => (
-            <div key={i} className="report-sheet rounded-[12px] px-3 py-2.5 text-center" style={{ background: 'oklch(1 0 0 / 0.72)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 6px oklch(0.55 0.03 258 / 0.08)' }}>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{k.l}</div>
-              <div className="mt-1 text-[15px] font-black tabular-nums text-[var(--foreground)]">{k.v}</div>
-            </div>
-          ))}
+        {/* KPI 摘要（复用数据库页 KpiCard 同款） */}
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-8">
+          <KpiCard label="预算总金额" value={s.totalBudgetLabel} signal="normal" index={1} reducedMotion />
+          <KpiCard label="未成交预算" value={s.pendingBudgetLabel} signal={s.pendingBudget > 0 ? 'warning' : 'normal'} index={2} reducedMotion />
+          <KpiCard label="已成交预算" value={s.awardedBudgetLabel} signal="success" index={3} reducedMotion />
+          <KpiCard label="成交总额" value={s.totalAwardLabel} signal="normal" index={4} reducedMotion />
+          <KpiCard label="节约资金" value={s.totalSavingsLabel} signal={s.totalSavings > 0 ? 'success' : 'normal'} index={5} reducedMotion />
+          <KpiCard label="节资率" value={`${savingsRate.toFixed(1)}%`} signal={savingsRate > 5 ? 'success' : 'warning'} index={6} reducedMotion />
+          <KpiCard label="已成交项目" value={`${s.completedCount}/${s.totalCount}`} index={7} reducedMotion />
+          <KpiCard label="成交率" value={`${doneRate}%`} signal={doneRate >= 60 ? 'success' : 'normal'} index={8} reducedMotion />
         </div>
 
         {/* AI 综合分析 */}
-        <section className="report-sheet rounded-[14px] p-5" style={{ background: 'oklch(1 0 0 / 0.72)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 6px oklch(0.55 0.03 258 / 0.08)' }}>
+        <section className="report-sheet">
           <div className="mb-2 flex items-center gap-2">
             <Sparkles size={14} className="text-[var(--accent)]" />
             <h3 className="text-sm font-bold text-[var(--foreground)]">AI 综合分析</h3>
@@ -200,7 +160,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId, analysisPa
                   <div key={t}>
                     <div className="mb-1 text-[11px] font-bold" style={{ color: c }}>{t}</div>
                     <ul className="flex flex-col gap-1">
-                      {list.slice(0, 4).map((x, i) => <li key={i} className="text-[11px] leading-5 text-[var(--muted-foreground)]">· {x}</li>)}
+                      {list.slice(0, 5).map((x, i) => <li key={i} className="text-[11px] leading-5 text-[var(--muted-foreground)]">· {x}</li>)}
                     </ul>
                   </div>
                 ))}
@@ -209,42 +169,39 @@ export function ReportMaterialModal({ open, onClose, data, companyId, analysisPa
           ) : null}
         </section>
 
-        {/* ① 月度采购趋势 */}
-        <Section n={1} title="月度采购趋势"
-          desc={`各月采购项目数与成交金额（柱上小字为当月成交额）。区间内月均 ${avgPerMonth} 项；峰值 ${peak.label} 共 ${peak.value} 项。`}>
-          {dims.trend.length > 0 ? <VBars items={dims.trend} unit="项" /> : <div className="py-6 text-center text-xs text-[var(--muted-foreground)]">区间内无数据</div>}
+        {/* ① 采购执行趋势（复用 TrendChartPanel） */}
+        <Section n={1} title="采购执行趋势" note={trendNote}>
+          <TrendChartPanel profile={data} index={1} reducedMotion />
         </Section>
 
-        {/* ② 部门采购金额 */}
-        <Section n={2} title="部门采购金额 Top 10"
-          desc={`按已成交计成交额、未成交计预算口径。${deptTop ? `${deptTop.label} 以 ${wan(deptTop.value)} 居首（占预算总额 ${deptTopShare}%）。` : ''}颜色越深金额越大。`}>
-          {dims.dept.length > 0 ? <HBars items={dims.dept} fmt={wan} /> : <div className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无部门数据</div>}
+        {/* ② 部门采购分析（复用 DepartmentPanel） */}
+        <Section n={2} title="部门采购分析" note={deptNote}>
+          <DepartmentPanel profile={data} index={2} reducedMotion />
         </Section>
 
-        {/* ③ 采购方式分布 */}
-        <Section n={3} title="采购方式分布（Top 8）"
-          desc={`按项目数统计。${mTop ? `${mTop.label} 为最主要方式（${mTop.value} 项，占 ${mTopShare}%）。` : ''}`}>
-          {dims.methods.length > 0 ? <HBars items={dims.methods} fmt={v => `${v} 项`} /> : <div className="py-6 text-center text-xs text-[var(--muted-foreground)]">暂无方式数据</div>}
+        {/* ③ 采购方式分布（复用 MethodPieChartPanel） */}
+        <Section n={3} title="采购方式分布" note={methodNote}>
+          <MethodPieChartPanel profile={data} index={3} reducedMotion />
         </Section>
 
-        {/* ④ 预算规模分层 */}
-        <Section n={4} title="项目预算规模分层"
-          desc={`按项目预算金额分档统计件数。小额（50 万及以下）项目 ${smallCount} 项、占 ${smallShare}%；大额（100 万以上）${dims.scale[3].value + dims.scale[4].value} 项。`}>
-          <VBars items={dims.scale} unit="项" barW={56} />
+        {/* ④ 项目规模分析（复用 ProjectScalePanel） */}
+        <Section n={4} title="项目规模分析" note={scaleNote}>
+          <ProjectScalePanel profile={data} index={4} reducedMotion />
         </Section>
 
-        {/* ⑤ 成交状态构成 */}
-        <Section n={5} title="成交状态构成"
-          desc={`已成交 ${s.completedCount} 项（成交率 ${doneRate}%）；未成交/待处理预算 ${s.pendingBudgetLabel}，成交总额 ${s.totalAwardLabel}。`}>
-          <div className="flex h-[22px] w-full overflow-hidden rounded-[5px]">
-            <div style={{ width: `${s.totalCount ? (s.completedCount / s.totalCount) * 100 : 0}%`, background: 'oklch(0.55 0.12 164)' }} title={`已成交 ${s.completedCount} 项`} />
-            <div style={{ width: '2px', background: 'oklch(1 0 0 / 0.9)' }} />
-            <div className="flex-1" style={{ background: 'oklch(0.78 0.06 258)' }} title={`未成交/待处理 ${s.totalCount - s.completedCount} 项`} />
-          </div>
-          <div className="mt-2 flex justify-between text-[11px]">
-            <span className="text-[var(--foreground)]">已成交 {s.completedCount} 项（{doneRate}%）</span>
-            <span className="text-[var(--muted-foreground)]">未成交/待处理 {s.totalCount - s.completedCount} 项</span>
-          </div>
+        {/* ⑤ 未成交原因分析（复用 NonAwardDonutPanel） */}
+        <Section n={5} title="未成交原因分析" note={nonAwardNote}>
+          <NonAwardDonutPanel profile={data} index={5} reducedMotion />
+        </Section>
+
+        {/* ⑥ 节约资金排行（复用 SavingsRankingPanel） */}
+        <Section n={6} title="节约资金排行" note={rankNote}>
+          <SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={6} reducedMotion />
+        </Section>
+
+        {/* ⑦ 重点供应商动态（复用 SupplierCards） */}
+        <Section n={7} title="重点供应商动态" note={supNote}>
+          <SupplierCards suppliers={suppliers} index={7} reducedMotion />
         </Section>
 
       </div>

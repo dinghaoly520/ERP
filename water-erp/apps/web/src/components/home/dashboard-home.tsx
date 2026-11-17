@@ -29,7 +29,7 @@ const statusColor = (s: string) =>
 
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-type SupplierDetail = {
+export type SupplierDetail = {
   id: string; name: string; participatedCount: number; winCount: number;
   awardAmount: number; awardAmountLabel: string; hitRate: number;
   topMethod: string; topDepartment: string; tags: string[];
@@ -42,7 +42,7 @@ function fadeIn(index: number, reducedMotion: boolean, baseDelay = 0.04) {
   return { initial: { opacity: 0, y: 18, scale: 0.98, filter: "blur(6px)" }, animate: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }, transition: { duration: 0.5, delay: index * baseDelay, ease: easeOutQuint } };
 }
 
-function KpiCard({ label, value, sub, signal, trend, trendLabel, index, reducedMotion, showDivider }: {
+export function KpiCard({ label, value, sub, signal, trend, trendLabel, index, reducedMotion, showDivider }: {
   label: string; value: string; sub?: string; signal?: "normal" | "warning" | "danger" | "success";
   trend?: "up" | "down" | "flat"; trendLabel?: string; index: number; reducedMotion: boolean; showDivider?: "right";
 }) {
@@ -103,9 +103,9 @@ function IntelligencePanel({ analysis, loading, error, onRefresh, index, reduced
   );
 }
 
-type SavingsRankingItem = { project: string; department: string; controlAmount: number; awardAmount: number; savings: number; savingsRate: number; controlAmountLabel: string; awardAmountLabel: string; savingsLabel: string; method: string; date: string; projectCode: string | null; awardedSupplierName: string | null; participantCount: number };
+export type SavingsRankingItem = { project: string; department: string; controlAmount: number; awardAmount: number; savings: number; savingsRate: number; controlAmountLabel: string; awardAmountLabel: string; savingsLabel: string; method: string; date: string; projectCode: string | null; awardedSupplierName: string | null; participantCount: number };
 
-function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRankingItem[]; index: number; reducedMotion: boolean }) {
+export function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRankingItem[]; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
@@ -212,7 +212,7 @@ function SavingsRankingPanel({ items, index, reducedMotion }: { items: SavingsRa
   );
 }
 
-function RiskProjectsPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+export function RiskProjectsPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const sev = { 高:{bg:"bg-[color-mix(in_oklch,var(--danger)_12%,transparent)]",t:"text-[var(--danger)]"}, 中:{bg:"bg-[color-mix(in_oklch,var(--warning)_12%,transparent)]",t:"text-[var(--warning)]"}, 低:{bg:"bg-[color-mix(in_oklch,var(--accent)_12%,transparent)]",t:"text-[var(--accent)]"} } as const;
   const display = profile.riskProjects.slice(0, 5);
@@ -243,7 +243,7 @@ function computeSegments(profile: DashboardData): ScaleSegment[] {
   return segs;
 }
 
-function ProjectScalePanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+export function ProjectScalePanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const segs = useMemo(()=>computeSegments(profile),[profile]);
   const [activeSeg, setActiveSeg] = useState<ScaleSegment|null>(null);
@@ -276,7 +276,7 @@ function ProjectScalePanel({ profile, index, reducedMotion }: { profile: Dashboa
 type MethodDetail = { name:string;count:number;amount:number;amountLabel:string;share:number;projects:Array<{name:string;date:string;department:string;budgetLabel:string;awardLabel:string;status:string}> };
 const PC = ["oklch(0.63 0.128 247)","oklch(0.55 0.14 164)","oklch(0.65 0.15 83)","oklch(0.55 0.14 280)","oklch(0.6 0.15 27)","oklch(0.55 0.12 175)"];
 
-function MethodPieChartPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+export function MethodPieChartPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const [hi, setHi] = useState<number|null>(null);
   const [am, setAm] = useState<MethodDetail|null>(null);
@@ -306,7 +306,7 @@ function MethodPieChartPanel({ profile, index, reducedMotion }: { profile: Dashb
 type NonAwardDetail = { label:string;count:number;detail:string;projects:Array<{name:string;date:string;department:string;budgetLabel:string;reason:string}> };
 const NAC = ["oklch(0.6 0.15 27)","oklch(0.65 0.15 83)","oklch(0.63 0.128 247)","oklch(0.55 0.14 280)"];
 
-function NonAwardDonutPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+export function NonAwardDonutPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const [hi, setHi] = useState<number|null>(null);
   const [ar, setAr] = useState<NonAwardDetail|null>(null);
@@ -330,7 +330,7 @@ function NonAwardDonutPanel({ profile, index, reducedMotion }: { profile: Dashbo
   );
 }
 
-function SupplierCards({ suppliers, index, reducedMotion }: { suppliers: SupplierDetail[]; index: number; reducedMotion: boolean }) {
+export function SupplierCards({ suppliers, index, reducedMotion }: { suppliers: SupplierDetail[]; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.06);
   const [as, setAs] = useState<SupplierDetail|null>(null);
   const ds = suppliers.slice(0, 6);
@@ -358,7 +358,7 @@ type TrendDetail = { date:string;label:string;count:number;amount:number;initiat
  * 主区 = 成交金额发光曲线 + 渐变面积；副带 = 立项↑ / 归档↓ 镜像柱 + 在执行净值阶梯线。
  * X 轴桶 = 采购日 ?? 项目立项时间（后端兜底），立项/归档两个节点分别落各自日期的桶。
  */
-function TrendChartPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+export function TrendChartPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const [hoveredIdx, setHoveredIdx] = useState<number|null>(null);
   const [activeTrend, setActiveTrend] = useState<TrendDetail|null>(null);
@@ -482,7 +482,7 @@ function TrendChartPanel({ profile, index, reducedMotion }: { profile: Dashboard
 type DepartmentDetail = { name:string;amount:number;amountLabel:string;completedRate:number;topMethod:string;projects:Array<{name:string;date:string;method:string;budgetLabel:string;awardLabel:string;status:string}> };
 const DBC = ["var(--accent)","var(--success)","var(--warning)","oklch(0.55 0.14 280)","var(--danger)","oklch(0.55 0.12 175)"];
 
-function DepartmentPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
+export function DepartmentPanel({ profile, index, reducedMotion }: { profile: DashboardData; index: number; reducedMotion: boolean }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
   const maxAmt = Math.max(...profile.departmentStats.map(d=>d.amount),1);
   const totalAmt = profile.departmentStats.reduce((s,d)=>s+d.amount,0);
@@ -537,7 +537,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   useEffect(()=>{setCompanyId(readInitialCompanyId());},[]);
 
   const bap = useCallback((d:DashboardData):DashboardAnalysisPayload=>({
-    rangeLabel:d.range.startDate&&d.range.endDate?`${d.range.startDate} ~ ${d.range.endDate}`:"全部",
+    rangeLabel:d.range.startDate&&d.range.endDate?`${d.range.startDate} ~ ${d.range.endDate}（区间末端尚未开标的项目为正常在途采购，不属于异常或风险）`:"全部（尚未开标的项目为正常在途采购，不属于异常或风险）",
     startDate:d.range.startDate??"",endDate:d.range.endDate??"",
     summary:{totalCount:d.summary.totalCount,completedCount:d.summary.completedCount,abnormalCount:d.summary.abnormalCount,totalBudget:d.summary.totalBudgetLabel,totalAward:d.summary.totalAwardLabel,totalSavings:d.summary.totalSavingsLabel},
     trendSeries:d.trendSeries.map(t=>({label:t.label,count:t.count,amount:t.amount})),
