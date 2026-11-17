@@ -144,7 +144,7 @@ export function ProjectDetailPanel({
   item: ProjectManagementItem;
   onClose: () => void;
   onUpdated: () => Promise<void>;
-  onTerminate?: (projectId: string, reason: string, notify: 'none' | 'accepted') => Promise<void>;
+  onTerminate?: (projectId: string, reason: string, notify: 'none' | 'accepted', keepOpenForNotice?: boolean) => Promise<void>;
   canModify?: boolean;
   currentUsername?: string;
   currentUserRole?: string;
@@ -875,6 +875,12 @@ export function ProjectDetailPanel({
   const [terminateOpen, setTerminateOpen] = useState(false);
   const [terminateReason, setTerminateReason] = useState('');
   const [terminateNotify, setTerminateNotify] = useState<'none' | 'accepted'>('none');
+  // 流标公告选项（2026-11-16 用户裁定）：终止后可直接转流标公告编写向导并发布
+  const [terminateFailedBid, setTerminateFailedBid] = useState(false);
+  // 终止原因预填流标公告「流标原因」（经 initialDraftPatch 注入，向导内可再改）
+  const [terminateFailedBidPatch, setTerminateFailedBidPatch] = useState<Record<string, string> | null>(null);
+  // 终止后编写的流标公告发布完成 → 不再进流标决策向导（项目已终止，继续/终止二选一无意义）
+  const skipAbortRestartRef = useRef(false);
   const [terminating, setTerminating] = useState(false);
 
   const submitTerminate = async () => {
@@ -884,10 +890,19 @@ export function ProjectDetailPanel({
     setTerminating(true);
     setErrorMessage(null);
     try {
-      await onTerminate(item.id, terminateReason.trim(), terminateNotify);
+      // keepOpenForNotice：选择编写流标公告时父级不清选中——面板保持打开承接公告向导
+      await onTerminate(item.id, terminateReason.trim(), terminateNotify, terminateFailedBid);
       toast.success('项目已终止');
       setTerminateOpen(false);
-      onClose();
+      if (terminateFailedBid) {
+        skipAbortRestartRef.current = true;
+        setTerminateFailedBidPatch({ resultInfo: `本项目已终止采购，终止原因：${terminateReason.trim()}。` });
+        setAnnouncementCategory('failed_bid');
+        setAnnouncementPublishOpen(true);
+      } else {
+        onClose();
+      }
+      setTerminateFailedBid(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '项目终止失败。');
     } finally {
@@ -1106,7 +1121,7 @@ export function ProjectDetailPanel({
                 <Clock3 size={16} />时间轴
               </button>
               {!actionsDisabled && (
-                <button type="button" onClick={() => setTerminateOpen(true)} disabled={submitting || uploading} className="neu-btn-soft is-danger">
+                <button type="button" onClick={() => { setTerminateFailedBid(false); setTerminateOpen(true); }} disabled={submitting || uploading} className="neu-btn-soft is-danger">
                   <Ban size={16} />项目终止
                 </button>
               )}
@@ -2207,7 +2222,7 @@ export function ProjectDetailPanel({
             </span>
           }
           description={<span>终止后项目进入「已终止」列表（只读），并写入采购台账记录</span>}
-          size="sm"
+          size="md"
           footer={
             <>
               <button type="button" onClick={() => setTerminateOpen(false)} disabled={terminating} className="neu-btn-soft !h-9 !text-xs">取消</button>
@@ -2263,6 +2278,38 @@ export function ProjectDetailPanel({
                   通知将包含项目名称、终止日期与终止原因，发送至所选供应商的门户站内信。
                 </p>
               )}
+            </div>
+
+            {/* 流标公告选项（2026-11-16 用户裁定）：终止后可直接转流标公告编写向导并发布 */}
+            <div>
+              <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">流标公告</div>
+              <div className="space-y-1.5">
+                {([
+                  { key: 'no', label: '暂不编写', desc: '终止后可稍后在项目详情或公告发布中心编写' },
+                  { key: 'yes', label: '终止后编写并发布流标公告', desc: '终止完成后自动打开流标公告编写向导，终止原因将预填至流标原因' },
+                ] as const).map((opt) => (
+                  <label
+                    key={opt.key}
+                    className={`flex cursor-pointer items-start gap-2.5 rounded-[10px] px-3 py-2.5 transition ${
+                      (opt.key === 'yes') === terminateFailedBid
+                        ? 'bg-[color-mix(in_oklch,var(--danger)_8%,transparent)]'
+                        : 'bg-[color-mix(in_oklch,var(--muted-foreground)_5%,transparent)] hover:bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="terminate-failed-bid"
+                      checked={(opt.key === 'yes') === terminateFailedBid}
+                      onChange={() => setTerminateFailedBid(opt.key === 'yes')}
+                      className="mt-0.5 accent-[var(--danger)]"
+                    />
+                    <span className="min-w-0">
+                      <span className={`block text-xs font-semibold ${(opt.key === 'yes') === terminateFailedBid ? 'text-[var(--danger)]' : 'text-[color:var(--foreground)]'}`}>{opt.label}</span>
+                      {opt.desc && <span className="mt-0.5 block text-[11px] leading-4 text-[var(--muted-foreground)]">{opt.desc}</span>}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             {/* 终止警示（2026-11-12 用户裁定：红色分条 +「请注意」标题） */}
@@ -2410,7 +2457,7 @@ export function ProjectDetailPanel({
       {/* 公告制作与发布弹窗（两步向导）*/}
       <AnnouncementPublishWizard
         isOpen={announcementPublishOpen}
-        initialDraftPatch={changeWizardCtx?.patch}
+        initialDraftPatch={changeWizardCtx?.patch ?? terminateFailedBidPatch ?? undefined}
         onClose={() => {
           if (changeWizardCtx?.pendingRegister && !publishFirstDoneRef.current) {
             toast.info('已取消发布，本次修改未登记');
@@ -2419,6 +2466,7 @@ export function ProjectDetailPanel({
             setChangeWizardCtx(null);
           }
           publishFirstDoneRef.current = false;
+          setTerminateFailedBidPatch(null);
           setAnnouncementPublishOpen(false);
           setAnnouncementCategory('procurement_document');
         }}
@@ -2444,8 +2492,15 @@ export function ProjectDetailPanel({
           }
           handleUpdated();
           setBpDataTick((t) => t + 1); // 公告闸 flag 即时刷新：failedBidNoticePublished 依赖 refs 重拉，不 bump 会拿旧值重开向导
-          // 流标统一流（2026-10-23）：failed_bid 发布成功 → 自动进入决策向导（是否继续/信息确认/重启）
-          if (announcementCategory === 'failed_bid') setAbortRestartOpen(true);
+          // 流标统一流（2026-10-23）：failed_bid 发布成功 → 自动进入决策向导（是否继续/信息确认/重启）；
+          // 终止后转写的流标公告除外（skipAbortRestartRef）——项目已终止，决策向导无意义
+          if (announcementCategory === 'failed_bid') {
+            if (skipAbortRestartRef.current) {
+              skipAbortRestartRef.current = false;
+            } else {
+              setAbortRestartOpen(true);
+            }
+          }
         }}
         initialCategory={announcementCategory}
         onStageAttachmentUploaded={(result) => handleStageAttachmentChanged('PUBLIC_ANNOUNCEMENT', result)}
@@ -2457,7 +2512,7 @@ export function ProjectDetailPanel({
         onClose={() => setAbortRestartOpen(false)}
         item={item}
         currentRoundBidProjectId={currentRoundBp?.id ?? null}
-        onRequestTerminate={() => { setAbortRestartOpen(false); setTerminateOpen(true); }}
+        onRequestTerminate={() => { setAbortRestartOpen(false); setTerminateFailedBid(false); setTerminateOpen(true); }}
         onRestarted={() => { handleUpdated(); setBpDataTick((t) => t + 1); }}
       />
 

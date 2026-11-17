@@ -810,6 +810,11 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!fd.maxPriceNumeric?.trim() && project.budgetAmount != null) fd.maxPriceNumeric = String(project.budgetAmount);
       if (!fd.projectOverview?.trim() && project.projectOverview?.trim()) fd.projectOverview = project.projectOverview;
       if (!fd.qualificationRequirements?.trim() && project.supplierRequirements?.trim()) fd.qualificationRequirements = project.supplierRequirements;
+      // 流标/中标公告「项目简要说明」（2026-11-16）：项目概况优先、采购事由兜底——
+      // 该字段此前无预填通道（AUTO_FILL 表无映射），向导内恒空显示「待补充」
+      if ('projectBriefDescription' in fd && !fd.projectBriefDescription?.trim()) {
+        fd.projectBriefDescription = project.projectOverview?.trim() || project.projectReason?.trim() || '';
+      }
 
       // 开标/采购时间（2026-11-09 权威序）：基本信息优先，采购文件编写草稿降为兜底；源随缓存记录
       openSync = syncOpeningTimeFromPmi(fd, project, tt, undefined);

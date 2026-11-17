@@ -447,7 +447,12 @@ export function TenderSectionEditor({
       console.log('AI generation result:', result);
 
       if (!result.content) {
-        throw new Error('AI返回的内容为空');
+        // 联系电话/邮箱为事实摘取字段（2026-11-16）：资料中未拾取到 → 空是正常结果，给出手填指引
+        throw new Error(
+          fieldKey === 'contactPhone' || fieldKey === 'contactEmail'
+            ? `资料中未找到${fieldLabel}，请手动填写`
+            : 'AI返回的内容为空',
+        );
       }
 
       // 报价表/报价函在文字模式下走本通路：AI 产物直接写回文字

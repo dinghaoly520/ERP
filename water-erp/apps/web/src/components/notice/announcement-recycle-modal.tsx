@@ -8,7 +8,8 @@ import {
 } from '@/lib/api/announcement';
 import { toast } from 'sonner';
 import { EyeOff, RotateCcw, FileText, ExternalLink, Trash2 } from 'lucide-react';
-import { ANN_TYPE_LABEL, ANN_STATUS_LABEL } from '@/lib/announcement-meta';
+import { ANN_TYPE_LABEL, ANN_TYPE_TONE, ANN_STATUS_LABEL } from '@/lib/announcement-meta';
+import { scheduledPublishDue } from '@/lib/notice/schedule';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
 const PAGE_SIZE = 15;
@@ -96,7 +97,7 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
                 <th>原状态</th>
                 <th>进入时间</th>
                 <th>操作人</th>
-                <th style={{ textAlign: 'center' }}>操作</th>
+                <th style={{ textAlign: 'center', width: 220 }}>操作</th>
               </tr>
             </thead>
             <tbody>
@@ -113,18 +114,26 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
                 </tr>
               ) : data.items.map(a => {
                 const rc = a.metadata?.recycle as { from?: AnnouncementStatus; action?: string; at?: string; by?: string | null } | undefined;
+                // 原状态对齐主列表展示口径（2026-11-16）：定时草稿（from=DRAFT 且带 scheduledPublishDate）
+                // 主列表显示「待发布」，此处裸取 DB 状态显示「草稿」与之矛盾——同口径派生 + 状态色对齐（待发布蓝/已发布绿）
+                const from = rc?.from ?? 'DRAFT';
+                const wasScheduled = from === 'DRAFT' && !!scheduledPublishDue(a.metadata?.scheduledPublishDate);
                 return (
                   <tr key={a.id}>
                     <td>
                       <div className="text-sm font-bold text-[var(--foreground)]">{a.title}</div>
                       {a.relatedProjectCode && <div className="text-[11px] text-[var(--muted-foreground)]">{a.relatedProjectCode}</div>}
                     </td>
-                    <td><StatusBadge tone="gray">{TYPE_LABELS[a.type] ?? '公告'}</StatusBadge></td>
-                    <td><StatusBadge tone="gray">{FROM_STATUS_LABELS[rc?.from ?? 'DRAFT'] ?? '草稿'}</StatusBadge></td>
+                    <td><StatusBadge tone={ANN_TYPE_TONE[a.type] ?? 'gray'}>{TYPE_LABELS[a.type] ?? '公告'}</StatusBadge></td>
+                    <td>
+                      <StatusBadge tone={wasScheduled ? 'blue' : from === 'PUBLISHED' ? 'green' : 'gray'}>
+                        {wasScheduled ? '待发布' : FROM_STATUS_LABELS[from] ?? '草稿'}
+                      </StatusBadge>
+                    </td>
                     <td className="text-xs tabular-nums text-[var(--muted-foreground)]">{rc?.at ? new Date(rc.at).toLocaleString('zh-CN') : '—'}</td>
                     <td className="text-xs text-[var(--muted-foreground)]">{rc?.by ?? '—'}</td>
                     <td>
-                      <div className="flex flex-wrap justify-center gap-1.5">
+                      <div className="flex flex-nowrap justify-center gap-1.5">
                         <button onClick={() => setView({ id: a.id, title: a.title })} className="neu-btn-xs"><ExternalLink size={12} /> 查看</button>
                         <button onClick={() => restore(a)} className="neu-btn-xs is-success"><RotateCcw size={12} /> 恢复</button>
                         <button onClick={() => remove(a)} className="neu-btn-xs is-danger"><Trash2 size={12} /> 删除</button>

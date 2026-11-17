@@ -94,7 +94,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   // 系统生成类：字段与发布向导写入的 canonical meta / 公告草稿键对齐
   FAILED_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
-    { key: 'openTime', label: '开标时间', date: true }, { key: 'resultInfo', label: '开标结果公示信息', area: true },
+    { key: 'openTime', label: '开标时间', date: true }, { key: 'resultInfo', label: '流标原因', area: true },
   ],
   WIN_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },

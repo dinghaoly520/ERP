@@ -238,13 +238,15 @@ export function ProjectManagementPage() {
     return project.createdById === currentUser.id;
   };
 
-  const handleTerminate = async (projectId: string, reason: string, notify: 'none' | 'accepted') => {
+  const handleTerminate = async (projectId: string, reason: string, notify: 'none' | 'accepted', keepOpenForNotice = false) => {
     setErrorMessage(null);
     const result = await terminateProject(projectId, reason, notify);
     if (result?.notifiedCount) {
       toast.success(`项目已终止，已通知 ${result.notifiedCount} 家供应商`);
     }
-    if (selectedItemId === projectId) {
+    // keepOpenForNotice（2026-11-16 流标公告选项）：面板保持打开承接公告编写向导——
+    // 刷新后 selectedItem 从 terminatedItems 解析（三集合查找），项目以只读终止态显示
+    if (!keepOpenForNotice && selectedItemId === projectId) {
       setSelectedItemId(null);
     }
     await loadItems();
