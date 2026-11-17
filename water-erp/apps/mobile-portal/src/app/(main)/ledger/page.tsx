@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Search, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
@@ -80,16 +80,21 @@ export default function LedgerPage() {
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
 
+  /* 一屏总览（2026-11-17 spec）：拉取层不变（15/页），显示层默认 5 条、
+     「展开更多」每次 +10；筛选/搜索变化重置回 5 */
+  const VISIBLE_INIT = 5;
+  const VISIBLE_STEP = 10;
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_INIT);
+
   const [stats, setStats] = useState<LedgerSummary | null>(null);
   const [activeItem, setActiveItem] = useState<ProcurementRoundItem | null>(null);
-
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   /* 搜索 400ms 防抖 */
   useEffect(() => {
     const t = window.setTimeout(() => {
       setSearchKeyword(searchInput.trim());
       setPage(1);
+      setVisibleCount(VISIBLE_INIT);
     }, 400);
     return () => window.clearTimeout(t);
   }, [searchInput]);
@@ -215,24 +220,11 @@ export default function LedgerPage() {
     };
   }, [filterCompanyId, searchKeyword, methodFilter, statusFilter, abnormalFilter, retryTick]);
 
-  /* 触底自动加载 */
+  /* 翻页（2026-11-17：触底自动加载已删——长页元凶，改「展开更多」按钮按需预取） */
   const loadMore = useCallback(() => {
     if (loading || loadingMore || page >= totalPages) return;
     setPage((p) => p + 1);
   }, [loading, loadingMore, page, totalPages]);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) loadMore();
-      },
-      { rootMargin: "120px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [loadMore]);
 
   const statusChips = useMemo(() => Object.values(RESULT_STATUS_CONFIG), []);
 
@@ -240,6 +232,7 @@ export default function LedgerPage() {
   const changeFilter = (fn: () => void) => {
     fn();
     setPage(1);
+    setVisibleCount(VISIBLE_INIT);
   };
 
   const persistLedger = useCallback(
@@ -410,7 +403,7 @@ export default function LedgerPage() {
       ) : null}
 
       <div className="space-y-2.5">
-        {items.map((item) => {
+        {items.slice(0, visibleCount).map((item) => {
           const cfg = RESULT_STATUS_CONFIG[item.resultStatus];
           return (
             <button
@@ -454,13 +447,24 @@ export default function LedgerPage() {
         })}
       </div>
 
-      {/* 触底哨兵 / 加载态 / 末尾 */}
-      <div ref={sentinelRef} className="mt-3" />
+      {/* 展开更多 / 末尾（2026-11-17：触底自动加载改手动，防滚动即翻页回到长页） */}
       {loadingMore ? (
         <div className="flex items-center justify-center gap-2 py-2 text-[15px] text-[var(--muted-foreground)]">
           <Loader2 size={13} className="animate-spin" /> 加载中...
         </div>
-      ) : items.length > 0 && page >= totalPages ? (
+      ) : visibleCount < items.length || page < totalPages ? (
+        <button
+          type="button"
+          onClick={() => {
+            setVisibleCount((c) => c + VISIBLE_STEP);
+            /* 已载将尽且还有页 → 预取下一页（15/页），显示层与拉取层解耦 */
+            if (visibleCount + VISIBLE_STEP > items.length - 3) loadMore();
+          }}
+          className="neu-btn-soft mt-3 h-10 w-full rounded-[12px] text-[15px] active:scale-[0.99]"
+        >
+          展开更多（已显 {Math.min(visibleCount, items.length)} / 共 {total} 条）
+        </button>
+      ) : items.length > 0 ? (
         <p className="py-2 text-center text-[14px] text-[var(--muted-foreground)]">已全部加载 {total} 条</p>
       ) : null}
 
