@@ -83,7 +83,6 @@ const MODE_LABELS: Record<ExtractMode, string> = { specialty_match: '专业匹�
 // 手动录入需求方代表·档案选项集（2026-11-17 与专家录入同款；职称/执业资格走标准集，民族/学历同清单）
 const EXT_REP_EDUCATIONS = ['博士', '硕士', '本科', '大专', '其他'];
 const EXT_REP_ETHNICITIES = ['汉族', '蒙古族', '回族', '藏族', '维吾尔族', '苗族', '彝族', '壮族', '布依族', '朝鲜族', '满族', '侗族', '瑶族', '白族', '土家族', '其他'];
-const EXT_REP_STEP = ({ n }: { n: number }) => <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md text-[10px] font-extrabold bg-[var(--accent)] text-white">{n}</span>;
 const MODE_DESCS: Record<ExtractMode, string> = {
   specialty_match: '按专业契合度加权抽取，优先专业对口，AI 推断各专业配比',
   random: '在各专业配额内加密随机抽签，公平合规、机会均等，不做能力排序',
@@ -3949,7 +3948,7 @@ export function ExpertExtractPage({
             </>
           }
         >
-          {/* 影响面提示（表单范式 #5）：临时账号口径——warning 淡底条 + 关键词加粗，不用裸灰字 */}
+          {/* 影响面提示（表单范式 #5）：凭证与有效期唯一口径在此——正文各处不再重复 */}
           <div className="flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2.5">
             <Info size={14} className="mt-0.5 shrink-0 text-[var(--warning)]" />
             <p className="text-xs leading-5 text-[var(--foreground)]">
@@ -3957,96 +3956,66 @@ export function ExpertExtractPage({
             </p>
           </div>
 
-          {/* 五节表单（2026-11-17 用户裁定）：信息与分节均采用专家注册同款——fieldset/legend/Step 序号 */}
-          <fieldset>
-            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={1} />基本信息</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">专家姓名 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.name} onChange={e => setExtRepForm(p => ({ ...p, name: e.target.value }))} placeholder="真实姓名" className="workbench-input" />
-              </label>
-              {/* 右列凭证说明（与专家录入①同构占位，双列边缘对齐不断行） */}
-              <div className="flex items-end pb-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]/70">登录凭证自动生成：账号与初始口令均为身份证号</div>
-            </div>
-          </fieldset>
-          <hr className="wb-section-rule" />
-
-          <fieldset>
-            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={2} />专业资质</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.specialty} onChange={e => setExtRepForm(p => ({ ...p, specialty: e.target.value }))} placeholder="输入专业，默认「综合」" className="workbench-input" />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.title} onChange={e => setExtRepForm(p => ({ ...p, title: e.target.value }))} list="ext-rep-title-list" placeholder="输入或选择职称" className="workbench-input" />
-                <datalist id="ext-rep-title-list">{EXPERT_TITLES.map(t => <option key={t} value={t} />)}</datalist>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.employer} onChange={e => setExtRepForm(p => ({ ...p, employer: e.target.value }))} placeholder="输入公司名称" className="workbench-input" />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.departmentName} onChange={e => setExtRepForm(p => ({ ...p, departmentName: e.target.value }))} placeholder="输入部门" className="workbench-input" />
-              </label>
-              <label className="space-y-1 md:col-span-2">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span>
-                <input value={extRepForm.qualifications} onChange={e => setExtRepForm(p => ({ ...p, qualifications: e.target.value }))} list="ext-rep-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className="workbench-input" />
-                <datalist id="ext-rep-qual-list">{EXPERT_QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist>
-              </label>
-            </div>
-          </fieldset>
-          <hr className="wb-section-rule" />
-
-          <fieldset>
-            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={3} />联系信息</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">手机号 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.phone} onChange={e => setExtRepForm(p => ({ ...p, phone: e.target.value }))} placeholder="11 位，通知触达用" className="workbench-input" />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">电子邮箱 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.email} onChange={e => setExtRepForm(p => ({ ...p, email: e.target.value }))} placeholder="example@domain.com" className="workbench-input" />
-              </label>
-              <label className="space-y-1 md:col-span-2">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">身份证号 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.idCard} onChange={e => setExtRepForm(p => ({ ...p, idCard: e.target.value }))} placeholder="18 位，将作为登录名与初始口令" className="workbench-input font-mono" />
-              </label>
-            </div>
-          </fieldset>
-          <hr className="wb-section-rule" />
-
-          <fieldset>
-            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={4} />档案信息</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">民族 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.ethnicity} onChange={e => setExtRepForm(p => ({ ...p, ethnicity: e.target.value }))} list="ext-rep-eth-list" placeholder="如 汉族" className="workbench-input" />
-                <datalist id="ext-rep-eth-list">{EXT_REP_ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">学历 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.education} onChange={e => setExtRepForm(p => ({ ...p, education: e.target.value }))} list="ext-rep-edu-list" placeholder="如 硕士" className="workbench-input" />
-                <datalist id="ext-rep-edu-list">{EXT_REP_EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist>
-              </label>
-              <label className="space-y-1 md:col-span-2">
-                <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span>
-                <input value={extRepForm.licenseNo} onChange={e => setExtRepForm(p => ({ ...p, licenseNo: e.target.value }))} placeholder="选填" className="workbench-input font-mono" />
-              </label>
-            </div>
-          </fieldset>
-          <hr className="wb-section-rule" />
-
-          <fieldset>
-            <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={5} />补充信息</legend>
+          {/* 单栅格双列（2026-11-17 二次裁定：弃五节切分——弹窗内分节壳过碎且凭证信息三处重复；
+              全字段一张 2 列栅格，每行恰两格或整行，列缘天然对齐；字段序=专家注册逻辑序铺平） */}
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
             <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">专家姓名 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.name} onChange={e => setExtRepForm(p => ({ ...p, name: e.target.value }))} placeholder="真实姓名" className="workbench-input" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">身份证号 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.idCard} onChange={e => setExtRepForm(p => ({ ...p, idCard: e.target.value }))} placeholder="18 位" className="workbench-input font-mono" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">手机号 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.phone} onChange={e => setExtRepForm(p => ({ ...p, phone: e.target.value }))} placeholder="11 位，通知触达用" className="workbench-input" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">电子邮箱 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.email} onChange={e => setExtRepForm(p => ({ ...p, email: e.target.value }))} placeholder="example@domain.com" className="workbench-input" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.specialty} onChange={e => setExtRepForm(p => ({ ...p, specialty: e.target.value }))} placeholder="默认「综合」" className="workbench-input" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.title} onChange={e => setExtRepForm(p => ({ ...p, title: e.target.value }))} list="ext-rep-title-list" placeholder="输入或选择职称" className="workbench-input" />
+              <datalist id="ext-rep-title-list">{EXPERT_TITLES.map(t => <option key={t} value={t} />)}</datalist>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.employer} onChange={e => setExtRepForm(p => ({ ...p, employer: e.target.value }))} placeholder="输入公司名称" className="workbench-input" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.departmentName} onChange={e => setExtRepForm(p => ({ ...p, departmentName: e.target.value }))} placeholder="输入部门" className="workbench-input" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">民族 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.ethnicity} onChange={e => setExtRepForm(p => ({ ...p, ethnicity: e.target.value }))} list="ext-rep-eth-list" placeholder="如 汉族" className="workbench-input" />
+              <datalist id="ext-rep-eth-list">{EXT_REP_ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist>
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">学历 <span className="text-[var(--danger)]">*</span></span>
+              <input value={extRepForm.education} onChange={e => setExtRepForm(p => ({ ...p, education: e.target.value }))} list="ext-rep-edu-list" placeholder="如 硕士" className="workbench-input" />
+              <datalist id="ext-rep-edu-list">{EXT_REP_EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist>
+            </label>
+            <label className="space-y-1 md:col-span-2">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span>
+              <input value={extRepForm.qualifications} onChange={e => setExtRepForm(p => ({ ...p, qualifications: e.target.value }))} list="ext-rep-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className="workbench-input" />
+              <datalist id="ext-rep-qual-list">{EXPERT_QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist>
+            </label>
+            <label className="space-y-1 md:col-span-2">
+              <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span>
+              <input value={extRepForm.licenseNo} onChange={e => setExtRepForm(p => ({ ...p, licenseNo: e.target.value }))} placeholder="选填" className="workbench-input font-mono" />
+            </label>
+            <label className="space-y-1 md:col-span-2">
               <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注 <span className="text-[var(--danger)]">*</span></span>
               <textarea value={extRepForm.notes} onChange={e => setExtRepForm(p => ({ ...p, notes: e.target.value }))} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className="workbench-input resize-y" />
             </label>
-          </fieldset>
+          </div>
         </Modal>
       )}
 
