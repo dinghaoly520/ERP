@@ -55,10 +55,8 @@ export default function ExpertRepositoryPage() {
   );
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 20;
-  // 批量操作（2026-11-17 供应商库同款：勾选框常驻表格、选中即浮条；
-  // batchBarOpen 仅供工具行「批量操作」按钮主动展开，不 gating 勾选框渲染）
+  // 批量操作（2026-11-17 供应商库同款：勾选框常驻表格、选中即浮条，无独立入口按钮）
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [batchBarOpen, setBatchBarOpen] = useState(false);
   const [batchAction, setBatchAction] = useState<'enable' | 'disable'>('disable');
   const [batchReason, setBatchReason] = useState('');
   const [batchSaving, setBatchSaving] = useState(false);
@@ -216,7 +214,7 @@ export default function ExpertRepositoryPage() {
     try {
       await batchOperation({ action: batchAction, ids: [...selectedIds], reason: batchAction === 'disable' && batchReason ? batchReason : undefined });
       toast.success(`${batchAction === 'enable' ? '启用' : '停用'} ${selectedIds.size} 位专家${batchAction === 'disable' && batchReason.trim() ? `（原因：${batchReason.trim()}）` : ''}，已记录至操作日志`);
-      setConfirmBatch(false); setSelectedIds(new Set()); setBatchBarOpen(false); setBatchReason(''); load(); void refreshExpStats();
+      setConfirmBatch(false); setSelectedIds(new Set()); setBatchReason(''); load(); void refreshExpStats();
     } catch (e: any) { toast.error(e?.message || '批量操作失败'); }
     setBatchSaving(false);
   };
@@ -538,18 +536,17 @@ export default function ExpertRepositoryPage() {
           )}
         </div>
         {/* 搜索框（2026-11-17 用户裁定：删高级筛选与专业下拉，搜索即唯一筛入口——
-            后端 search 本就覆盖姓名/专业/单位模糊匹配）；右侧依次＝批量操作、导出Excel */}
+            后端 search 本就覆盖姓名/专业/单位模糊匹配）；右侧＝导出Excel */}
         <div className="relative w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input neu-input-sm !pl-9" />
           {search && <button onClick={() => { setSearch(''); setPage(1); }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
         </div>
-        {showCheckbox && <button onClick={() => setBatchBarOpen(v => !v)} className="neu-btn-xs">批量操作</button>}
         <button onClick={doExport} className="neu-btn-xs shrink-0" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
       </div>
 
-      {/* 批量操作栏（供应商库同款：勾选即浮出；「批量操作」按钮可主动展开/收起） */}
-      {showCheckbox && (batchBarOpen || selectedIds.size > 0) && (
+      {/* 批量操作栏（供应商库同款：勾选即浮出，无入口按钮） */}
+      {showCheckbox && selectedIds.size > 0 && (
         <div className={`neu-batch-bar ${selectedIds.size === 0 ? 'opacity-50' : ''}`}>
           <span className="neu-batch-bar-count">已选 <strong>{selectedIds.size}</strong> 位</span>
           {selectedIds.size > 0 && totalPages > 1 && <span className="text-[10px] text-[var(--muted-foreground)] ml-2">跨页已保留 · 翻页不丢失</span>}
@@ -562,7 +559,7 @@ export default function ExpertRepositoryPage() {
               <button onClick={() => setConfirmBatch(true)} disabled={batchSaving} className="neu-btn-xs is-warning">{batchSaving ? '处理中...' : '执行'}</button>
             </>
           )}
-          <button onClick={() => { setSelectedIds(new Set()); setBatchBarOpen(false); }} className="neu-btn-xs">取消选择</button>
+          <button onClick={() => setSelectedIds(new Set())} className="neu-btn-xs">取消选择</button>
         </div>
       )}
 
