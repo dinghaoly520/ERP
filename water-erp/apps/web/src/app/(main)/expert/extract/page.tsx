@@ -3965,6 +3965,8 @@ export function ExpertExtractPage({
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">专家姓名 <span className="text-[var(--danger)]">*</span></span>
                 <input value={extRepForm.name} onChange={e => setExtRepForm(p => ({ ...p, name: e.target.value }))} placeholder="真实姓名" className="workbench-input" />
               </label>
+              {/* 右列凭证说明（与专家录入①同构占位，双列边缘对齐不断行） */}
+              <div className="flex items-end pb-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]/70">登录凭证自动生成：账号与初始口令均为身份证号</div>
             </div>
           </fieldset>
           <hr className="wb-section-rule" />
@@ -4019,7 +4021,7 @@ export function ExpertExtractPage({
 
           <fieldset>
             <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={4} />档案信息</legend>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">民族 <span className="text-[var(--danger)]">*</span></span>
                 <input value={extRepForm.ethnicity} onChange={e => setExtRepForm(p => ({ ...p, ethnicity: e.target.value }))} list="ext-rep-eth-list" placeholder="如 汉族" className="workbench-input" />
@@ -4030,7 +4032,7 @@ export function ExpertExtractPage({
                 <input value={extRepForm.education} onChange={e => setExtRepForm(p => ({ ...p, education: e.target.value }))} list="ext-rep-edu-list" placeholder="如 硕士" className="workbench-input" />
                 <datalist id="ext-rep-edu-list">{EXT_REP_EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist>
               </label>
-              <label className="space-y-1">
+              <label className="space-y-1 md:col-span-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span>
                 <input value={extRepForm.licenseNo} onChange={e => setExtRepForm(p => ({ ...p, licenseNo: e.target.value }))} placeholder="选填" className="workbench-input font-mono" />
               </label>
