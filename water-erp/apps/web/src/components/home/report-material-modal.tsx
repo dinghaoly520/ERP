@@ -106,7 +106,7 @@ function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null) {
     { label: '小额 <10万', value: seg(0, 100000) }, { label: '中小 10-50万', value: seg(100000, 500000) },
     { label: '中型 50-200万', value: seg(500000, 2000000) }, { label: '大型 >200万', value: seg(2000000, Infinity) },
   ];
-  const savingsRate = s.totalBudget > 0 ? ((s.totalSavings / s.totalBudget) * 100).toFixed(1) : '0';
+  const savingsRate = s.awardedBudget > 0 ? ((s.totalSavings / s.awardedBudget) * 100).toFixed(1) : '0'; // 分母=已成交（2026-11-17 裁定）
   const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
   const note = (k: string) => `<p class="note"><b>说明：</b>${esc(ai?.sections?.[k as keyof typeof ai.sections] || '')}</p>`;
   const aiBlock = ai?.overview ? `<section class="card ai"><h2>AI 综合分析</h2><p class="ov">${esc(ai.overview)}</p><div class="tri">${([['主要亮点', ai.highlights], ['关注事项', ai.concerns], ['工作建议', ai.suggestions]] as const).map(([t, l]) => `<div><h4>${t}</h4><ul>${l.slice(0, 5).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div></section>` : '';
@@ -244,7 +244,8 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
   if (!data) return null;
   const s = data.summary;
   const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
-  const savingsRate = s.totalBudget > 0 ? (s.totalSavings / s.totalBudget) * 100 : 0;
+  // 节资率分母=已成交预算（2026-11-17 用户裁定：未成交项目不计入——与数据库页 sr 同口径）
+  const savingsRate = s.awardedBudget > 0 ? (s.totalSavings / s.awardedBudget) * 100 : 0;
 
   /* —— 各维度数据要点（说明文字，前端确定性计算）—— */
   const S = data.trendSeries;
