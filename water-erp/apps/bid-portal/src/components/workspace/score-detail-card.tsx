@@ -2,9 +2,9 @@
 
 /**
  * #147：评分明细与汇总卡（:3007 评标管理 tab）——供应商 × 评分项聚合矩阵，
- * 移植自 :3005 归档详情 ScoreSnapshotSection（#121 口径，跨门户自包含副本）：
- * 通过性项走表决口径（通过 n/m，非数值合计）、数值项全体专家合计；尾行「专家合计」
- * 与官方评标结果总分勾稽（结果未生成时对照行不渲染）。
+ * 移植自 :3005 归档详情 ScoreSnapshotSection（#121 口径裁剪，跨门户自包含副本）：
+ * 通过性项走表决口径（通过 n/m，非数值合计）、数值项全体专家合计；
+ * 「评标结果总分（对照）」行按 2026-11-16 用户裁定删除（与排名卡总分重复）。
  *
  * 评标期匿名化兼容：按 supplier×item 聚合、不展示专家身份；专家计数取记录 expertId
  * 去重（由外层专家行注入）。仅取正选未婉拒专家的记录（与评分矩阵口径一致，候补不参与评分）。
@@ -65,12 +65,12 @@ export function ScoreDetailCard({ project }: Props) {
       }
       cell.set(key, c);
     }
-    return { defs, records, results, resultBySupplier, suppliers, supplierName, pfItemIds, cell, expertCount: new Set(records.map((r) => r.expertId)).size };
+    return { defs, records, suppliers, supplierName, pfItemIds, cell, expertCount: new Set(records.map((r) => r.expertId)).size };
   }, [project]);
 
   if (!pkg) return null;
 
-  const { defs, records, results, resultBySupplier, suppliers, supplierName, pfItemIds, cell, expertCount } = pkg;
+  const { defs, records, suppliers, supplierName, pfItemIds, cell, expertCount } = pkg;
   const supLabel = (id: string) => supplierName.get(id) ?? `供应商 ${id.slice(-6)}`;
 
   return (
@@ -82,7 +82,6 @@ export function ScoreDetailCard({ project }: Props) {
         </span>
         <span className="text-[10px] text-[var(--muted-foreground)]">
           评分项 {defs.length} 项 · 评分记录 {records.length} 条 · 专家 {expertCount} 人
-          {results.length > 0 ? '' : ' · 结果未生成（实时记录）'}
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -138,23 +137,10 @@ export function ScoreDetailCard({ project }: Props) {
                 );
               })}
             </tr>
-            {results.length > 0 && (
-              <tr>
-                <td className="!text-left text-[var(--muted-foreground)]">评标结果总分（对照）</td>
-                {suppliers.map((sid) => {
-                  const r = resultBySupplier.get(sid);
-                  return (
-                    <td key={sid} className="!text-right font-mono tabular-nums text-[var(--muted-foreground)]">
-                      {r ? Number(r.totalScore).toFixed(2) : '—'}
-                    </td>
-                  );
-                })}
-              </tr>
-            )}
           </tbody>
         </table>
         <div className="border-t border-[oklch(0.6_0.04_258/0.08)] px-3.5 py-2 text-[10px] text-[var(--muted-foreground)]">
-          矩阵为各评分项正选专家合计分；{results.length > 0 ? '末两行应一致（勾稽校验）' : '官方结果生成后将附总分对照（勾稽校验）'}
+          矩阵为各评分项正选专家合计分（结果生成后列序按官方名次排列）
         </div>
       </div>
     </div>
