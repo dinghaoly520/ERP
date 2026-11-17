@@ -654,7 +654,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
               {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
               <button ref={dateBtnRef} onClick={()=>setShowDP(!showDP)} className="neu-btn-soft !h-[36px] !px-3.5 !text-xs flex items-center gap-1.5"><CalendarRange size={13}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
               {/* 导出汇报材料（2026-11-17 用户裁定）：HTML 窗口展示+打印；AI 总述+多维度图表带说明 */}
-              <button onClick={()=>setReportOpen(true)} className="neu-btn-soft !h-[36px] !px-3.5 !text-xs flex items-center gap-1.5"><FileDown size={13}/> 导出汇报材料</button>
+              <button onClick={()=>setReportOpen(true)} className="neu-btn-soft ml-2 !h-[36px] !px-3.5 !text-xs flex items-center gap-1.5"><FileDown size={13}/> 导出汇报材料</button>
               {showDP && createPortal(
                 <div className="neu-pop fixed z-[1000] w-[288px] rounded-[18px] p-5" style={{top: (dateBtnRef.current?.getBoundingClientRect().bottom ?? 120) + 8, right: window.innerWidth - (dateBtnRef.current?.getBoundingClientRect().right ?? window.innerWidth - 16)}}>
                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2">快捷选择</div>
