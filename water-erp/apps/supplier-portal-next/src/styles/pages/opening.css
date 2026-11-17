@@ -123,6 +123,11 @@ body.hall-resizing { user-select: none; cursor: col-resize; }
   /* 左列三卡（项目信息/解密/唱标）在矮视口下超出可用高度：左列自身滚动，
      右列聊天面板钉满高度、输入行始终可见，不受左列影响 */
   .hall > .left { overflow-y: auto; }
+  /* 生产反馈（2026-11-17）：右列 grid 项 min-height:auto（=min-content）会撑破 100% 轨道——
+     消息多时 .right 长到内容高（实例 5012px > 视口 768px）、msg-list 的 overflow-y 永不触发、
+     整页被聊天列拉长。左列因 overflow≠visible 已按规范豁免；右列显式归零让轨道约束生效，
+     chat-panel height:100% 钉在视口高 → msg-list flex:1 滚动承接 */
+  .hall > .right { min-height: 0; }
 }
 
 /* ──────────────────────────────────────────────────────────────────
