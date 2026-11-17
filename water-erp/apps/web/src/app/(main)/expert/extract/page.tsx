@@ -3935,26 +3935,28 @@ export function ExpertExtractPage({
               登录名与初始口令均为<strong>身份证号</strong>，仅本项目评标期间可登录专家门户；项目结束、归档或流标后账号<strong>自动失效</strong>。
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {/* 字段排版对齐专家录入表单（2026-11-17 用户裁定）：space-y-1 标签距、
+              text-xs font-semibold muted 标签（弱化不抢输入）、gap-4 栅格、身份证号 mono */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {([
-              { key: 'name', label: '姓名', placeholder: '请输入姓名', required: true },
-              { key: 'idCard', label: '身份证号', placeholder: '18 位', required: true },
+              { key: 'name', label: '姓名', placeholder: '真实姓名', required: true },
+              { key: 'idCard', label: '身份证号', placeholder: '18 位', required: true, mono: true },
               { key: 'phone', label: '手机号', placeholder: '11 位，通知触达用', required: true },
               { key: 'employer', label: '工作单位', placeholder: '选填', required: false },
               { key: 'departmentName', label: '部门', placeholder: '选填', required: false },
               { key: 'specialty', label: '专业', placeholder: '选填，默认「综合」', required: false },
             ] as const).map(f => (
-              <div key={f.key} className="space-y-1.5">
-                <label className="text-xs font-bold text-[var(--foreground)]">
+              <label key={f.key} className="space-y-1">
+                <span className="text-xs font-semibold text-[var(--muted-foreground)]">
                   {f.label}{f.required && <span className="ml-0.5 text-[var(--danger)]">*</span>}
-                </label>
+                </span>
                 <input
                   value={(extRepForm as any)[f.key]}
                   onChange={(e) => setExtRepForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                   placeholder={f.placeholder}
-                  className="workbench-input"
+                  className={`workbench-input${(f as any).mono ? ' font-mono' : ''}`}
                 />
-              </div>
+              </label>
             ))}
           </div>
         </Modal>
