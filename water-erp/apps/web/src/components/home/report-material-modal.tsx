@@ -307,7 +307,7 @@ export function ReportMaterialModal({ open, onClose, data, companyId }: {
     : '暂无节约数据（需已成交项目）。';
   const supTop = (data.supplierConcentration ?? [])[0];
   const supNote = (data.supplierConcentration ?? []).length
-    ? `前五供应商成交金额占全部成交的 ${data.supplierCr5 ?? 0}%（CR5）。${supTop ? `${supTop.name} 累计成交 ${supTop.amountLabel}（${supTop.count} 笔、占 ${supTop.share}%）居首` : ''}；占比过高提示竞争充分性风险。`
+    ? `重复成交（≥2 笔）的前五供应商占全部成交 ${data.supplierCr5 ?? 0}%（CR5，单笔大户不入榜）。${supTop ? `${supTop.name} 累计成交 ${supTop.amountLabel}（${supTop.count} 笔、占 ${supTop.share}%）居首` : ''}；占比过高提示竞争充分性风险。`
     : '暂无已成交供应商数据。';
 
   return (

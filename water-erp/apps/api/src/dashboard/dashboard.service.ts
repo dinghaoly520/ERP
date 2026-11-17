@@ -938,6 +938,8 @@ export class DashboardService {
       cur.projects.push({ name: r.project.name, date: procurementDateLabel(r), method: r.procurementMethod ?? '未填', awardLabel: formatWan(decimalToNumber(r.awardAmount)) });
       concentrationBySupplier.set(key, cur);
     }
+    // ≥2 笔重复成交才入榜（2026-11-17 用户裁定：1 笔大单谈不上集中——单笔大户由节资榜承载）；
+    // share/CR5 分母恒为全部成交金额，反映「复购集中度」
     const supplierConcentration = [...concentrationBySupplier.entries()]
       .map(([name, v]) => ({
         name,
@@ -947,6 +949,7 @@ export class DashboardService {
         share: supplierAmountTotal > 0 ? Math.round((v.amount / supplierAmountTotal) * 100) : 0,
         projects: v.projects.slice(-8),
       }))
+      .filter(x => x.count >= 2)
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 8);
     const supplierCr5 = supplierAmountTotal > 0
