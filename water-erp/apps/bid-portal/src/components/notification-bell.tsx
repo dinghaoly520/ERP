@@ -93,6 +93,7 @@ export default function NotificationBell() {
     // 只清知会类（后端 READONLY_TYPES 刻意不动待办——防「已读兜底归已办」清空待办）。
     // bug#125 裁定 A+B：文案收窄 + 结果 toast 明示，消解「点了没反应」感知
     const remaining = await refresh();
+    if (res === null || remaining === null) { toast.error('操作结果未知，请刷新查看'); return; } // 评审 P2：接口失败不假成功
     const readN = res?.count ?? 0;
     if (readN > 0 && (remaining ?? 0) > 0) toast.success(`已读 ${readN} 条知会通知；还有 ${remaining} 条待办需逐条办结`);
     else if (readN > 0) toast.success(`已读 ${readN} 条知会通知`);
