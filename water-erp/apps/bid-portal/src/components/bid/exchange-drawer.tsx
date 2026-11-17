@@ -76,6 +76,17 @@ const PHRASES_STORAGE_KEY = 'bid-portal.host-phrases.v1';
 type CustomPhrase = { label: string; text: string };
 type PhraseStore = { custom: CustomPhrase[]; hiddenBuiltin: string[] };
 type PhraseItem = { text: string; builtin: boolean };
+/** 未读红角标（微信式圆形数字胶囊，99+ 封顶）——2026-11-17 会场交流改造：
+ *  原私聊未读仅文字 ●n 且 tab/会话行皆无醒目提示，报告人漏看私聊（生产反馈#2）。 */
+function UnreadBadge({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span className="flex h-[16px] min-w-[16px] flex-none items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[9px] font-extrabold leading-none text-white">
+      {n > 99 ? '99+' : n}
+    </span>
+  );
+}
+
 
 /** 内凹按压态分段控件样式（与 supervision-view 共用） */
 export const SEG_ACTIVE = 'rounded-[7px] px-2 py-1 text-xs font-semibold text-[color:var(--foreground)] bg-[oklch(0.92_0.012_258)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258_/_0.18),inset_-2px_-2px_5px_oklch(1_0_0_/_0.6)] transition-all';
@@ -396,6 +407,36 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
 
   const segActive = SEG_ACTIVE;
 
+  // 会话列表（微信式）：在线名单（可主动发起）∪ 既有私聊会话（含离线历史未读）——
+  // 在线者在前，会话未读/签到从 session 行携带
+  const rosterIds = useMemo(() => new Set(roster.map(r => r.supplierId)), [roster]);
+  const conversations: Session[] = useMemo(() => {
+    const byId = new Map<string, Session>();
+    for (const r of roster) byId.set(r.supplierId, { supplierId: r.supplierId, supplierName: r.supplierName, checkInAt: r.checkInAt, unread: 0 });
+    for (const sess of sessions) {
+      const cur = byId.get(sess.supplierId);
+      if (cur) { cur.unread = sess.unread; cur.checkInAt = cur.checkInAt ?? sess.checkInAt; }
+      else byId.set(sess.supplierId, { ...sess });
+    }
+    return [...byId.values()].sort((a, b) => Number(rosterIds.has(b.supplierId)) - Number(rosterIds.has(a.supplierId)));
+  }, [roster, sessions, rosterIds]);
+
+  // presence 30s 轮询兜底（2026-11-17 生产反馈#1）：在场名单原仅 WS hall:presence 事件+开抽屉
+  // 一次 REST——事件丢失（连接抖动/重连不触发广播）时名单永久停留旧值（生产实录「0 在线」
+  // 但供应商在场）。抽屉打开期间低频轮询自愈，口径与 hydrate 相同。
+  useEffect(() => {
+    if (!open) return;
+    const timer = setInterval(() => {
+      openingHallApi.presence(projectId).then(pres => {
+        if (projectIdRef.current !== projectId) return; // 陈旧响应守卫（同 hydrate）
+        setRoster((pres.suppliers ?? []).filter((x: any) => x.online).map((x: any) => ({
+          supplierId: x.supplierId, supplierName: x.supplierName, checkInAt: x.checkInAt ? String(x.checkInAt) : null,
+        })));
+      }).catch(() => {});
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [open, projectId]);
+
   // 触发按钮红角标总量 = 公聊未读 + 各私聊未读（与供应商端 cp-badge 同规格：17px 圆角胶囊、99+ 封顶）
   const totalUnread = publicUnread + sessions.reduce((a, s) => a + s.unread, 0);
 
@@ -418,7 +459,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
           抽屉仅在 open（客户端 state）为 true 时渲染，SSR 不触碰 document。
           层级：抽屉 z-40 低于唱标录入模态 z-50 ✓。新外壳无 sticky 顶栏，故浮动 inset 玻璃板。 */}
       {open && createPortal(
-        <aside className="fixed bottom-2 right-2 top-2 z-40 flex w-[420px] max-w-[92vw] flex-col overflow-hidden rounded-[20px] bg-[linear-gradient(175deg,oklch(0.985_0.008_258_/_0.94),oklch(0.975_0.012_258_/_0.9))] shadow-[-6px_0_30px_oklch(0.45_0.06_258_/_0.18),inset_1px_0_0_oklch(1_0_0_/_0.7)] backdrop-blur-2xl">
+        <aside className="fixed bottom-2 right-2 top-2 z-40 flex w-[600px] max-w-[94vw] flex-col overflow-hidden rounded-[20px] bg-[linear-gradient(175deg,oklch(0.985_0.008_258_/_0.94),oklch(0.975_0.012_258_/_0.9))] shadow-[-6px_0_30px_oklch(0.45_0.06_258_/_0.18),inset_1px_0_0_oklch(1_0_0_/_0.7)] backdrop-blur-2xl">
           <header className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-3">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-[color:var(--foreground)]">会场交流</h3>
@@ -443,41 +484,47 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
             </div>
           </header>
 
-          <div className="border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-2">
-            <div className="mb-1 text-xs font-medium text-[color:var(--muted-foreground)]">在场名单（{roster.length}）</div>
-            <div className="flex flex-wrap gap-1.5">
-              {roster.map(s => (
-                <span key={s.supplierId} className="rounded-md bg-[oklch(0.71_0.11_164_/_0.14)] px-2 py-0.5 text-xs font-medium text-[oklch(0.5_0.12_160)]">
-                  {s.supplierName}{s.checkInAt || checkins[s.supplierId] ? ' ✓签到' : ''}
-                </span>
-              ))}
-              {roster.length === 0 && <span className="text-xs text-[color:var(--muted-foreground)]">暂无供应商在线</span>}
-            </div>
-          </div>
-
-          <div className="flex gap-2 border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-2 text-sm">
-            <button type="button" onClick={() => { setTab('PUBLIC'); setPublicUnread(0); openingHallApi.markRead(projectId, 'public', publicMsgs[publicMsgs.length - 1]?.id).catch(() => {}); }}
-              className={tab === 'PUBLIC' ? 'font-semibold text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]'}>
-              公聊{publicUnread > 0 ? ` (${publicUnread})` : ''}
-            </button>
-            <button type="button" onClick={() => setTab('PRIVATE')}
-              className={tab === 'PRIVATE' ? 'font-semibold text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]'}>
-              私聊
-            </button>
-          </div>
-
-          {tab === 'PRIVATE' && (
-            <div className="flex gap-1.5 overflow-x-auto border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-2">
-              {sessions.map(s => (
-                <button key={s.supplierId} type="button" onClick={() => openPrivate(s)}
-                  className={activeSupplier?.supplierId === s.supplierId ? `${segActive} whitespace-nowrap` : 'neu-btn-xs whitespace-nowrap'}>
-                  {s.supplierName}{s.unread > 0 ? ` ●${s.unread}` : ''}
-                </button>
-              ))}
-              {sessions.length === 0 && <span className="text-xs text-[color:var(--muted-foreground)]">暂无供应商参与</span>}
-            </div>
-          )}
-
+          {/* 2026-11-17 会场交流改造（生产反馈）：tab 切换 → 微信/QQ 式双栏会话列表。
+              左栏=会话（公聊置顶+供应商，在线绿点/未读红标/签到✓ 悬停），右栏=消息+输入。
+              会话源 merge：在线名单（可主动发起）∪ 既有私聊会话（含离线历史未读）。 */}
+          <div className="flex min-h-0 flex-1">
+            <nav className="flex w-[150px] flex-none flex-col overflow-y-auto border-r border-[oklch(0.6_0.04_258_/_0.14)]">
+              <div className="flex items-center justify-between px-3 pb-1 pt-2.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">
+                <span>会话</span>
+                <span>在线 {roster.length}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setTab('PUBLIC'); setPublicUnread(0); openingHallApi.markRead(projectId, 'public', publicMsgs[publicMsgs.length - 1]?.id).catch(() => {}); }}
+                className={`mx-2 flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs transition-colors ${tab === 'PUBLIC' ? 'bg-[oklch(0.92_0.012_258)] font-semibold text-[color:var(--foreground)] shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258_/_0.16)]' : 'text-[color:var(--muted-foreground)] hover:bg-[oklch(0.95_0.01_258)]'}`}
+              >
+                <span className="flex h-5 w-5 flex-none items-center justify-center rounded-full bg-[var(--accent-strong)] text-[10px] font-bold text-white">公</span>
+                <span className="min-w-0 flex-1 truncate text-left">公聊大厅</span>
+                <UnreadBadge n={publicUnread} />
+              </button>
+              <div className="px-3 pb-1 pt-2 text-[10px] font-semibold text-[color:var(--muted-foreground)]">供应商</div>
+              {conversations.map(c => {
+                const online = rosterIds.has(c.supplierId);
+                const active = tab === 'PRIVATE' && activeSupplier?.supplierId === c.supplierId;
+                return (
+                  <button
+                    key={c.supplierId}
+                    type="button"
+                    onClick={() => openPrivate(c)}
+                    title={`${c.supplierName}${online ? ' · 在线' : ''}${c.checkInAt || checkins[c.supplierId] ? ' · 已签到' : ''}`}
+                    className={`mx-2 flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs transition-colors ${active ? 'bg-[oklch(0.92_0.012_258)] font-semibold text-[color:var(--foreground)] shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258_/_0.16)]' : 'text-[color:var(--muted-foreground)] hover:bg-[oklch(0.95_0.01_258)]'}`}
+                  >
+                    <span className={`h-1.5 w-1.5 flex-none rounded-full ${online ? 'bg-[var(--success)]' : 'bg-[oklch(0.75_0.02_258)]'}`} />
+                    <span className="min-w-0 flex-1 truncate text-left">{c.supplierName}</span>
+                    <UnreadBadge n={c.unread} />
+                  </button>
+                );
+              })}
+              {conversations.length === 0 && (
+                <div className="px-3 py-2 text-center text-[10px] leading-4 text-[color:var(--muted-foreground)]">暂无在线供应商</div>
+              )}
+            </nav>
+            <div className="flex min-w-0 flex-1 flex-col">
           <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3">
             {tab === 'PRIVATE' && !activeSupplier && <div className="pt-10 text-center text-xs text-[color:var(--muted-foreground)]">选择一家供应商开始私聊</div>}
             {msgs.map(m => m.senderRole === 'SYSTEM' ? (
@@ -591,6 +638,8 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
               />
               <button type="button" onClick={send} disabled={sending || !input.trim() || inputDisabled}
                 className="neu-btn-primary is-water !h-[40px] !px-4 text-sm disabled:opacity-40">发送</button>
+            </div>
+          </div>
             </div>
           </div>
         </aside>,
