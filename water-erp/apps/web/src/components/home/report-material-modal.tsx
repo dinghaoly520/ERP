@@ -116,8 +116,9 @@ function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null, c
     return b >= min && b < max;
   }).length, 0);
   const scaleItems = [
-    { label: '小额 <10万', value: seg(0, 100000) }, { label: '中小 10-50万', value: seg(100000, 500000) },
-    { label: '中型 50-200万', value: seg(500000, 2000000) }, { label: '大型 >200万', value: seg(2000000, Infinity) },
+    { label: '<10万', value: seg(0, 100000) }, { label: '10-30万', value: seg(100000, 300000) },
+    { label: '30-50万', value: seg(300000, 500000) }, { label: '50-100万', value: seg(500000, 1000000) },
+    { label: '100-200万', value: seg(1000000, 2000000) }, { label: '>200万', value: seg(2000000, Infinity) },
   ];
   const savingsRate = s.awardedBudget > 0 ? ((s.totalSavings / s.awardedBudget) * 100).toFixed(1) : '0'; // 分母=已成交（2026-11-17 裁定）
   const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
@@ -214,8 +215,9 @@ export function ReportMaterialModal({ open, onClose, data, companyId, currentUse
   const payload = useMemo(() => {
     if (!data) return null;
     const scaleSegments = [
-      { label: '小额', range: '<10万', min: 0, max: 100000 }, { label: '中小', range: '10-50万', min: 100000, max: 500000 },
-      { label: '中型', range: '50-200万', min: 500000, max: 2000000 }, { label: '大型', range: '>200万', min: 2000000, max: Infinity },
+      { label: '极小', range: '<10万', min: 0, max: 100000 }, { label: '小额', range: '10-30万', min: 100000, max: 300000 },
+      { label: '中小', range: '30-50万', min: 300000, max: 500000 }, { label: '中型', range: '50-100万', min: 500000, max: 1000000 },
+      { label: '中大', range: '100-200万', min: 1000000, max: 2000000 }, { label: '大型', range: '>200万', min: 2000000, max: Infinity },
     ].map(seg => {
       let count = 0, amount = 0;
       data.trendSeries.forEach(t => t.projects.forEach(p => {
