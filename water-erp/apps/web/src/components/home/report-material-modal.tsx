@@ -110,10 +110,11 @@ function exportReportPdf(data: DashboardData, ai: ReportMaterialResult | null) {
   const doneRate = s.totalCount > 0 ? Math.round((s.completedCount / s.totalCount) * 100) : 0;
   const note = (k: string) => `<p class="note"><b>说明：</b>${esc(ai?.sections?.[k as keyof typeof ai.sections] || '')}</p>`;
   const aiBlock = ai?.overview ? `<section class="card ai"><h2>AI 综合分析</h2><p class="ov">${esc(ai.overview)}</p><div class="tri">${([['主要亮点', ai.highlights], ['关注事项', ai.concerns], ['工作建议', ai.suggestions]] as const).map(([t, l]) => `<div><h4>${t}</h4><ul>${l.slice(0, 5).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</div></section>` : '';
-  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>采购数据汇报材料</title><style>
-@page { size: A4; margin: 14mm 12mm; }
+  const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>四川水发勘测设计研究有限公司采购数据汇报材料</title><style>
+@page { size: A4; margin: 0; }
+.pfoot { position: fixed; left: 0; right: 0; bottom: 6mm; text-align: center; font-size: 9px; color: oklch(0.62 0.03 258); }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: "PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif; color: oklch(0.28 0.03 258); font-size: 12px; line-height: 1.6; background: #fff; }
+body { font-family: "PingFang SC","Microsoft YaHei","Source Han Sans SC",sans-serif; color: oklch(0.28 0.03 258); font-size: 12px; line-height: 1.6; background: #fff; padding: 12mm 10mm 14mm; }
 h1 { font-size: 20px; letter-spacing: -0.02em; }
 .meta { color: oklch(0.55 0.03 258); font-size: 11px; margin: 4px 0 14px; }
 .card { border-top: 2px solid oklch(0.5 0.12 258); padding: 10px 0 4px; margin: 14px 0; page-break-inside: avoid; }
@@ -146,6 +147,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
 .empty { color: oklch(0.55 0.03 258); text-align: center; padding: 20px 0; }
 .no-print { display: none; }
 </style></head><body>
+<div class="pfoot">四川水发勘测设计研究有限公司</div>
 <h1>四川水发勘测设计研究有限公司采购数据汇报材料</h1>
 <p class="meta">${data.range.startDate && data.range.endDate ? `${data.range.startDate} ~ ${data.range.endDate}` : '全部区间'} · 共 ${s.totalCount} 项 · 生成于 ${new Date().toLocaleDateString('zh-CN')}</p>
 <div class="kpis">${[
