@@ -20,6 +20,29 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
 };
 
+/** #166③ 加固（2026-11-17 用户裁定）：签字包下载改 fetch+blob 带名落盘——显式
+ * X-Portal 头让门户判定确定性成立（不依赖 Referer 直链族），文件名优先取
+ * Content-Disposition（upload 直出 asset.originalName），回退调用方给定名。 */
+async function downloadAsBlob(url: string, fallbackName: string) {
+  try {
+    const res = await fetch(url, { credentials: 'include', headers: { 'X-Portal': 'bid' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const cd = res.headers.get('Content-Disposition') ?? '';
+    const m = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(cd);
+    let name = fallbackName;
+    if (m) { try { name = decodeURIComponent(m[1]) || fallbackName; } catch { name = m[1].includes('%') ? fallbackName : m[1]; } } // P3：decode 失败不丢下载——含 % 判非编码名回退
+    const blob = await res.blob();
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = u;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(u);
+  } catch {
+    toast.error('签字包下载失败，请稍后重试');
+  }
+}
+
 export default function SigningTab({ projectId, stage, refreshSignal, assignedHostUserId }: { projectId: string; stage: string; refreshSignal?: number; assignedHostUserId?: string | null }) {
   const [data, setData] = useState<SignPacketResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -384,8 +407,10 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
               )}
               <a
                 href={data.packet.downloadUrl}
-                target="_blank"
-                rel="noopener"
+                onClick={(e) => {
+                  e.preventDefault();
+                  void downloadAsBlob(data.packet!.downloadUrl, `评标签字包-${projectId.slice(-8)}.pdf`);
+                }}
                 className="neu-btn-soft !h-[34px] !text-xs"
               >
                 <FileDown size={13} /> 下载签字包

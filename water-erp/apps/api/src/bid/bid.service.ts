@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES, BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
@@ -65,6 +65,7 @@ import { buildClarificationNotice } from './clarification-notify.util';
 import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
 import { BidIntentOversightService } from '../supplier/bid-intent-oversight.service';
 import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
+import JSZip = require('jszip');
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -1167,6 +1168,28 @@ export class BidService {
 
   startOpening(projectId: string, dto?: StartOpeningDto, userId?: string) {
     return this.startOpeningInternal(projectId, dto, userId);
+  }
+
+  /** #114（2026-11-17 用户裁定）：开标文件包 zip 人工通道——JSON 本体（机器通道不变，:3005
+   *  fetch 直接消费）+ 校验指纹.txt 打包 attachment 落盘；镜像 #115 evidence-zip 模式
+   *  （人只触达文件，不再新标签页直开 JSON 乱码页）。 */
+  async buildOpeningHandoverZip(projectId: string): Promise<{ buffer: Buffer; fileName: string }> {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { projectCode: true } });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+    if (!session?.handoverAssetId) throw new NotFoundException({ error: '开标文件包尚未生成', code: 'HANDOVER_NOT_GENERATED' });
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: session.handoverAssetId } });
+    if (!asset) throw new NotFoundException({ error: '开标文件包资产不存在', code: 'NOT_FOUND' });
+    const jsonBuf = await this.storage.download(asset.key); // 已注入 StorageService（与 buildEvidenceZip 同轨，勿裸用 minioClient）
+    const zip = new JSZip();
+    zip.file((asset.originalName || `开标文件包-${project.projectCode}.json`).replace(/[/\\]/g, '_'), jsonBuf); // originalName 入库自由文本——剥路径分隔符（CR-06 同 #115）
+    zip.file('校验指纹.txt', [
+      `开标文件包 SHA-256：${asset.sha256 ?? '（未记录）'}`,
+      `生成时间：${(session.handoverAt ?? asset.createdAt).toISOString()}`,
+      '说明：本 zip 为人工交付通道；同内容 JSON 由采购管理工作台机器通道直接消费，二者指纹一致。',
+    ].join('\n'));
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+    return { buffer, fileName: `开标文件包-${project.projectCode}.zip` };
   }
 
   /**

@@ -1,5 +1,5 @@
 # =============================================================================
-# 新增文件 —— water-erp 前端门户镜像（3002 / 3004 / 3005 / 3006 / 3007）
+# 新增文件 —— water-erp 前端门户镜像（3002 / 3004 / 3005 / 3006 / 3007 / 3011）
 #
 # 构建上下文 = water-erp/ 仓库根目录（原始结构保持不动，靠 .dockerignore 精简）
 # 用法（在 water-erp 目录下）：
@@ -50,6 +50,7 @@ COPY apps/supplier-portal-next/package.json apps/supplier-portal-next/
 COPY apps/web/package.json                  apps/web/
 COPY apps/expert-portal/package.json        apps/expert-portal/
 COPY apps/bid-portal/package.json           apps/bid-portal/
+COPY apps/mobile-portal/package.json        apps/mobile-portal/
 COPY apps/api/package.json                  apps/api/
 COPY apps/assistant/package.json            apps/assistant/
 COPY apps/bigscreen/package.json            apps/bigscreen/
@@ -83,7 +84,8 @@ RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
       --filter supplier-portal-next... \
       --filter web... \
       --filter expert-portal... \
-      --filter bid-portal...
+      --filter bid-portal... \
+      --filter mobile-portal...
 
 # -----------------------------------------------------------------------------
 # 再拷源码（node_modules / .next / zhishiku 等已被 .dockerignore 排除）
@@ -100,12 +102,14 @@ COPY . .
  && pnpm --filter @water-erp/client run build \
  && pnpm --filter @water-erp/ukey   run build
 
-# 2) 5 个门户（expert-portal 的 prebuild 会自动把 mediapipe wasm 拷进 public/）
+# 2) 6 个门户（expert-portal 的 prebuild 会自动把 mediapipe wasm 拷进 public/；
+#    mobile-portal 无构建期 API 固化——/api 走 src/proxy.ts 运行期 API_ORIGIN）
 RUN pnpm --filter public-portal        run build \
  && pnpm --filter supplier-portal-next run build \
  && pnpm --filter web                  run build \
  && pnpm --filter expert-portal        run build \
- && pnpm --filter bid-portal           run build
+ && pnpm --filter bid-portal           run build \
+ && pnpm --filter mobile-portal        run build
 
 # ---- 构建指纹（2026-11-10 出包校验兜底，与 backend/Dockerfile.api 同款）----
 # front.sh 构建时注入当前 git 指纹（git describe --always --dirty），导出前
@@ -114,7 +118,7 @@ RUN pnpm --filter public-portal        run build \
 ARG GIT_SHA=unknown
 RUN echo "${GIT_SHA}" > /repo/BUILD_SHA
 
-EXPOSE 3002 3004 3005 3006 3007
+EXPOSE 3002 3004 3005 3006 3007 3011
 
 # 默认起 3002，docker-compose 用 command 覆盖成各自门户
 CMD ["sh", "-c", "pnpm --filter public-portal exec next start -H 0.0.0.0 -p 3002"]

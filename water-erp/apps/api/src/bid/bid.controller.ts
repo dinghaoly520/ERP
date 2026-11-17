@@ -539,6 +539,20 @@ export class BidController {
     return this.bidService.completeOpening(id, userId);
   }
 
+  /** #114（2026-11-17 用户裁定）：开标文件包 zip 人工通道（镜像 #115 evidence-zip——
+   *  json=机器通道/:3005 fetch 消费，人只触达 zip attachment 落盘）。 */
+  @Get('projects/:id/opening-handover-zip')
+  @Roles('admin', 'bid_host', 'leader', 'staff')
+  @ApiOperation({ summary: '下载开标文件包（zip 人工通道：JSON 本体 + 校验指纹.txt）' })
+  async downloadOpeningHandoverZip(@Param('id') id: string, @Res() res: any) {
+    const { buffer, fileName } = await this.bidService.buildOpeningHandoverZip(id);
+    const enc = encodeURIComponent(fileName);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Length', String(buffer.length));
+    res.setHeader('Content-Disposition', `attachment; filename="${enc}"; filename*=UTF-8''${enc}`);
+    res.send(buffer);
+  }
+
   @Post('projects/:id/rerun-ai-analysis')
   @Roles('admin', 'bid_host', 'leader', 'staff')
   @ApiOperation({ summary: '重新触发 AI 辅助分析（B8/15.5）——清除旧结果并重新入队' })
