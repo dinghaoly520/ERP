@@ -160,6 +160,10 @@ function wsCorsOrigin(): string | string[] | ((origin: string, cb: (err: Error |
 @WebSocketGateway({
   namespace: 'bid',
   cors: { origin: wsCorsOrigin(), credentials: true },
+  // bug#163（2026-11-17）：engine.io 默认 addTrailingSlash=true 只认 /socket.io/（带斜杠），
+  // 旧版 socket.io-client（<4.6，生产存量 bundle）无斜杠握手被 404。false=按 /socket.io
+  // 前缀比对，新旧客户端两形式通吃（e2e 契约锁：test/socket-io-path.e2e-spec.ts）。
+  addTrailingSlash: false,
 })
 @Injectable()
 export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {

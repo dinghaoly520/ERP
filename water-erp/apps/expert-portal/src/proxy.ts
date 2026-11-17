@@ -38,6 +38,10 @@ export default async function proxy(request: NextRequest) {
   // Allow public assets without auth (images, css, js chunks)
   if (
     pathname.startsWith('/assets') ||
+    // bug#163（2026-11-17）：/socket.io 轮询放行——转发走 next.config rewrites（同 /api/*，
+    // matcher 的 (?!api 排除不到它），鉴权由 API 网关在握手层做（cookie 透传）；不 bypass
+    // 则每次轮询触发一次 /api/auth/me 回源，匿名握手被 302 拦死。
+    pathname.startsWith('/socket.io') ||
     pathname.startsWith('/models') || // 2026-09-18 身份核验 R3：MediaPipe 模型/wasm 自托管静态件（Apache-2.0 无敏感信息）
     /\.(png|jpg|jpeg|gif|svg|ico|webp|css)$/i.test(pathname) ||
     // P3-9（2026-09-15）：PWA 静态件放行——被 307 到登录页时 Chrome 拿登录页 HTML 当

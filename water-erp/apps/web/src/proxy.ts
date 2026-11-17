@@ -14,6 +14,11 @@ const AUTH_COOKIE_NAME = 'token_web';
 // 注意：大文件下载经此代理整包缓冲（dev 可接受；生产走域名/直连轨道）。
 const UPSTREAM_TIMEOUT_MS = 15_000;
 const UPSTREAM_TIMEOUT_SLOW_MS = 120_000;
+// bug#163（2026-11-17）：门户同源 /socket.io 轮询经此代理转发——engine.io 长轮询挂起至
+// pingInterval(25s) 才回包，15s 默认档会腰斩成 504 致反复重连。单列 60s 护栏档
+//（引擎 25s ping 必返，60s 只是防呆上限，不会常态占用）。
+const UPSTREAM_TIMEOUT_SOCKETIO_MS = 60_000;
+const isSocketIoPath = (pathname: string) => pathname === '/socket.io' || pathname.startsWith('/socket.io/');
 // 2026-11-11（生产实录「AI生成失败」）：采购文件长文字段（商务要求/技术要求/特定资格
 // 要求）同步生成可达 2-5 分钟——120s 慢路径档先于后端 300s LLM 预算掐断。该端点单列
 // 特慢档 330s（> 后端单次 300s，罩住外层重试的首轮全墙钟）。
@@ -50,6 +55,7 @@ const UPSTREAM_SLOW_PATH_SUFFIXES = ['/attachment-ai-polish', '/generate-summary
 const UPSTREAM_SLOW_PATH_PREFIXES_LARGE_BODY = ['/api/knowledge/'];
 
 function upstreamTimeoutFor(pathname: string): number {
+  if (isSocketIoPath(pathname)) return UPSTREAM_TIMEOUT_SOCKETIO_MS;
   if (UPSTREAM_LLM_LONG_EXACT.includes(pathname)) return UPSTREAM_TIMEOUT_LLM_LONG_MS;
   return UPSTREAM_SLOW_PATH_PREFIXES.some((p) => pathname.startsWith(p))
     || UPSTREAM_SLOW_PATH_EXACT.includes(pathname)
@@ -109,7 +115,9 @@ export async function fetchUpstreamBuffered(
 
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough
-  if (request.nextUrl.pathname.startsWith('/api/')) {
+  // bug#163（2026-11-17）：/socket.io 同道转发（同源反代——生产门户 vhost nginx 无此 location）；
+  // 鉴权在 API 网关握手层做，cookie 原样透传；超时单列 60s 档防长轮询被 15s 腰斩。
+  if (request.nextUrl.pathname.startsWith('/api/') || isSocketIoPath(request.nextUrl.pathname)) {
     const targetUrl = `${apiLoopbackOrigin()}${request.nextUrl.pathname}${request.nextUrl.search}`;
 
     const headers = new Headers();

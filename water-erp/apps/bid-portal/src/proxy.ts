@@ -15,7 +15,10 @@ import { apiLoopbackOrigin, portalOriginForHost } from '@water-erp/config';
  */
 const PORTAL = 'bid';
 const COOKIE = `token_${PORTAL}`;
-const publicPaths = ['/api', '/assets'];
+// bug#163（2026-11-17）：/socket.io 加入放行——轮询转发走 next.config rewrites（同 /api/*），
+// 鉴权由 API 网关在握手/连接层做（cookie 经 rewrites 原样透传）；不 bypass 的话每次轮询
+// 都会触发一次 /api/auth/me 鉴权回源，且匿名握手被 302 拦死。
+const publicPaths = ['/api', '/assets', '/socket.io'];
 const requestHost = (request: NextRequest) =>
   (request.headers.get('x-forwarded-host') || request.headers.get('host') || '')
     .split(',')[0]

@@ -43,6 +43,8 @@ function tokenFromHandshake(socket: Socket): string | undefined {
 @WebSocketGateway({
   namespace: 'chat',
   cors: { origin: true, credentials: true },
+  // bug#163：同 bid.gateway——双形式握手兼容（详见彼处注释）
+  addTrailingSlash: false,
 })
 @Injectable()
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
