@@ -3963,7 +3963,7 @@ export function ExpertExtractPage({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">专家姓名 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.name} onChange={e => setExtRepForm(p => ({ ...p, name: e.target.value }))} placeholder="真实姓名" className="workbench-input" />
+                <input value={extRepForm.name} onChange={e => setExtRepForm(p => ({ ...p, name: e.target.value }))} placeholder="真实姓名" className="workbench-input w-full" />
               </label>
               {/* 右列凭证说明（与专家录入①同构占位，双列边缘对齐不断行） */}
               <div className="flex items-end pb-1 text-[10px] leading-relaxed text-[var(--muted-foreground)]/70">登录凭证自动生成：账号与初始口令均为身份证号</div>
@@ -3976,24 +3976,24 @@ export function ExpertExtractPage({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">专业 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.specialty} onChange={e => setExtRepForm(p => ({ ...p, specialty: e.target.value }))} placeholder="输入专业，默认「综合」" className="workbench-input" />
+                <input value={extRepForm.specialty} onChange={e => setExtRepForm(p => ({ ...p, specialty: e.target.value }))} placeholder="输入专业，默认「综合」" className="workbench-input w-full" />
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">职称 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.title} onChange={e => setExtRepForm(p => ({ ...p, title: e.target.value }))} list="ext-rep-title-list" placeholder="输入或选择职称" className="workbench-input" />
+                <input value={extRepForm.title} onChange={e => setExtRepForm(p => ({ ...p, title: e.target.value }))} list="ext-rep-title-list" placeholder="输入或选择职称" className="workbench-input w-full" />
                 <datalist id="ext-rep-title-list">{EXPERT_TITLES.map(t => <option key={t} value={t} />)}</datalist>
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">工作单位 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.employer} onChange={e => setExtRepForm(p => ({ ...p, employer: e.target.value }))} placeholder="输入公司名称" className="workbench-input" />
+                <input value={extRepForm.employer} onChange={e => setExtRepForm(p => ({ ...p, employer: e.target.value }))} placeholder="输入公司名称" className="workbench-input w-full" />
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.departmentName} onChange={e => setExtRepForm(p => ({ ...p, departmentName: e.target.value }))} placeholder="输入部门" className="workbench-input" />
+                <input value={extRepForm.departmentName} onChange={e => setExtRepForm(p => ({ ...p, departmentName: e.target.value }))} placeholder="输入部门" className="workbench-input w-full" />
               </label>
               <label className="space-y-1 md:col-span-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格</span>
-                <input value={extRepForm.qualifications} onChange={e => setExtRepForm(p => ({ ...p, qualifications: e.target.value }))} list="ext-rep-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className="workbench-input" />
+                <input value={extRepForm.qualifications} onChange={e => setExtRepForm(p => ({ ...p, qualifications: e.target.value }))} list="ext-rep-qual-list" placeholder="如 一级建造师、监理工程师（顿号分隔）" className="workbench-input w-full" />
                 <datalist id="ext-rep-qual-list">{EXPERT_QUALIFICATIONS.map(q => <option key={q} value={q} />)}</datalist>
               </label>
             </div>
@@ -4005,15 +4005,15 @@ export function ExpertExtractPage({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">手机号 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.phone} onChange={e => setExtRepForm(p => ({ ...p, phone: e.target.value }))} placeholder="11 位，通知触达用" className="workbench-input" />
+                <input value={extRepForm.phone} onChange={e => setExtRepForm(p => ({ ...p, phone: e.target.value }))} placeholder="11 位，通知触达用" className="workbench-input w-full" />
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">电子邮箱 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.email} onChange={e => setExtRepForm(p => ({ ...p, email: e.target.value }))} placeholder="example@domain.com" className="workbench-input" />
+                <input value={extRepForm.email} onChange={e => setExtRepForm(p => ({ ...p, email: e.target.value }))} placeholder="example@domain.com" className="workbench-input w-full" />
               </label>
               <label className="space-y-1 md:col-span-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">身份证号 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.idCard} onChange={e => setExtRepForm(p => ({ ...p, idCard: e.target.value }))} placeholder="18 位，将作为登录名与初始口令" className="workbench-input font-mono" />
+                <input value={extRepForm.idCard} onChange={e => setExtRepForm(p => ({ ...p, idCard: e.target.value }))} placeholder="18 位，将作为登录名与初始口令" className="workbench-input w-full font-mono" />
               </label>
             </div>
           </fieldset>
@@ -4024,17 +4024,17 @@ export function ExpertExtractPage({
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">民族 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.ethnicity} onChange={e => setExtRepForm(p => ({ ...p, ethnicity: e.target.value }))} list="ext-rep-eth-list" placeholder="如 汉族" className="workbench-input" />
+                <input value={extRepForm.ethnicity} onChange={e => setExtRepForm(p => ({ ...p, ethnicity: e.target.value }))} list="ext-rep-eth-list" placeholder="如 汉族" className="workbench-input w-full" />
                 <datalist id="ext-rep-eth-list">{EXT_REP_ETHNICITIES.map(t => <option key={t} value={t} />)}</datalist>
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">学历 <span className="text-[var(--danger)]">*</span></span>
-                <input value={extRepForm.education} onChange={e => setExtRepForm(p => ({ ...p, education: e.target.value }))} list="ext-rep-edu-list" placeholder="如 硕士" className="workbench-input" />
+                <input value={extRepForm.education} onChange={e => setExtRepForm(p => ({ ...p, education: e.target.value }))} list="ext-rep-edu-list" placeholder="如 硕士" className="workbench-input w-full" />
                 <datalist id="ext-rep-edu-list">{EXT_REP_EDUCATIONS.map(t => <option key={t} value={t} />)}</datalist>
               </label>
               <label className="space-y-1 md:col-span-2">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">执业资格证号</span>
-                <input value={extRepForm.licenseNo} onChange={e => setExtRepForm(p => ({ ...p, licenseNo: e.target.value }))} placeholder="选填" className="workbench-input font-mono" />
+                <input value={extRepForm.licenseNo} onChange={e => setExtRepForm(p => ({ ...p, licenseNo: e.target.value }))} placeholder="选填" className="workbench-input w-full font-mono" />
               </label>
             </div>
           </fieldset>
@@ -4044,7 +4044,7 @@ export function ExpertExtractPage({
             <legend className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]"><EXT_REP_STEP n={5} />补充信息</legend>
             <label className="space-y-1">
               <span className="text-xs font-semibold text-[var(--muted-foreground)]">备注 <span className="text-[var(--danger)]">*</span></span>
-              <textarea value={extRepForm.notes} onChange={e => setExtRepForm(p => ({ ...p, notes: e.target.value }))} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className="workbench-input resize-y" />
+              <textarea value={extRepForm.notes} onChange={e => setExtRepForm(p => ({ ...p, notes: e.target.value }))} placeholder="补充说明、特殊资质说明、回避事项等" rows={3} className="workbench-input w-full resize-y" />
             </label>
           </fieldset>
         </Modal>
