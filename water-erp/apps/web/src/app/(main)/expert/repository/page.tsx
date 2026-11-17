@@ -22,6 +22,14 @@ import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
 
 
 
+/** 状态分段（2026-11-17 对齐供应商库同款单行工具行）：在库/已停用/已退库/待审核 */
+const EXPERT_STATUS_TABS = [
+  { key: 'ACTIVE', label: '在库' },
+  { key: 'DISABLED', label: '已停用' },
+  { key: 'RETIRED', label: '已退库' },
+  { key: 'PENDING', label: '待审核' },
+] as const;
+
 export default function ExpertRepositoryPage() {
   const router = useRouter();
   const [experts, setExperts] = useState<ExpertListItem[]>([]);
@@ -516,9 +524,23 @@ export default function ExpertRepositoryPage() {
         <div className="page-hero__divider" />
       </div>
 
-      {/* 工具行：搜索（左，固定 280px）+ 筛选与操作（右）——2026-09-18 对齐供应商库同款 */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative w-[280px] shrink-0">
+      {/* 工具行（2026-11-17 对齐供应商库同款单行）：状态分段（左）+ 搜索/筛选/操作（右） */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div
+          className="neu-segment"
+          role="group"
+          aria-label="专家状态"
+          data-count="4"
+          data-index={String(EXPERT_STATUS_TABS.findIndex(t => t.key === statusTab))}
+        >
+          <span className="neu-segment-thumb" aria-hidden="true" />
+          {EXPERT_STATUS_TABS.map(t => (
+            <button key={t.key} type="button" className="neu-segment-btn" aria-pressed={statusTab === t.key} onClick={() => setStatusTab(t.key)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative ml-auto w-[280px] shrink-0">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] z-10" />
           <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="搜索姓名/专业/单位" className="neu-input neu-input-sm !pl-9" />
           {search && <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--muted-foreground)] z-10" aria-label="清除搜索"><X size={14} /></button>}
@@ -542,18 +564,6 @@ export default function ExpertRepositoryPage() {
           )}
           <button onClick={doExport} className="neu-btn-xs" title={selectedIds.size > 0 ? `导出已选的 ${selectedIds.size} 位专家（按公司分组）` : '导出全部专家（按公司分组）'}><Download size={12} />导出Excel{selectedIds.size > 0 && <span className="ml-1 rounded bg-[var(--accent)] px-1 py-0 text-[10px] font-bold text-white">{selectedIds.size}</span>}</button>
         </div>
-      </div>
-
-      {/* 状态 tab（2026-11-16 两态裁定，供应商库同款切换） */}
-      <div className="neu-tab-bar">
-        {([
-          { key: 'ACTIVE', label: '在库' },
-          { key: 'DISABLED', label: '已停用' },
-          { key: 'RETIRED', label: '已退库' },
-          { key: 'PENDING', label: '待审核' },
-        ] as const).map(t => (
-          <button key={t.key} onClick={() => setStatusTab(t.key)} className={`neu-tab ${statusTab === t.key ? 'is-active' : ''}`}>{t.label}</button>
-        ))}
       </div>
 
       {/* 高级筛选 */}
