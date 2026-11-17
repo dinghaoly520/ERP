@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, ForbiddenException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Optional, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import * as crypto from 'crypto';
 import { GB_ARCHIVE_CATEGORIES, BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS, parseAmountToYuan, renderNotificationPayload } from '@water-erp/shared';
@@ -65,6 +65,9 @@ import { buildClarificationNotice } from './clarification-notify.util';
 import { findCrossWindowExperts, findOpenEvaluationWindows, generateRoomCode, notifyAdmins } from '../expert/expert-room.util';
 import { BidIntentOversightService } from '../supplier/bid-intent-oversight.service';
 import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
+import JSZip = require('jszip');
+import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { streamToBuffer } from '../announcement/bid-document.crypto';
 
 /** AI 分析「卡住」判定阈值：bidder 处于中间态且 updatedAt 停摆超过该时长（单家 OCR+LLM 约 5-15 分钟，30 分钟留足余量） */
 const AI_STUCK_THRESHOLD_MS = 30 * 60 * 1000;
@@ -1176,6 +1179,29 @@ export class BidService {
    * 并向 leader/staff 发站内信（深链直达 :3005 开标确认面板）。
    * 非闸门：:3005 启动评标不依赖本动作（H4 口径独立满足即可）。
    */
+  /** #114（2026-11-17 用户裁定）：开标文件包 zip 人工通道——JSON 本体（机器通道不变，:3005
+   *  fetch 直接消费）+ 校验指纹.txt 打包 attachment 落盘；镜像 #115 evidence-zip 模式
+   *  （人只触达文件，不再新标签页直开 JSON 乱码页）。 */
+  async buildOpeningHandoverZip(projectId: string): Promise<{ buffer: Buffer; fileName: string }> {
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { projectCode: true } });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
+    if (!session?.handoverAssetId) throw new NotFoundException({ error: '开标文件包尚未生成', code: 'HANDOVER_NOT_GENERATED' });
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: session.handoverAssetId } });
+    if (!asset) throw new NotFoundException({ error: '开标文件包资产不存在', code: 'NOT_FOUND' });
+    const stream = await minioClient.getObject(MINIO_BUCKET, asset.key);
+    const jsonBuf = await streamToBuffer(stream);
+    const zip = new JSZip();
+    zip.file(asset.originalName || `开标文件包-${project.projectCode}.json`, jsonBuf);
+    zip.file('校验指纹.txt', [
+      `开标文件包 SHA-256：${asset.sha256 ?? '（未记录）'}`,
+      `生成时间：${(session.handoverAt ?? asset.createdAt).toISOString()}`,
+      '说明：本 zip 为人工交付通道；同内容 JSON 由采购管理工作台机器通道直接消费，二者指纹一致。',
+    ].join('\n'));
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+    return { buffer, fileName: `开标文件包-${project.projectCode}.zip` };
+  }
+
   async completeOpening(id: string, actorId?: string, opts?: { auto?: boolean; trigger?: string }) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id },
