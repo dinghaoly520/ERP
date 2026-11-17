@@ -6,13 +6,14 @@ import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle, ArrowDown, ArrowRight, ArrowUp,
   BarChart3, Building2, CalendarRange, ChevronRight, Eye,
-  FolderKanban, Layers, Lightbulb, PieChart,
+  FileDown, FolderKanban, Layers, Lightbulb, PieChart,
   RefreshCw, Sparkles, Target, TrendingUp,
 } from "lucide-react";
 import { type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
 import { trendLabelStep, isTrendLabelShown, isMonthBoundary } from "@/components/home/trend-axis";
 import { AwardResultPanel } from "@/components/home/award-result-panel";
+import { ReportMaterialModal } from "@/components/home/report-material-modal";
 import { PerformancePanel } from "@/components/home/performance-panel";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import {
@@ -530,6 +531,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
   const [startDate,setStartDate] = useState("");
   const [endDate,setEndDate] = useState("");
   const [companyId,setCompanyId] = useState("all");
+  const [reportOpen,setReportOpen] = useState(false); // 导出汇报材料弹窗（2026-11-17）
   const dateBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(()=>{setCompanyId(readInitialCompanyId());},[]);
@@ -651,6 +653,8 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
             <div className="relative">
               {showDP && <div className="fixed inset-0 z-[999]" onClick={()=>setShowDP(false)}/>}
               <button ref={dateBtnRef} onClick={()=>setShowDP(!showDP)} className="neu-btn-soft !h-[36px] !px-3.5 !text-xs flex items-center gap-1.5"><CalendarRange size={13}/> {data.range.startDate??"起始"} ~ {data.range.endDate??"至今"}</button>
+              {/* 导出汇报材料（2026-11-17 用户裁定）：HTML 窗口展示+打印；AI 总述+多维度图表带说明 */}
+              <button onClick={()=>setReportOpen(true)} className="neu-btn-soft !h-[36px] !px-3.5 !text-xs flex items-center gap-1.5"><FileDown size={13}/> 导出汇报材料</button>
               {showDP && createPortal(
                 <div className="neu-pop fixed z-[1000] w-[288px] rounded-[18px] p-5" style={{top: (dateBtnRef.current?.getBoundingClientRect().bottom ?? 120) + 8, right: window.innerWidth - (dateBtnRef.current?.getBoundingClientRect().right ?? window.innerWidth - 16)}}>
                 <div className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--muted-foreground)] mb-2">快捷选择</div>
@@ -697,6 +701,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         <div className="min-h-[280px]"><NonAwardDonutPanel profile={data} index={12} reducedMotion={reducedMotion}/></div>
       </div>
       <AwardResultPanel startDate={startDate || undefined} endDate={endDate || undefined} companyId={companyId}/>
+      {data && <ReportMaterialModal open={reportOpen} onClose={()=>setReportOpen(false)} data={data} companyId={companyId} analysisPayload={bap(data)}/>}
       <PerformancePanel/>
       <TrendChartPanel profile={data} index={15} reducedMotion={reducedMotion}/>
     </motion.div>

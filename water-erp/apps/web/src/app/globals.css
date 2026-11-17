@@ -7243,3 +7243,21 @@ select.workbench-input {
 }
 
 /* cache-bust 2026-11-12: force Tailwind rescan after cgzxui SKILL.md class-name fix */
+
+/* ── 汇报材料打印（2026-11-17）：visibility 隔离——只保留弹窗内容；
+     壳展开去影铺满纸面、隐藏底栏（打印按钮），图表为矢量 SVG 直印 ── */
+@media print {
+  body * { visibility: hidden; }
+  .report-print-root, .report-print-root * { visibility: visible; }
+  .report-print-root { position: absolute; left: 0; top: 0; width: 100%; }
+  /* Modal 壳（fixed 居中+90vh 滚动）打印态展开 */
+  .wb-modal-shell {
+    position: absolute !important;
+    left: 0; top: 0; right: auto; bottom: auto;
+    width: 100% !important; max-width: 100% !important; max-height: none !important;
+    box-shadow: none !important; border-radius: 0 !important;
+  }
+  .wb-modal-shell > div { overflow: visible !important; max-height: none !important; }
+  /* 底栏（关闭/打印按钮）不进纸面 */
+  .wb-modal-shell > div:last-child { display: none !important; }
+}
