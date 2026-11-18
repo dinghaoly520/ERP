@@ -216,6 +216,13 @@ export default function TabletEvaluatePage() {
     },
     // TAB-SYNC-02 ⑤：pull 合并主体收敛到 useScoreDraftSync（与桌面端同源）
     onDraftSaved,
+    // TAB-SYNC-02 P2-2：配对被解除（桌面自解绑/主持端远程解绑）——即时退出评分回工作台
+    //（服务端已同步踢除 scoped socket；写面下一请求 401 PAIRING_REVOKED 三重兜底）
+    onPairingRevoked: (d) => {
+      if (d.expertId !== project?.myExpertRecord?.id) return;
+      toast.warning('配对已被解除，即将返回平板工作台');
+      router.replace('/tablet');
+    },
   });
 
   useEffect(() => {

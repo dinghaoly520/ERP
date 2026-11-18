@@ -173,6 +173,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly supplierSockets = new Map<string, Set<string>>();
   /** expertId(BidExpert.id) → socket id 集合（B1 2026-11-12：组长复议召集等专家定向投递）。 */
   private readonly expertSockets = new Map<string, Set<string>>();
+  /** TAB-SYNC-02 P2-3：配对在线跟踪——expertId → scoped socket id 集（连接建立/断开维护） */
+  private readonly pairingOnline = new Map<string, Set<string>>();
   /** socket.id → 所属项目（断连时回收在场表）。 */
   private readonly socketProjects = new Map<string, string>();
 
@@ -203,7 +205,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     let role: string | undefined;
     let userId: string | undefined;
-    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string; pid?: string } | undefined;
+    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string; pid?: string; eid?: string } | undefined;
     try {
       payload = await this.jwt.verifyAsync(token);
       role = payload?.role;
@@ -278,6 +280,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (payload?.scope === 'tablet-pairing' && typeof payload.pid === 'string') {
       (socket.data as any).pairingPid = payload.pid;
       (socket.data as any).pairingJti = payload.jti; // join 层存活复查寻址（T8 审查 Important）
+      (socket.data as any).pairingEid = typeof payload.eid === 'string' ? payload.eid : undefined;
+      // TAB-SYNC-02 P2-3：在线跟踪 + 0→1 翻转广播（桌面徽章 live 数据源）
+      this.trackPairingOnline(socket, payload.pid, (socket.data as any).pairingEid);
     }
     this.logger.debug(`WS connected role=${role} host=${(socket.data as any).isHost}`);
   }
@@ -305,7 +310,43 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
+  /** TAB-SYNC-02 P2-3：配对在线态查询（GET pairing 聚合 + 徽章初值） */
+  isPairingOnline(expertId: string): boolean {
+    const set = this.pairingOnline.get(expertId);
+    return !!set && set.size > 0;
+  }
+
+  /** 0→1 翻转时向项目房广播 pairing:presence（桌面在房内按 expertId 过滤刷新徽章；
+   *  同专家多连接不重复广播） */
+  private trackPairingOnline(socket: Socket, projectId: string, expertId: string | undefined): void {
+    if (!expertId) return;
+    let set = this.pairingOnline.get(expertId);
+    const wasOnline = !!set && set.size > 0;
+    if (!set) { set = new Set(); this.pairingOnline.set(expertId, set); }
+    set.add(socket.id);
+    if (!wasOnline) this.emitPairingPresence(projectId, expertId, true);
+  }
+
+  private untrackPairingOnline(socket: Socket): void {
+    const expertId: string | undefined = (socket.data as any).pairingEid;
+    if (!expertId) return;
+    const set = this.pairingOnline.get(expertId);
+    if (!set) return;
+    set.delete(socket.id);
+    if (set.size === 0) {
+      this.pairingOnline.delete(expertId);
+      const pid: string | undefined = (socket.data as any).pairingPid;
+      if (pid) this.emitPairingPresence(pid, expertId, false);
+    }
+  }
+
+  private emitPairingPresence(projectId: string, expertId: string, online: boolean): void {
+    this.server?.to(`project:${projectId}`).emit('pairing:presence', { projectId, expertId, online });
+  }
+
   handleDisconnect(socket: Socket) {
+    // TAB-SYNC-02 P2-3：scoped 连接离线——末连接断开才翻 false 并广播
+    this.untrackPairingOnline(socket);
     const supplierId: string | undefined = (socket.data as any).supplierId;
     const projectId = this.socketProjects.get(socket.id);
     if (supplierId) {

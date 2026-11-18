@@ -241,6 +241,17 @@ export default function ExpertEvaluatePage() {
     // TAB-SYNC-02 ⑤：pull 合并主体收敛到 useScoreDraftSync（onDraftSaved 含设备/专家过滤、
     // 冲突暂停闸与双侧归一三方合并）
     onDraftSaved,
+    // TAB-SYNC-02 P2-2：配对被解除（主持端远程解绑广播）——本人配对徽章即时刷新；
+    // 他人解绑广播（同项目房）按 expertId 过滤不响应
+    onPairingRevoked: (d) => {
+      if (d.expertId !== project?.myExpertRecord?.id) return;
+      refreshPairing();
+    },
+    // TAB-SYNC-02 P2-3：配对在线态翻转 → 徽章 live 更新（不经轮询）
+    onPairingPresence: (d) => {
+      if (d.expertId !== project?.myExpertRecord?.id) return;
+      setPairingInfo(prev => (prev ? { ...prev, online: d.online } : prev));
+    },
   });
 
   const [documents, setDocuments] = useState<Record<string, DecryptedDocuments | null>>({});
@@ -688,10 +699,10 @@ export default function ExpertEvaluatePage() {
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pairingCountdown, setPairingCountdown] = useState(0);
   // 当前活动配对（GET pairing）：配对弹窗 paired 态与打分步常驻徽章共用数据源
-  const [pairingInfo, setPairingInfo] = useState<{ device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null } | null>(null);
+  const [pairingInfo, setPairingInfo] = useState<{ device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null; online?: boolean } | null>(null);
   const [unpairBusy, setUnpairBusy] = useState(false);
   const refreshPairing = useCallback(() => {
-    api.get<{ device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null }>(`/expert/projects/${projectId}/pairing`)
+    api.get<{ device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null; online?: boolean }>(`/expert/projects/${projectId}/pairing`)
       .then(setPairingInfo)
       .catch(() => {});
   }, [projectId]);
@@ -2021,7 +2032,10 @@ export default function ExpertEvaluatePage() {
                       title={`配对于 ${pairingInfo.pairedAt ? new Date(pairingInfo.pairedAt).toLocaleString('zh-CN') : '—'}${pairingInfo.device.ip ? ` · ${pairingInfo.device.ip}` : ''}`}
                     >
                       <Smartphone size={12} strokeWidth={1.7} className="shrink-0" />
-                      <span className="truncate">已配对平板 · {pairingInfo.device.uaSummary}</span>
+                      <span className="truncate">
+                        <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${pairingInfo.online ? 'bg-[var(--success)]' : 'bg-[var(--muted-foreground)]'}`} />
+                        已配对平板 · {pairingInfo.device.uaSummary}{pairingInfo.online ? ' · 在线' : ' · 离线'}
+                      </span>
                       <button
                         type="button"
                         onClick={() => void handleUnpair()}

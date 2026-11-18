@@ -737,3 +737,60 @@ describe('BidGateway 吊销即时断连（TAB-SYNC-02 P2-2）', () => {
     expect(() => gw.kickPairingSockets('nobody')).not.toThrow();
   });
 });
+
+// ── TAB-SYNC-02 P2-3：配对在线徽章——presence 跟踪与翻转广播 ──
+
+describe('BidGateway 配对在线跟踪（TAB-SYNC-02 P2-3）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
+  } as any;
+
+  function makeGateway(jwtPayload?: Record<string, unknown>) {
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue(jwtPayload ?? {}) };
+    return new BidGateway(jwt as any, prismaMock, { isAlive: jest.fn().mockResolvedValue(true) } as any);
+  }
+
+  it('isPairingOnline：无跟踪 → false；scoped 连接建立（handleConnection）→ true；断开 → false', async () => {
+    const gw = makeGateway({ sub: 'u1', role: 'bid_expert', scope: 'tablet-pairing', jti: 'j1', pid: 'p1', eid: 'be1' });
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = {
+      to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }),
+      sockets: new Map(),
+    } as any;
+    expect(gw.isPairingOnline('be1')).toBe(false);
+
+    const sock = { id: 'sock-p1', data: {}, handshake: { headers: { cookie: 'token_expert=exp-jwt', 'x-portal': 'expert' }, query: {} }, disconnect: jest.fn() } as any;
+    await gw.handleConnection(sock);
+    expect(gw.isPairingOnline('be1')).toBe(true);
+    // 0→1 翻转广播 pairing:presence online=true 至项目房
+    expect(emitted).toContainEqual({ room: 'project:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: true } });
+
+    gw.handleDisconnect(sock);
+    expect(gw.isPairingOnline('be1')).toBe(false);
+    expect(emitted).toContainEqual({ room: 'project:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: false } });
+  });
+
+  it('同专家多 scoped 连接：任一在线即 online=true，末连接断开才翻 false（不抖动）', async () => {
+    const gw = makeGateway({ sub: 'u1', role: 'bid_expert', scope: 'tablet-pairing', jti: 'j1', pid: 'p1', eid: 'be1' });
+    const emitted: Array<any> = [];
+    gw.server = {
+      to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push(payload) }),
+      sockets: new Map(),
+    } as any;
+    const mkSock = (id: string) => ({ id, data: {}, handshake: { headers: { cookie: 'token_expert=exp-jwt', 'x-portal': 'expert' }, query: {} }, disconnect: jest.fn() } as any);
+    const s1 = mkSock('sock-a');
+    const s2 = mkSock('sock-b');
+    await gw.handleConnection(s1);
+    await gw.handleConnection(s2);
+    expect(gw.isPairingOnline('be1')).toBe(true);
+    gw.handleDisconnect(s1);
+    expect(gw.isPairingOnline('be1')).toBe(true); // 仍在线——无翻转广播
+    const onlineFlips = emitted.filter(p => p.online === false);
+    expect(onlineFlips).toHaveLength(0);
+    gw.handleDisconnect(s2);
+    expect(gw.isPairingOnline('be1')).toBe(false);
+    expect(emitted.filter(p => p.online === false)).toHaveLength(1);
+  });
+});

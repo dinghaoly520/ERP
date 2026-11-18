@@ -13,6 +13,7 @@ import { AiService } from '../ai/ai.service';
 import { encryptBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { BidGateway } from '../bid/bid.gateway';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 import { BidService } from '../bid/bid.service';
 import { NotificationService } from '../notification/notification.service';
 import { minioClient } from '../upload/minio.client';
@@ -26,6 +27,7 @@ describe('ExpertService', () => {
   let gateway: any;
   let signature: any;
   let notification: any;
+  let pairingRegistry: any;
   let bidService: any;
 
   const mockExpert = {
@@ -107,15 +109,20 @@ describe('ExpertService', () => {
       notifyLeadReviewSuggested: jest.fn(),
       notifyMotionCreated: jest.fn(),
       notifyClarificationCreated: jest.fn(),
+      // TAB-SYNC-02 P2-2 接线：桌面自解绑即时断连
+      notifyPairingRevoked: jest.fn(),
+      kickPairingSockets: jest.fn(),
     };
     signature = { verify: jest.fn(), isValidPublicKey: jest.fn() };
     notification = { sendToUser: jest.fn() };
+    pairingRegistry = { getActive: jest.fn().mockResolvedValue(null), revoke: jest.fn().mockResolvedValue(null) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExpertService,
         { provide: PrismaService, useValue: prisma },
         { provide: AiService, useValue: ai },
+        { provide: ExpertPairingRegistry, useValue: pairingRegistry },
         { provide: PlaintextFetcherService, useValue: { fetchBidderPlaintext: jest.fn() } },
         { provide: BidGateway, useValue: gateway },
         { provide: BidService, useValue: { invalidateResultsForRuling: jest.fn().mockResolvedValue(undefined) } },
@@ -4502,6 +4509,47 @@ describe('ExpertService', () => {
       expect(notification.sendToUser).not.toHaveBeenCalled();
     });
   });
+
+// ── TAB-SYNC-02 P2-3：getPairing 聚合在线态 ──
+
+describe('ExpertService.getPairing（TAB-SYNC-02 P2-3）', () => {
+  it('活动配对 → 响应含 online=true（gateway.isPairingOnline 聚合）；无配对 → device:null+online:false', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1' });
+    pairingRegistry.getActive.mockResolvedValue({ pairingId: 'j1', device: { uaSummary: 'iPad' }, pairedAt: 1 });
+    gateway.isPairingOnline = jest.fn().mockReturnValue(true);
+    const r = await service.getPairing('user-1', 'p1');
+    expect(r).toEqual({ device: { uaSummary: 'iPad' }, pairedAt: 1, online: true });
+
+    pairingRegistry.getActive.mockResolvedValue(null);
+    const r2 = await service.getPairing('user-1', 'p1');
+    expect(r2).toEqual({ device: null, pairedAt: null, online: false });
+  });
+});
+
+// ── TAB-SYNC-02 P2-2 接线：桌面自解绑即时断连（广播+踢除）──
+
+describe('ExpertService.unpair（TAB-SYNC-02 P2-2 接线）', () => {
+  it('活动配对吊销 → notifyPairingRevoked 广播 + kickPairingSockets 踢除', async () => {
+    pairingRegistry.getActive.mockResolvedValue({ pairingId: 'jti-9', device: null, pairedAt: 1 });
+    pairingRegistry.revoke.mockResolvedValue({ projectId: 'proj-1' });
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be9', expertName: '测试专家' });
+    prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+    const r = await service.unpair('user-1', 'proj-1');
+
+    expect(r).toEqual({ ok: true });
+    expect(gateway.notifyPairingRevoked).toHaveBeenCalledWith('proj-1', 'be9');
+    expect(gateway.kickPairingSockets).toHaveBeenCalledWith('be9');
+  });
+
+  it('无活动配对 → 幂等 ok，不广播不踢除', async () => {
+    pairingRegistry.getActive.mockResolvedValue(null);
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be9', expertName: '测试专家' });
+    expect(await service.unpair('user-1', 'proj-1')).toEqual({ ok: true });
+    expect(gateway.notifyPairingRevoked).not.toHaveBeenCalled();
+    expect(gateway.kickPairingSockets).not.toHaveBeenCalled();
+  });
+});
 });
 
 describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () => {

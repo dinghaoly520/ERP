@@ -3842,8 +3842,10 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
     if (!this.pairingRegistry) throw new ServiceUnavailableException('Redis 不可用，配对状态暂不可用');
     const active = await this.pairingRegistry.getActive(expert.id, projectId);
-    if (!active) return { device: null, pairedAt: null };
-    return { device: active.device, pairedAt: active.pairedAt };
+    // TAB-SYNC-02 P2-3：聚合配对在线态（网关 scoped 连接表；WS pairing:presence 事件驱动 live
+    // 更新）。无活动配对恒 false——吊销即踢连接（P2-2），true 只会是踢除竞态的瞬态假象
+    if (!active) return { device: null, pairedAt: null, online: false };
+    return { device: active.device, pairedAt: active.pairedAt, online: this.gateway?.isPairingOnline?.(expert.id) ?? false };
   }
 
   /** 桌面端主动解除配对：吊销活动配对（平板下一请求 401 PAIRING_REVOKED）+ 监督日志。
@@ -3868,6 +3870,10 @@ export class ExpertService {
           riskFlag: '无',
         },
       }).catch(() => {});
+      // TAB-SYNC-02 P2-2 接线：即时断连——项目房广播 pairing:revoked（平板收事件断开/
+      // 回配对页）+ 直接踢除 scoped socket（主持端远程解绑 bid-pairing.service 同款）
+      this.gateway?.notifyPairingRevoked?.(projectId, expert.id);
+      this.gateway?.kickPairingSockets?.(expert.id);
     }
     return { ok: true };
   }
