@@ -4,7 +4,9 @@ import {
 } from 'docx';
 
 export interface OperationTrace {
-  identityVerified: { ip: string | null; meta: unknown; at: string | null };
+  identityVerified: { ip: string | null; meta: unknown; at: string | null;
+    /** 2026-11-18 §五.1：配对留档照——签到无照时留痕行回退显示（遮挡取配对侧，同照片同源）；可选=旧快照零改动 */
+    pairingPhoto?: { assetId: string; at: string | null; occlusion: string | null } | null };
   confidentialityAgreedAt: string | null;
   disciplineAgreedAt: string | null;
   /** 2026-09-18 完整性扩展：AI 辅助评标声明确认时间（BidExpert.aiConsentAt） */
@@ -22,7 +24,9 @@ export interface SignPacketSnapshot {
   /** 2026-10-19 none 直接采购：主报告六/八节按不评分口径渲染（spec §4.6）——buildSnapshot 置位 */
   noneEvaluation?: boolean;
   project: { name: string; projectCode: string; procurementMethod: string; openTime: string | null; deadline: string | null; scope: string | null; qualification: string | null; budget: number | null };
-  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null; signedIn: boolean; aiConsentConfirmed: boolean; aiConsentAt: string | null; avoidanceConfirmed: boolean }>;
+  committee: Array<{ expertId: string; name: string; major: string; role: string; reviewGroup?: string | null; dutyRole?: string | null; isLead: boolean; isPurchaserRepresentative: boolean; signInIp: string | null; signInMeta: unknown; confidentialityAgreedAt: string | null; disciplineAgreedAt: string | null; reportConfirmedAt: string | null; signedIn: boolean; aiConsentConfirmed: boolean; aiConsentAt: string | null; avoidanceConfirmed: boolean;
+    /** 2026-11-18 §五.1：配对留档照三件套（核验记录表回退口径与 :3007 矩阵同源；可选=旧调用面零改动） */
+    transferPhotoAssetId?: string | null; transferPhotoAt?: string | null; transferPhotoOcclusion?: string | null }>;
   leaderCoSignedAt: string | null;
   /** A-151：评标报告章节附注（一~九节末「附注：」段；十节正文续写）——未设置时字段缺省 */
   reportNotes?: Array<{ section: string; content: string }>;
@@ -105,8 +109,15 @@ export class BidSignPacketDocxService {
         if (iv.at) {
           // 2026-09-18 身份核验 §4.5：留档照 + 遮挡检测结论随留痕表披露（纸面证据自含）
           const meta = (iv.meta ?? {}) as { occlusion?: string; photoAssetId?: string; method?: string };
-          const photo = meta.photoAssetId ? '留档照 ✓' : meta.method === 'manual_confirm' ? '无留档照（主持人现场确认）' : '无留档照（应急）';
-          const oc = meta.occlusion === 'passed' ? '遮挡检测通过' : meta.occlusion === 'unchecked' ? '遮挡检测未运行' : '';
+          // §五.1（2026-11-18）：签到无照时回退配对补拍留档照（含拍摄时间）；遮挡取该照片同源结论
+          const pairing = iv.pairingPhoto ?? null;
+          const photo = meta.photoAssetId
+            ? '留档照 ✓'
+            : pairing
+              ? `配对补拍留档照 ✓${pairing.at ? `（${pairing.at.slice(5, 16).replace('T', ' ')}）` : ''}`
+              : meta.method === 'manual_confirm' ? '无留档照（主持人现场确认）' : '无留档照（应急）';
+          const ocSource = meta.photoAssetId ? meta.occlusion : pairing?.occlusion;
+          const oc = ocSource === 'passed' ? '遮挡检测通过' : ocSource === 'unchecked' ? '遮挡检测未运行' : '';
           value = `${label}：${iv.at.replace('T', ' ').slice(0, 16)} · ${photo}${oc ? ` · ${oc}` : ''}（IP ${iv.ip ?? '未知'}）`;
         } else {
           value = iv.at ? `${label}：${iv.at}（IP ${iv.ip ?? '未知'}）` : '—';
@@ -345,6 +356,16 @@ export class BidSignPacketDocxService {
     const rows = s.committee.map(e => {
       const meta = (e.signInMeta ?? {}) as { timestamp?: string; method?: string; occlusion?: string; photoAssetId?: string; reason?: string };
       const oc = meta.occlusion === 'passed' ? '通过' : meta.occlusion === 'unchecked' ? '未运行' : '—';
+      // §五.1（2026-11-18）配对留档照：签到照 > 配对照 > 无照（槽位制，与 :3007 矩阵同口径，无 assetId 比较）；
+      // 配对侧检测结论内嵌留档照格（纸面无 hover——矩阵缩略图 title 的纸面等价物），遮挡检测列恒签到侧
+      const pairing = e.transferPhotoAssetId ? { at: e.transferPhotoAt ?? null, occlusion: e.transferPhotoOcclusion ?? null } : null;
+      const pairingTime = pairing?.at ? pairing.at.slice(5, 16).replace('T', ' ') : '';
+      const pairingOc = pairing?.occlusion === 'passed' ? ' · 检测通过' : pairing?.occlusion === 'unchecked' ? ' · 检测未运行' : '';
+      const photoCell = meta.photoAssetId
+        ? pairing ? '有（签到+配对补拍）' : '有（存档）'
+        : pairing
+          ? `有（配对补拍${pairingTime ? ` ${pairingTime}` : ''}${pairingOc}）`
+          : meta.method === 'manual_confirm' ? '无（主持人确认）' : e.signedIn && meta.timestamp ? '无（应急）' : '—';
       return new TableRow({
         children: header.map((_, i) => {
           let text = '—';
@@ -355,7 +376,7 @@ export class BidSignPacketDocxService {
             case 3: text = meta.timestamp ? meta.timestamp.replace('T', ' ').slice(0, 16) : '—'; break;
             case 4: text = methodLabel(meta.method, meta.reason); break;
             case 5: text = oc; break;
-            case 6: text = meta.photoAssetId ? '有（存档）' : meta.method === 'manual_confirm' ? '无（主持人确认）' : e.signedIn && meta.timestamp ? '无（应急）' : '—'; break;
+            case 6: text = photoCell; break;
             case 7: text = e.signInIp ?? '—'; break;
           }
           return new TableCell({ children: [this.para(text)] });
@@ -365,6 +386,10 @@ export class BidSignPacketDocxService {
     return [
       new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '评标专家身份核验记录表', bold: true, size: 30 })] }),
       this.para('本表为签到证据汇总：留档照原图以 FileAsset（expert_signin_photo）存档并随评标档案归档；「遮挡检测」为拍摄时的画面完整性判定（检测非识别，不进行人脸比对）。'),
+      // §五.1（2026-11-18）：配对补拍脚注条件渲染——无配对数据的旧快照渲染与现状一致
+      ...(s.committee.some(e => e.transferPhotoAssetId)
+        ? [this.para('「配对补拍」留档照为专家平板配对时拍摄，与签到留档照同库（expert_signin_photo）同规则存档。')]
+        : []),
       new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [this.headerRow(header), ...rows] }),
       ...(s.verifyEvents && s.verifyEvents.length > 0
         ? [
