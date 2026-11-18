@@ -4,7 +4,6 @@ import { apiLoopbackOrigin, portalOriginForHost } from '@water-erp/config';
 
 const PORTAL = 'expert';
 const COOKIE = `token_${PORTAL}`;
-const DEVICE_COOKIE = 'device_mode';
 // 登录跳转不能用模块级 portalURL：middleware 在服务端求值恒为 localhost，
 // 平板/局域网客户端被 307 到打不开的 localhost 地址（2026-09-22 平板实测）。
 // 一律以请求 Host 头推导（2026-10-26 双轨：*.scsfjt.com 家族访问 → 子域跳转；IP/端口访问 → 同主机+端口）。
@@ -52,25 +51,11 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ── 设备模式手动切换（?device=tablet|desktop）：写 7 天 cookie + 302 对应首页 ──
-  // 必须在鉴权闸门之前：未登录的平板从登录页「平板设备入口」点进来时，先落 cookie 再由
-  // /tablet 闸门弹回 /login?redirect=/tablet，登录后直达平板工作台；若放在闸门后，匿名
-  // 请求先被弹回登录页、device 参数丢失（2026-10-19 实测）。
-  // 2026-10-26 起自动改道已删（isTabletMode/平板隔离/X-Forwarded-Device 头判定全部移除）：
-  // cookie 不再驱动任何路由决策，仅由登录页读作链接文案翻转（进平板↔回桌面互切）；
-  // /tablet 与桌面路由互为直接入口，不再按设备形态强制弹转。
-  const queryDevice = request.nextUrl.searchParams.get('device'); // ?device=tablet|desktop
-  if (queryDevice === 'tablet' || queryDevice === 'desktop') {
-    const res = NextResponse.redirect(
-      new URL(queryDevice === 'tablet' ? '/tablet' : '/', request.url),
-    );
-    res.cookies.set(DEVICE_COOKIE, queryDevice, {
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 天
-      sameSite: 'lax',
-    });
-    return res;
-  }
+  // 设备模式手动切换（?device=tablet|desktop）已删（2026-11-18 用户裁定 B）：device_mode cookie
+  // 自 2026-10-26 起不驱动任何路由决策（唯一消费方是登录页文案翻转=死代码），且登录页互切
+  // 链接引导平板走全量登录与 TAB-SYNC-01 配对制冲突（平板全量登录曾致评标期账号锁死）。
+  // 平板唯一正规入口 = 桌面「配对打分平板」出码 → /tablet/pair；直接访问 /tablet 仍走闸门
+  // 弹回 /login?redirect=/tablet → 登录后直达（此流程不依赖 device cookie）。
 
   // Allow login page without auth. Public homepage quick-entry uses forceLogin=1
   // so users must re-enter credentials even if this portal already has a cookie.
