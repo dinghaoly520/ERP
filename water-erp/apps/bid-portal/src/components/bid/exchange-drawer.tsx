@@ -407,6 +407,64 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
 
   const segActive = SEG_ACTIVE;
 
+  // ── 双拖拽（2026-11-17 用户需求）：①会话列表↔消息区分割线（拖宽左侧看供应商全称）
+  // ②抽屉左缘拖整窗宽。镜像供应商大厅 hall-resizer 模式（pointer capture+localStorage+双击重置）。
+  const asideRef = useRef<HTMLElement>(null);
+  const NAV_W_KEY = 'exchange-drawer-nav-w';
+  const DRAWER_W_KEY = 'exchange-drawer-w';
+  const NAV_W_DEF = 150, NAV_W_MIN = 110, DRAWER_W_DEF = 600, DRAWER_W_MIN = 420;
+  const [navW, setNavW] = useState(NAV_W_DEF);
+  const [drawerW, setDrawerW] = useState<number>(DRAWER_W_DEF);
+  const navDragRef = useRef<{ on: boolean; v: number }>({ on: false, v: NAV_W_DEF });
+  const drawerDragRef = useRef<{ on: boolean; v: number }>({ on: false, v: DRAWER_W_DEF });
+  const drawerWMax = () => Math.min(960, window.innerWidth - 32);
+  const clampNav = (w: number, dw: number) => Math.max(NAV_W_MIN, Math.min(380, dw - 300, Math.round(w)));
+  const clampDrawer = (w: number) => Math.max(DRAWER_W_MIN, Math.min(drawerWMax(), Math.round(w)));
+  // 挂载恢复上次宽度（effect 避免水合不一致）
+  useEffect(() => {
+    const n = Number(localStorage.getItem(NAV_W_KEY));
+    const d = Number(localStorage.getItem(DRAWER_W_KEY));
+    if (Number.isFinite(d) && d >= DRAWER_W_MIN) setDrawerW(clampDrawer(d));
+    if (Number.isFinite(n) && n >= NAV_W_MIN) setNavW(clampNav(n, Number.isFinite(d) && d >= DRAWER_W_MIN ? d : DRAWER_W_DEF));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const dragStart = (ref: React.MutableRefObject<{ on: boolean; v: number }>) => (e: React.PointerEvent<HTMLDivElement>) => {
+    ref.current.on = true;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 捕获失败不影响 move 派发 */ }
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+  const dragEnd = (ref: React.MutableRefObject<{ on: boolean; v: number }>, key: string) => () => {
+    if (!ref.current.on) return;
+    ref.current.on = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    localStorage.setItem(key, String(ref.current.v));
+  };
+  const onNavResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!navDragRef.current.on || !asideRef.current) return;
+    const rect = asideRef.current.getBoundingClientRect();
+    const w = clampNav(e.clientX - rect.left, rect.width);
+    navDragRef.current.v = w;
+    setNavW(w);
+  };
+  const onDrawerResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!drawerDragRef.current.on || !asideRef.current) return;
+    const rect = asideRef.current.getBoundingClientRect();
+    const w = clampDrawer(rect.right - e.clientX);
+    drawerDragRef.current.v = w;
+    setDrawerW(w);
+    setNavW(prev => clampNav(prev, w)); // 整窗收窄时联动钳制左栏
+  };
+  const resetNavW = () => { navDragRef.current.v = NAV_W_DEF; setNavW(NAV_W_DEF); localStorage.removeItem(NAV_W_KEY); };
+  const resetDrawerW = () => { drawerDragRef.current.v = DRAWER_W_DEF; setDrawerW(DRAWER_W_DEF); localStorage.removeItem(DRAWER_W_KEY); };
+  const onNavResizeKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    const dw = asideRef.current?.getBoundingClientRect().width ?? drawerW;
+    setNavW(clampNav(navW + (e.key === 'ArrowRight' ? 24 : -24), dw));
+  };
+
   // 会话列表（微信式）：在线名单（可主动发起）∪ 既有私聊会话（含离线历史未读）——
   // 在线者在前，会话未读/签到从 session 行携带
   const rosterIds = useMemo(() => new Set(roster.map(r => r.supplierId)), [roster]);
@@ -459,7 +517,16 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
           抽屉仅在 open（客户端 state）为 true 时渲染，SSR 不触碰 document。
           层级：抽屉 z-40 低于唱标录入模态 z-50 ✓。新外壳无 sticky 顶栏，故浮动 inset 玻璃板。 */}
       {open && createPortal(
-        <aside className="fixed bottom-2 right-2 top-2 z-40 flex w-[600px] max-w-[94vw] flex-col overflow-hidden rounded-[20px] bg-[linear-gradient(175deg,oklch(0.985_0.008_258_/_0.94),oklch(0.975_0.012_258_/_0.9))] shadow-[-6px_0_30px_oklch(0.45_0.06_258_/_0.18),inset_1px_0_0_oklch(1_0_0_/_0.7)] backdrop-blur-2xl">
+        <aside ref={asideRef} style={{ width: `${drawerW}px` }} className="fixed bottom-2 right-2 top-2 z-40 flex max-w-[94vw] flex-col overflow-hidden rounded-[20px] bg-[linear-gradient(175deg,oklch(0.985_0.008_258_/_0.94),oklch(0.975_0.012_258_/_0.9))] shadow-[-6px_0_30px_oklch(0.45_0.06_258_/_0.18),inset_1px_0_0_oklch(1_0_0_/_0.7)] backdrop-blur-2xl">
+          {/* 整窗左缘拖柄（2026-11-17）：拖动调整会场交流窗口总宽；双击复位 */}
+          <div
+            role="separator" aria-orientation="vertical" aria-label="拖动调整会场交流窗口宽度（双击重置）" tabIndex={0}
+            onPointerDown={dragStart(drawerDragRef)} onPointerMove={onDrawerResizeMove} onPointerUp={dragEnd(drawerDragRef, DRAWER_W_KEY)} onPointerCancel={dragEnd(drawerDragRef, DRAWER_W_KEY)}
+            onDoubleClick={resetDrawerW}
+            className="absolute inset-y-0 left-0 z-10 w-1.5 cursor-col-resize touch-none"
+          >
+            <span className="absolute left-1/2 top-1/2 h-14 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[oklch(0.72_0.02_258_/_0.35)] transition-colors" />
+          </div>
           <header className="flex items-center justify-between border-b border-[oklch(0.6_0.04_258_/_0.14)] px-4 py-3">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-[color:var(--foreground)]">会场交流</h3>
@@ -488,7 +555,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
               左栏=会话（公聊置顶+供应商，在线绿点/未读红标/签到✓ 悬停），右栏=消息+输入。
               会话源 merge：在线名单（可主动发起）∪ 既有私聊会话（含离线历史未读）。 */}
           <div className="flex min-h-0 flex-1">
-            <nav className="flex w-[150px] flex-none flex-col overflow-y-auto border-r border-[oklch(0.6_0.04_258_/_0.14)]">
+            <nav style={{ width: `${navW}px` }} className="flex flex-none flex-col overflow-y-auto">
               <div className="flex items-center justify-between px-3 pb-1 pt-2.5 text-[10px] font-semibold text-[color:var(--muted-foreground)]">
                 <span>会话</span>
                 <span>在线 {roster.length}</span>
@@ -524,6 +591,15 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
                 <div className="px-3 py-2 text-center text-[10px] leading-4 text-[color:var(--muted-foreground)]">暂无在线供应商</div>
               )}
             </nav>
+            {/* 会话列表↔消息区分割线（2026-11-17）：拖宽左栏看供应商全称；双击复位；键盘 ←/→ */}
+            <div
+              role="separator" aria-orientation="vertical" aria-label="拖动调整会话列表宽度（双击重置，方向键微调）" tabIndex={0}
+              onPointerDown={dragStart(navDragRef)} onPointerMove={onNavResizeMove} onPointerUp={dragEnd(navDragRef, NAV_W_KEY)} onPointerCancel={dragEnd(navDragRef, NAV_W_KEY)}
+              onDoubleClick={resetNavW} onKeyDown={onNavResizeKey}
+              className="group relative w-1.5 flex-none cursor-col-resize touch-none border-r border-[oklch(0.6_0.04_258_/_0.14)]"
+            >
+              <span className="absolute left-1/2 top-1/2 h-10 w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[oklch(0.72_0.02_258_/_0.35)] transition-all group-hover:bg-[oklch(0.5_0.16_258)] group-hover:h-14" />
+            </div>
             <div className="flex min-w-0 flex-1 flex-col">
           <div ref={listRef} className="flex-1 overflow-y-auto px-4 py-3">
             {tab === 'PRIVATE' && !activeSupplier && <div className="pt-10 text-center text-xs text-[color:var(--muted-foreground)]">选择一家供应商开始私聊</div>}
@@ -533,7 +609,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
             ) : (
               // 气泡式：己方（HOST）右对齐品牌气泡，供应商左对齐带头像 + 凸起玻璃泡
               <div key={m.id} className={`my-3 flex items-start gap-2 ${m.senderRole === 'HOST' ? 'flex-row-reverse' : ''}`}>
-                <div className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-semibold text-white ${m.senderRole === 'HOST' ? 'bg-[oklch(0.32_0.04_258)]' : 'bg-[var(--accent-strong)]'}`}>
+                <div className={`flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-semibold ${m.senderRole === 'HOST' ? 'bg-[oklch(0.5_0.17_255)] text-white' : 'bg-[oklch(0.82_0.15_85)] text-[oklch(0.33_0.09_75)]'}`}>
                   {(m.senderName || '?').slice(0, 1)}
                 </div>
                 <div className={`flex max-w-[74%] flex-col ${m.senderRole === 'HOST' ? 'items-end' : 'items-start'}`}>
