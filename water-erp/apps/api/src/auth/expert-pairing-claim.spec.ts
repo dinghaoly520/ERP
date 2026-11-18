@@ -327,7 +327,7 @@ describe('ExpertService.getPairing / unpair（Task 5 查询与解绑）', () => 
   it('getPairing：活动配对 → 投影 device/pairedAt；无配对 → { device:null, pairedAt:null }', async () => {
     const active = { getActive: jest.fn().mockResolvedValue(null) };
     const { svc } = makeService(EXPERT_ROW, active);
-    await expect(svc.getPairing('u1', 'p1')).resolves.toEqual({ device: null, pairedAt: null });
+    await expect(svc.getPairing('u1', 'p1')).resolves.toEqual({ device: null, pairedAt: null, online: false }); // TAB-SYNC-02 P2-3：无 gateway 常隆 → ?? false
     expect(active.getActive).toHaveBeenCalledWith('e1', 'p1');
 
     const paired = {
@@ -341,6 +341,7 @@ describe('ExpertService.getPairing / unpair（Task 5 查询与解绑）', () => 
     await expect(svc2.getPairing('u1', 'p1')).resolves.toEqual({
       device: { uaSummary: 'Safari·iPadOS', ip: '10.1.2.3' },
       pairedAt: 1731400000000,
+      online: false, // TAB-SYNC-02 P2-3：聚合在线态（本 spec 常隆无 gateway → ?? false）
     });
   });
 
