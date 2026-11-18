@@ -21,7 +21,7 @@ import {
   assertEvaluationStage, assertEvaluationStarted,
   isRoomVerified, ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
 } from './expert-room.util';
-import { mergeDraftSlots } from './score-draft-merge.util';
+import { mergeDraftSlots, stampDraftEntries } from './score-draft-merge.util';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -2857,9 +2857,13 @@ export class ExpertService {
     const deviceSlot = pairingScope ? 'tablet' : (device === 'tablet' ? 'tablet' : 'desktop');
     // 兼容旧扁平格式：若 scoreDraft 不含 device 分槽，初始化为空对象
     const existing = (expert.scoreDraft as any) ?? {};
+    // TAB-SYNC-02 ④：落槽前逐键打服务端钟——内容未变键保留原时戳（回声无害），变更/新键
+    // 重打（客户端 Date.now 只是建议值；空清载荷 scores={} 打点为空操作）
+    const stamped = stampDraftEntries((draft as any)?.scores ?? {}, existing[deviceSlot]);
+    const stampedDraft = { ...(draft as any), scores: stamped, savedAt: Date.now() };
     const merged = typeof existing.tablet === 'object' || typeof existing.desktop === 'object'
-      ? { ...existing, [deviceSlot]: draft }
-      : { desktop: existing, [deviceSlot]: draft };
+      ? { ...existing, [deviceSlot]: stampedDraft }
+      : { desktop: existing, [deviceSlot]: stampedDraft };
     return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: merged as any } });
   }
 

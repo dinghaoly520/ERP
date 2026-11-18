@@ -230,7 +230,7 @@ describe('ExpertService', () => {
   });
 
   describe('TAB-SYNC-01 平板配对受限令牌收口（scoped 会话：tablet 槽强制 + 配对项目过滤）', () => {
-    it('saveScoreDraft：pairingScope 存在 → 即便伪报 device=desktop 也恒落 tablet 槽（桌面槽不被覆盖）', async () => {
+    it('saveScoreDraft：pairingScope 存在 → 即便伪报 device=desktop 也恒落 tablet 槽（桌面槽不被覆盖）；④落槽逐键打服务端钟', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roomCode: null });
       const desktopSlot = { scores: { keep: { score: 9, reason: '桌面既有' } }, savedAt: 100 };
       prisma.bidExpert.findFirst.mockResolvedValue({
@@ -245,13 +245,19 @@ describe('ExpertService', () => {
 
       expect(prisma.bidExpert.update).toHaveBeenCalledTimes(1);
       const data = prisma.bidExpert.update.mock.calls[0][0].data;
-      expect(data.scoreDraft.tablet).toEqual(draft);
+      // TAB-SYNC-02 ④：内容原样、时戳打服务端钟（客户端 savedAt=200 只是建议值，新键重打）
+      const tabletSlot = data.scoreDraft.tablet;
+      expect(tabletSlot.savedAt).toEqual(expect.any(Number));
+      expect(tabletSlot.scores['sup:i']).toMatchObject({ score: 1, reason: '平板' });
+      expect(tabletSlot.scores['sup:i'].savedAt).toEqual(expect.any(Number));
       expect(data.scoreDraft.desktop).toEqual(desktopSlot); // 桌面槽原样保留，scoped 客户端不可覆盖
 
       // 对照：同一载荷、无 pairingScope（桌面全量会话）→ device=desktop 照旧落 desktop 槽
       await service.saveScoreDraft('user-1', 'proj-1', draft, 'desktop');
       const data2 = prisma.bidExpert.update.mock.calls[1][0].data;
-      expect(data2.scoreDraft.desktop).toEqual(draft);
+      const desktopSlot2 = data2.scoreDraft.desktop;
+      expect(desktopSlot2.scores['sup:i']).toMatchObject({ score: 1, reason: '平板' });
+      expect(desktopSlot2.scores['sup:i'].savedAt).toEqual(expect.any(Number));
     });
 
     it('listProjects：pairingScope 存在 → 仅返回配对项目（配对项目不在本人项目集 → 空）', async () => {

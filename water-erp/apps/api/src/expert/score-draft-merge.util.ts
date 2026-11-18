@@ -73,3 +73,31 @@ export function mergeDraftSlots(
   }
   return { scores, savedAt: Math.max(own.savedAt, other.savedAt) };
 }
+
+/**
+ * TAB-SYNC-02 ④：服务端逐键打点——savedAt 以服务器钟为唯一权威（跨设备时钟偏差下
+ * 「慢钟 iPad 整场单向失步」根治：客户端 Date.now 只当建议值，落库前重打）。
+ *
+ * 语义（回声无害化，与客户端 draft-merge entryEquals 同构）：
+ * - 与本设备槽既有同键条目**内容相等**（savedAt 剥除比较）→ 保留原 savedAt——对端
+ *   合并拷贝来的回声条目重发不算编辑，不得刷新时戳制造假最新；
+ * - 内容变更 / 本槽新键 → 打服务器 now（含首次收编对端条目：其客户端时戳被归一为
+ *   服务器钟，原始时戳仍存于对端自己槽内，合并取新不受影响——内容相同时取哪个都等价）。
+ * - existingSlot 为旧扁平/畸形形状 → 全部键视为新键打点（fail-open 到打点，不拒写）。
+ */
+export function stampDraftEntries(
+  incoming: Record<string, ScoreEntry>,
+  existingSlot: unknown,
+  now: number = Date.now(),
+): Record<string, ScoreEntry> {
+  const prev = readSlot(existingSlot);
+  const out: Record<string, ScoreEntry> = {};
+  for (const [k, v] of Object.entries(incoming)) {
+    const old = prev.scores[k];
+    const unchanged =
+      old !== undefined &&
+      JSON.stringify({ ...old, savedAt: undefined }) === JSON.stringify({ ...v, savedAt: undefined });
+    out[k] = { ...v, savedAt: unchanged ? (typeof old.savedAt === 'number' ? old.savedAt : now) : now };
+  }
+  return out;
+}

@@ -1,4 +1,4 @@
-import { mergeDraftSlots } from './score-draft-merge.util';
+import { mergeDraftSlots, stampDraftEntries } from './score-draft-merge.util';
 
 /**
  * TAB-SYNC-01 §4.1：草稿双槽合并改「逐键取最新 savedAt」（替代旧「本设备槽整槽优先」）。
@@ -84,5 +84,46 @@ describe('mergeDraftSlots — 逐键取最新 savedAt', () => {
     expect(mergeDraftSlots(null)).toBeNull();
     expect(mergeDraftSlots(undefined)).toBeNull();
     expect(mergeDraftSlots({})).toBeNull();
+  });
+});
+
+// ── TAB-SYNC-02 ④：stampDraftEntries——服务端逐键打点（慢钟设备不再单向失步）──
+
+describe('stampDraftEntries（TAB-SYNC-02 ④）', () => {
+  const existing = {
+    scores: {
+      's1:i1': { score: 80, reason: 'r', savedAt: 100 },
+      's1:i2': { score: 70, reason: 'r2', savedAt: 110 },
+    },
+    savedAt: 110,
+  };
+
+  it('内容变更键 → 打服务器钟 now', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 90, reason: 'r' } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(5000);
+  });
+
+  it('内容未变键 → 保留原 savedAt（回声无害：重发不算编辑）', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r' } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(100);
+  });
+
+  it('内容比较剥 savedAt——客户端重发旧时戳但内容相同 → 仍保留服务端原时戳', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r', savedAt: 999 } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(100);
+  });
+
+  it('新键（本槽无此键）→ 打 now；旧槽时戳不迁移', () => {
+    const out = stampDraftEntries({ 's2:i9': { score: 10, reason: '' } }, existing, 5000);
+    expect(out['s2:i9'].savedAt).toBe(5000);
+  });
+
+  it('空入参 → 空对象（空清载荷调用方不经过本函数，此处仅容错）', () => {
+    expect(stampDraftEntries({}, existing, 5000)).toEqual({});
+  });
+
+  it('existingSlot 为旧扁平/畸形形状 → 全部键视为新键打 now（fail-open 到打点）', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r' } }, { weird: true }, 5000);
+    expect(out['s1:i1'].savedAt).toBe(5000);
   });
 });
