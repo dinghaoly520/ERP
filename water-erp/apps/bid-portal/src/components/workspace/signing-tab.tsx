@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Copy, FileDown, Fingerprint, HelpCircle, Loader2, LockOpen, PenLine, RefreshCw, Upload, X, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { copyToClipboard } from '@/lib/copy-to-clipboard';
+import { downloadAsBlob } from '@/lib/guarded-download';
 import { EXPERT_ROLE } from '@water-erp/shared';
 import {
   generateHandover, generateSignPacket, getReportNotes, getSignPacket, reopenSignPacket, setReportNotes, unregisterSign,
@@ -20,28 +21,8 @@ const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
 };
 
-/** #166③ 加固（2026-11-17 用户裁定）：签字包下载改 fetch+blob 带名落盘——显式
- * X-Portal 头让门户判定确定性成立（不依赖 Referer 直链族），文件名优先取
- * Content-Disposition（upload 直出 asset.originalName），回退调用方给定名。 */
-async function downloadAsBlob(url: string, fallbackName: string) {
-  try {
-    const res = await fetch(url, { credentials: 'include', headers: { 'X-Portal': 'bid' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const cd = res.headers.get('Content-Disposition') ?? '';
-    const m = /filename\*?=(?:UTF-8'')?"?([^";]+)/i.exec(cd);
-    let name = fallbackName;
-    if (m) { try { name = decodeURIComponent(m[1]) || fallbackName; } catch { name = m[1].includes('%') ? fallbackName : m[1]; } } // P3：decode 失败不丢下载——含 % 判非编码名回退
-    const blob = await res.blob();
-    const u = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = u;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(u);
-  } catch {
-    toast.error('签字包下载失败，请稍后重试');
-  }
-}
+/** #166③ 加固（2026-11-17 用户裁定）→ §五.4-1（2026-11-18）抽 lib 共用：
+ * evidence-zip/开标签字页同口径收敛（见 lib/guarded-download.ts 头注）。 */
 
 export default function SigningTab({ projectId, stage, refreshSignal, assignedHostUserId }: { projectId: string; stage: string; refreshSignal?: number; assignedHostUserId?: string | null }) {
   const [data, setData] = useState<SignPacketResponse | null>(null);
@@ -409,7 +390,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                 href={data.packet.downloadUrl}
                 onClick={(e) => {
                   e.preventDefault();
-                  void downloadAsBlob(data.packet!.downloadUrl, `评标签字包-${projectId.slice(-8)}.pdf`);
+                  void downloadAsBlob(data.packet!.downloadUrl, `评标签字包-${projectId.slice(-8)}.pdf`, '签字包');
                 }}
                 className="neu-btn-soft !h-[34px] !text-xs"
               >
@@ -640,7 +621,15 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
             {/* #115（2026-11-12 B+ 裁定）：裸 JSON 是机器通道（:3005 fetch 消费），人只触达 zip 证据包——
                 attachment 落盘，不再新标签页直开 JSON */}
             {data.packet?.handoverFileAssetId ? (
-              <a href={`/api/bid/projects/${projectId}/sign-packet/evidence-zip`} className="neu-btn-soft !h-[30px] !text-[11px]">
+              <a
+                href={`/api/bid/projects/${projectId}/sign-packet/evidence-zip`}
+                onClick={(e) => {
+                  // §五.4-1：下载语义直链收敛守护式下载（X-Portal 确定性+CD 带名落盘）；href 保留供中键/新标签兜底
+                  e.preventDefault();
+                  void downloadAsBlob(`/api/bid/projects/${projectId}/sign-packet/evidence-zip`, `评标证据包-${projectId.slice(-8)}.zip`);
+                }}
+                className="neu-btn-soft !h-[30px] !text-[11px]"
+              >
                 <FileDown size={12} /> 下载证据包(zip)
               </a>
             ) : canHost ? (
