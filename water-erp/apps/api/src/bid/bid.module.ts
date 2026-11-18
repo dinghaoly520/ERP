@@ -6,6 +6,8 @@ import { OpeningSignController } from './opening-sign.controller';
 import { OpeningSignService } from './opening-sign.service';
 import { AdminCertController } from './admin-cert.controller';
 import { BidController } from './bid.controller';
+import { BidPairingController } from './bid-pairing.controller';
+import { BidPairingService } from './bid-pairing.service';
 import { NonTenderDealController } from './non-tender-deal.controller';
 import { NonTenderDealService } from './non-tender-deal.service';
 import { BidService } from './bid.service';
@@ -49,9 +51,9 @@ import { ExpertPairingModule } from '../auth/expert-pairing.module';
     // 常量/纯函数 import（QUEUE_NAMES/prompts/file-processor），无需模块级依赖
     BidBackupModule,
   ],
-  controllers: [BidController, BidSignPacketController, AdminCertController, NonTenderDealController, OpeningSignController, WorkTemplateController],
+  controllers: [BidController, BidPairingController, BidSignPacketController, AdminCertController, NonTenderDealController, OpeningSignController, WorkTemplateController],
   providers: [
-    GbCodeService, NonTenderDealService, WorkTemplateService, BidService, BidEvaluationResultsService, BidOpeningRecordService, BidDecryptService, BidBondService, BondLedgerService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService, OpeningSignService],
+    GbCodeService, BidPairingService, NonTenderDealService, WorkTemplateService, BidService, BidEvaluationResultsService, BidOpeningRecordService, BidDecryptService, BidBondService, BondLedgerService, BidScoreStandardService, BidGateway, ClarificationAiService, ScorePointExtractorService, ScoreStandardValidator, PriceFormulaService, BidSignPacketService, BidSignPacketDocxService, AdminKeyService, SignatureService, DualEnvelopeService, OpeningSignService],
   exports: [BidGateway, BidService, ClarificationAiService, AdminKeyService, DualEnvelopeService, BidSignPacketService, ScoreStandardValidator],
 })
 export class BidModule implements OnModuleInit {
