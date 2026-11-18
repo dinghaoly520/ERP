@@ -7,6 +7,8 @@ import {
   AlertTriangle,
   Ban,
   BellRing,
+  ArrowLeftRight,
+  UserRound,
   CalendarClock,
   CheckCircle2,
   Clock,
@@ -16,7 +18,6 @@ import {
   Loader2,
   RefreshCw,
   Shield,
-  Sparkles,
   UserCheck,
   Users,
   Volume2,
@@ -51,7 +52,7 @@ import {
   type PublicityStatus,
 } from '@/lib/api/bid';
 import { ApiError } from '@water-erp/client';
-import { getRsvpList, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
+import { getRsvpList, downloadParticipationExport, type RsvpListItem, type RsvpListResult } from '@/lib/api/supplier';
 import { downloadExtractionExport } from '@/lib/api/expert';
 import { registerArchiveTransfer, downloadRegulatoryExport } from '@/lib/api/bid';
 import { fetchCurrentUser } from '@/lib/api/auth';
@@ -537,6 +538,8 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
   // 其余方式（询比/邀请招标/竞价）以公告中供应商自行投递为准。
   const isNegotiation = project?.procurementMethod === '谈判采购';
   const showRsvpColumn = project?.procurementMethod === '谈判采购' || project?.procurementMethod === '直接采购';
+  // 邀请制列口径（2026-11-18 用户裁定）：邀请制（谈判/直接采购）=「回执情况」列、无「意向」列；
+  // 公告类（竞价/询比/邀请招标等）=「意向」列、无「回执情况」列——两列互斥，与参标路径一致
 
   // 统一行模型：谈判采购以受邀名单为骨架（合并投递数据），其余以投递供应商为骨架。
   type SupplierRow = {
@@ -586,47 +589,49 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
     <div className="fixed inset-0 z-[500] flex flex-col">
       <div className="absolute inset-0 wb-overlay-backdrop" onClick={onClose} />
       <div className="relative z-10 mx-5 my-5 wb-overlay-panel">
-        {/* ── 标题栏 ── */}
-        <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4 wb-overlay-panel-header">
-          {/* 开标临近预警横幅：剩余时长实时刷新 */}
-          {!isOpened && isOpeningImminent && (
-            <div className="wb-tone-banner wb-tone-banner--warning mb-3">
-              <AlertTriangle size={16} className="shrink-0" />
-              <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
-                <strong>{msToOpening !== null && msToOpening > 0 ? `距开标不足 ${formatDurationCn(msToOpening)}` : '已到开标时间'}</strong>——请确认所有步骤（采购文件、公告、供应商邀请、专家抽取）已完成且内容正确。开标确认后，所有前置信息将锁定不可修改。
+        {/* ── 标题栏（2026-11-18）：标题居左、横幅居右（关闭钮左侧，自然宽不拉伸） ── */}
+        <div className="shrink-0 px-6 py-4 wb-overlay-panel-header">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0 shrink-0">
+              <div
+                className="wb-icon-well"
+                style={{ '--well-bg': 'var(--stage-evaluation-soft)', '--well-fg': 'var(--stage-evaluation)' } as React.CSSProperties}
+              >
+                <Gavel size={17} />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[0.92rem] font-semibold tracking-[-0.02em] text-[var(--foreground)] truncate">
+                  开标确认
+                </div>
+                <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate">
+                  {project?.title}
+                  {bidProject ? ` · ${bidProject.procurementMethod} · ${BID_STAGE_LABELS[bidProject.stage]}` : ''}
+                </div>
               </div>
             </div>
-          )}
-          {/* 开标后锁定提示 */}
-          {isOpened && (
-            <div className="wb-tone-banner wb-tone-banner--info mb-3">
-              <Shield size={16} className="shrink-0" />
-              <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
-                <strong>已开标</strong>——供应商名单、采购文件、评分标准均已锁定；专家组仅在正选签到前可替换（评标启动后不可替换）。其余仅供查看。
+            {/* 开标临近预警横幅：随行展开（剩余时长实时刷新） */}
+            {!isOpened && isOpeningImminent && (
+              <div className="wb-tone-banner wb-tone-banner--warning ml-auto max-w-[560px] shrink">
+                <AlertTriangle size={16} className="shrink-0" />
+                <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
+                  <strong>{msToOpening !== null && msToOpening > 0 ? `距开标不足 ${formatDurationCn(msToOpening)}` : '已到开标时间'}</strong>——请确认所有步骤（采购文件、公告、供应商邀请、专家抽取）已完成且内容正确。开标确认后，所有前置信息将锁定不可修改。
+                </div>
               </div>
-            </div>
-          )}
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="wb-icon-well"
-              style={{ '--well-bg': 'var(--stage-evaluation-soft)', '--well-fg': 'var(--stage-evaluation)' } as React.CSSProperties}
-            >
-              <Gavel size={17} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[0.92rem] font-semibold tracking-[-0.02em] text-[var(--foreground)] truncate">
-                开标确认
+            )}
+            {/* 开标后锁定提示 */}
+            {isOpened && (
+              <div className="wb-tone-banner wb-tone-banner--info ml-auto max-w-[560px] shrink">
+                <Shield size={16} className="shrink-0" />
+                <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
+                  <strong>已开标</strong>——供应商名单、采购文件、评分标准均已锁定；专家组仅在正选签到前可替换（评标启动后不可替换）。其余仅供查看。
+                </div>
               </div>
-              <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)] truncate">
-                {project?.title}
-                {bidProject ? ` · ${bidProject.procurementMethod} · ${BID_STAGE_LABELS[bidProject.stage]}` : ''}
-              </div>
+            )}
+            <div className="flex items-center gap-2 shrink-0">
+              <button type="button" onClick={onClose} className="neu-btn-soft !p-2" title="关闭">
+                <X size={16} />
+              </button>
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button type="button" onClick={onClose} className="neu-btn-soft !p-2" title="关闭">
-              <X size={16} />
-            </button>
           </div>
         </div>
 
@@ -657,27 +662,30 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 accentSoft="var(--stage-supplier-soft)"
                 action={
                   <div className="flex items-center gap-2">
-                    {!isNegotiation && !isOpened && (
-                      <span
-                        className="hidden items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2.5 py-1 text-[11px] text-[var(--muted-foreground)] sm:inline-flex"
-                        title={`标书投递时间范围：公告发布 → 开标前 ${DEADLINE_GAP_LABEL}`}
-                      >
-                        <Clock size={11} />
-                        <span className="tabular-nums">{bidProject.publishTime ? formatDateTime(bidProject.publishTime) : '待发布'}</span>
-                        <span className="opacity-50">→</span>
-                        <span className="tabular-nums">{submitDeadline ? formatDateTime(submitDeadline.toISOString()) : '—'}</span>
-                      </span>
-                    )}
-                    {!isOpened && (
-                      <button
-                        type="button"
-                        onClick={() => setNudgeOpen(true)}
-                        disabled={!bpId}
-                        className="neu-btn-soft !h-[32px] !text-xs"
-                      >
-                        <BellRing size={13} /> 催促未投递
-                      </button>
-                    )}
+                    {/* 导出供应商参标情况（2026-11-18）：邀请制（谈判/直接采购）含选取条件/邀请批次/多轮补选；
+                        公告类含意向/获取/投递参标表——与专家抽取情况 PDF 同版式 */}
+                    <button
+                      type="button"
+                      disabled={!bpId || exportBusy}
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            setExportBusy(true);
+                            await downloadParticipationExport(bpId!, bidProject?.name);
+                            showToast('供应商参标情况已导出（PDF）');
+                          } catch (e) {
+                            showToast(e instanceof Error ? e.message : '导出失败', 'err');
+                          } finally {
+                            setExportBusy(false);
+                          }
+                        })();
+                      }}
+                      className="neu-btn-soft !h-[32px] !text-xs"
+                      title={showRsvpColumn ? '导出 PDF：选取设置条件、邀请批次与多轮补选回执明细' : '导出 PDF：供应商意向确认与投递情况'}
+                    >
+                      {exportBusy ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+                      导出供应商参标情况
+                    </button>
                     {isOpened && (
                       <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--accent)]">已开标·锁定</span>
                     )}
@@ -699,7 +707,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         <tr>
                           <th style={{ width: 140 }}>供应商</th>
                           <th style={{ width: 160 }}>业务标签</th>
-                          {!isNegotiation && <th style={{ width: 110 }}>意向</th>}
+                          {!showRsvpColumn && <th style={{ width: 110 }}>意向</th>}
                           {showRsvpColumn && <th style={{ width: 80 }}>回执情况</th>}
                           <th style={{ width: 70 }}>投递状态</th>
                           <th style={{ width: 130 }}>投递时间</th>
@@ -715,7 +723,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                             <tr key={r.key} className="row-clickable">
                               <td className="font-medium text-[var(--foreground)]">{r.supplierName}</td>
                               <td className="text-[var(--muted-foreground)]">{r.tags.length > 0 ? r.tags.join('、') : '—'}</td>
-                              {!isNegotiation && (
+                              {!showRsvpColumn && (
                                 <td>
                                   {r.intentConfirmedAt ? (
                                     <div className="flex flex-col">
@@ -764,9 +772,9 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                       }}
                       disabled={exportBusy}
                       title="生成 PDF 证明材料：本次专家抽取方式细节 + 各轮接受/婉拒记录 + 正选/候补专家详情表"
-                      className="neu-btn-xs gap-1 disabled:opacity-50"
+                      className="neu-btn-soft !h-[32px] !text-xs"
                     >
-                      {exportBusy ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                      {exportBusy ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
                       导出专家抽取情况
                     </button>
                   )}
@@ -797,6 +805,16 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                       e.user?.expertProfile?.title || e.title || null;
                     const resolveEmployer = (e: typeof workspace.experts[0]) =>
                       e.user?.expertProfile?.employer || null;
+                    // 部门清洗（2026-11-18）：Department 主数据存量含「部门+职务」混录
+                    // （办公室主任/副部长/工作人员/XX岗——专家导入自由文本建档）——显示层
+                    // 剥离尾缀职务词还原部门本体；剥空（纯职务如「副总经理」）显示 —
+                    const cleanDepartment = (raw?: string | null): string => {
+                      if (!raw?.trim()) return '—';
+                      let s = raw.trim();
+                      s = s.replace(/[^（）()]*岗$/, '').trim(); // 「绩效考核管理岗」类：部门+岗位短语
+                      s = s.replace(/(副部长|部长|副主任|主任|工作人员|办事员|科员|副总经理|总经理|副经理|经理|负责人|主管)$/, '').trim();
+                      return s || '—';
+                    };
                     return (
                       <div className="overflow-x-auto">
                         <table className="neu-table w-full min-w-[600px]">
@@ -805,10 +823,10 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                               <th style={{ width: 44 }}>#</th>
                               <th>专家</th>
                               <th>专业</th>
+                              <th>公司</th>
                               <th>部门</th>
                               <th>职称</th>
                               <th>角色</th>
-                              <th>确认状态</th>
                               <th>签到</th>
                               <th style={{ width: 60 }}>操作</th>
                             </tr>
@@ -832,45 +850,9 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                                   </td>
                                   <td className="text-[var(--muted-foreground)]">{e.major || '—'}</td>
                                   <td className="text-[var(--muted-foreground)]">{resolveEmployer(e) || '—'}</td>
+                                  <td className="text-[var(--muted-foreground)]">{cleanDepartment((e as any).user?.department?.name)}</td>
                                   <td className="text-[var(--muted-foreground)]">{resolveTitle(e) || '—'}</td>
                                   <td><StatusBadge tone={isAlt ? 'orange' : 'blue'}>{roleLabel(e.expertRole)}</StatusBadge></td>
-                                  <td>
-                                    {isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.invitationStatus === 'confirmed' ? (
-                                      <div className="flex flex-col items-center gap-1">
-                                        <StatusBadge tone="green">确认参加</StatusBadge>
-                                        {/* 自答/代变更时刻一并记录 + 代回应标注 */}
-                                        {e.invitationActorType === 'STAFF' && (
-                                          <span className="text-[10px] leading-4 text-[var(--muted-foreground)] tabular-nums">
-                                            {e.expertRespondedAt
-                                              ? `自答于 ${new Date(e.expertRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}（原${e.expertStatus === 'confirmed' ? '确认参加' : '婉拒'}）`
-                                              : '代回应（专家未自答）'}
-                                            {e.rsvpRespondedAt ? ` · 代变更于 ${new Date(e.rsvpRespondedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
-                                          </span>
-                                        )}
-                                        {e.invitationActorType === 'STAFF' && (
-                                          <span className="inline-flex items-center gap-0.5 rounded-[4px] px-1 py-0.5 text-[9px] font-bold"
-                                            style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
-                                            工作人员代回应{e.invitationActorName ? ` · ${e.invitationActorName}` : ''}
-                                          </span>
-                                        )}
-                                        {e.invitationActorType === 'STAFF' && e.invitationReason && (
-                                          <span className="max-w-[200px] truncate rounded-[4px] px-1 py-0.5 text-[9px] font-semibold"
-                                            style={{ background: 'color-mix(in oklch, var(--warning) 9%, transparent)', color: 'var(--foreground)' }}
-                                            title={`代回应理由：${e.invitationReason}`}>理由：{e.invitationReason}</span>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <div className="flex flex-col items-center gap-1">
-                                        <StatusBadge tone="blue">待回复</StatusBadge>
-                                        {e.invitationActorType === 'STAFF' && (
-                                          <span className="inline-flex items-center gap-0.5 rounded-[4px] px-1 py-0.5 text-[9px] font-bold"
-                                            style={{ background: 'color-mix(in oklch, var(--warning) 14%, transparent)', color: 'var(--warning)' }}>
-                                            工作人员代回应{e.invitationActorName ? ` · ${e.invitationActorName}` : ''}
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
-                                  </td>
                                   <td>
                                     {isAlt ? <span className="text-[11px] text-[var(--muted-foreground)]">—</span> : e.signedIn ? <StatusBadge tone="green">已签到</StatusBadge> : <StatusBadge tone="gray">未签到</StatusBadge>}
                                   </td>
@@ -897,99 +879,160 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 <Modal
                   open
                   onClose={() => { setReplaceModalOpen(false); setReplaceModalExpert(null); setReplaceModalAlt(null); setReplaceModalError(null); }}
-                  size="sm"
-                  title={`替换专家：${replaceModalExpert.name}`}
-                  description="选择一名候补专家替换当前正选专家"
+                  size="md"
+                  icon={<ArrowLeftRight size={14} strokeWidth={1.9} />}
+                  title="专家替换"
+                  description="选择一名候补专家替换当前正选（角色互换：原正选转为候补）"
                 >
-                  <div className="space-y-2 max-h-[260px] overflow-y-auto">
+                  {(() => {
+                    // 专家资料小件（2026-11-18 重设计）：姓名 + 职称 / 专业·公司·部门 两行结构
+                    const expertMeta = (e: { expertName: string; major?: string | null; title?: string | null; user?: { expertProfile?: { title?: string | null; employer?: string | null } | null; department?: { name?: string | null } | null } | null }) => ({
+                      name: e.expertName,
+                      major: e.major || '',
+                      title: e.title || e.user?.expertProfile?.title || '',
+                      employer: e.user?.expertProfile?.employer || '',
+                      dept: (e as any).user?.department?.name || '',
+                    });
+                    return (
+                  <div className="space-y-3">
                     {availableAlts.length === 0 ? (
-                      <p className="text-center text-xs text-[var(--muted-foreground)] py-6">无可用候补专家（已婉拒或已被递补）</p>
+                      <div className="flex flex-col items-center gap-3 py-10">
+                        <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-2xl">
+                          <UserRound size={20} className="text-[var(--muted-foreground)]" />
+                        </div>
+                        <p className="text-sm text-[var(--muted-foreground)]">无可用候补专家（已婉拒或已被递补）</p>
+                      </div>
                     ) : replaceModalAlt ? (
                       (() => {
                         // FE-4：确认卡持有陈旧快照防护——所选候补已被并发递补/婉拒时回落列表步
                         const currentAlt = availableAlts.find(a => a.id === replaceModalAlt.id);
                         const altView = currentAlt ?? replaceModalAlt;
+                        const out = expertMeta(replaceModalExpert as any);
+                        const inc = expertMeta(altView as any);
                         return (
-                      <div className="space-y-3">
-                        <div className="rounded-xl border border-[var(--border)] p-3 text-sm">
-                          <div className="text-xs text-[var(--muted-foreground)] mb-1">确认用以下候补替换【{replaceModalExpert.name}】：</div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-[var(--foreground)]">{altView.expertName}</span>
-                            <span className="text-xs text-[var(--muted-foreground)]">{altView.major || '—'}</span>
-                            <StatusBadge tone="orange">候补</StatusBadge>
+                        <div className="space-y-3">
+                          {/* 替换方向卡（2026-11-18 重设计）：换出 ⇄ 换入 双瓷片 + 中缝换向图标井 */}
+                          <div className="flex items-stretch gap-2.5">
+                            <div className="min-w-0 flex-1 rounded-[14px] px-3.5 py-3"
+                              style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)' }}>
+                              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">换出（正选）</div>
+                              <div className="mt-1 text-sm font-bold text-[var(--foreground)]">{out.name}{replaceModalExpert.isLead ? '（组长）' : ''}</div>
+                              <div className="mt-0.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                                {[out.major, out.title].filter(Boolean).join(' · ') || '—'}
+                                {out.employer && <span className="block truncate">{out.employer}{out.dept ? ` · ${out.dept}` : ''}</span>}
+                              </div>
+                            </div>
+                            <div className="flex items-center">
+                              <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]">
+                                <ArrowLeftRight size={14} className="text-[var(--accent)]" />
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex-1 rounded-[14px] px-3.5 py-3"
+                              style={{ background: 'color-mix(in oklch, var(--accent) 6%, oklch(1 0 0 / 0.5))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)' }}>
+                              <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent-strong)]">换入（候补）</div>
+                              <div className="mt-1 text-sm font-bold text-[var(--foreground)]">{inc.name}</div>
+                              <div className="mt-0.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                                {[inc.major, inc.title].filter(Boolean).join(' · ') || '—'}
+                                {inc.employer && <span className="block truncate">{inc.employer}{inc.dept ? ` · ${inc.dept}` : ''}</span>}
+                              </div>
+                            </div>
                           </div>
                           {replaceModalExpert.isLead && (
-                            <p className="mt-2 flex items-start gap-1.5 text-[11px] text-[color-mix(in_oklch,var(--warning)_75%,black)]">
+                            <div className="flex items-start gap-1.5 rounded-[10px] px-3 py-2 text-[11px] leading-4 text-[color-mix(in_oklch,var(--warning)_75%,black)]"
+                              style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)' }}>
                               <AlertTriangle size={12} className="mt-0.5 shrink-0" />
-                              该正选为评审组长，替换后组长由候补【{altView.expertName}】接任。
-                            </p>
+                              该正选为评审组长，替换后组长由【{inc.name}】接任。
+                            </div>
                           )}
                           {!currentAlt && (
-                            <p className="mt-2 flex items-start gap-1.5 text-[11px] text-[color-mix(in_oklch,var(--warning)_75%,black)]">
+                            <div className="flex items-start gap-1.5 rounded-[10px] px-3 py-2 text-[11px] leading-4 text-[color-mix(in_oklch,var(--warning)_75%,black)]"
+                              style={{ background: 'color-mix(in oklch, var(--warning) 8%, transparent)' }}>
                               <AlertTriangle size={12} className="mt-0.5 shrink-0" />
                               所选候补状态已变化，请重新选择。
-                            </p>
+                            </div>
                           )}
-                        </div>
-                        <div className="flex justify-end gap-2">
-                          <button className="neu-btn-soft" onClick={() => { setReplaceModalAlt(null); setReplaceModalError(null); }} disabled={busy}>返回重选</button>
-                          <button
-                            className="neu-btn-primary is-water"
-                            disabled={busy || !currentAlt}
-                            onClick={async () => {
-                              setBusy(true);
-                              try {
-                                await swapExpertRole(bidProject?.id || '', replaceModalExpert.id, replaceModalAlt.id);
-                                showToast(`已将 ${replaceModalExpert.name} 与 ${replaceModalAlt.expertName} 角色互换`);
-                                setReplaceModalOpen(false);
-                                setReplaceModalExpert(null);
-                                setReplaceModalAlt(null);
-                                setReplaceModalError(null);
-                                // FE-2：替换成功后即时同步 PMI 专家信息（此前仅 load() 同步，落库陈旧至下次全量加载）
-                                void refreshWorkspace().then(ws => { if (ws) syncProjectInfo(ws, rsvpMap, onSyncProjectInfo); });
-                              } catch (err: any) {
-                                showToast(err?.message || '替换失败', 'err');
-                                // FE-1：面板 toast(z-20) 被 Modal(z-600) 遮罩盖住——弹窗内联兜底展示
-                                setReplaceModalError(err?.message || '替换失败，请刷新后重试');
-                              }
-                              setBusy(false);
-                            }}
-                          >
-                            确认替换
-                          </button>
-                        </div>
-                        {/* FE-1：替换失败内联错误（toast 被 Modal 遮罩盖住时的弹窗内可见反馈） */}
-                        {replaceModalError && (
-                          <div role="alert" className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-[color-mix(in_oklch,var(--danger)_88%,black)] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)]">
-                            <AlertTriangle size={13} className="shrink-0" />
-                            {replaceModalError}
+                          {/* FE-1：替换失败内联错误（toast 被 Modal 遮罩盖住时的弹窗内可见反馈） */}
+                          {replaceModalError && (
+                            <div role="alert" className="flex items-center gap-1.5 rounded-[10px] px-3 py-2 text-xs font-semibold text-[color-mix(in_oklch,var(--danger)_88%,black)] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)]">
+                              <AlertTriangle size={13} className="shrink-0" />
+                              {replaceModalError}
+                            </div>
+                          )}
+                          <div className="neu-btn-group pt-1">
+                            <button className="neu-btn-soft" onClick={() => { setReplaceModalAlt(null); setReplaceModalError(null); }} disabled={busy}>返回重选</button>
+                            <button
+                              className="neu-btn-primary is-water"
+                              disabled={busy || !currentAlt}
+                              onClick={async () => {
+                                setBusy(true);
+                                try {
+                                  await swapExpertRole(bidProject?.id || '', replaceModalExpert.id, replaceModalAlt.id);
+                                  showToast(`已将 ${replaceModalExpert.name} 与 ${replaceModalAlt.expertName} 角色互换`);
+                                  setReplaceModalOpen(false);
+                                  setReplaceModalExpert(null);
+                                  setReplaceModalAlt(null);
+                                  setReplaceModalError(null);
+                                  // FE-2：替换成功后即时同步 PMI 专家信息（此前仅 load() 同步，落库陈旧至下次全量加载）
+                                  void refreshWorkspace().then(ws => { if (ws) syncProjectInfo(ws, rsvpMap, onSyncProjectInfo); });
+                                } catch (err: any) {
+                                  showToast(err?.message || '替换失败', 'err');
+                                  setReplaceModalError(err?.message || '替换失败，请刷新后重试');
+                                }
+                                setBusy(false);
+                              }}
+                            >
+                              {busy ? <Loader2 size={14} className="animate-spin" /> : <ArrowLeftRight size={14} />}
+                              确认替换
+                            </button>
                           </div>
-                        )}
-                      </div>
+                        </div>
                         );
                       })()
                     ) : (
-                      availableAlts.map(alt => {
-                        // 复审 F2（2026-09-24）：换出组长时采购人代表候补不可接任组长（后端 ALTERNATE_CANNOT_LEAD 对齐）
-                        const cannotLeadSwap = !!replaceModalExpert.isLead && !!alt.isPurchaserRepresentative;
-                        return (
-                        <button
-                          key={alt.id}
-                          onClick={() => setReplaceModalAlt(alt)}
-                          disabled={busy || cannotLeadSwap}
-                          className="neu-btn-soft w-full text-left flex items-center gap-3 p-3"
-                        >
-                          <span className="text-sm font-bold text-[var(--foreground)]">{alt.expertName}</span>
-                          <span className="text-xs text-[var(--muted-foreground)]">{alt.major || '—'}</span>
-                          <StatusBadge tone="orange">候补</StatusBadge>
-                          {cannotLeadSwap && (
-                            <span className="ml-auto text-[10px] font-semibold text-[color-mix(in_oklch,var(--danger)_85%,black)]">采购人代表·不可接任组长</span>
-                          )}
-                        </button>
-                        );
-                      })
+                      <>
+                        {/* 被替换正选信息（carved 内凹盒） */}
+                        <div className="flex items-center gap-3 rounded-[12px] px-3.5 py-2.5"
+                          style={{ background: 'oklch(0.965 0.004 258 / 0.6)', boxShadow: 'inset 1px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.55)' }}>
+                          <UserRound size={16} className="shrink-0 text-[var(--muted-foreground)]" />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-sm font-bold text-[var(--foreground)]">{replaceModalExpert.name}{replaceModalExpert.isLead ? '（组长）' : ''}</span>
+                            <span className="ml-2 text-[11px] text-[var(--muted-foreground)]">当前正选 · 将转为候补</span>
+                          </div>
+                        </div>
+                        {/* 候补选择列表（2026-11-18 重设计）：结构化两行行卡——无外框、内高光、hover 品牌淡染 */}
+                        <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                          {availableAlts.map(alt => {
+                            const meta = expertMeta(alt as any);
+                            // 复审 F2（2026-09-24）：换出组长时采购人代表候补不可接任组长（后端 ALTERNATE_CANNOT_LEAD 对齐）
+                            const cannotLeadSwap = !!replaceModalExpert.isLead && !!alt.isPurchaserRepresentative;
+                            return (
+                              <button
+                                key={alt.id}
+                                onClick={() => setReplaceModalAlt(alt)}
+                                disabled={busy || cannotLeadSwap}
+                                className={`flex w-full items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left transition-colors ${cannotLeadSwap ? 'cursor-not-allowed opacity-55' : 'hover:bg-[color-mix(in_oklch,var(--accent)_7%,transparent)]'}`}
+                                style={{ background: 'oklch(1 0 0 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-[var(--foreground)]">{meta.name}</span>
+                                    {meta.title && <span className="text-[11px] text-[var(--muted-foreground)]">{meta.title}</span>}
+                                    {cannotLeadSwap && <span className="text-[10px] font-semibold text-[color-mix(in_oklch,var(--danger)_85%,black)]">采购人代表 · 不可接任组长</span>}
+                                  </div>
+                                  <div className="mt-0.5 truncate text-[11px] text-[var(--muted-foreground)]">
+                                    {[meta.major, meta.employer, meta.dept].filter(Boolean).join(' · ') || '—'}
+                                  </div>
+                                </div>
+                                <StatusBadge tone="orange" className="shrink-0">候补</StatusBadge>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
                     )}
                   </div>
+                    );
+                  })()}
                 </Modal>
               )}
 
@@ -1394,12 +1437,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">流标原因</span>
             {failBidAiLoading && (
               <span className="flex items-center gap-1 text-[10px] text-[color:var(--accent)]">
-                <Loader2 size={10} className="animate-spin" /> AI 分析中…
-              </span>
-            )}
-            {!failBidAiLoading && failBidReason && (
-              <span className="flex items-center gap-1 text-[10px] text-[color:var(--accent)]">
-                <Sparkles size={10} /> AI 已生成
+                <Loader2 size={10} className="animate-spin" /> 分析中…
               </span>
             )}
           </div>

@@ -282,6 +282,13 @@ export class ProjectManagementController {
     return this.projectManagementService.extractTenderFields(id, field, dryRun === 'true');
   }
 
+  /** 直接采购 03（谈判文件）完成前综合分析（2026-11-18 用户裁定）：需求/立项/谈判文件
+   *  三步骤当轮全部附件 → AI 写项目概况+开标时间；只返回不落库，确认弹窗展示可改 */
+  @Post(':id/analyze-direct-procurement')
+  analyzeDirectProcurement(@Param('id') id: string, @Query('round') round?: string) {
+    return this.projectManagementService.analyzeDirectProcurementCompletion(id, round ? Number(round) : undefined);
+  }
+
   /** 直接采购：读取项目各阶段文档，AI 推荐 3-5 家供应商供用户选择 */
   @Post(':id/recommend-suppliers')
   recommendSuppliersForProject(@Param('id') id: string) {

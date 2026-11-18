@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3 } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import {
+  analyzeDirectProcurement,
   analyzeProjectManagementItem,
   analyzeProjectStep,
   completeProjectManagementItem,
@@ -18,6 +19,7 @@ import {
   updateProjectExtractedInfo,
   uploadProjectStageAttachment,
   optimizeInitiationFields,
+  polishInitiationField,
   fetchProjectManagementList,
   type ExtractedInfo,
   type UploadStageAttachmentResult,
@@ -719,7 +721,7 @@ export function ProjectDetailPanel({
 
   /** 完成链主体（markStageCompleted 与 03 完成向导确认共用）：updateStage + 推进 + 豁免对话框。
    *  返回结果供向导前台反馈（面板错误区在向导 overlay 后面，向导须自行 toast）。 */
-  const completeStageCore = async (stage: ProjectManagementStage): Promise<{ ok: boolean; message?: string; waived?: boolean }> => {
+  const completeStageCore = async (stage: ProjectManagementStage, extra?: { directOverview?: string; directOpeningTime?: string }): Promise<{ ok: boolean; message?: string; waived?: boolean }> => {
     setSubmitting(true);
     setErrorMessage(null);
     // Determine the next stage BEFORE try/catch so the catch (豁免对话框) block can also read it
@@ -729,12 +731,15 @@ export function ProjectDetailPanel({
     const nextStageKey: ProjectWorkflowStageKey | undefined = localItem.stages[currentIndex + 1]?.stageKey;
     try {
 
-      // 供应商邀请阶段：带上确认页设置的满足数量（后端按回执实数核验，未达标返回 x/N 明确提示）
-      const confirmThreshold = Number(localStorage.getItem('supplier-confirm-threshold')) || 3;
+      // 供应商邀请阶段：带上确认页设置的满足数量（后端按回执实数核验，未达标返回 x/N 明确提示）；
+      // 直接采购恒为 1（2026-11-18 用户裁定：单一供应商 1/1 即达标，不读全局设置）
+      const inviteMethod = bpRefs.find((r) => r.round === (stage.round ?? 1))?.procurementMethod ?? item.procurementMethod;
+      const confirmThreshold = inviteMethod === '直接采购' ? 1 : (Number(localStorage.getItem('supplier-confirm-threshold')) || 3);
       await updateProjectStage(item.id, stage.stageKey, {
         status: 'COMPLETED',
         round: stage.round ?? 1, // 多轮项目按被点行的轮次落行（2026-09-24 I-1）
         ...(stage.stageKey === 'SUPPLIER_INVITATION' ? { confirmedThreshold: confirmThreshold } : {}),
+        ...extra, // 直接采购 03 确认值（随完成调用落库，2026-11-18）
       });
       await handleUpdated();
 
@@ -758,6 +763,90 @@ export function ProjectDetailPanel({
     }
   };
 
+  // 直接采购 03（谈判文件）完成确认弹窗（2026-11-18 用户裁定）：完成前 AI 综合分析
+  // 需求/立项/谈判文件三步骤全部文件 → 项目概况/开标时间供确认可改；采购文件获取时间固定"/"。
+  // 声明于 completeStageCore 之后、markStageCompleted 之前——react-compiler 前向引用防御
+  //（memory：web-react-compiler-forward-ref，useCallback/闭包引用声明在后的绑定曾报 Cannot access）。
+  const [directConfirmStage, setDirectConfirmStage] = useState<ProjectManagementStage | null>(null);
+  const [directAnalysisLoading, setDirectAnalysisLoading] = useState(false);
+  const [directOverview, setDirectOverview] = useState('');
+  const [directOpeningTime, setDirectOpeningTime] = useState('');
+  const [directFilesNote, setDirectFilesNote] = useState('');
+  const [directCompleting, setDirectCompleting] = useState(false);
+  const [directPolishing, setDirectPolishing] = useState(false);
+
+  /** 项目概况 AI 优化：基于当前内容润色（polishInitiationField projectOverview 轨） */
+  const polishDirectOverview = async () => {
+    const cur = directOverview.trim();
+    if (!cur) { toast.error('请先填写项目概况的初步内容，再进行优化'); return; }
+    setDirectPolishing(true);
+    try {
+      const { polished } = await polishInitiationField({
+        field: 'projectOverview',
+        text: cur,
+        projectContext: { title: item.title, method: item.procurementMethod },
+      });
+      setDirectOverview(polished);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '优化失败，请稍后重试');
+    } finally {
+      setDirectPolishing(false);
+    }
+  };
+
+  /** 打开直接采购完成确认：先校验本步骤已有文件，再调综合分析端点填充弹窗 */
+  const openDirectConfirm = async (stage: ProjectManagementStage) => {
+    const round = stage.round ?? 1;
+    const stageFiles = localItem.stages.find((s) => s.stageKey === 'TENDER_DOCUMENT' && (s.round ?? 1) === round)?.attachments ?? [];
+    if (stageFiles.length === 0) {
+      toast.error('请先在「谈判文件」步骤上传文件，再标记本阶段完成');
+      return;
+    }
+    setDirectConfirmStage(stage);
+    setDirectOverview('');
+    setDirectOpeningTime('');
+    setDirectFilesNote('');
+    setDirectAnalysisLoading(true);
+    try {
+      const r = await analyzeDirectProcurement(item.id, round);
+      setDirectOverview(r.projectOverview ?? '');
+      setDirectOpeningTime(zhToDatetimeLocal(r.bidOpeningTime) ?? '');
+      // 缓存命中（文件未变更）：直接加载上次结果不重析（2026-11-18 用户裁定）
+      const base = r.cached
+        ? '文件未变更，已加载上次分析结果'
+        : r.filesAnalyzed?.length ? `已分析 ${r.filesAnalyzed.length} 个文件` : '';
+      const failed = r.filesFailed?.length ? `${r.filesFailed.length} 个文件解析失败（已跳过）` : '';
+      setDirectFilesNote([base, failed].filter(Boolean).join(' · '));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '综合分析失败，请重试');
+      setDirectConfirmStage(null);
+    } finally {
+      setDirectAnalysisLoading(false);
+    }
+  };
+
+  /** 确认：确认值随完成调用落库（updateStage 直采轨——PATCH extracted-info 有 CHANGE_ONLY 闸，
+   *  人工直改被拦；完成链是服务端受控写路径），采购文件获取时间服务端固定写"/"；
+   *  开标时间选择器值（datetime-local）转中文格式入库，与基本信息编辑同口径 */
+  const confirmDirectCompletion = async () => {
+    if (!directConfirmStage) return;
+    setDirectCompleting(true);
+    try {
+      const overview = directOverview.trim();
+      const openingZh = datetimeLocalToZh(directOpeningTime) ?? '';
+      const r = await completeStageCore(directConfirmStage, {
+        ...(overview ? { directOverview: overview } : {}),
+        ...(openingZh ? { directOpeningTime: openingZh } : {}),
+      });
+      if (!r.ok && r.message) toast.error(r.message);
+      setDirectConfirmStage(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '信息保存失败');
+    } finally {
+      setDirectCompleting(false);
+    }
+  };
+
   const markStageCompleted = async (stage: ProjectManagementStage) => {
     if (actionsDisabled) { toast.info('当前为查看模式，不能修改'); return; }
     if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
@@ -766,6 +855,13 @@ export function ProjectDetailPanel({
     // 右配置对照确认评分标准才落完成；原「评分标准 incomplete 拦截」并入向导 Step2；服务端
     // OFFICIAL_TENDER_REQUIRED + SCORE_STANDARD_REQUIRED 双闸不变。
     if (stage.stageKey === 'TENDER_DOCUMENT') {
+      // 直接采购（2026-11-18 用户裁定）：03（谈判文件）不走正式盖章版/评分标准向导——
+      // 走综合分析确认弹窗；其余方式维持 03 完成向导（正式文件+评分标准双闸不变）
+      const roundMethod = bpRefs.find((r) => r.round === (stage.round ?? 1))?.procurementMethod ?? item.procurementMethod;
+      if (roundMethod === '直接采购') {
+        void openDirectConfirm(stage);
+        return;
+      }
       setTenderWizardRound(stage.round ?? 1);
       return;
     }
@@ -1278,7 +1374,9 @@ export function ProjectDetailPanel({
           <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购流程</span>
-              <span className="text-[10px] font-semibold text-[color:var(--accent)]">当前聚焦：{selectedStage.stageName}</span>
+              <span className="text-[10px] font-semibold text-[color:var(--accent)]">
+                当前聚焦：{selectedStage.stageKey === 'TENDER_DOCUMENT' && (bpRefs.find((r) => r.round === selectedRound)?.procurementMethod ?? item.procurementMethod) === '直接采购' ? '谈判文件' : selectedStage.stageName}
+              </span>
             </div>
             <ProjectStageTimeline
               stages={readOnly
@@ -2554,6 +2652,82 @@ export function ProjectDetailPanel({
           </div>
         );
       })()}
+
+      {/* 直接采购 03（谈判文件）完成确认弹窗（2026-11-18 用户裁定）：AI 综合分析三步骤
+          全部文件 → 项目概况/开标时间确认可改；采购文件获取时间固定"/"；确认后落基本信息并完成 */}
+      {directConfirmStage && (
+        <Modal
+          open
+          onClose={() => { if (!directCompleting && !directAnalysisLoading) setDirectConfirmStage(null); }}
+          closeOnBackdrop={!directCompleting && !directAnalysisLoading}
+          closeOnEsc={!directCompleting && !directAnalysisLoading}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><FileCheck2 size={14} strokeWidth={1.9} className="text-[var(--accent)]" /></span>
+              完成谈判文件阶段{directConfirmStage.round && directConfirmStage.round > 1 ? `（第 ${directConfirmStage.round} 轮）` : ''}
+            </span>
+          }
+          description="已综合分析采购需求、采购立项与谈判文件步骤的全部文件，请确认以下信息"
+          size="md"
+          footer={
+            <div className="neu-btn-group">
+              <button type="button" onClick={() => setDirectConfirmStage(null)} disabled={directCompleting || directAnalysisLoading} className="neu-btn-soft">取消</button>
+              <button type="button" onClick={() => void confirmDirectCompletion()} disabled={directCompleting || directAnalysisLoading} className="neu-btn-primary is-water">
+                {directCompleting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} 确认完成本阶段
+              </button>
+            </div>
+          }
+        >
+          {directAnalysisLoading ? (
+            <div className="flex flex-col items-center gap-3 py-12">
+              <div className="neu-icon-well flex h-12 w-12 items-center justify-center rounded-2xl">
+                <Loader2 size={20} className="animate-spin text-[var(--muted-foreground)]" />
+              </div>
+              <p className="text-sm text-[var(--muted-foreground)]">正在综合分析采购需求、采购立项、谈判文件步骤的全部文件…</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {directFilesNote && <p className="text-[11px] text-[var(--muted-foreground)]">{directFilesNote}</p>}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">项目概况</span>
+                  <button
+                    type="button"
+                    onClick={() => void polishDirectOverview()}
+                    disabled={directPolishing || directCompleting}
+                    title="AI 优化：基于当前内容润色"
+                    className="neu-btn-primary is-water !h-[30px] !px-2.5 !text-xs gap-1 disabled:opacity-50"
+                  >
+                    {directPolishing ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+                    AI 优化
+                  </button>
+                </div>
+                <textarea
+                  value={directOverview}
+                  onChange={(e) => setDirectOverview(e.target.value)}
+                  placeholder="未从材料中生成，可手动填写"
+                  className="workbench-input min-h-[96px] w-full resize-none text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">开标时间</div>
+                  <input
+                    type="datetime-local"
+                    value={directOpeningTime}
+                    onChange={(e) => setDirectOpeningTime(e.target.value)}
+                    className="workbench-input w-full text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">采购文件获取时间</div>
+                  <input value="/" readOnly className="workbench-input w-full text-sm opacity-70" />
+                </div>
+              </div>
+            </div>
+          )}
+        </Modal>
+      )}
 
       {/* 03 完成向导（2026-09-26 用户裁定：强制）——「标记本阶段完成」先走
           ①选/传正式盖章版采购文件 → ②左预览右配置对照确认评分标准，确认后才落完成；

@@ -697,7 +697,7 @@ export class BidService {
         // :3007 全部视图（评标管理/核验矩阵/签字）与 :3005 面板拿到的名单里不再存在该行；
         // 留痕与恢复通道在专家抽取向导的确认表（expert-admin 域），不经本端点
         where: { projectId: id, invitationStatus: { not: 'declined' } },
-        include: { user: { select: { expertProfile: { select: { title: true, employer: true } } } } },
+        include: { user: { select: { department: { select: { name: true } }, expertProfile: { select: { title: true, employer: true } } } } },
         orderBy: [{ expertRole: 'desc' }, { createdAt: 'asc' }],
       }),
       this.prisma.supplierBidSubmission.findMany({

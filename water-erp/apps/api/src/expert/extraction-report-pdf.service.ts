@@ -53,6 +53,21 @@ const GRID_LAYOUT = {
   paddingBottom: () => 3.5,
 };
 
+/** 宽表紧凑版式（2026-11-18 表格超限修复）：pdfmake 列宽不含左右内边距——
+ *  每列实际渲染宽 = 指定宽 + paddingLeft + paddingRight（9 列 ×10pt ≈ +90pt，
+ *  实测表格右线 644.75pt 超出 A4 页宽 595.28）。宽表统一用本版式（4+4=8pt/列），
+ *  且列宽总和按「sum + 列数×8 ≤ 515（A4 内容宽）」预算。 */
+const GRID_COMPACT = {
+  hLineColor: () => '#C9CFDA',
+  vLineColor: () => '#C9CFDA',
+  hLineWidth: () => 0.5,
+  vLineWidth: () => 0.5,
+  paddingLeft: () => 4,
+  paddingRight: () => 4,
+  paddingTop: () => 3,
+  paddingBottom: () => 3,
+};
+
 const HEADER_FILL = '#F1F3F7';
 
 @Injectable()
@@ -126,7 +141,7 @@ export class ExtractionReportPdfService {
     const roster = await this.prisma.bidExpert.findMany({
       where: { projectId },
       orderBy: [{ expertRole: 'desc' }, { createdAt: 'asc' }],
-      include: { user: { select: { displayName: true, department: { select: { name: true } }, expertProfile: { select: { title: true, employer: true, phone: true } } } } },
+      include: { user: { select: { displayName: true, phone: true, department: { select: { name: true } }, expertProfile: { select: { title: true, employer: true, phone: true } } } } },
     });
     // 邀请轨迹按行挂载 + 确认方式/时间三级推导：优先轨迹终笔，次行字段
     // （rsvpRespondedAt/invitationActorType），存量兜底：confirmed 无痕=工作人员确认、
@@ -185,7 +200,6 @@ export class ExtractionReportPdfService {
       }
       return null;
     };
-
     const MODE_LABELS: Record<string, string> = {
       specialty_match: '专业匹配（按专业配额在候选池中匹配择定）',
       random: '随机抽取（系统在符合条件的候选池中随机抽出）',
@@ -194,14 +208,13 @@ export class ExtractionReportPdfService {
     };
     const stCn = (s: string) => (s === 'confirmed' ? '已确认参加' : s === 'declined' ? '已婉拒' : '待回复');
     const actorCn = (a: string | null) => (a === 'EXPERT' ? '专家本人回复' : a === 'STAFF' ? '工作人员代回应' : a === 'SYSTEM' ? '系统（超时/递补）' : '—');
-    // 名册表窄列用短值（口径全称见文末「说明2」，1:1 映射）
     const actorShort = (a: string | null) => (a === 'EXPERT' ? '本人回复' : a === 'STAFF' ? '代回应' : a === 'SYSTEM' ? '系统' : '—');
     const fmt = (d: Date | null | undefined) => (d ? new Date(d).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
     const fmtCell = (d: Date | null | undefined) => (d ? fmt(d).replace(' ', '\n') : '—');
 
     /* ── 版式小件 ── */
-    const th = (text: string, size = 9): any => ({ text, bold: true, fillColor: HEADER_FILL, alignment: 'center', fontSize: size });
-    const td = (text: string, opts?: { align?: 'left' | 'center'; size?: number }): any => ({ text: text || '—', alignment: opts?.align ?? 'center', fontSize: opts?.size ?? 9 });
+    const th = (text: string, size = 8.5): any => ({ text, bold: true, fillColor: HEADER_FILL, alignment: 'center', fontSize: size });
+    const td = (text: string, opts?: { align?: 'left' | 'center'; size?: number }): any => ({ text: text || '—', alignment: opts?.align ?? 'center', fontSize: opts?.size ?? 8.5 });
     const labeled = (parts: Array<[string, string]>): any => ({
       text: parts.map(([k, v], i) => ([{ text: (i > 0 ? '　' : '') + k, bold: true }, { text: v }] as any[])).flat(),
       fontSize: 9.5, margin: [0, 0, 0, 3],
@@ -210,8 +223,35 @@ export class ExtractionReportPdfService {
     const regulars = roster.filter(r => r.expertRole === '正选');
     const confirmedRegulars = regulars.filter(r => r.invitationStatus === 'confirmed');
     const activeAlts = roster.filter(r => r.expertRole === '候补' && r.invitationStatus !== 'declined');
+    // 需求方代表（2026-11-18 用户裁定：完整资料展示，手动录入的尤其需要）——
+    // 加入方式推导：出现在任一抽取事件选定/候补序列 = 抽取选定，否则 = 手动录入
+    const extractedUserIds = new Set(extractionEvents.flatMap(ev => {
+      const d = (ev.details ?? {}) as any;
+      return [...((d.drawnUserIds ?? []) as string[]), ...((d.poolUserIds ?? []) as string[])];
+    }));
+    const purchaserReps = roster.filter(r => r.isPurchaserRepresentative);
+    const repJoinCn = (r: (typeof roster)[number]) => (extractedUserIds.has(r.userId) ? '抽取选定' : '手动录入');
+    const repPhone = (r: (typeof roster)[number]) =>
+      openPiiForMask(r.user?.expertProfile?.phone ?? r.user?.phone ?? null) ?? '';
+    // 代回应理由留痕（2026-11-18 用户裁定）：STAFF 代回应行的理由逐条列出（表下方脚注）
+    const reasonFootnotes = (rows: typeof roster): any[] => {
+      const notes = rows.filter(r => r.invitationActorType === 'STAFF' && r.invitationReason?.trim());
+      if (notes.length === 0) return [];
+      return [{
+        text: '代回应留痕：' + notes.map(r =>
+          `${r.expertName}${r.invitationActorName ? `（代回应人 ${r.invitationActorName}）` : ''}——${r.invitationReason!.trim()}`).join('；') + '。',
+        fontSize: 8.5, color: '#666666', margin: [0, 2, 0, 6],
+      }];
+    };
 
-    /* ── 一、项目基本信息：无边框两列，标签加粗 ── */
+    // 轮次元信息（设置条件节与结果流转节共用）：类型 + 标题
+    const roundMeta = (i: number, drawn: number, alts: number) => {
+      if (i === 0) return { title: '第 1 轮（初次抽取·正选）', kind: 'first' as const };
+      if (drawn === 0 && alts > 0) return { title: `第 ${i + 1} 轮（候补抽取）`, kind: 'alt' as const };
+      return { title: `第 ${i + 1} 轮（补选·正选）`, kind: 're' as const };
+    };
+
+    /* ── 一、项目基本信息（含评审组构成概要） ── */
     const infoTable = {
       layout: 'noBorders' as const,
       table: {
@@ -221,192 +261,228 @@ export class ExtractionReportPdfService {
           ['项目编号', projectCode],
           ['采购方式', project.procurementMethod || '—'],
           ['开标时间', fmt(project.openTime)],
+          ['评审组构成', `正选 ${regulars.length} 名（已确认 ${confirmedRegulars.length} 名）${activeAlts.length > 0 ? ` · 候补 ${activeAlts.length} 名` : ''}`],
           ['材料导出时间', fmt(new Date())],
         ] as [string, string][]).map(([k, v]) => [{ text: k, bold: true, fontSize: 10 }, { text: v, fontSize: 10 }]),
       },
     };
 
-    /* ── 二、AI 辅助环节：run-on 拆要点条目 ── */
-    const aiSpec = extractOpLogs.filter(l => l.path === '/api/expert-admin/extract/analyze-project') as Array<{ createdAt: Date }>;
-    const aiLeader = extractOpLogs.filter(l => l.path === '/api/expert-admin/extract/ai-leader') as Array<{ createdAt: Date }>;
-    const leadName = roster.find(r => r.isLead)?.expertName;
-    const aiSection: any[] = [
-      { ul: [
-        { text: [{ text: '候选池构建：', bold: true }, { text: '在库内可用专家中按各配额的公司、部门、专业、库内等级、行政区域条件过滤，并剔除与投标供应商存在关联（回避）、跨项目评标窗口冲突及被预排除的专家。' }] },
-        { text: [{ text: '抽取择定：', bold: true }, { text: '专业匹配/综合择优模式对候选按专业匹配度、职称、历史参评项目数、履职评价等级、评分偏离度、当前负荷等维度加权评分排序取优；随机抽取模式在候选池中系统随机抽出。' }] },
-        { text: [{ text: '候补抽定：', bold: true }, { text: '按同口径另行抽定，与正选同为工作人员确认后生效。' }] },
-        { text: [{ text: '组长推荐：', bold: true }, { text: `在已确认参加的正选专家中，AI（大模型）按职称、学历、评审专业、工作单位等维度综合评估资历，推荐评审组长人选并给出推荐理由${leadName ? `（本次评审组长：${leadName}）` : ''}；AI 不可用时按职称等级规则兜底（正高/研究员 ＞ 高级/副高 ＞ 中级）。推荐结果仅供参考，组长最终由工作人员确认。` }] },
-        ...(aiSpec.length > 0 ? [{ text: `AI 专业配额建议：调用 ${aiSpec.length} 次（${aiSpec.map(l => fmt(l.createdAt)).join('、')}）——系统按项目概况分析建议专业配额，最终配额以人工确认为准。` }] : []),
-        ...(aiLeader.length > 0 ? [{ text: `组长推荐调用留痕：${aiLeader.length} 次（${aiLeader.map(l => fmt(l.createdAt)).join('、')}）。` }] : []),
-      ], fontSize: 10, lineHeight: 1.35 },
-      { text: 'AI 环节仅作辅助建议：专业配额、专家人选与组长最终均由工作人员确认，确认动作与审计日志同事务留痕。', fontSize: 9, color: '#666666', margin: [0, 6, 0, 0] },
-    ];
+    /* ── 二、抽取设置条件：各轮完整条件（初次/候补抽取/补选统一口径） ── */
+    const quotaTable = (cfg: { body?: any } | null): any[] => {
+      const q = ((cfg?.body?.manualQuotas ?? []) as any[]) ?? [];
+      if (q.length === 0) return [];
+      const quotaCols = [
+        { label: '专业要求', width: '*', values: q.map((row: any) => (row.specialties?.length ? row.specialties.join('、') : row.specialty) || '不限专业') },
+        { label: '人数', width: 34, values: q.map((row: any) => String(row.count ?? '—')) },
+        { label: '公司限定', width: '*', values: q.map((row: any) => (row.companyIds?.length ? row.companyIds.map((id: string) => companyNameById.get(id) ?? id).join('、') : row.employer) || '不限') },
+        { label: '部门限定', width: 64, values: q.map((row: any) => row.department || '—') },
+        { label: '库内等级', width: 64, values: q.map((row: any) => row.expertLevel || '—') },
+        { label: '区域', width: 64, values: q.map((row: any) => row.regionCode || '—') },
+        { label: '备注', width: '*', values: q.map((row: any) => row.reason || '—') },
+      ];
+      // 公司限定恒保留（2026-11-18 用户裁定：公司维度设置须体现，未限定显「不限」）；
+      // 其余列（部门/等级/区域/备注）仍按有值收敛
+      const present = quotaCols.filter(c =>
+        c.label === '专业要求' || c.label === '人数' || c.label === '公司限定' ||
+        c.values.some(v => v !== '—' && v !== '不限'));
+      return [{
+        layout: GRID_COMPACT,
+        table: {
+          headerRows: 1,
+          widths: present.map(c => c.width),
+          body: [present.map(c => th(c.label)), ...q.map((_, ri) => present.map(c => td(c.values[ri])))],
+        },
+        margin: [0, 2, 0, 4],
+      }];
+    };
+    const configLines = (cfg: { body?: any } | null): Array<[string, string]> => {
+      if (!cfg) return [];
+      const parts: Array<[string, string]> = [['拟抽正选：', `${cfg.body?.totalNeeded ?? '—'} 名`]];
+      if ((cfg.body?.alternatives ?? 0) > 0) parts.push(['拟抽候补：', `${cfg.body.alternatives} 名`]);
+      if (cfg.body?.employer) parts.push(['整体限定公司：', cfg.body.employer]);
+      const excluded = ((cfg.body?.excludedUserIds ?? []) as string[]).map(id => excludedNameById.get(id) ?? id).filter(Boolean);
+      if (excluded.length > 0) parts.push(['预排除专家：', excluded.join('、')]);
+      return parts;
+    };
 
-    /* ── 三、抽取过程与补选记录 ── */
-    const roundBlocks: any[] = [];
+    const configSection: any[] = [
+      { text: '以下为各轮次（初次抽取 / 候补抽取 / 补选）的设置条件。预排除之外，系统自动回避与投标供应商存在关联、跨项目评标窗口冲突的专家。', fontSize: 9, color: '#666666', margin: [0, 0, 0, 6] },
+    ];
+    if (extractionEvents.length === 0) {
+      configSection.push({ text: '未找到抽取确认审计记录（存量项目或未走抽取向导确认步骤），设置条件以系统操作日志为准。', fontSize: 10 });
+    }
     for (let i = 0; i < extractionEvents.length; i++) {
       const ev = extractionEvents[i];
       const d = (ev.details ?? {}) as any;
       const mode = MODE_LABELS[d.extractMode] ?? (d.extractMode ? `其他方式（${d.extractMode}）` : '（快照未载明，以名单为准）');
-      const drawn = (d.drawnUserIds ?? []) as string[];   // 本轮选定正选
-      const alts = (d.poolUserIds ?? []) as string[];     // 快照字段名 poolUserIds 实为本轮选定候补（dto.candidates）
+      const drawn = (d.drawnUserIds ?? []) as string[];
+      const alts = (d.poolUserIds ?? []) as string[];
+      const cfg = roundCfg(i);
+      const meta = roundMeta(i, drawn.length, alts.length);
+      configSection.push({ text: meta.title, bold: true, fontSize: 10.5, margin: [0, i === 0 ? 2 : 10, 0, 4] });
+      const lines: Array<[string, string]> = [
+        ['确认时间：', fmt(ev.createdAt)],
+        ['确认人：', ev.user?.displayName ?? '工作人员'],
+        ['抽取方式：', mode],
+        ...(cfg ? configLines(cfg) : []),
+      ];
+      if (meta.kind === 're' && !cfg) {
+        lines.push(['本轮配置：', '未单独留痕，沿用初次配置口径']);
+      }
+      configSection.push(labeled(lines));
+      configSection.push(...quotaTable(cfg));
+    }
+    // AI 辅助留痕一行（有调用时）
+    const aiSpecCount = extractOpLogs.filter(l => l.path === '/api/expert-admin/extract/analyze-project').length;
+    const aiLeaderCount = extractOpLogs.filter(l => l.path === '/api/expert-admin/extract/ai-leader').length;
+    if (aiSpecCount > 0 || aiLeaderCount > 0) {
+      const traces = [
+        aiSpecCount > 0 ? `专业配额建议 ${aiSpecCount} 次` : '',
+        aiLeaderCount > 0 ? `组长推荐 ${aiLeaderCount} 次` : '',
+      ].filter(Boolean).join('、');
+      configSection.push({ text: `AI 辅助留痕：${traces}——建议仅供参考，专业配额、专家人选与组长均由工作人员确认后生效。`, fontSize: 9, color: '#666666', margin: [0, 4, 0, 0] });
+    }
+
+    /* ── 三、抽取结果与流转：各轮选定人员及当前状态 ── */
+    const resultSection: any[] = [
+      { text: '各轮人员表中的「当前状态」为导出时刻的最新邀请状态（已确认/已婉拒/待回复/已移出名册）。', fontSize: 9, color: '#666666', margin: [0, 0, 0, 6] },
+    ];
+    for (let i = 0; i < extractionEvents.length; i++) {
+      const ev = extractionEvents[i];
+      const d = (ev.details ?? {}) as any;
+      const drawn = (d.drawnUserIds ?? []) as string[];
+      const alts = (d.poolUserIds ?? []) as string[];
       const drawnNames = (d.experts ?? []).length > 0
         ? (d.experts as any[]).map(e => e.name + (e.isLead ? '（组长）' : ''))
         : drawn.map(id => nameByUserId.get(id) ?? id);
       const altNames = alts.map(id => nameByUserId.get(id) ?? id);
-      const cfg = roundCfg(i);
-      // 轮次分类：初次抽取（正选）→ 候补抽取（drawn 空且选定候补非空）→ 补选轮
-      const isAltRound = i > 0 && drawn.length === 0 && alts.length > 0;
-      const blocks: any[] = [];
+      const meta = roundMeta(i, drawn.length, alts.length);
 
-      if (i === 0) {
-        blocks.push({ text: `第 1 轮（初次抽取·正选）`, bold: true, fontSize: 10.5, margin: [0, i === 0 ? 2 : 10, 0, 4] });
-        blocks.push(labeled([['确认时间：', fmt(ev.createdAt)], ['确认人：', ev.user?.displayName ?? '工作人员'], ['抽取方式：', mode]]));
-        if (cfg) {
-          const cfgParts: Array<[string, string]> = [['配置：', `拟抽正选 ${cfg.body?.totalNeeded ?? '—'} 名${(cfg.body?.alternatives ?? 0) > 0 ? `、拟抽候补 ${cfg.body.alternatives} 名` : ''}`]];
-          if (cfg.body?.employer) cfgParts.push(['整体限定公司：', cfg.body.employer]);
-          const excluded = ((cfg.body?.excludedUserIds ?? []) as string[]).map(id => excludedNameById.get(id) ?? id).filter(Boolean);
-          if (excluded.length > 0) cfgParts.push(['预排除专家：', excluded.join('、')]);
-          blocks.push(labeled(cfgParts));
-        }
-        // 配额表：全空列动态收敛（部门/等级/区域/备注等常为「—」，只保留有值列）
-        const q = ((cfg?.body?.manualQuotas ?? []) as any[]) ?? [];
-        if (q.length > 0) {
-          const quotaCols = [
-            { label: '专业要求', width: '*', values: q.map((row: any) => (row.specialties?.length ? row.specialties.join('、') : row.specialty) || '不限专业') },
-            { label: '人数', width: 40, values: q.map((row: any) => String(row.count ?? '—')) },
-            { label: '公司限定', width: '*', values: q.map((row: any) => (row.companyIds?.length ? row.companyIds.map((id: string) => companyNameById.get(id) ?? id).join('、') : row.employer) || '不限') },
-            { label: '部门限定', width: 72, values: q.map((row: any) => row.department || '—') },
-            { label: '库内等级', width: 72, values: q.map((row: any) => row.expertLevel || '—') },
-            { label: '区域', width: 72, values: q.map((row: any) => row.regionCode || '—') },
-            { label: '备注', width: '*', values: q.map((row: any) => row.reason || '—') },
-          ];
-          const present = quotaCols.filter(c => c.label === '专业要求' || c.label === '人数' || c.values.some(v => v !== '—' && v !== '不限'));
-          blocks.push({
-            layout: GRID_LAYOUT,
-            table: {
-              headerRows: 1,
-              widths: present.map(c => c.width),
-              body: [present.map(c => th(c.label)), ...q.map((_, ri) => present.map(c => td(c.values[ri])))],
-            },
-            margin: [0, 2, 0, 4],
-          });
-        }
-        blocks.push({ text: `本轮结果：确定正选 ${drawnNames.length} 名${drawnNames.length > 0 ? `（${drawnNames.join('、')}）` : ''}。`, fontSize: 10, margin: [0, 0, 0, 3] });
-      } else if (isAltRound) {
-        blocks.push({ text: `候补抽取（初次流程·第 ${i + 1} 轮记录）`, bold: true, fontSize: 10.5, margin: [0, 10, 0, 4] });
-        blocks.push(labeled([['确认时间：', fmt(ev.createdAt)], ['确认人：', ev.user?.displayName ?? '工作人员']]));
-        // 交叉引用按节名（修「六/五」编号漂移）；无在册候补时改述口径
+      if (meta.kind === 'alt') {
         const altRef = activeAlts.length > 0
-          ? `实际选定候补 ${altNames.length} 名（${altNames.join('、')}），候补当前状态见「候补专家名单」一节。`
+          ? `实际选定候补 ${altNames.length} 名（${altNames.join('、')}），候补当前状态见「五、候补专家名单」。`
           : `实际选定候补 ${altNames.length} 名（${altNames.join('、')}），均已婉拒或移出，名册无在册候补。`;
-        blocks.push({ text: (cfg && (cfg.body?.alternatives ?? 0) > 0 ? `拟抽候补 ${cfg.body.alternatives} 名；` : '') + altRef, fontSize: 10, margin: [0, 0, 0, 3] });
-      } else {
-        blocks.push({ text: `第 ${i + 1} 轮（补选·正选）`, bold: true, fontSize: 10.5, margin: [0, 10, 0, 4] });
-        blocks.push(labeled([['确认时间：', fmt(ev.createdAt)], ['确认人：', ev.user?.displayName ?? '工作人员'], ['抽取方式：', mode]]));
-        if (cfg) {
-          const quotaBrief = ((cfg.body?.manualQuotas ?? []) as any[]).length > 0
-            ? `（${((cfg.body?.manualQuotas ?? []) as any[]).map((row: any) => `${(row.specialties?.length ? row.specialties.join('、') : row.specialty) || '不限专业'}×${row.count ?? '—'}`).join('、')}）`
-            : '';
-          blocks.push(labeled([['本轮配置：', `拟抽正选 ${cfg.body?.totalNeeded ?? '—'} 名${quotaBrief}`]]));
-        } else {
-          blocks.push({ text: '本轮配置未单独留痕，沿用初次配置口径。', fontSize: 9.5, color: '#666666', margin: [0, 0, 0, 3] });
-        }
+        resultSection.push({ text: `${meta.title}：${altRef}`, fontSize: 10, margin: [0, i === 0 ? 2 : 8, 0, 3] });
+        continue;
       }
-
-      // 人员表（初次/补选轮逐人记录接受与婉拒；候补抽取轮名单已在正文行内）
-      if (!isAltRound) {
-        const roundPeople = [
-          ...drawn.map(id => ({ id, role: '正选' })),
-          ...alts.map(id => ({ id, role: '候补' })),
-        ];
-        if (roundPeople.length > 0) {
-          blocks.push({
-            layout: GRID_LAYOUT,
-            table: {
-              headerRows: 1,
-              widths: ['*', 50, 68, 84, 88],
-              body: [
-                [th('姓名'), th('本轮角色'), th('当前状态'), th('确认方式'), th('回执时间')],
-                ...roundPeople.map(rp => {
-                  const row = rowByUserId.get(rp.id);
-                  return [
-                    td(nameByUserId.get(rp.id) ?? rp.id, { align: 'left' }),
-                    td(rp.role),
-                    td(row ? stCn(row.invitationStatus) : '已移出名册'),
-                    td(row ? actorCn(confirmOf(row).actor) : '—'),
-                    td(row ? fmt(confirmOf(row).time) : '—'),
-                  ];
-                }),
-              ],
-            },
-            margin: [0, 2, 0, 6],
-          });
-        }
+      resultSection.push({
+        text: `${meta.title}：确定正选 ${drawnNames.length} 名${drawnNames.length > 0 ? `（${drawnNames.join('、')}）` : ''}${meta.kind === 're' && altNames.length > 0 ? `；候补 ${altNames.length} 名（${altNames.join('、')}）` : ''}。`,
+        fontSize: 10, margin: [0, i === 0 ? 2 : 8, 0, 3],
+      });
+      const roundPeople = [
+        ...drawn.map(id => ({ id, role: '正选' })),
+        ...alts.map(id => ({ id, role: '候补' })),
+      ];
+      if (roundPeople.length > 0) {
+        resultSection.push({
+          layout: GRID_COMPACT,
+          table: {
+            headerRows: 1,
+            widths: ['*', 50, 68, 84, 88],
+            body: [
+              [th('姓名'), th('本轮角色'), th('当前状态'), th('确认方式'), th('回执时间')],
+              ...roundPeople.map(rp => {
+                const row = rowByUserId.get(rp.id);
+                return [
+                  td(nameByUserId.get(rp.id) ?? rp.id, { align: 'left' }),
+                  td(rp.role),
+                  td(row ? stCn(row.invitationStatus) : '已移出名册'),
+                  td(row ? actorCn(confirmOf(row).actor) : '—'),
+                  td(row ? fmt(confirmOf(row).time) : '—'),
+                ];
+              }),
+            ],
+          },
+          margin: [0, 2, 0, 6],
+        });
+        resultSection.push(...reasonFootnotes(roundPeople.map(rp => rowByUserId.get(rp.id)).filter((r): r is (typeof roster)[number] => !!r)));
       }
-      roundBlocks.push(...blocks);
+    }
+    if (extractionEvents.length === 0) {
+      resultSection.push({ text: '最终名单以系统当前名册为准（见下两节）。', fontSize: 10 });
     }
 
-    const extractionSection: any[] = [
-      { text: '以下各轮人员表中的「当前状态」为导出时刻的最新邀请状态（已确认/已婉拒/待回复/已移出名册），流转轨迹见系统专家详情页。', fontSize: 9, color: '#666666', margin: [0, 0, 0, 6] },
-      ...(extractionEvents.length === 0
-        ? [{ text: '未找到抽取确认审计记录（存量项目或未走抽取向导确认步骤），最终名单以系统当前名册为准。', fontSize: 10 }]
-        : roundBlocks),
-    ];
-
-    /* ── 四/五、名单表 ── */
-    const rosterHeader = ['序号', '姓名', '评审专业', '职称', '工作单位', '联系电话', '角色', '确认方式', '回执时间'];
-    const rosterWidths = [22, 44, 60, 54, 88, 74, 52, 46, 70];
+    /* ── 四/五、名单表（8 列精简：联系电话移说明查证指引） ── */
+    const rosterWidths = [20, 40, 58, 48, '*', 36, 40, 58]; // 固定 300 + 8×8 padding = 364；工作单位星列 ≈151
+    const confirmedExperts = confirmedRegulars.filter(r => !r.isPurchaserRepresentative);
     const finalSection: any[] = [
-      { text: `四、最终评审专家名单（已确认正选 ${confirmedRegulars.length} 名）`, bold: true, fontSize: 13, margin: [0, 14, 0, 8] },
-      ...(confirmedRegulars.length === 0
+      { text: `四、最终评审专家名单（已确认正选 ${confirmedRegulars.length} 名${purchaserReps.length > 0 ? `，含需求方代表 ${purchaserReps.filter(r => r.invitationStatus === 'confirmed').length} 名` : ''}）`, bold: true, fontSize: 13, margin: [0, 14, 0, 8] },
+      ...(confirmedExperts.length === 0 && purchaserReps.length === 0
         ? [{ text: '暂无已确认参加的正选专家（以现场签到与后续补选为准）。', fontSize: 10 }]
-        : [{
-            layout: GRID_LAYOUT,
-            table: {
-              headerRows: 1,
-              widths: rosterWidths,
-              body: [
-                rosterHeader.map(h => th(h, 8.5)),
-                ...confirmedRegulars.map((r, i) => [
-                  td(String(i + 1), { size: 8.5 }),
-                  td(r.expertName, { align: 'left', size: 8.5 }),
-                  td(r.major, { size: 8.5 }),
-                  td(r.user?.expertProfile?.title ?? '', { size: 8.5 }),
-                  td(r.user?.expertProfile?.employer ?? '', { align: 'left', size: 8.5 }),
-                  td(openPiiForMask(r.user?.expertProfile?.phone) ?? '', { size: 8.5 }),
-                  td(r.isPurchaserRepresentative ? '采购人代表' : r.isLead ? '组长' : '正选', { size: 8.5 }),
-                  td(actorShort(confirmOf(r).actor), { size: 8.5 }),
-                  td(fmtCell(confirmOf(r).time), { size: 8.5 }),
-                ]),
-              ],
-            },
-          }]),
+        : [
+            ...(confirmedExperts.length > 0 ? [{
+              layout: GRID_COMPACT,
+              table: {
+                headerRows: 1,
+                widths: rosterWidths,
+                body: [
+                  ['序号', '姓名', '评审专业', '职称', '工作单位', '角色', '确认方式', '回执时间'].map(h => th(h)),
+                  ...confirmedExperts.map((r, i) => [
+                    td(String(i + 1)),
+                    td(r.expertName, { align: 'left' }),
+                    td(r.major),
+                    td(r.user?.expertProfile?.title ?? ''),
+                    td(r.user?.expertProfile?.employer ?? '', { align: 'left' }),
+                    td(r.isLead ? '组长' : '正选'),
+                    td(actorShort(confirmOf(r).actor)),
+                    td(fmtCell(confirmOf(r).time)),
+                  ]),
+                ],
+              },
+            }] : []),
+            ...reasonFootnotes(confirmedExperts),
+            // 需求方代表完整资料（2026-11-18 用户裁定）：全部在册需求方代表（含待确认），
+            // 手动录入的尤其需要完整资料——姓名/单位/部门/职称/联系电话/加入方式/状态/回执
+            ...(purchaserReps.length > 0 ? [
+              { text: `需求方代表（${purchaserReps.length} 名）`, bold: true, fontSize: 10.5, margin: [0, 10, 0, 4] },
+              {
+                layout: GRID_COMPACT,
+                table: {
+                  headerRows: 1,
+                  widths: [40, '*', 56, 48, 66, 48, 40, 58], // 固定 356 + 64 padding = 420 ✓
+                  body: [
+                    ['姓名', '工作单位', '部门', '职称', '联系电话', '加入方式', '当前状态', '回执时间'].map(h => th(h)),
+                    ...purchaserReps.map(r => [
+                      td(r.expertName, { align: 'left' }),
+                      td(r.user?.expertProfile?.employer ?? '', { align: 'left' }),
+                      td(r.user?.department?.name ?? ''),
+                      td(r.user?.expertProfile?.title ?? ''),
+                      td(repPhone(r)),
+                      td(repJoinCn(r)),
+                      td(stCn(r.invitationStatus)),
+                      td(fmtCell(confirmOf(r).time)),
+                    ]),
+                  ],
+                },
+              },
+              ...reasonFootnotes(purchaserReps),
+            ] : []),
+          ]),
     ];
 
     const alternatesSection: any[] = activeAlts.length === 0 ? [] : [
       { text: `五、候补专家名单（${activeAlts.length} 名）`, bold: true, fontSize: 13, margin: [0, 14, 0, 8] },
       {
-        layout: GRID_LAYOUT,
+        layout: GRID_COMPACT,
         table: {
           headerRows: 1,
           widths: rosterWidths,
           body: [
-            ['序号', '姓名', '评审专业', '职称', '工作单位', '联系电话', '确认状态', '确认方式', '回执时间'].map(h => th(h, 8.5)),
+            ['序号', '姓名', '评审专业', '职称', '工作单位', '确认状态', '确认方式', '回执时间'].map(h => th(h)),
             ...activeAlts.map((r, i) => [
-              td(String(i + 1), { size: 8.5 }),
-              td(r.expertName, { align: 'left', size: 8.5 }),
-              td(r.major, { size: 8.5 }),
-              td(r.user?.expertProfile?.title ?? '', { size: 8.5 }),
-              td(r.user?.expertProfile?.employer ?? '', { align: 'left', size: 8.5 }),
-              td(openPiiForMask(r.user?.expertProfile?.phone) ?? '', { size: 8.5 }),
-              td(stCn(r.invitationStatus), { size: 8.5 }),
-              td(actorShort(confirmOf(r).actor), { size: 8.5 }),
-              td(fmtCell(confirmOf(r).time), { size: 8.5 }),
+              td(String(i + 1)),
+              td(r.expertName, { align: 'left' }),
+              td(r.major),
+              td(r.user?.expertProfile?.title ?? ''),
+              td(r.user?.expertProfile?.employer ?? '', { align: 'left' }),
+              td(stCn(r.invitationStatus)),
+              td(actorShort(confirmOf(r).actor)),
+              td(fmtCell(confirmOf(r).time)),
             ]),
           ],
         },
       },
+      ...reasonFootnotes(activeAlts),
     ];
 
     const dd: any = {
@@ -425,16 +501,16 @@ export class ExtractionReportPdfService {
         { text: '（证明材料 · 系统自动生成）', style: 'docSub' },
         { text: '一、项目基本信息', style: 'h1' },
         infoTable,
-        { text: '二、AI 辅助环节', style: 'h1' },
-        ...aiSection,
-        { text: '三、抽取过程与补选记录', style: 'h1' },
-        ...extractionSection,
+        { text: '二、抽取设置条件', style: 'h1' },
+        ...configSection,
+        { text: '三、抽取结果与流转', style: 'h1' },
+        ...resultSection,
         ...finalSection,
         ...alternatesSection,
         { text: '说明', bold: true, fontSize: 10.5, margin: [0, 16, 0, 4] },
         { text: '1. 本材料由蜀水云采·智慧水发系统根据专家抽取审计日志与邀请回执留痕自动生成。', fontSize: 9, color: '#666666' },
         { text: '2. 确认方式包括专家本人回复、工作人员代回应（附理由留痕）与系统超时/递补三类。', fontSize: 9, color: '#666666' },
-        { text: '3. 专家历次邀请流转轨迹可在系统专家详情页逐条查证。', fontSize: 9, color: '#666666' },
+        { text: '3. 专家历次邀请流转轨迹与联系电话可在系统专家详情页逐条查证。', fontSize: 9, color: '#666666' },
       ],
       styles: {
         docTitle: { fontSize: 18, bold: true, alignment: 'center', margin: [0, 0, 0, 4] },

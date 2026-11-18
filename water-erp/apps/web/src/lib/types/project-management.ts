@@ -47,7 +47,8 @@ export const PROCUREMENT_METHOD_STAGES: Record<ProcurementMethod, StageConfig[]>
   '直接采购': [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    // 谈判文件（2026-11-18 用户裁定）：直接采购 03 步骤更名，与谈判采购同口径
+    { key: 'TENDER_DOCUMENT', label: '谈判文件' },
     { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },

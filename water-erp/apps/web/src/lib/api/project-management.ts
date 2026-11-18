@@ -212,7 +212,7 @@ export async function aiIdentifyField(fieldName: string, documentText: string, t
 
 // AI 优化立项事由 / 供方要求 —— 基于已上传的需求表与立项表原文
 export async function polishInitiationField(data: {
-  field: 'projectReason' | 'supplierRequirements';
+  field: 'projectReason' | 'supplierRequirements' | 'projectOverview';
   text: string;
   demandDocText?: string;
   initiationDocText?: string;
@@ -288,7 +288,7 @@ export async function createProjectManagementItem(fields: InitiationFields) {
 export async function updateProjectStage(
   projectId: string,
   stageKey: ProjectWorkflowStageKey,
-  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; round?: number; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean },
+  payload: { status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED'; round?: number; note?: string; confirmedThreshold?: number; waiveArchiveGate?: boolean; directOverview?: string; directOpeningTime?: string },
 ) {
   const response = await apiFetch(`${API_BASE}/project-management/${projectId}/stages/${stageKey}`, {
     method: 'PATCH',
@@ -505,6 +505,28 @@ export async function refreshProjectSummary(projectId: string) {
   });
 
   return parseJsonResponse<{ summary: string }>(response);
+}
+
+/** 直接采购 03（谈判文件）完成前综合分析（2026-11-18）：需求/立项/谈判文件三步骤当轮
+ *  全部附件 → AI 写项目概况+开标时间；只返回不落库，完成确认弹窗展示可改。 */
+export async function analyzeDirectProcurement(
+  projectId: string,
+  round?: number,
+  timeoutMs = 180_000,
+): Promise<{ projectOverview: string; bidOpeningTime: string; filesAnalyzed: string[]; filesFailed: string[]; cached?: boolean }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs); // 兜底Abort（同 extractTenderFields）
+  try {
+    const qs = round != null ? `?round=${round}` : '';
+    const response = await apiFetch(`${API_BASE}/project-management/${projectId}/analyze-direct-procurement${qs}`, {
+      method: 'POST',
+      credentials: 'include',
+      signal: controller.signal,
+    });
+    return await parseJsonResponse(response);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function analyzeProjectStep(
