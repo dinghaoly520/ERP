@@ -247,9 +247,10 @@ describe('ExpertService', () => {
       const data = prisma.bidExpert.update.mock.calls[0][0].data;
       // TAB-SYNC-02 ④：内容原样、时戳打服务端钟（客户端 savedAt=200 只是建议值，新键重打）
       const tabletSlot = data.scoreDraft.tablet;
-      expect(tabletSlot.savedAt).toEqual(expect.any(Number));
+      // T4 审查 Minor：断言须区分「服务端打点」与「客户端透传」——客户端时戳 200 不得原样落库
+      expect(tabletSlot.savedAt).toBeGreaterThan(1_000_000_000_000);
       expect(tabletSlot.scores['sup:i']).toMatchObject({ score: 1, reason: '平板' });
-      expect(tabletSlot.scores['sup:i'].savedAt).toEqual(expect.any(Number));
+      expect(tabletSlot.scores['sup:i'].savedAt).toBeGreaterThan(1_000_000_000_000);
       expect(data.scoreDraft.desktop).toEqual(desktopSlot); // 桌面槽原样保留，scoped 客户端不可覆盖
 
       // 对照：同一载荷、无 pairingScope（桌面全量会话）→ device=desktop 照旧落 desktop 槽
@@ -257,7 +258,7 @@ describe('ExpertService', () => {
       const data2 = prisma.bidExpert.update.mock.calls[1][0].data;
       const desktopSlot2 = data2.scoreDraft.desktop;
       expect(desktopSlot2.scores['sup:i']).toMatchObject({ score: 1, reason: '平板' });
-      expect(desktopSlot2.scores['sup:i'].savedAt).toEqual(expect.any(Number));
+      expect(desktopSlot2.scores['sup:i'].savedAt).toBeGreaterThan(1_000_000_000_000);
     });
 
     it('listProjects：pairingScope 存在 → 仅返回配对项目（配对项目不在本人项目集 → 空）', async () => {

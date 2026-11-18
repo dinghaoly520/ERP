@@ -242,3 +242,24 @@ test('ABS-③ 空 serverEntries → 原引用短路（零提及零改动）', ()
   const out = advanceBaselineAfterServerData(baseline, {});
   assert.equal(out, baseline);
 });
+
+// ── T4 审查 Critical 客户端半（纪律回归钉）：entryEquals 跨 jsonb 边界不得假冲突。
+// 现行不可达性论证：pull 输入恒过 normalizeDraftEntries（passed 恒末位）+ baseline 与 local
+// 同源同形（push=客户端序、pull 接受=jsonb 序且 l=b 同对象），键序分歧无假冲突通路。
+// 本组钉住该纪律——未来丢掉 normalize 或破坏 b/l 同源即红。
+
+test('EQ-① 远端原始 jsonb 键序（passed 提前）内容等价回声 → 不判分歧', () => {
+  const b = { score: 80, reason: 'r', savedAt: 1, passed: true } as any; // normalize 形态基线
+  const l = { score: 80, reason: 'r', passed: true, savedAt: 2 } as any; // 客户端构造序
+  const r = { score: 80, passed: true, reason: 'r', savedAt: 3 } as any; // 原始 jsonb 回读序（未经 normalize 的形态假设破坏者）
+  const m = threeWayMerge({ price: l }, { price: b }, { price: r });
+  assert.deepEqual(m.conflicts, []);
+});
+
+test('EQ-② points 点键序互倒、内容等价 → 不判分歧；passed null≡缺省', () => {
+  const pts1 = { p1: { checked: true, awardedScore: 5 }, p2: { checked: false, awardedScore: 0 } };
+  const b = { score: 90, reason: 'r', points: { p2: pts1.p2, p1: pts1.p1 }, passed: null, savedAt: 1 } as any;
+  const l = { score: 90, reason: 'r', points: pts1, savedAt: 2 } as any; // passed 缺省 vs null
+  const m = threeWayMerge({ price: l }, { price: b }, { price: { ...b, savedAt: 3 } });
+  assert.deepEqual(m.conflicts, []);
+});

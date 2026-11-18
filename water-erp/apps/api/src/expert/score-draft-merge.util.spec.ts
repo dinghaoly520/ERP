@@ -127,3 +127,33 @@ describe('stampDraftEntries（TAB-SYNC-02 ④）', () => {
     expect(out['s1:i1'].savedAt).toBe(5000);
   });
 });
+
+// ── T4 审查 Critical 回修：jsonb 键序归一化 × stringify 比较误判（回声必须无害）──
+
+describe('stampDraftEntries 键序无关性（T4 审查 Critical）', () => {
+  it('存储侧为 jsonb 归一键序（passed 提前于 reason）、内容等价 → 保留原 savedAt（不误重打）', () => {
+    const existing = {
+      scores: {
+        // PG jsonb 键序：score(5) < passed(6) < reason(6) < savedAt(7)
+        's1:i1': { score: 80, passed: true, reason: 'r', savedAt: 100 },
+      },
+      savedAt: 100,
+    };
+    // 客户端构造序：score, reason, passed
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r', passed: true } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(100);
+  });
+
+  it('points 点键序不同（p2/p1 互倒）内容等价 → 保留原 savedAt', () => {
+    const mk = (order: 'asc' | 'desc') => ({
+      score: 90,
+      reason: 'r',
+      points: order === 'asc'
+        ? { p1: { checked: true, awardedScore: 5, note: 'n' }, p2: { checked: false, awardedScore: 0 } }
+        : { p2: { checked: false, awardedScore: 0 }, p1: { checked: true, awardedScore: 5, note: 'n' } },
+    });
+    const existing = { scores: { 's1:i2': { ...mk('asc'), savedAt: 120 } }, savedAt: 120 };
+    const out = stampDraftEntries({ 's1:i2': mk('desc') }, existing, 5000);
+    expect(out['s1:i2'].savedAt).toBe(120);
+  });
+});

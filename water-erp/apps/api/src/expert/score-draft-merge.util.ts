@@ -94,10 +94,35 @@ export function stampDraftEntries(
   const out: Record<string, ScoreEntry> = {};
   for (const [k, v] of Object.entries(incoming)) {
     const old = prev.scores[k];
-    const unchanged =
-      old !== undefined &&
-      JSON.stringify({ ...old, savedAt: undefined }) === JSON.stringify({ ...v, savedAt: undefined });
+    const unchanged = old !== undefined && entryContentEquals(old, v);
     out[k] = { ...v, savedAt: unchanged ? (typeof old.savedAt === 'number' ? old.savedAt : now) : now };
   }
   return out;
+}
+
+/**
+ * 内容等价（field-wise，键序无关）——T4 审查 Critical 回修：scoreDraft 为 jsonb 列，
+ * PG 回读键序归一化（实证 passed 提前于 reason），stringify 比较会把内容等价的回声条目
+ * 永久误判为「变更」重打时戳，陈旧回声即可压过真实编辑。字段级比较 + points 点键序无关
+ * （逐键取值比对）；passed null≡缺省、awardedScore 数值宽松（'90'≡90）与客户端
+ * draft-merge 契约同口径。
+ */
+function entryContentEquals(a: ScoreEntry, b: ScoreEntry): boolean {
+  if (Number(a.score) !== Number(b.score)) return false;
+  if ((a.reason ?? '') !== (b.reason ?? '')) return false;
+  if ((a.passed ?? null) !== (b.passed ?? null)) return false;
+  const ap = a.points;
+  const bp = b.points;
+  if (!ap || !bp) return !ap === !bp;
+  const aks = Object.keys(ap);
+  if (aks.length !== Object.keys(bp).length) return false;
+  for (const pk of aks) {
+    const x = ap[pk];
+    const y = bp[pk];
+    if (!x || !y) return false;
+    if (x.checked !== y.checked) return false;
+    if (Number(x.awardedScore) !== Number(y.awardedScore)) return false;
+    if (((x as { note?: string }).note ?? '') !== ((y as { note?: string }).note ?? '')) return false;
+  }
+  return true;
 }
