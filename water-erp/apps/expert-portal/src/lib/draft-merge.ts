@@ -112,7 +112,8 @@ export function threeWayMerge(
  * TAB-SYNC-02 ⑤：pull 侧合并封装——双页 onDraftSaved 主体下放（原桌面/平板各一份的手工
  * 副本收敛）。输入侧先把 local/baseline/remoteRaw 统一 normalizeDraftEntries（服务端形状
  * passed=null 剥为缺省——null≠缺省的 JSON.stringify 深比较会整批假冲突），输出侧再归一，
- * 双页从此共用同一语义；conflicts 携带归一前的 local/remote 原值（页面裁决弹窗展示用）。
+ * 双页从此共用同一语义；conflicts 携带归一后的 local/remote（passed 已收窄为 boolean/缺省，
+ * 页面裁决弹窗可直接采纳 remoteVal——勿再加防御性二次归一，那正是双副本漂移的老路）。
  */
 export interface PulledMergeDraftResult {
   next: Record<string, NormalizedScoreEntry>;

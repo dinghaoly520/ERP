@@ -114,6 +114,9 @@ describe('BidGateway handleConnection 握手校验（sid 一致 + 配对存活�
     expect((socket.data as any).userId).toBe('u1');
     expect((socket.data as any).role).toBe('bid_expert');
     expect((socket.data as any).isHost).toBe(false); // 专家不入 host 房
+    // TAB-SYNC-02 P2-1 回归钉：scoped 连接落 pairingPid——join 层闸与 P2-2 踢除都读它，
+    // 此断言丢失时闸静默失效（全绿假象）
+    expect((socket.data as any).pairingPid).toBe('p1');
   });
 
   it('④ 无 sid 的 token（token_bid 等无 sid 命名空间）→ 不查 prisma/registry，照常连接（存量行为不变）', async () => {
@@ -123,6 +126,7 @@ describe('BidGateway handleConnection 握手校验（sid 一致 + 配对存活�
       { user: { webSessionId: 'whatever' }, alive: false },
     );
     await gw.handleConnection(socket);
+    expect((socket.data as any).pairingPid).toBeUndefined(); // 全量令牌不设闸（负钉）
     expect(socket.disconnect).not.toHaveBeenCalled();
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
     expect(registry.isAlive).not.toHaveBeenCalled();
