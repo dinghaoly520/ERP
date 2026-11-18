@@ -5,8 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Bot, Bell, Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
-import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
-import { fetchMobileGreeting } from "@/lib/api/ai";
+import { fetchCurrentUser, logout, type AuthUser, type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
 import { fetchNotifications, fetchUnreadCount, type NotificationItem } from "@/lib/api/notifications";
 import { readSavedFilters } from "@/lib/filter-store";
@@ -23,13 +22,34 @@ const TABS = [
   { href: "/chat", label: "水叮当", icon: Bot },
 ];
 
+/* 角色事实标签（2026-11-18 用户裁定「AI 感太重」：欢迎语抒情句撤销→事实行） */
+const ROLE_LABELS: Record<string, string> = {
+  admin: "管理员",
+  leader: "领导",
+  staff: "工作人员",
+  bid_host: "开评标主持人",
+  bid_expert: "评审专家",
+  supplier: "供应商",
+};
+
+/** 墙上时间事实行：`2026-11-18 周三 14:32`（本地时区，30s 步进防分钟边界滞后） */
+function wallclock(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  const wd = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][d.getDay()];
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${wd} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checked, setChecked] = useState(false);
-  /* 顶部 AI 欢迎语——每次进入/刷新都现场生成新句（无缓存、无静态保底行，2026-10-22 用户裁定） */
-  const [greeting, setGreeting] = useState<string | null>(null);
+  /* 顶部事实行时钟（2026-11-18 用户裁定：LLM 欢迎语撤销，改姓名/角色/实时时间） */
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
   /* Tab 角标（数据库=异常 / 台账=待处理 / 进展=停滞）——回前台即时重取 */
   const [badges, setBadges] = useState<DashboardBadges | null>(null);
   /* 通知铃铛（2026-11-03）：未读角标 + 待办/全部列表弹层——只读浏览，已读标记留 :3005 */
@@ -59,19 +79,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       active = false;
     };
   }, [router]);
-
-  useEffect(() => {
-    if (!checked) return;
-    let active = true;
-    fetchMobileGreeting()
-      .then((r) => {
-        if (active && r?.text?.trim()) setGreeting(r.text.trim());
-      })
-      .catch(() => undefined); // 失败保持空行（无静态保底，2026-10-22 用户裁定）
-    return () => {
-      active = false;
-    };
-  }, [checked]);
 
   /* 角标+铃铛未读（2026-11-03 实时层）：usePolling 60s 自动刷新；enabled=checked——
      登录校验通过瞬间立即首拉（F2：此前挂载即取撞上 checked=false 白等 60s） */
@@ -162,11 +169,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <Crown size={18} strokeWidth={1.5} className="text-[var(--gold)]" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-baseline gap-1.5">
-              <span className="shrink-0 text-[15px] font-medium text-[var(--gold)]">尊敬的</span>
-              <span className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">{user?.displayName ?? ""}</span>
+            <div className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">
+              {user?.displayName ?? ""}
             </div>
-            <div className="mt-0.5 min-h-5 truncate text-[14px] text-[var(--muted-foreground)]">{greeting}</div>
+            <div className="mt-0.5 truncate text-[14px] tabular-nums text-[var(--muted-foreground)]">
+              {user ? `${ROLE_LABELS[user.role] ?? user.role} · ${wallclock(now)}` : ""}
+            </div>
           </div>
         </div>
         <AuthProvider user={user}>{children}</AuthProvider>

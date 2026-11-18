@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   BarChart3,
   Building2,
   CalendarRange,
@@ -12,7 +13,6 @@ import {
   FolderKanban,
   Layers,
   Lightbulb,
-  Bot,
   PieChart,
   Radio,
   RefreshCw,
@@ -287,27 +287,8 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [retryTick]);
 
-  // 一键转发今日要报：navigator.share 优先，AbortError=用户取消静默返回；无 share/分享失败回落剪贴板复制
-  const [shared, setShared] = useState<"idle" | "ok" | "fail">("idle");
-  async function shareBrief() {
-    if (!brief?.available) return;
-    const text = brief.shareText;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "蜀水云采·今日要报", text });
-        return;
-      } catch (err) {
-        /* AbortError=用户取消，不打扰；其余失败回落复制 */
-        if (err instanceof Error && err.name === "AbortError") return;
-      }
-    }
-    const ok = await copyToClipboard(text);
-    setShared(ok ? "ok" : "fail");
-    window.setTimeout(() => setShared("idle"), 2000);
-  }
-
   /* 风险项目一键转发（2026-11-03 用户裁定：允许转发类——领导看得见也能推动）；
-     与要报转发同轨：share 优先、AbortError 静默、剪贴板降级 */
+     share 优先、AbortError 静默、剪贴板降级（要报转发随三句卡撤销，2026-11-18） */
   const [riskShared, setRiskShared] = useState<"idle" | "ok" | "shared" | "fail">("idle");
   async function shareRisk(p: { project: string; pendingDays: number; reason: string }) {
     const text = `【风险提示】${p.project}已滞留 ${p.pendingDays} 天：${p.reason}——来自蜀水云采驾驶舱`;
@@ -330,7 +311,7 @@ export default function DashboardPage() {
   const usingCustom = Boolean(customApplied.startDate || customApplied.endDate);
   const queryRange = usingCustom ? customApplied : effRange;
 
-  // 今日要报（AI 三句，随公司口径/页面区间/重试变化重取——区间对齐 2026-11-03：
+  // 今日关注条（一行事实句，随公司口径/页面区间/重试变化重取——区间对齐 2026-11-03：
   // brief 与 hero 指标同区间，消灭「本月 0 万 vs 本年数百万」同屏打架；effect 置于
   // queryRange 定义之后——依赖数组渲染期取值不可前向引用）
   const [brief, setBrief] = useState<MobileBrief | null>(null);
@@ -497,46 +478,20 @@ export default function DashboardPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
 
-      {/* ── 今日要报（AI 三句）── */}
-      <div className="neu-card-static mb-3 rounded-[18px] p-3.5">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[12px] font-bold uppercase tracking-[0.1em] text-[var(--accent)]">
-            <Sparkles size={13} /> 今日要报
-          </div>
-          {brief?.available ? (
-            <button type="button" onClick={shareBrief} className="neu-btn-soft h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95">
-              <Share2 size={12} /> {shared === "ok" ? "已复制" : shared === "fail" ? "复制失败" : "转发"}
-            </button>
-          ) : null}
-        </div>
-        {brief === null ? (
-          <Skeleton lines={3} height={18} />
-        ) : brief.available ? (
-          <div className="space-y-1.5">
-            {([brief.focus, brief.metric, brief.reminder] as const).map((it, i) => (
-              <div key={i} className="flex items-center gap-1">
-                <button type="button" onClick={() => router.push(it.jump)}
-                  className="flex min-w-0 flex-1 items-center gap-2 rounded-[10px] px-1 py-1 text-left active:scale-[0.99]">
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
-                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{it.text}</span>
-                  <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
-                </button>
-                {/* 追问水叮当：携该句预填提问（chat 页读 ?q= 只预填不自动发送，2026-10-27） */}
-                <button type="button" aria-label="问水叮当"
-                  onClick={() => router.push(`/chat?q=${encodeURIComponent(`针对今日要报这条，展开讲讲：${it.text}`)}`)}
-                  className="neu-btn-soft h-8 w-8 shrink-0 rounded-[10px] p-0 active:scale-95">
-                  <Bot size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <button type="button" onClick={() => setRetryTick((t) => t + 1)}
-            className="w-full py-1 text-left text-[13px] text-[var(--muted-foreground)] active:scale-[0.99]">
-            今日要报生成失败，点击重试
-          </button>
-        )}
-      </div>
+      {/* ── 今日关注条（2026-11-18 用户裁定「AI 感太重」：三句小作文收为一行事实句——
+          只报风险/拥堵事项；无事 focus:null、失败 available:false 均不渲染，无骨架态）── */}
+      {brief?.available && brief.focus ? (
+        <button
+          type="button"
+          onClick={() => router.push(brief.focus!.jump)}
+          className="mb-3 flex w-full items-center gap-2 rounded-[14px] px-3.5 py-2.5 text-left active:scale-[0.99]"
+          style={{ background: "color-mix(in oklch, var(--warning) 7%, oklch(0.99 0.005 258))" }}
+        >
+          <AlertTriangle size={15} className="shrink-0 text-[var(--warning)]" />
+          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{brief.focus.text}</span>
+          <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+        </button>
+      ) : null}
 
       {/* ── 顶部控制行：范围 + 公司（2026-11-17 改版：chips 横滚行 → 下拉按钮+弹层，RangePicker 与 CompanyPicker 同构）── */}
       <div className="mb-3 flex gap-2">

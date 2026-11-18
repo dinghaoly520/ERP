@@ -11,7 +11,6 @@ import { SupplierEvaluationAnalysisService } from './supplier-evaluation-analysi
 import { SupplierPortraitAnalysisService } from './supplier-portrait-analysis.service';
 import { InvitationLetterService } from './invitation-letter.service';
 import { SupplierQualificationMatchService } from './supplier-qualification-match.service';
-import { MobileGreetingService } from './mobile-greeting.service';
 import { MobileBriefService } from './mobile-brief.service';
 
 @Module({
@@ -19,7 +18,7 @@ import { MobileBriefService } from './mobile-brief.service';
   // ProgressModule 亦 import 本模块（ProgressService 依赖 AiService）——环引用两侧 forwardRef。
   imports: [PrismaModule, NotificationModule, LocalAiModule, DashboardModule, forwardRef(() => ProgressModule)],
   controllers: [AiController],
-  providers: [AiService, SupplierSelectionAiService, SupplierEvaluationAnalysisService, SupplierPortraitAnalysisService, InvitationLetterService, SupplierQualificationMatchService, MobileGreetingService, MobileBriefService],
+  providers: [AiService, SupplierSelectionAiService, SupplierEvaluationAnalysisService, SupplierPortraitAnalysisService, InvitationLetterService, SupplierQualificationMatchService, MobileBriefService],
   exports: [AiService],
 })
 export class AiModule {}

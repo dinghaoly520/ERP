@@ -12,7 +12,6 @@ import { InvitationLetterService } from './invitation-letter.service';
 import { ShareShortlistDto } from './dto/share-shortlist.dto';
 import { DashboardAnalysisDto } from './dto/dashboard-analysis.dto';
 import { ReportMaterialDto } from './dto/report-material.dto';
-import { MobileGreetingService } from './mobile-greeting.service';
 import { MobileBriefService } from './mobile-brief.service';
 import { portalSourceOf } from '../common/portal-source.util';
 import { ProcurementAnalysisDto } from './dto/procurement-analysis.dto';
@@ -33,19 +32,14 @@ export class AiController {
     private supplierPortraitAnalysis: SupplierPortraitAnalysisService,
     private qualificationMatch: SupplierQualificationMatchService,
     private invitationLetter: InvitationLetterService,
-    private mobileGreeting: MobileGreetingService,
     private mobileBrief: MobileBriefService,
   ) {}
 
-  @Get('mobile-greeting')
-  @ApiOperation({ summary: '移动驾驶舱（:3011）欢迎语——LLM 每次现场生成（无缓存）' })
-  @Roles('admin', 'leader', 'staff')
-  getMobileGreeting(@CurrentUser() user: AuthenticatedUser) {
-    return this.mobileGreeting.getGreeting(user);
-  }
+  /* mobile-greeting 端点已退役（2026-11-18 用户裁定「AI 感太重」：欢迎语抒情句
+   * 撤销，改为前端事实行——姓名/角色/实时时间，不再调 LLM） */
 
   @Get('mobile-brief')
-  @ApiOperation({ summary: '移动驾驶舱（:3011）今日要报——数据指纹缓存（数据变才变，2026-11-12 裁定同源；区间随页面 startDate/endDate+rangeKey，缺省本月）' })
+  @ApiOperation({ summary: '移动驾驶舱（:3011）今日关注条——一行事实句（风险/拥堵事项），无事 focus:null 零 LLM；数据指纹缓存数据变才变' })
   /* 路由级放宽（2026-11-16）：类级 20/min 是 LLM 成本闸；brief 已有指纹缓存（命中仅
    * 三表聚合+SystemConfig 读），且 :3011 每次挂载/切Tab/下拉都重取（dev StrictMode
    * 双发），20/min 会被正常浏览打满 → 429 风暴「点击不再更新」。120/min 防失控即可，
