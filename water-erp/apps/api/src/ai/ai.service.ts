@@ -265,14 +265,14 @@ export class AiService {
    * 对用户当前填写的内容进行润色、补全、规范化。
    */
   async polishInitiationField(params: {
-    field: 'projectReason' | 'supplierRequirements' | 'projectOverview';
+    field: 'projectReason' | 'supplierRequirements' | 'projectOverview' | 'talkProcess';
     text: string;
     demandDocText?: string;
     initiationDocText?: string;
     projectContext?: { title?: string; category?: string; method?: string };
   }): Promise<{ polished: string }> {
     const { field, text, demandDocText, initiationDocText, projectContext } = params;
-    const fieldLabel = field === 'projectReason' ? '立项事由' : field === 'projectOverview' ? '项目概况' : '供方要求';
+    const fieldLabel = field === 'projectReason' ? '立项事由' : field === 'projectOverview' ? '项目概况' : field === 'talkProcess' ? '商谈过程' : '供方要求';
 
     const docParts: string[] = [];
     if (initiationDocText?.trim()) {
@@ -296,6 +296,8 @@ export class AiService {
       ? `「立项事由」应说明：项目背景与必要性、采购目标、预期成效，行文正式、逻辑清晰，一般 150-400 字。`
       : field === 'projectOverview'
         ? `「项目概况」应概括：项目背景与采购事项、采购标的与数量、主要技术要求，只描述"买什么"，不罗列资格门槛/商务条款，一般 80-300 字。`
+        : field === 'talkProcess'
+          ? `「商谈过程」应按时间顺序记录：各轮商谈的时间与参与方、围绕技术方案/报价/服务承诺的商谈要点、供应商的响应与调整、达成的共识结论，行文客观纪实，一般 150-500 字。`
         : `「供方要求」请用一段话简要概括对供应商的核心要求（资质、业绩、技术能力、服务、交付等），内容精炼，一般不超过 150 字，不分条列述、不堆砌细节。`;
     // 供方要求强调简短概括，抑制通用规则中的扩写倾向
     const lengthRule = isSupplierReq

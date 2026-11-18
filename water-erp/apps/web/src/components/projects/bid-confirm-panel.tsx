@@ -22,6 +22,7 @@ import {
   Users,
   Volume2,
   X,
+  ScrollText,
 } from 'lucide-react';
 import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_IMMINENT_WARNING_MS, formatDurationCn, BID_ABORT_WINDOW_BEFORE_OPENING_MS } from '@water-erp/shared';
 // 间隔展示标签（formatDurationCn：<1 小时显示分钟）
@@ -69,6 +70,7 @@ import { SectionCard } from './section-card';
 import { StatusBadge, Modal } from '@/components/workbench';
 import { ArchiveTemplateCard } from './archive-template-card';
 import { OpeningFieldConfigCard } from './opening-field-config-card';
+import { DirectTalkReportDialog } from './direct-talk-report-dialog';
 import { uploadFile } from '@/lib/api/announcement';
 
 type Props = {
@@ -130,6 +132,10 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   const [failBidReason, setFailBidReason] = useState('');
   const [failBidAiLoading, setFailBidAiLoading] = useState(false);
   const [failBidConfirming, setFailBidConfirming] = useState(false);
+
+  /* ── 直接采购商谈报告（2026-11-18 第三区块）：开标后 10 分钟解锁，弹窗编写
+      （公告/备案表同款分节+预览+AI 优化），生成 Word/上传「开标评标」步骤附件 */
+  const [talkOpen, setTalkOpen] = useState(false);
 
   // 开标临近（预警横幅用）：距开标不足 BID_OPENING_IMMINENT_WARNING_MS（2026-10-16 起默认=截标↔开标间隔）。
   // 剩余时长按实际时间实时计算，30s 心跳刷新横幅倒计时（到点后显示「已到开标时间」）
@@ -538,6 +544,25 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
   // 其余方式（询比/邀请招标/竞价）以公告中供应商自行投递为准。
   const isNegotiation = project?.procurementMethod === '谈判采购';
   const showRsvpColumn = project?.procurementMethod === '谈判采购' || project?.procurementMethod === '直接采购';
+  // 直接采购开标确认精简（2026-11-18 用户裁定）：隐藏唱标字段配置/档案清单对标/监督时间线/
+  // 监督推送/上级平台推送五块——直采无唱标字段与公告档案对标诉求，监督链走线下
+  const isDirectProc = project?.procurementMethod === '直接采购';
+
+  /* 商谈报告解锁判定（2026-11-18 用户裁定纯时间口径）：过了开标时间 10 分钟即可填写 */
+  const TALK_UNLOCK_MS = 10 * 60_000;
+  const talkMsSinceOpen = openTimeMs !== null ? imminentNow - openTimeMs : null;
+  const talkUnlocked = talkMsSinceOpen !== null && talkMsSinceOpen >= TALK_UNLOCK_MS;
+  const talkMsRemaining = talkMsSinceOpen !== null ? Math.max(0, TALK_UNLOCK_MS - talkMsSinceOpen) : null;
+  // 预填 props（弹窗 buildPrefill 消费）
+  const talkExpertMembers = (workspace?.experts ?? [])
+    .filter(e => e.invitationStatus !== 'declined')
+    .map(e => `${e.expertName}${e.user?.expertProfile?.title ? `（${e.user.expertProfile.title}）` : ''}`)
+    .join('、');
+  const talkAcceptedSupplier =
+    rsvpItems.find(it => it.status === 'ACCEPTED')?.supplierName
+    ?? workspace?.suppliers.find(su => su.supplierId)?.supplierName
+    ?? project?.awardedSupplier
+    ?? '';
   // 邀请制列口径（2026-11-18 用户裁定）：邀请制（谈判/直接采购）=「回执情况」列、无「意向」列；
   // 公告类（竞价/询比/邀请招标等）=「意向」列、无「回执情况」列——两列互斥，与参标路径一致
 
@@ -609,11 +634,11 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 </div>
               </div>
             </div>
-            {/* 开标临近预警横幅：随行展开（剩余时长实时刷新） */}
+            {/* 开标临近预警横幅：随行展开（剩余时长实时刷新）；整句单行不换行 */}
             {!isOpened && isOpeningImminent && (
-              <div className="wb-tone-banner wb-tone-banner--warning ml-auto max-w-[560px] shrink">
+              <div className="wb-tone-banner wb-tone-banner--warning ml-auto shrink">
                 <AlertTriangle size={16} className="shrink-0" />
-                <div className="text-[11px] leading-relaxed text-[color:var(--foreground)]">
+                <div className="whitespace-nowrap text-[11px] text-[color:var(--foreground)]">
                   <strong>{msToOpening !== null && msToOpening > 0 ? `距开标不足 ${formatDurationCn(msToOpening)}` : '已到开标时间'}</strong>——请确认所有步骤（采购文件、公告、供应商邀请、专家抽取）已完成且内容正确。开标确认后，所有前置信息将锁定不可修改。
                 </div>
               </div>
@@ -1036,12 +1061,41 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 </Modal>
               )}
 
+              {/* ▸ 区块3.5（直接采购专用，2026-11-18）：商谈报告——开标后 10 分钟解锁，
+                  公告编写同款弹窗（编辑区进度条 + 平铺字段行 + 纸质预览 + AI 优化 + 导出/上传） */}
+              {isDirectProc && bidProject && (
+                <SectionCard
+                  icon={<ScrollText size={14} />}
+                  title="直接采购商谈报告"
+                  accent="var(--stage-evaluation)"
+                  accentSoft="var(--stage-evaluation-soft)"
+                  action={
+                    talkUnlocked ? (
+                      <button type="button" onClick={() => setTalkOpen(true)} className="neu-btn-soft !h-[32px] !text-xs">
+                        <ScrollText size={13} /> 填写商谈报告
+                      </button>
+                    ) : (
+                      <span className="rounded-full bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--warning)]">
+                        {talkMsRemaining !== null && talkMsRemaining > 0
+                          ? `开标后 10 分钟解锁（剩 ${formatDurationCn(talkMsRemaining)}）`
+                          : '开标后 10 分钟解锁'}
+                      </span>
+                    )
+                  }
+                >
+                  <p className="py-2 text-xs leading-5 text-[var(--muted-foreground)]">
+                    商谈结束后填写商谈情况并生成《直接采购商谈报告》（供应商报价、商谈过程与结果）——支持 AI 优化润色、纸质预览、导出 Word 或上传至「开标评标」步骤附件。
+                  </p>
+                </SectionCard>
+              )}
+
               {/* ▸ 区块4：评分标准与评标办法——已迁至项目管理 03「采购文件」步骤
                   （2026-09-24 方案 v2：卡片=ScoreStandardCard，宿主 project-detail-panel 步骤轨道下方） */}
 
               {/* ▸ A-113/A-115：唱标字段配置 + 开标记录模板库（API-only 收口 UI，2026-09-08）。
-                  bidProject 优先取 detail（含 openingFieldConfig 全量列；详情拉取失败回退 ref 只读兜底） */}
-              {bidProject && (
+                  bidProject 优先取 detail（含 openingFieldConfig 全量列；详情拉取失败回退 ref 只读兜底）；
+                  直接采购不显示（2026-11-18） */}
+              {bidProject && !isDirectProc && (
                 <SectionCard
                   icon={<Volume2 size={14} />}
                   title="唱标字段配置"
@@ -1055,13 +1109,13 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 </SectionCard>
               )}
 
-              {/* ▸ D1（GB/T 43711 4.1.5.1）：档案清单对标 + 线下材料人工登记 */}
-              {bpId && <ArchiveTemplateCard bidProjectId={bpId} />}
+              {/* ▸ D1（GB/T 43711 4.1.5.1）：档案清单对标 + 线下材料人工登记；直接采购不显示（2026-11-18） */}
+              {bpId && !isDirectProc && <ArchiveTemplateCard bidProjectId={bpId} />}
 
               {/* ▸ 区块5-8（Phase 2 指挥中心）：开标进度 / 归档
                   —— :3007 开标执行数据经同一 API 回流；评标管理/异议裁决/澄清答疑已迁 :3007（分工 v3，2026-08-13） */}
-              {/* D1/G2: 专家在线 + 监督时间线 */}
-              {bpId && (
+              {/* D1/G2: 专家在线 + 监督时间线；直接采购不显示（2026-11-18） */}
+              {bpId && !isDirectProc && (
                 <SectionCard
                   icon={<Shield size={14} />}
                   title="监督时间线"
@@ -1153,14 +1207,10 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                     onAbort={() => setAbortDialogOpen(true)}
                   />
                   <EvaluationHandoverBlock bidProjectId={bpId} detail={detail} />
-                  {/* A-153：监督推送（评标报告 → 公共服务平台监督通道；推送不作为归档闸门） */}
-                  <SupervisionPushBlock bidProjectId={bpId} isAdmin={isAdminUser} />
-                  {/* 对接专项 Phase 1：上级平台推送（383号文十类 → 省平台五通道，人工确认制；与 A-153 并列，Phase 2 再评估合并） */}
-                  <PlatformPushBlock bidProjectId={bpId} />
-                  {/* 评标管理/异议裁决/澄清答疑已迁至 :3007 开评标管理端（现场）——分工 v3（2026-08-13） */}
-                  <p className="text-xs text-[var(--muted-foreground)]">
-                    评标管理、专家异议裁决、澄清答疑已在开评标管理端现场办理。本面板保留评标前准备与评标后收尾。
-                  </p>
+                  {/* A-153：监督推送（评标报告 → 公共服务平台监督通道；推送不作为归档闸门）；直接采购不显示（2026-11-18） */}
+                  {!isDirectProc && <SupervisionPushBlock bidProjectId={bpId} isAdmin={isAdminUser} />}
+                  {/* 对接专项 Phase 1：上级平台推送（383号文十类 → 省平台五通道，人工确认制；与 A-153 并列，Phase 2 再评估合并）；直接采购不显示 */}
+                  {!isDirectProc && <PlatformPushBlock bidProjectId={bpId} />}
                   <ArchiveBlock bidProjectId={bpId} detail={detail} onChanged={refreshDetail} />
                   {/* A1: 公示期状态指示（归档后显示） */}
                   {detail?.stage === 'ARCHIVED' && <PublicityBanner bidProjectId={bpId} detail={detail} />}
@@ -1252,6 +1302,21 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                 </div>
               </div>
           </div>
+        )}
+
+        {/* ── 直接采购商谈报告编写弹窗（2026-11-18） ── */}
+        {talkOpen && project && bidProject && (
+          <DirectTalkReportDialog
+            isOpen
+            onClose={() => setTalkOpen(false)}
+            project={project}
+            bidProjectId={bidProject.id}
+            openTimeIso={bidProject.openTime}
+            round={bidProject.round}
+            acceptedSupplier={talkAcceptedSupplier}
+            expertMembers={talkExpertMembers}
+            onUploaded={() => { void load(); }}
+          />
         )}
 
         {/* ── 开标主持人选择 Modal ── */}

@@ -11,7 +11,7 @@ import * as JSZip from 'jszip';
 import * as mammoth from 'mammoth';
 import pdfParse = require('pdf-parse');
 import * as XLSX from 'xlsx';
-import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto, ExportDirectFilingDto } from './tender-write.dto';
+import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto, ExportDirectFilingDto, ExportDirectTalkReportDto } from './tender-write.dto';
 import { buildStandardFileName, beijingMinuteStamp } from '@water-erp/shared';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import {
@@ -27,6 +27,7 @@ import {
   buildWinningBidAnnouncementPlan,
   buildNotificationLetterPlan,
   buildDirectFilingPlan,
+  buildDirectTalkReportPlan,
   COMPETITIVE_NEGOTIATION_TEMPLATE_FILE,
   SINGLE_SOURCE_TEMPLATE_FILE,
   INQUIRY_PURCHASE_TEMPLATE_FILE,
@@ -1090,6 +1091,40 @@ export class TenderWriteService {
       docType: '直接采购备案表',
     });
 
+    return {
+      buffer: await zip.generateAsync({ type: 'nodebuffer' }),
+      fileName,
+    };
+  }
+
+  /** 生成《直接采购商谈报告》docx（2026-11-18）：开标确认面板第三区块表单 → 模板填充 */
+  async buildDirectTalkReport(dto: ExportDirectTalkReportDto) {
+    const templatePath = path.resolve(PROJECT_ROOT, '模板文件/直接采购评审报告模板.docx');
+    const exists = await fs
+      .access(templatePath)
+      .then(() => true)
+      .catch(() => false);
+    if (!exists) {
+      throw new NotFoundException(`Template not found: ${templatePath}`);
+    }
+    const originalBuffer = await fs.readFile(templatePath);
+    const zip = await JSZip.loadAsync(originalBuffer);
+    const documentXml = await zip.file('word/document.xml')?.async('string');
+    if (!documentXml) {
+      throw new NotFoundException('Invalid DOCX template: missing word/document.xml');
+    }
+    const ownerCompanyName = await this.resolveOwnerCompanyName({ sub: undefined });
+    const updatedXml = renderTemplateXml(documentXml, [
+      ...buildDirectTalkReportPlan(dto),
+      ...buildTenantPlaceholderReplacements(ownerCompanyName, undefined, false),
+    ]);
+    const tenantedXml = applyTenantTokens(updatedXml, ownerCompanyName);
+    zip.file('word/document.xml', tenantedXml);
+    const fileName = buildStandardFileName({
+      code: dto.projectCode,
+      name: dto.projectName,
+      docType: '直接采购商谈报告',
+    });
     return {
       buffer: await zip.generateAsync({ type: 'nodebuffer' }),
       fileName,

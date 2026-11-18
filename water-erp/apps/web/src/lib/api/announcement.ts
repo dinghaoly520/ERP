@@ -617,3 +617,45 @@ export function parseAnnouncementFields(projectId: string) {
     {},
   );
 }
+
+/** 直接采购商谈报告草稿（2026-11-18，模板 直接采购评审报告模板.docx）：开标确认面板第三区块 */
+export interface DirectTalkReportDraft {
+  purchaserName?: string;
+  coverDate?: string;
+  projectOverview?: string;
+  supplierName?: string;
+  openingPlace?: string;
+  openingTime?: string;
+  expertMembers?: string;
+  supervisors?: string;
+  talkProcess?: string;
+  finalQuote?: string;
+  projectCode?: string;
+  projectName?: string;
+}
+
+/** 生成《直接采购商谈报告》docx（开标后 10 分钟方可填写，上传「开标评标」步骤附件） */
+export async function buildDirectTalkReport(
+  draft: DirectTalkReportDraft,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await apiFetch(`${API_BASE}/tender-write/build-direct-talk-report`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(draft),
+  });
+
+  if (!response.ok) {
+    throw await toApiError(response, '生成直接采购商谈报告失败，请稍后重试。');
+  }
+
+  const { bufferBase64, fileName } = (await response.json()) as {
+    bufferBase64: string;
+    fileName: string;
+  };
+
+  const binary = atob(bufferBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return { blob: new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), fileName };
+}

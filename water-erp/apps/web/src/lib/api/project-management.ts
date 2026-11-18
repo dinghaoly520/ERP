@@ -212,7 +212,7 @@ export async function aiIdentifyField(fieldName: string, documentText: string, t
 
 // AI 优化立项事由 / 供方要求 —— 基于已上传的需求表与立项表原文
 export async function polishInitiationField(data: {
-  field: 'projectReason' | 'supplierRequirements' | 'projectOverview';
+  field: 'projectReason' | 'supplierRequirements' | 'projectOverview' | 'talkProcess';
   text: string;
   demandDocText?: string;
   initiationDocText?: string;

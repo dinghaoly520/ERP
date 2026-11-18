@@ -40,7 +40,7 @@ import { parseFlexibleDate } from '../common/parse-date.util';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { generateProjectCode, resolveHostedProjectCode } from '../common/project-code.util';
 import { GbCodeService } from '../common/gb-code.service';
-import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline, modeFor } from './opening-deadline.util';
+import { assertNudgeWindowOpen, assertOpeningDeadlineRelation, deriveDeadlineFromOpenTime, deriveOpenTimeFromDeadline } from './opening-deadline.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { Prisma, AiBidderStatus, AnnouncementType } from '@prisma/client';
@@ -1046,15 +1046,14 @@ export class BidService {
       }
     }
 
-    // 截标↔开标间隔（共享常量）分阶段语义：
-    // - align（prev.deadline 未过）：仅传 openTime → deadline 派生；仅传 deadline → openTime 派生；双传 → align 校验
-    // - frozen（prev.deadline 已过，延时开标 PATCH openTime 走此分支）：deadline 不得变更；openTime ≥ deadline + 间隔常量
-    // 非时间字段更新不读 prev、不走校验（零回归）。
+    // 截标↔开标间隔（共享常量）统一 align 语义（2026-11-18 用户裁定：截标恒随最新开标时间重算——
+    // 推翻 2026-11-10 frozen「截止已过仅推迟开标、截止不动」分档）：仅传 openTime → deadline 派生；
+    // 仅传 deadline → openTime 派生；双传 → align 校验。非时间字段更新不读 prev、不走校验（零回归）。
     let openTime: Date | undefined;
     let deadline: Date | undefined;
     let prevTime: { openTime: Date; deadline: Date } | undefined;
     // null 值校验：@IsOptional 放行显式 null，若按 !== undefined 判定会把 new Date(null)=epoch
-    // 当「提供」反推 1969；null 一律视同未提供（不写时间字段、不进 align/frozen 校验）
+    // 当「提供」反推 1969；null 一律视同未提供（不写时间字段、不进校验）
     if (dto.openTime != null || dto.deadline != null) {
       const prev = await this.prisma.bidProject.findUnique({
         where: { id },
@@ -1062,20 +1061,9 @@ export class BidService {
       });
       if (prev?.openTime && prev?.deadline) {
         prevTime = { openTime: prev.openTime, deadline: prev.deadline };
-        const mode = modeFor(prev.deadline);
         const newOpen = dto.openTime != null ? new Date(dto.openTime) : undefined;
         const newDeadline = dto.deadline != null ? new Date(dto.deadline) : undefined;
-        if (mode === 'frozen') {
-          // frozen 必传 prev：DEADLINE_FROZEN 检查依赖现值比对，缺失会静默跳过
-          assertOpeningDeadlineRelation({
-            openTime: newOpen ?? prev.openTime,
-            deadline: newDeadline ?? prev.deadline,
-            prev: { openTime: prev.openTime, deadline: prev.deadline },
-            mode: 'frozen',
-          });
-          openTime = newOpen;
-          deadline = newDeadline;
-        } else if (newOpen && newDeadline) {
+        if (newOpen && newDeadline) {
           assertOpeningDeadlineRelation({ openTime: newOpen, deadline: newDeadline, mode: 'align' });
           openTime = newOpen;
           deadline = newDeadline;

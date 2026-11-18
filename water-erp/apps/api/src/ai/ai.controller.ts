@@ -298,14 +298,14 @@ export class AiController {
   @ApiOperation({ summary: 'AI优化立项事由/供方要求/项目概况（基于上传的需求表与立项表）' })
   @Roles('admin', 'leader', 'staff')
   async polishInitiationField(@Body() payload: {
-    field: 'projectReason' | 'supplierRequirements' | 'projectOverview';
+    field: 'projectReason' | 'supplierRequirements' | 'projectOverview' | 'talkProcess';
     text: string;
     demandDocText?: string;
     initiationDocText?: string;
     projectContext?: { title?: string; category?: string; method?: string };
   }) {
     if (!payload.text?.trim()) throw new BadRequestException('请提供待优化的文本');
-    if (payload.field !== 'projectReason' && payload.field !== 'supplierRequirements' && payload.field !== 'projectOverview') {
+    if (!['projectReason', 'supplierRequirements', 'projectOverview', 'talkProcess'].includes(payload.field)) {
       throw new BadRequestException('field 必须是 projectReason、supplierRequirements 或 projectOverview');
     }
     return this.aiService.polishInitiationField({

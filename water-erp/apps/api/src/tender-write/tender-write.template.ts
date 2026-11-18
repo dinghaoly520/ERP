@@ -2731,6 +2731,28 @@ function toCheckBox(value: string | undefined, yes: string, no: string): string 
   return `${yes} □　${no} □`;
 }
 
+/** 直接采购商谈报告（2026-11-18）：模板 直接采购评审报告模板.docx 十占位——
+ *  封面（采购人名称/封面时间）+ 五章（项目概况/供应商名称×2/开标地点/开标时间/
+ *  专家组成员/监督人员/商谈过程/最终报价）；空值置空格防未填红显残留 */
+export function buildDirectTalkReportPlan(draft: {
+  purchaserName?: string; coverDate?: string; projectOverview?: string; supplierName?: string;
+  openingPlace?: string; openingTime?: string; expertMembers?: string; supervisors?: string;
+  talkProcess?: string; finalQuote?: string;
+}): TemplateReplacement[] {
+  return [
+    { targetText: '采购人名称', ...buildReplacement('采购人名称', draft.purchaserName) },
+    { targetText: '封面时间', replacementText: formatAnnouncementDateToChinese(draft.coverDate || '') || ' ', highlight: false },
+    { targetText: '项目概况', ...buildReplacement('项目概况', draft.projectOverview) },
+    { targetText: '供应商名称', ...buildReplacement('供应商名称', draft.supplierName) },
+    { targetText: '开标地点', ...buildReplacement('开标地点', draft.openingPlace) },
+    { targetText: '开标时间', replacementText: draft.openingTime?.trim() || ' ', highlight: false },
+    { targetText: '专家组成员', ...buildReplacement('专家组成员', draft.expertMembers) },
+    { targetText: '监督人员', ...buildReplacement('监督人员', draft.supervisors) },
+    { targetText: '商谈过程', ...buildReplacement('商谈过程', draft.talkProcess), isHierarchicalText: true },
+    { targetText: '最终报价', ...buildReplacement('最终报价', draft.finalQuote) },
+  ];
+}
+
 export function buildDirectFilingPlan(draft: DirectFilingDraft): TemplateReplacement[] {
   const filingDate = formatAnnouncementDateToChinese(draft.filingDate || '');
   const amount = draft.amount?.trim();

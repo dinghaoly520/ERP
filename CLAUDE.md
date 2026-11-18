@@ -416,7 +416,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 - 多轮报价双闸——`submitQuote` 补项目阶段闸（OPENING/EVALUATING，镜像 createRound）与结果冻结闸：既有 `BidEvaluationResult` → 409 `RESULTS_FROZEN`（迟到报价永不同步 syncMultiRoundPrices、与中标通知书脱钩）；`createRound` 同闸（结果生成要求全部轮次 closed，事后新轮即错配）；数据修正流程清零结果后自然放行。
 - PMI 写端点群 8 处前置 `assertPmiMutable`（status≠ACTIVE → 409 `PMI_NOT_ACTIVE`，文案分已归档/已终止/回收站）：`updateStage`/`reopenStage`（开标锁只护 BID_EVALUATION 之前，尾段曾裸奔）/`addStageAttachment`/`deleteAttachment`/`updateExtractedInfo`/`saveAttachmentParagraphs`/`saveAttachmentHtml`/`replaceAttachmentWithText`——归档数据不可扰动（DA/T103 更正走重新归档流程）；`aiPolish`（纯文本变换无落库）与 tender-draft 草稿（编写态工件、不入归档材料）不受限。
 - 审计核过守卫齐全（勿重复排查）：供应商撤回与售疑（DOWNLOAD/SUBMIT）、澄清答复（EVALUATING+待回复+寻址本司）、开标确认（OPENING+记录状态机）、主持端唱标录入（OPENING+已确认记录禁覆盖 H11）、专家 esign（signStatus PENDING 状态机）、邀请婉拒（ALREADY_CONFIRMED）、结果重生成（SIGN_PACKET_CLOSED）。
-截标↔开标 10 分钟规则（2026-08-21 定 24h；**2026-10-16 用户裁定正式改为 10 分钟**，与《招标投标法》第34条偏离留痕加巨）——常量 `BID_DEADLINE_BEFORE_OPENING_MS`（packages/shared）、校验 util `apps/api/src/bid/opening-deadline.util.ts`（align/frozen 分阶段）、存量迁移脚本 `apps/api/scripts/align-opening-deadline-24h.ts`（注意：现运行会把存量 deadline 对齐到 10 分钟口径）。
+截标↔开标 10 分钟规则（2026-08-21 定 24h；**2026-10-16 用户裁定正式改为 10 分钟**，与《招标投标法》第34条偏离留痕加巨；**2026-11-18 用户裁定：延时开标恒 align——截标随最新开标时间重算（新开标−10min），推翻 2026-11-10 frozen「截止已过仅推迟开标、截止不动」分档**；updateProject 时间写路径已无 frozen 分支，modeFor 仅剩 util 定义）——常量 `BID_DEADLINE_BEFORE_OPENING_MS`（packages/shared）、校验 util `apps/api/src/bid/opening-deadline.util.ts`、存量迁移脚本 `apps/api/scripts/align-opening-deadline-24h.ts`（注意：现运行会把存量 deadline 对齐到 10 分钟口径）。
 
 ### File Uploads (MinIO)
 

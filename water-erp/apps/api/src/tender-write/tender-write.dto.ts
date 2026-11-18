@@ -122,6 +122,23 @@ export class ExportNotificationLetterDto {
 }
 
 /** 直接采购备案表（集团采购管理办法 附件6）：生成备案表 docx（上传至 09 阶段） */
+/** 直接采购商谈报告（2026-11-18，模板文件/直接采购评审报告模板.docx）：开标确认面板
+ *  第三区块表单——开标后 10 分钟方可填写；生成 docx 上传「开标评标」步骤附件 */
+export class ExportDirectTalkReportDto {
+  @IsString() @IsOptional() purchaserName?: string;
+  @IsString() @IsOptional() coverDate?: string;
+  @IsString() @IsOptional() projectOverview?: string;
+  @IsString() @IsOptional() supplierName?: string;
+  @IsString() @IsOptional() openingPlace?: string;
+  @IsString() @IsOptional() openingTime?: string;
+  @IsString() @IsOptional() expertMembers?: string;
+  @IsString() @IsOptional() supervisors?: string;
+  @IsString() @IsOptional() talkProcess?: string;
+  @IsString() @IsOptional() finalQuote?: string;
+  @IsString() @IsOptional() projectCode?: string;
+  @IsString() @IsOptional() projectName?: string;
+}
+
 export class ExportDirectFilingDto {
   @IsString()
   @IsOptional()

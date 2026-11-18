@@ -12,7 +12,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
-import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto, ExportDirectFilingDto } from './tender-write.dto';
+import { ExportTenderWriteDto, ExportAnnouncementDto, ExportNotificationLetterDto, ExportDirectFilingDto, ExportDirectTalkReportDto } from './tender-write.dto';
 import { ImportAutofillDto } from './import-autofill.dto';
 import { AnnouncementImportAutofillDto } from './announcement-import-autofill.dto';
 import { TenderWriteService } from './tender-write.service';
@@ -81,6 +81,18 @@ export class TenderWriteController {
   }
 
   /** 生成《直接采购备案表》docx（附件6）：供 09 备案表编写弹窗渲染并上传到阶段 */
+  /** 生成《直接采购商谈报告》docx（2026-11-18）：直接采购开标确认第三区块表单 */
+  @Post('build-direct-talk-report')
+  async buildDirectTalkReport(
+    @Body() dto: ExportDirectTalkReportDto,
+  ) {
+    const { buffer, fileName } = await this.tenderWriteService.buildDirectTalkReport(dto);
+    return {
+      bufferBase64: buffer.toString('base64'),
+      fileName,
+    };
+  }
+
   @Post('build-direct-filing')
   async buildDirectFiling(
     @Body() dto: ExportDirectFilingDto,
