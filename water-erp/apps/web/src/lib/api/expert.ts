@@ -32,7 +32,7 @@ export interface ExpertListItem {
   company?: string | null;
   department: { id: string; name: string } | null;
   expertProfile: ExpertProfile | null;
-  bidExperts: { id: string; major: string; progress: number; signedIn: boolean; project: { id: string; name: string; stage: string } }[];
+  bidExperts: { id: string; major: string; progress: number; signedIn: boolean; expertRole: string; project: { id: string; name: string; stage: string } }[];
   _count: { expertEvaluations: number };
   latestEval?: { level: string } | null;
   avgGrade?: string | null;
@@ -462,6 +462,8 @@ export function getExpertEvaluations(id: string) {
 /* 统计仪表盘 */
 export interface ExpertStatistics {
   totalExperts: number; available: number; occupied: number; disabled: number;
+  /** 阶段派生四态（2026-11-18，全库口径）：空闲/已被抽取/正在评标/候补待命 */
+  busy?: { idle: number; assigned: number; evaluating: number; alternate: number };
   specialtyDistribution: { name: string; count: number }[];
   titleDistribution: { name: string; count: number }[];
   evaluationStats: { levelCounts: { A: number; B: number; C: number; D: number; E: number }; excellentRatio: number; total: number };
