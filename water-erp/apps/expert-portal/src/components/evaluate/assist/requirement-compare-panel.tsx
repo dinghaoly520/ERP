@@ -129,6 +129,29 @@ export function RequirementComparePanel({
 
   // ── 左栏双模式：「条款清单」（默认） / 「招标文件」（参考视图，不改中/右） ──
   const [leftMode, setLeftMode] = useState<'list' | 'tender'>('list');
+  // 手动预览（2026-11-17 生产反馈）：AI 未定位时中栏曾被死文字占位（连「新窗口」都藏），
+  // 而占位文案恰恰要求专家「手动核对」——补手动打开投标文件（技术/商务/函切换）
+  const [manualDocs, setManualDocs] = useState<Array<{ name: string; originalName?: string; downloadUrl: string }>>([]);
+  const [manualDocUrl, setManualDocUrl] = useState('');
+  const [manualLoading, setManualLoading] = useState(false);
+  const openManualDocs = async () => {
+    if (manualLoading) return;
+    setManualLoading(true);
+    try {
+      const data = await api.get<{ canView?: boolean; documents?: Array<{ name: string; originalName?: string; downloadUrl: string }> }>(
+        `/expert/projects/${projectId}/documents/${supplierId}`,
+      );
+      const docs = (data.documents ?? []).filter((d) => !!d.downloadUrl);
+      if (!docs.length) { toast.error('该供应商暂无可预览的投标文件'); return; }
+      setManualDocs(docs);
+      const prefer = docs.find((d) => (d.originalName ?? d.name).includes('技术')) ?? docs[0];
+      setManualDocUrl(prefer.downloadUrl);
+    } catch (e: any) {
+      toast.error(e?.message || '投标文件读取失败，请稍后重试');
+    } finally {
+      setManualLoading(false);
+    }
+  };
   const [tenderPage, setTenderPage] = useState<number | null>(null);
 
   // C：左栏卡片展开态（clauseId → expanded）；D：右栏 AI判断揭示态 + 批注录入目标
@@ -254,7 +277,7 @@ export function RequirementComparePanel({
   const iframeSrc =
     selectedResp?.location
       ? `/api/expert/projects/${projectId}/suppliers/${supplierId}/documents/${selectedResp.location.fileId}/download#page=${selectedResp.location.page}`
-      : '';
+      : manualDocUrl; // AI 未定位 → 手动预览兜底（生产反馈：占位文字应可行动）
 
   const grouped = ['qualification', 'technical', 'commercial'] as const;
 
@@ -420,7 +443,21 @@ export function RequirementComparePanel({
                 <span className="shrink-0 text-[10px] text-[var(--muted-foreground)]">· 第 {selectedResp.location.page} 页</span>
               )}
             </div>
-            {selectedResp?.location && (
+            {!selectedResp?.location && manualDocs.length > 0 && (
+              <div className="flex shrink-0 items-center gap-1">
+                {manualDocs.map((d) => (
+                  <button
+                    key={d.downloadUrl}
+                    type="button"
+                    onClick={() => setManualDocUrl(d.downloadUrl)}
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${manualDocUrl === d.downloadUrl ? 'bg-[var(--accent-strong)] text-white' : 'text-[var(--muted-foreground)] hover:bg-[oklch(0.94_0.01_258)]'}`}
+                  >
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            {iframeSrc && (
               <a
                 href={iframeSrc}
                 target="_blank"
@@ -449,6 +486,14 @@ export function RequirementComparePanel({
                     ? 'AI 未能定位本条款对应的投标响应位置，请在原文中手动核对。'
                     : '选中条款后，AI 响应定位的页面将显示于此。'}
                 </p>
+                <button
+                  type="button"
+                  onClick={() => void openManualDocs()}
+                  disabled={manualLoading}
+                  className="neu-btn-xs mt-3 !px-3 !py-1.5 text-[11px] disabled:opacity-50"
+                >
+                  {manualLoading ? '正在打开…' : '手动打开投标文件核对'}
+                </button>
               </div>
             )}
           </div>
