@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
-import { validateSupplierScores, buildFullPoints, committedRecordFor, filterScorableItems, isQualificationShortCircuited, type ScoreEntry } from '@/lib/score-validation';
+import { validateSupplierScores, buildFullPoints, committedRecordFor, filterScorableItems, isQualificationShortCircuited, buildServerMentionedEntries, type ScoreEntry } from '@/lib/score-validation';
 import { useScoreDraftSync } from '@/hooks/use-score-draft-sync';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
@@ -356,9 +356,6 @@ export default function ExpertEvaluatePage() {
       }
       setScores(prev => {
         const next = { ...prev };
-        // TAB-SYNC-02 ①：基线只推进服务端提及键（pointDecisions 键）——未提及键保留旧基线，
-        // 本地未推送编辑不烧入基线（整表重照吞并发对端编辑，已废止）
-        const serverMentioned: Record<string, ScoreEntry> = {};
         for (const pd of (d.pointDecisions ?? [])) {
           const scoreItemId = pointToItem.get(pd.pointId);
           if (!scoreItemId) continue;
@@ -368,9 +365,10 @@ export default function ExpertEvaluatePage() {
             ...cur,
             points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
           };
-          serverMentioned[k] = next[k];
         }
-        advanceBaselineAfterServerData(serverMentioned);
+        // TAB-SYNC-02 ①（T2/T3 审查 Important#1 回修）：基线条目纯服务端构造——不得经
+        // next[k]（=本地∪服务端混合）落基线，否则本地未推送值烧入基线吞并发对端编辑
+        advanceBaselineAfterServerData(buildServerMentionedEntries(project?.myScores, scoreItems, d.pointDecisions ?? []));
         return next;
       });
     } catch { /* my-scores optional — ignore */ }
@@ -424,11 +422,12 @@ export default function ExpertEvaluatePage() {
             if (committedSupplierId && k.startsWith(`${committedSupplierId}:`)) continue; // 已提交的用服务端值
             if (!(k in next)) next[k] = v; // 其他供应商的未提交编辑保留
           }
+          // TAB-SYNC-02 ①：committed 键也是服务端提及——基线推进为服务端值（首挂载从空基线
+          // 到 committed 全量；此后 pull 与已提交值对表不再假冲突/假分歧）。移入 updater 与
+          // 其余三落点同风格（审查 Minor#3：消除同步写基线与延迟落 scores 的窗口）
+          advanceBaselineAfterServerData(existing);
           return next;
         });
-        // TAB-SYNC-02 ①：committed 键也是服务端提及——基线推进为服务端值（首挂载从空基线
-        // 到 committed 全量；此后 pull 与已提交值对表不再假冲突/假分歧）
-        advanceBaselineAfterServerData(existing);
         // sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));

@@ -27,7 +27,7 @@ export interface ScoreEntry {
   score: number;
   reason: string;
   passed?: boolean | null;
-  points?: Record<string, { checked: boolean; awardedScore: number }>;
+  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
   /** 编辑时刻打点（TAB-SYNC-01 §4.1；形状同服务端 score-draft-merge.util.ts） */
   savedAt?: number;
 }
@@ -64,10 +64,32 @@ export interface ThreeWayMergeResult {
   baseline: Record<string, ScoreEntry>;
 }
 
-/** 内容稳定深比较（savedAt 剥除；undefined 字段序列化天然丢弃）；任一缺省仅当双侧同缺省视为相等 */
+/**
+ * 内容稳定深比较（field-wise，键序无关）。T4 回修审查 Important#1：stringify 比较对键序
+ * 敏感，而 r-vs-b 回声比较天然跨 jsonb 边界（远端 GET 回读键序归一化、normalize 只钉
+ * passed 位不钉 points/reason 序）——points 条目在双端活跃打分时假冲突可达，误采远端
+ * 即丢最新本地编辑。字段级比较与客户端构造序/服务端 jsonb 序均无关；新增内容字段
+ * 必须同步本函数（镜像服务端 score-draft-merge.util.ts entryContentEquals——双副本
+ * 交叉注释互指，改一处须改两处）。
+ */
 const entryEquals = (a: ScoreEntry | undefined, b: ScoreEntry | undefined): boolean => {
   if (a === undefined || b === undefined) return a === b;
-  return JSON.stringify({ ...a, savedAt: undefined }) === JSON.stringify({ ...b, savedAt: undefined });
+  if (Number(a.score) !== Number(b.score)) return false;
+  if ((a.reason ?? '') !== (b.reason ?? '')) return false;
+  if ((a.passed ?? null) !== (b.passed ?? null)) return false;
+  const ap = a.points;
+  const bp = b.points;
+  if (!ap || !bp) return !ap === !bp;
+  if (Object.keys(ap).length !== Object.keys(bp).length) return false;
+  for (const pk of Object.keys(ap)) {
+    const x = ap[pk];
+    const y = bp[pk];
+    if (!x || !y) return false;
+    if (x.checked !== y.checked) return false;
+    if (Number(x.awardedScore) !== Number(y.awardedScore)) return false;
+    if ((x.note ?? '') !== (y.note ?? '')) return false;
+  }
+  return true;
 };
 
 export function threeWayMerge(

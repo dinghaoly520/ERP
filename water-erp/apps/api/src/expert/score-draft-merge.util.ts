@@ -15,7 +15,9 @@ export interface ScoreEntry {
   reason: string;
   passed?: boolean | null;
   points?: Record<string, { checked: boolean; awardedScore: number }>;
-  /** 编辑时刻打点（TAB-SYNC-01 §4.1 新增；旧格式条目缺省 → 回退所属槽顶层 savedAt） */
+  /** 编辑时刻打点（TAB-SYNC-01 §4.1 新增；旧格式条目缺省 → 回退所属槽顶层 savedAt）。
+   *  注意：新增**内容**字段必须同步 entryContentEquals（stampDraftEntries）与客户端
+   *  draft-merge.ts entryEquals——否则只改新字段的编辑不换时戳，newest-wins 会输给同键竞争者。 */
   savedAt?: number;
 }
 
@@ -108,6 +110,8 @@ export function stampDraftEntries(
  * draft-merge 契约同口径。
  */
 function entryContentEquals(a: ScoreEntry, b: ScoreEntry): boolean {
+  // 畸形载荷（null/非对象条目）fail 到「变更」侧重打时戳——拒崩不拒写
+  if (!a || typeof a !== 'object' || !b || typeof b !== 'object') return false;
   if (Number(a.score) !== Number(b.score)) return false;
   if ((a.reason ?? '') !== (b.reason ?? '')) return false;
   if ((a.passed ?? null) !== (b.passed ?? null)) return false;

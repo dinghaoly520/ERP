@@ -263,3 +263,17 @@ test('EQ-② points 点键序互倒、内容等价 → 不判分歧；passed nul
   const m = threeWayMerge({ price: l }, { price: b }, { price: { ...b, savedAt: 3 } });
   assert.deepEqual(m.conflicts, []);
 });
+
+// ── T4 回修审查 Important#1：points 条目的 r-vs-b 回声比较跨 jsonb 键序边界（可达假冲突）──
+
+test('EQ-③ 本端已编辑 + 远端为基线内容的 jsonb 键序回声 → 判「远端未变」保留本地，不弹假冲突', () => {
+  // b：客户端构造序（score, reason, points）——advanceBaselineAfterPush 落的推送对象
+  const b = { score: 90, reason: 'r', points: { p1: { checked: true, awardedScore: 5 } } } as any;
+  // l：本端在 b 基础上改了分（真实编辑）
+  const l = { score: 95, reason: 'r', points: { p1: { checked: true, awardedScore: 5 } } } as any;
+  // r：平板回声推回 = 同内容经服务端 jsonb 键序（score, points, reason）回读
+  const r = { score: 90, points: { p1: { awardedScore: 5, checked: true } }, reason: 'r', savedAt: 99 } as any;
+  const m = threeWayMerge({ price: l }, { price: b }, { price: r });
+  assert.deepEqual(m.conflicts, []); // 旧 stringify：r≠b（键序）→ 假冲突弹窗，误采远端丢最新编辑
+  assert.equal(m.next.price.score, 95); // 保留本地最新编辑
+});

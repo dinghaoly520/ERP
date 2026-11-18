@@ -345,7 +345,7 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
         }
       })
       .catch(() => { /* pull optional — ignore */ });
-  }, [device, expertId, projectId, conflictModalOpen, draftConflicts.length, scoreItems, setDraftConflicts, setScores]);
+  }, [device, expertId, projectId, conflictModalOpen, draftConflicts.length, draftCheckDone, draftAvailable, scoreItems, setDraftConflicts, setScores]);
 
   return {
     draftAvailable,

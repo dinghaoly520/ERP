@@ -11,7 +11,7 @@ import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
-import { buildFullPoints, committedRecordFor, isQualificationShortCircuited, type ScoreEntry } from '@/lib/score-validation';
+import { buildFullPoints, committedRecordFor, isQualificationShortCircuited, buildServerMentionedEntries, type ScoreEntry } from '@/lib/score-validation';
 import { useScoreDraftSync, type DraftSyncConflict } from '@/hooks/use-score-draft-sync';
 import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
@@ -158,8 +158,6 @@ export default function TabletEvaluatePage() {
             }
             setScores(prev => {
               const next = { ...prev };
-              // TAB-SYNC-02 ①：基线只推进 pointDecisions 提及键（与桌面端 loadMyScores 同源）
-              const serverMentioned: Record<string, ScoreEntry> = {};
               for (const pd of (d.pointDecisions ?? [])) {
                 const scoreItemId = pointToItem.get(pd.pointId);
                 if (!scoreItemId) continue;
@@ -169,9 +167,9 @@ export default function TabletEvaluatePage() {
                   ...cur,
                   points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
                 };
-                serverMentioned[k] = next[k];
               }
-              advanceBaselineAfterServerData(serverMentioned);
+              // TAB-SYNC-02 ①（T2/T3 审查 Important#1 回修）：基线条目纯服务端构造（同桌面端）
+              advanceBaselineAfterServerData(buildServerMentionedEntries(p.myScores, p.scoreItems ?? [], d.pointDecisions ?? []));
               return next;
             });
           })

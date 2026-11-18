@@ -196,3 +196,41 @@ export function buildPendingScoreDraft(
   }
   return pending;
 }
+
+/**
+ * TAB-SYNC-02 ①（T2/T3 审查 Important#1 回修）：pointDecisions 提及键的基线条目——
+ * **纯服务端构造**。原实现 `serverMentioned[k] = next[k]`（next 从 prev 起步）会把本地
+ * 未推送 score/reason/passed 与非提及点决策混入基线——对端同键并发编辑被判 local==base
+ * 静默接受（缺陷①在提及键上的残留形态）。本函数与本地 scores 状态完全无关：
+ * 三字段取 committedRecordFor 记录（无记录→零值兜底）、points 仅含该键的服务端点决策
+ * （无服务端决策的点不出现——不回退本地、不造默认值）。
+ */
+export function buildServerMentionedEntries(
+  myScores: CommittedScoreRecord[] | undefined | null,
+  scoreItems: Array<{ id: string; points?: Array<{ id: string }> }> | undefined | null,
+  pointDecisions: Array<{ pointId: string; supplierId: string; checked: boolean; awardedScore: number | string; note?: string }> | undefined | null,
+): Record<string, ScoreEntry> {
+  const pointToItem = new Map<string, string>();
+  for (const si of scoreItems ?? []) {
+    for (const pt of si.points ?? []) pointToItem.set(pt.id, si.id);
+  }
+  const mentioned: Record<string, ScoreEntry> = {};
+  for (const pd of pointDecisions ?? []) {
+    const scoreItemId = pointToItem.get(pd.pointId);
+    if (!scoreItemId) continue; // 悬空点决策（评分项已删改）不造键
+    const k = `${pd.supplierId}:${scoreItemId}`;
+    const rec = committedRecordFor(myScores, pd.supplierId, scoreItemId);
+    let entry = mentioned[k];
+    if (!entry) {
+      entry = {
+        score: Number(rec?.score ?? 0),
+        reason: rec?.reason ?? '',
+        ...(rec?.passed != null ? { passed: rec.passed } : {}),
+        points: {},
+      };
+      mentioned[k] = entry;
+    }
+    entry.points![pd.pointId] = { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined };
+  }
+  return mentioned;
+}
