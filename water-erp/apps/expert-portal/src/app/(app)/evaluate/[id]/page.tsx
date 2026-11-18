@@ -695,6 +695,14 @@ export default function ExpertEvaluatePage() {
   // D：条款核对就地打分（仅草稿，写入 scores + 立即落库；supplierId 隐含 activeSupplier）
   const handlePointChange = useCallback((scoreItemId: string, pointId: string, value: PointDecisionValue) => {
     if (!activeSupplier) return;
+    // bug#140a：资格短路豁免家非通过性项免评——对比视图就地打分不落草稿（与评分 tab 只读态
+    // 同口径，防「未提交草稿」横幅噪音与两视图免评态矛盾）
+    const siGuard = project?.scoreItems.find((s) => s.id === scoreItemId);
+    if (siGuard && !isPassFailCategory(siGuard.category)
+      && isQualificationShortCircuited(project?.scoreItems ?? [], scores, activeSupplier, scoreKey)) {
+      toast.warning('该供应商资格未过，非通过性项免评——无需打分');
+      return;
+    }
     const k = scoreKey(activeSupplier, scoreItemId);
     const si = project?.scoreItems.find((s) => s.id === scoreItemId);
     const committedScore = committedRecordFor(project?.myScores, activeSupplier, scoreItemId)?.score ?? null;
@@ -2630,12 +2638,21 @@ export default function ExpertEvaluatePage() {
                       <div className="mb-4 flex items-center justify-between">
                         <h3 className="text-lg font-bold text-[var(--foreground)]">评分汇总 — {scoringSupplierName}</h3>
                         <div className="text-right">
-                          <div className="text-3xl font-bold text-[var(--accent-strong)]">
-                            {scorableItems.reduce((s, si) => s + (scores[scoreKey(activeSupplier, si.id)]?.score ?? 0), 0)}
-                          </div>
-                          <div className="text-sm text-[var(--muted-foreground)]">
-                            满分 {scorableItems.reduce((s, si) => s + Number(si.maxScore), 0)}
-                          </div>
+                          {shortCircuited ? (
+                            <>
+                              <div className="text-2xl font-bold text-[var(--muted-foreground)]">资格未过 · 免评</div>
+                              <div className="text-sm text-[var(--muted-foreground)]">非通过性类目不计分</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-3xl font-bold text-[var(--accent-strong)]">
+                                {scorableItems.reduce((s, si) => s + (scores[scoreKey(activeSupplier, si.id)]?.score ?? 0), 0)}
+                              </div>
+                              <div className="text-sm text-[var(--muted-foreground)]">
+                                满分 {scorableItems.reduce((s, si) => s + Number(si.maxScore), 0)}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                       {scoreLocked && (
