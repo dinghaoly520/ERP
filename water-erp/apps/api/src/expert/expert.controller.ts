@@ -308,8 +308,9 @@ export class ExpertController {
   }
 
   @Get('projects/:projectId')
-  getProject(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string) {
-    return this.expertService.getProject(userId, projectId);
+  getProject(@CurrentUser('sub') userId: string, @Param('projectId') projectId: string, @Req() req: any) {
+    // TAB-SYNC-02 ③：pairingScope 透传（scoped 平板核验死端引导数据面；照 listProjects 口径）
+    return this.expertService.getProject(userId, projectId, req?.pairingScope);
   }
 
   /* 身份核验 */

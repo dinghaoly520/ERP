@@ -358,7 +358,7 @@ export class ExpertService {
     };
   }
 
-  async getProject(userId: string, projectId: string) {
+  async getProject(userId: string, projectId: string, pairingScope?: { projectId: string }) {
     const expertRecord = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
       include: {
@@ -448,6 +448,8 @@ export class ExpertService {
         tenderDocument: null,
         noneEvaluation,
         restricted: true,
+        // TAB-SYNC-02 ③：平板 scoped 核验死端——前端据此把核验三件套改「回桌面重核验」引导
+        pairingScoped: !!pairingScope,
       };
     }
 
@@ -490,6 +492,7 @@ export class ExpertService {
       myScores,
       noneEvaluation,
       restricted: false,
+      pairingScoped: !!pairingScope,
       tenderDocument,
       // B6（2026-11-12）：组长兜底——未复议/表决中的过半废标清单（WS 推送只是加速器，刷新即恢复弹窗）
       ...(expertRecord.isLead ? { pendingInvalidReviews: await this.buildPendingInvalidReviews(projectId) } : {}),

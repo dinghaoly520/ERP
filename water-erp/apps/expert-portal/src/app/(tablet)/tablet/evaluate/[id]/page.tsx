@@ -45,7 +45,7 @@ export default function TabletEvaluatePage() {
   const params = useParams();
   const projectId = params.id as string;
 
-  const [project, setProject] = useState<ExpertProjectDetail | null>(null);
+  const [project, setProject] = useState<ExpertProjectDetail & { restricted?: boolean; pairingScoped?: boolean } | null>(null);
   // 平板跟进：分钟级时钟——评标截止横幅的剩余时间/过期态随它刷新（与桌面端同口径）
   const [nowTick, setNowTick] = useState(Date.now());
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function TabletEvaluatePage() {
       setLoading(true);
       setLoadError(null);
     }
-    api.get<ExpertProjectDetail & { restricted?: boolean }>(`/expert/projects/${projectId}`)
+    api.get<ExpertProjectDetail & { restricted?: boolean; pairingScoped?: boolean }>(`/expert/projects/${projectId}`)
       .then(p => {
         // 2026-10-22：OPENING 返回 restricted 壳但须放行走待命页——只按阶段判（restricted 不再弹回）
         if (p.stage !== 'OPENING' && p.stage !== 'EVALUATING') {
@@ -450,7 +450,9 @@ export default function TabletEvaluatePage() {
   const handleAgreement = (key: 'confidentialityAgreed' | 'disciplineAgreed', value: boolean) => {
     if (key === 'confidentialityAgreed') setConfidentialityAgreed(value);
     else setDisciplineAgreed(value);
-    api.patch(`/expert/projects/${projectId}/agreements`, { [key]: value }).catch(() => {});
+    // TAB-SYNC-02 ③：静默吞改 toast——全量令牌路径真实错误可见（scoped 路径已由上方引导卡拦截）
+    api.patch(`/expert/projects/${projectId}/agreements`, { [key]: value })
+      .catch((e: any) => toast.error(e?.message || '承诺状态保存失败，请重试'));
   };
 
   const handleConfirmAiConsent = async () => {
@@ -622,6 +624,27 @@ export default function TabletEvaluatePage() {
   // 身份核验门（2026-09-22 平板补齐）：签到/回避/AI 声明未齐 → 先核验（原桌面端向导第 1 步，
   // 平板此前只有一条「请先完成身份核验」横幅却无任何入口——现场平板卡死于此）。
   const verificationNeeded = !verificationComplete && !scoreLocked;
+  // TAB-SYNC-02 ③：scoped 配对令牌无核验写面（PAIRING_ALLOWED 白名单无 sign-in/agreements/
+  // avoidance）——三件套缺失时下方核验控件全是必死按钮（403 死端）。改引导卡：回桌面端重新
+  // 核验（2026-11-12 配对裁定分工语义：核验是桌面动作、平板只存草稿）；全量登录平板（窗口
+  // 未开时段的合法路径）pairingScoped=false 不受影响。
+  if (verificationNeeded && project?.pairingScoped) {
+    return (
+      <div className="mx-auto max-w-2xl pb-8">
+        <h1 className="text-[1.2rem] font-black tracking-[-0.01em] text-[var(--foreground)]">身份核验与承诺确认</h1>
+        <div className="neu-card-static mt-4 p-6 text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[oklch(0.95 0.02 278/0.25)] text-[var(--warning)] shadow-[inset_2px_2px_5px_oklch(0.55_0.03_258/0.14),inset_-2px_-2px_5px_oklch(1_0_0/0.75)]">
+            <ShieldAlert size={26} strokeWidth={1.8} />
+          </div>
+          <p className="text-sm font-bold text-[var(--foreground)]">核验状态需要重新确认</p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-[var(--muted-foreground)]">
+            您的身份核验信息已被主持人重置，平板配对模式下无法重新完成核验。
+            请在<strong className="text-[var(--foreground)]">桌面端</strong>重新完成身份核验与回避申报后，继续使用平板打分（已保存的评分草稿不受影响）。
+          </p>
+        </div>
+      </div>
+    );
+  }
   if (verificationNeeded) {
     const signedIn = !!meRecord?.signedIn;
     return (

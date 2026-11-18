@@ -4526,6 +4526,24 @@ describe('ExpertService.getPairing（TAB-SYNC-02 P2-3）', () => {
   });
 });
 
+// ── TAB-SYNC-02 ③：平板 scoped 核验死端——getProject 暴露 pairingScoped ──
+
+describe('ExpertService.getProject pairingScoped（TAB-SYNC-02 ③）', () => {
+  it('传 pairingScope → 响应含 pairingScoped=true；不传 → false（restricted 壳路径）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({
+      id: 'be1', userId: 'user-1', projectId: 'p1', signedIn: false, avoidanceConfirmed: false,
+      confidentialityAgreed: false, disciplineAgreed: false, conflictedSupplierIds: [],
+      user: { expertProfile: null },
+    });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD', roomCode: null, suppliers: [], experts: [] });
+    const r = await service.getProject('user-1', 'p1', { projectId: 'p1' });
+    expect(r.restricted).toBe(true);
+    expect(r.pairingScoped).toBe(true);
+    const r2 = await service.getProject('user-1', 'p1');
+    expect(r2.pairingScoped).toBe(false);
+  });
+});
+
 // ── TAB-SYNC-02 P2-2 接线：桌面自解绑即时断连（广播+踢除）──
 
 describe('ExpertService.unpair（TAB-SYNC-02 P2-2 接线）', () => {
