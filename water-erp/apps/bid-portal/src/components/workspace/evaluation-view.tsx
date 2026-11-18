@@ -901,7 +901,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 <span className="flex items-center gap-1.5">
                   {/* 审查优化（2026-09-21）：口令默认掩码——旁观屏幕不得窥见；点击显隐 + 复制 */}
                   <span className="select-all font-mono text-base font-bold tracking-[0.22em] text-[var(--accent-strong)]">
-                    {roomCodeVisible ? roomCodeInfo.roomCode : '••••••••'}
+                    {roomCodeVisible ? roomCodeInfo.roomCode : '••••'}
                   </span>
                   <button
                     type="button"

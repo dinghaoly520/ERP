@@ -1429,8 +1429,8 @@ export default function ExpertEvaluatePage() {
             value={roomCodeInput}
             onChange={(e) => setRoomCodeInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === 'Enter' && roomCodeInput.trim()) void handleVerifyRoomCode(); }}
-            placeholder="8 位口令"
-            maxLength={8}
+            placeholder="4 位口令"
+            maxLength={4}
             disabled={roomCodeBusy}
             className="neu-input mt-5 text-center !text-lg !font-bold !tracking-[0.35em]"
           />
