@@ -271,20 +271,33 @@ export default function ProgressPage() {
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
 
-      {/* ── 未来 14 天关键节点（截标/开标横滑日卡；无节点不渲染）── */}
+      {/* ── 未来 14 天关键节点（截标/开标横滑日卡；无节点不渲染）──
+          2026-11-18 排版改版：窄卡名截断+同行挤压 → 宽卡分两行（类型行在上/项目名
+          两行在下），日期带周几；横滑日历保留（内容轮播非筛选 chips） */}
       {upcoming?.items.length ? (
         <SectionCard icon={CalendarClock} title="未来 14 天关键节点" index={0}>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {upcoming.items.map((d) => (
-              <div key={d.date} className="w-[7.5rem] shrink-0 rounded-[12px] m-tile px-2.5 py-2">
-                <div className="text-[12px] font-bold tabular-nums text-[var(--accent)]">{d.date.slice(5)}</div>
-                {d.events.map((e, i) => (
-                  <div key={i} className="mt-1 flex items-center gap-1">
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.type === "OPENING" ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--foreground)]">{e.name}</span>
-                    <span className="shrink-0 text-[11px] text-[var(--muted-foreground)]">{e.type === "OPENING" ? "开标" : "截标"}</span>
-                  </div>
-                ))}
+              <div key={d.date} className="w-[10.5rem] shrink-0 rounded-[12px] m-tile px-3 py-2.5">
+                <div className="text-[12px] font-bold tabular-nums text-[var(--accent)]">
+                  {d.date.slice(5)}
+                  <span className="ml-1 font-medium text-[var(--muted-foreground)]">
+                    {["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date(d.date).getDay()]}
+                  </span>
+                </div>
+                <div className="mt-1.5 space-y-2">
+                  {d.events.map((e, i) => (
+                    <div key={i}>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.type === "OPENING" ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
+                        <span className={`text-[12px] font-semibold ${e.type === "OPENING" ? "text-[var(--success)]" : "text-[var(--warning)]"}`}>
+                          {e.type === "OPENING" ? "开标" : "截标"}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 line-clamp-2 pl-3 text-[13px] font-medium leading-snug text-[var(--foreground)]">{e.name}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
