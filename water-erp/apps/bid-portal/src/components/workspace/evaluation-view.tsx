@@ -1064,7 +1064,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       className="flex max-w-full items-center justify-center gap-1.5"
                       title={`平板配对：${row.tabletPaired.device?.uaSummary ?? '未记录'}${row.tabletPaired.device?.ip ? ` · ${row.tabletPaired.device.ip}` : ''}${row.tabletPaired.pairedAt ? ` · 配对于 ${new Date(row.tabletPaired.pairedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}`}
                     >
-                      {row.pairingPhoto && (
+                      {row.pairingPhoto && row.photoAssetId && (
+                        /* 同照去重（2026-11-18 用户裁定③）：签到无照时留档照列已回退显示此 asset，
+                           设备行不再重复；签到照与配对照并存（异照）时双显是正确语义 */
                         <a
                           href={`/api/upload/files/${row.pairingPhoto.assetId}`}
                           target="_blank"
@@ -1090,19 +1092,22 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       className="flex max-w-full items-center justify-center gap-1.5"
                       title={`平板已解绑或配对过期——最近一张配对留档照留档备查${row.pairingPhoto.at ? ` · ${new Date(row.pairingPhoto.at).toLocaleString('zh-CN', { hour12: false })}` : ''}`}
                     >
-                      <a
-                        href={`/api/upload/files/${row.pairingPhoto.assetId}`}
-                        target="_blank"
-                        rel="noopener"
-                        title="查看配对留档照"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`/api/upload/files/${row.pairingPhoto.assetId}`}
-                          alt={`${row.expertName} 配对留档照`}
-                          className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
-                        />
-                      </a>
+                      {row.photoAssetId && (
+                        /* 同照去重（2026-11-18 用户裁定③）：同上——留档照列已回退显示此 asset 时省略 */
+                        <a
+                          href={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                          target="_blank"
+                          rel="noopener"
+                          title="查看配对留档照"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                            alt={`${row.expertName} 配对留档照`}
+                            className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
+                          />
+                        </a>
+                      )}
                       <span className="text-center text-[9px] leading-tight text-[var(--muted-foreground)]">
                         最近配对照
                         {row.pairingPhoto.at ? ` · ${new Date(row.pairingPhoto.at).toLocaleString('zh-CN', { hour12: false })}` : ''}
