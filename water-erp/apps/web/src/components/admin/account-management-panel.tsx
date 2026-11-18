@@ -407,14 +407,16 @@ export function AccountManagementPanel() {
       {tab === "registration" ? (
         <RegistrationReviewPanel
           onAccountsChanged={() => {
-            // 通过/拒绝注册改变了账号集合，静默刷新列表数据——切回账号列表无需手动刷新
+            // 通过/拒绝注册改变了账号集合与待审计数——静默刷新列表与红标数据
+            // （切回账号列表无需手动刷新；注册审核角标即时回落）
             startTransition(async () => {
               await loadAccounts();
+              loadPending();
             });
           }}
         />
       ) : tab === "password" ? (
-        <PasswordRequestsPanel />
+        <PasswordRequestsPanel onChanged={() => loadPending()} />
       ) : (
       <>
 

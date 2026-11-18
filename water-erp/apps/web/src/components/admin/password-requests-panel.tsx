@@ -150,7 +150,7 @@ type ConfirmState =
   | { type: "reject-profile"; id: string }
   | null;
 
-export function PasswordRequestsPanel() {
+export function PasswordRequestsPanel({ onChanged }: { onChanged?: () => void } = {}) {
   const [role, setRole] = useState<string | null>(null);
   const [tab, setTab] = useState<"change" | "reset" | "profile">("change");
   // 深链（2026-09-26）：通知 link 带 ?section= 直达对应申请段
@@ -213,6 +213,7 @@ export function PasswordRequestsPanel() {
         await approvePasswordChangeRequest(requestId);
         setChangeRequests((prev) => prev.filter((r) => r.id !== requestId));
         toast.success("已批准修改密码申请，新密码已生效，该用户已登录会话已下线。");
+        onChanged?.();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "审批失败，请稍后重试。");
       }
@@ -226,6 +227,7 @@ export function PasswordRequestsPanel() {
         await rejectPasswordChangeRequest(requestId, reason);
         setChangeRequests((prev) => prev.filter((r) => r.id !== requestId));
         toast.success("已拒绝该修改密码申请。");
+        onChanged?.();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "拒绝申请失败，请稍后重试。");
       }
@@ -240,6 +242,7 @@ export function PasswordRequestsPanel() {
         const result = await approvePasswordResetRequest(requestId);
         setResetRequests((prev) => prev.filter((r) => r.id !== requestId));
         toast.success(`已批准「${result.requestedUsername}」的忘记密码申请（申请人：${resetRequest?.applicantName ?? "未知"}）。该账号密码已按提交内容更新，请通知其尽快登录后修改。`);
+        onChanged?.();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "重置密码失败，请稍后重试。");
       }
@@ -253,6 +256,7 @@ export function PasswordRequestsPanel() {
         await rejectPasswordResetRequest(requestId, reason);
         setResetRequests((prev) => prev.filter((r) => r.id !== requestId));
         toast.success("已拒绝该密码重置申请。");
+        onChanged?.();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "拒绝重置申请失败，请稍后重试。");
       }
@@ -266,6 +270,7 @@ export function PasswordRequestsPanel() {
         const result = await approveProfileChange(requestId);
         setProfileRequests((prev) => prev.filter((r) => r.id !== requestId));
         toast.success(`已通过「${result.username}」的资料变更，新资料已生效并已通知申请人。`);
+        onChanged?.();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "审批失败，请稍后重试。");
       }
@@ -279,6 +284,7 @@ export function PasswordRequestsPanel() {
         await rejectProfileChange(requestId, note);
         setProfileRequests((prev) => prev.filter((r) => r.id !== requestId));
         toast.success("已拒绝该资料变更申请，申请人当前资料保持不变。");
+        onChanged?.();
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "拒绝失败，请稍后重试。");
       }
