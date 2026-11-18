@@ -142,7 +142,7 @@ export default function ExpertEvaluatePage() {
   });
   const {
     onDraftSaved, restoreDraft, discardDraft, saveDraftNow, clearDraftBanner,
-    draftAvailable, draftDismissed, snapshotBaselineFromScores, setBaselineEntries,
+    draftAvailable, draftDismissed, advanceBaselineAfterServerData, setBaselineEntries,
   } = draftSync;
 
   const { connection: _wsConn, lastEventAt: _wsLastEvent, reconnectNow: _wsReconnect } = useExpertWebSocket(projectId, {
@@ -356,6 +356,9 @@ export default function ExpertEvaluatePage() {
       }
       setScores(prev => {
         const next = { ...prev };
+        // TAB-SYNC-02 ①：基线只推进服务端提及键（pointDecisions 键）——未提及键保留旧基线，
+        // 本地未推送编辑不烧入基线（整表重照吞并发对端编辑，已废止）
+        const serverMentioned: Record<string, ScoreEntry> = {};
         for (const pd of (d.pointDecisions ?? [])) {
           const scoreItemId = pointToItem.get(pd.pointId);
           if (!scoreItemId) continue;
@@ -365,10 +368,9 @@ export default function ExpertEvaluatePage() {
             ...cur,
             points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
           };
+          serverMentioned[k] = next[k];
         }
-        // TAB-SYNC-01：服务端已提交数据合并落定 → 快照即新的 last-synced 基线
-        //（提交分/点决策非本端未同步分歧，后续 WS pull 与此对表）
-        snapshotBaselineFromScores(next);
+        advanceBaselineAfterServerData(serverMentioned);
         return next;
       });
     } catch { /* my-scores optional — ignore */ }
@@ -424,6 +426,9 @@ export default function ExpertEvaluatePage() {
           }
           return next;
         });
+        // TAB-SYNC-02 ①：committed 键也是服务端提及——基线推进为服务端值（首挂载从空基线
+        // 到 committed 全量；此后 pull 与已提交值对表不再假冲突/假分歧）
+        advanceBaselineAfterServerData(existing);
         // sync per-supplier conflicts from server
         const serverConflicts: string[] = p.myExpertRecord?.conflictedSupplierIds || [];
         if (serverConflicts.length > 0) setConflictedSupplierIds(new Set(serverConflicts));

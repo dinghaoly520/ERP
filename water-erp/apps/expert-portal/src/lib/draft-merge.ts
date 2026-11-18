@@ -133,3 +133,24 @@ export function mergePulledDraft(
     conflicts: merged.conflicts,
   };
 }
+
+/**
+ * TAB-SYNC-02 ①：服务端数据落定后的基线推进——**只动服务端提及的键**。
+ *
+ * 缺陷背景（遗留待办 §三.1 ①）：原「整表重照」`baseline = {...当前 scores}` 会把本地
+ * ≤2s 防抖窗/推送失败遗留的未推送编辑烧入基线——此后对端对同键的并发编辑被判
+ * 「local==base」而静默接受，本地未推送编辑无声丢失（双端同病）。
+ * 语义：serverEntries（committed 记录 / pointDecisions 键）取服务端值为新基线；
+ * 未提及键保留旧基线（本地未推送编辑不入基线→并发分歧正确进弹窗）；空提及原引用短路。
+ * 注：恢复草稿路径仍是全量重照（恢复=本页新起点，语义不同，见 hook restoreDraft）。
+ */
+export function advanceBaselineAfterServerData(
+  baseline: Record<string, ScoreEntry>,
+  serverEntries: Record<string, ScoreEntry>,
+): Record<string, ScoreEntry> {
+  const keys = Object.keys(serverEntries);
+  if (keys.length === 0) return baseline;
+  const next = { ...baseline };
+  for (const k of keys) next[k] = serverEntries[k];
+  return next;
+}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { threeWayMerge, mergePulledDraft } from '../draft-merge.ts';
+import { threeWayMerge, mergePulledDraft, advanceBaselineAfterServerData } from '../draft-merge.ts';
 import type { ScoreEntry } from '../draft-merge.ts';
 
 /**
@@ -218,4 +218,27 @@ test('MPD-③ 双端并发分歧 → conflicts 携带双侧原值，next 保留�
   assert.equal(m.conflicts[0].local.score, 85);
   assert.equal(m.conflicts[0].remote.score, 90);
   assert.equal(m.next.price.score, 85);
+});
+
+// ── TAB-SYNC-02 ①：基线只在服务端提及键上推进（未推送编辑不再被整表重照吞掉）──
+
+test('ABS-① 服务端提及键 → 基线推进为服务端值（含基线缺省键=首拉形态）', () => {
+  const baseline = { A: e(80, 1) };
+  const server = { A: e(90, 5), B: e(70, 5) }; // A 已提交更新、B 新提交
+  const out = advanceBaselineAfterServerData(baseline, server);
+  assert.equal(out.A.score, 90);
+  assert.equal(out.B.score, 70);
+  assert.equal(out.C, undefined);
+});
+
+test('ABS-② 未提及键保留旧基线——本地未推送编辑（不在 serverEntries）不烧入基线', () => {
+  const baseline = { C: e(50, 1) }; // C 的 last-synced 值=50（本地可能已改成 55 但未推送）
+  const out = advanceBaselineAfterServerData(baseline, { A: e(90, 5) });
+  assert.equal(out.C.score, 50); // 仍 50，不是 55——并发远端编辑会正确判分歧进弹窗
+});
+
+test('ABS-③ 空 serverEntries → 原引用短路（零提及零改动）', () => {
+  const baseline = { A: e(80, 1) };
+  const out = advanceBaselineAfterServerData(baseline, {});
+  assert.equal(out, baseline);
 });

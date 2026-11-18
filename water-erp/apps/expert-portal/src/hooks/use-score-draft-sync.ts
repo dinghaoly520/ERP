@@ -14,7 +14,7 @@
  * - autosave 空 scores 早退（桌面既有守卫；平板原形态会对空表多发一次空清 POST——统一消除）。
  *
  * 页面职责边界：项目数据加载（loadProject/loadMyScores）留在页面，经
- * snapshotBaselineFromScores 回写基线（TAB-SYNC-02 ① 将在该落点改精确推进）；
+ * advanceBaselineAfterServerData 精确推进基线（TAB-SYNC-02 ①：仅服务端提及键）；
  * 冲突裁决弹窗留在页面，经 setBaselineEntries 同步被采纳键的基线。
  */
 
@@ -30,7 +30,7 @@ import {
   type ScoreEntry,
   type CommittedScoreRecord,
 } from '@/lib/score-validation';
-import { mergePulledDraft, normalizeDraftEntries, type ScoreEntry as DraftScoreEntry } from '@/lib/draft-merge';
+import { mergePulledDraft, advanceBaselineAfterServerData as advanceBaselineOnServerKeys, normalizeDraftEntries, type ScoreEntry as DraftScoreEntry } from '@/lib/draft-merge';
 
 /** 页面冲突裁决弹窗的条目形状（双页原 inline 类型收敛） */
 export interface DraftSyncConflict {
@@ -86,7 +86,7 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
 
   // TAB-SYNC-01 §4.1 last-synced 基线：草稿三方合并的「本页起点」。savedAt 不参与内容相等
   // （draft-merge 契约）。推进点：push 成功（advanceBaselineAfterPush）、pull 接受、
-  // 服务端数据落定（snapshotBaselineFromScores）、冲突裁决（setBaselineEntries）。
+  // 服务端数据落定（advanceBaselineAfterServerData，仅提及键）、冲突裁决（setBaselineEntries）。
   const baselineRef = useRef<Record<string, DraftScoreEntry>>({});
 
   // ── 草稿检查（挂载/换项目一次）：localStorage 快路径 → 服务端槽 fallback ──
@@ -131,9 +131,14 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
     for (const [k, v] of Object.entries(pending)) baselineRef.current[k] = v as DraftScoreEntry;
   }, [conflictModalOpen, draftConflicts.length]);
 
-  /** 页面服务端数据落定后的基线快照（原双页 `baselineRef.current = { ...next }` 落点） */
-  const snapshotBaselineFromScores = useCallback((snapshot: Record<string, ScoreEntry>) => {
-    baselineRef.current = { ...snapshot } as Record<string, DraftScoreEntry>;
+  /**
+   * TAB-SYNC-02 ①：服务端数据落定后的基线推进——只动服务端提及的键（committed 记录 /
+   * pointDecisions 键取服务端值），未提及键保留旧基线。原「整表重照」会把本地未推送编辑
+   * 烧入基线、吞并发对端编辑（遗留待办 §三.1 ①，已废止）。恢复草稿路径仍是全量重照
+   * （恢复=本页新起点，语义不同，见 restoreDraft）。
+   */
+  const advanceBaselineAfterServerData = useCallback((serverEntries: Record<string, ScoreEntry>) => {
+    baselineRef.current = advanceBaselineOnServerKeys(baselineRef.current, serverEntries as Record<string, DraftScoreEntry>);
   }, []);
 
   /** 冲突裁决：被采纳（remote）键成为该键新基线——对端后续同键编辑不再误报冲突 */
@@ -348,7 +353,7 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
     discardDraft,
     saveDraftNow,
     clearDraftBanner,
-    snapshotBaselineFromScores,
+    advanceBaselineAfterServerData,
     setBaselineEntries,
   };
 }

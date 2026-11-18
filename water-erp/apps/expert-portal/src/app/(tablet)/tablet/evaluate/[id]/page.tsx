@@ -99,7 +99,7 @@ export default function TabletEvaluatePage() {
   });
   const {
     onDraftSaved, restoreDraft, discardDraft,
-    draftAvailable, draftDismissed, snapshotBaselineFromScores, setBaselineEntries,
+    draftAvailable, draftDismissed, advanceBaselineAfterServerData, setBaselineEntries,
   } = draftSync;
 
   // P0-1: hydrate 时用 composite key（与桌面端一致，避免跨供应商串分）
@@ -139,9 +139,9 @@ export default function TabletEvaluatePage() {
             if (committedSupplierId && k.startsWith(`${committedSupplierId}:`)) continue; // 已提交的用服务端值
             if (!(k in next)) next[k] = v; // 其他供应商的未提交编辑保留
           }
-          // TAB-SYNC-01：服务端已提交数据合并落定 → 快照即新的 last-synced 基线
-          //（提交分非本端未同步分歧，后续 WS pull 与此对表）
-          snapshotBaselineFromScores(next);
+          // TAB-SYNC-02 ①：committed 键=服务端提及——只推进这些键（未提及保留旧基线，
+          // 未推送编辑不烧入；整表重照吞并发对端编辑，已废止）
+          advanceBaselineAfterServerData(existing);
           return next;
         });
         // 同时取 pointDecisions（checklist hydrate）+ disputesBySupplier（Phase 2 争议徽章）
@@ -158,6 +158,8 @@ export default function TabletEvaluatePage() {
             }
             setScores(prev => {
               const next = { ...prev };
+              // TAB-SYNC-02 ①：基线只推进 pointDecisions 提及键（与桌面端 loadMyScores 同源）
+              const serverMentioned: Record<string, ScoreEntry> = {};
               for (const pd of (d.pointDecisions ?? [])) {
                 const scoreItemId = pointToItem.get(pd.pointId);
                 if (!scoreItemId) continue;
@@ -167,10 +169,9 @@ export default function TabletEvaluatePage() {
                   ...cur,
                   points: { ...(cur.points ?? {}), [pd.pointId]: { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined } },
                 };
+                serverMentioned[k] = next[k];
               }
-              // TAB-SYNC-01：已提交点决策合并落定 → 快照基线（承接上一处 committed 合并，
-              // 与桌面端 loadMyScores 落点同源）
-              snapshotBaselineFromScores(next);
+              advanceBaselineAfterServerData(serverMentioned);
               return next;
             });
           })
