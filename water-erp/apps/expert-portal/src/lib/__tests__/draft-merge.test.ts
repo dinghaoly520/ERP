@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { threeWayMerge } from '../draft-merge.ts';
+import { threeWayMerge, mergePulledDraft } from '../draft-merge.ts';
 import type { ScoreEntry } from '../draft-merge.ts';
 
 /**
@@ -185,4 +185,37 @@ test('纯度：next 与 baseline 互不共享条目引用，改动 next 不影�
   assert.equal(m.baseline.price.score, 2);
   assert.equal(remote.price.score, 2);
   assert.equal(local.price.score, 1);
+});
+
+// ── TAB-SYNC-02 Task 1（⑤）：mergePulledDraft——双页 onDraftSaved 主体下放（输入/输出双侧归一）──
+
+test('MPD-① 输入侧归一：远端 passed:null 与本地缺省同值 → 不假冲突、静默接受/保留', () => {
+  const base = e(80, 1);
+  // 服务端形状：数值项 passed=null（draft-merge 契约：null≡缺省）
+  const remoteRaw = { price: { score: 80, reason: base.reason, passed: null, savedAt: 2 } };
+  const m = mergePulledDraft({ price: { ...base } }, { price: { ...base } }, remoteRaw as any);
+  assert.deepEqual(m.conflicts, []);
+  assert.equal(m.next.price.score, 80);
+  // 输出侧归一：next/baseline 不得携带 null passed
+  assert.ok(m.next.price.passed !== null);
+  assert.ok(m.baseline.price.passed !== null);
+});
+
+test('MPD-② 自回声：本机刚推的编辑原样回流（local==remote≠baseline）→ 保留本地、不冲突', () => {
+  const base = e(80, 1);
+  const mine = e(85, 2);
+  const m = mergePulledDraft({ price: { ...mine } }, { price: { ...base } }, { price: e(85, 3) });
+  assert.deepEqual(m.conflicts, []);
+  assert.equal(m.next.price.score, 85);
+  assert.equal(m.next.price.savedAt, 2); // 保留本地原打点，不被回声时戳覆盖
+});
+
+test('MPD-③ 双端并发分歧 → conflicts 携带双侧原值，next 保留本地', () => {
+  const base = e(80, 1);
+  const m = mergePulledDraft({ price: e(85, 2) }, { price: { ...base } }, { price: e(90, 3) });
+  assert.equal(m.conflicts.length, 1);
+  assert.equal(m.conflicts[0].key, 'price');
+  assert.equal(m.conflicts[0].local.score, 85);
+  assert.equal(m.conflicts[0].remote.score, 90);
+  assert.equal(m.next.price.score, 85);
 });

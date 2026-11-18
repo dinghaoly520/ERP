@@ -176,3 +176,23 @@ export function filterScorableItems<T extends { category: string }>(
   if (!priceFormulaActive) return scoreItems;
   return scoreItems.filter((si) => si.category !== 'PRICE');
 }
+
+/**
+ * TAB-SYNC-02 ⑤：pending-only 草稿构建——原桌面 buildPendingDraft / 平板 buildPendingTabletDraft
+ * 逐字重复副本收敛。与已提交记录等价（isCommittedEquivalent 三字段+得分点）的条目不入草稿；
+ * 无已提交记录或评分项缺失（item 缺失仅比较三字段的既有口径）→ 保留。
+ */
+export function buildPendingScoreDraft(
+  scores: Record<string, ScoreEntry>,
+  myScores?: CommittedScoreRecord[] | null,
+  scoreItems?: Array<{ id: string; category: string; points?: BidScorePoint[] }> | null,
+): Record<string, ScoreEntry> {
+  const pending: Record<string, ScoreEntry> = {};
+  for (const [k, v] of Object.entries(scores)) {
+    const [sid, itemId] = k.split(':');
+    const rec = committedRecordFor(myScores, sid, itemId);
+    const si = (scoreItems ?? []).find((s) => s.id === itemId);
+    if (!rec || !si || !isCommittedEquivalent(v, rec, si)) pending[k] = v;
+  }
+  return pending;
+}

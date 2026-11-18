@@ -107,3 +107,28 @@ export function threeWayMerge(
 
   return { next, conflicts, baseline: newBaseline };
 }
+
+/**
+ * TAB-SYNC-02 ⑤：pull 侧合并封装——双页 onDraftSaved 主体下放（原桌面/平板各一份的手工
+ * 副本收敛）。输入侧先把 local/baseline/remoteRaw 统一 normalizeDraftEntries（服务端形状
+ * passed=null 剥为缺省——null≠缺省的 JSON.stringify 深比较会整批假冲突），输出侧再归一，
+ * 双页从此共用同一语义；conflicts 携带归一前的 local/remote 原值（页面裁决弹窗展示用）。
+ */
+export interface PulledMergeDraftResult {
+  next: Record<string, NormalizedScoreEntry>;
+  baseline: Record<string, NormalizedScoreEntry>;
+  conflicts: DraftMergeConflict[];
+}
+
+export function mergePulledDraft(
+  local: Record<string, ScoreEntry>,
+  baseline: Record<string, ScoreEntry>,
+  remoteRaw: Record<string, ScoreEntry>,
+): PulledMergeDraftResult {
+  const merged = threeWayMerge(normalizeDraftEntries(local), normalizeDraftEntries(baseline), normalizeDraftEntries(remoteRaw));
+  return {
+    next: normalizeDraftEntries(merged.next),
+    baseline: normalizeDraftEntries(merged.baseline),
+    conflicts: merged.conflicts,
+  };
+}

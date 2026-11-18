@@ -11,8 +11,8 @@ import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
-import { buildFullPoints, committedRecordFor, isCommittedEquivalent, isQualificationShortCircuited, type ScoreEntry } from '@/lib/score-validation';
-import { threeWayMerge, normalizeDraftEntries } from '@/lib/draft-merge';
+import { buildFullPoints, committedRecordFor, isQualificationShortCircuited, type ScoreEntry } from '@/lib/score-validation';
+import { useScoreDraftSync, type DraftSyncConflict } from '@/hooks/use-score-draft-sync';
 import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { SupplierTabBar } from '@/components/evaluate/supplier-tab-bar';
@@ -81,31 +81,26 @@ export default function TabletEvaluatePage() {
   // at 单调来自服务端时钟，天然免疫序号回卷（服务端已同步改为不过期计数器，双保险）。
   const lastFocusAt = useRef(0);
 
-  // 评分草稿（localStorage 暂存 + 自动恢复）
-  const [draftAvailable, setDraftAvailable] = useState<{ count: number; savedAt: number } | null>(null);
-  const [serverDraft, setServerDraft] = useState<Record<string, ScoreEntry> | null>(null); // Phase 1：服务端草稿 fallback（跨设备恢复）
-  const [draftDismissed, setDraftDismissed] = useState(false);
-  // 草稿检查完成前暂停自动保存，避免挂载时覆盖待恢复草稿。
-  const [draftCheckDone, setDraftCheckDone] = useState(false);
-  // A2：草稿检查一次性守卫——本 effect 的 deps 含 project 身份（WS 刷新会重跑），只允许检查一次
-  const draftCheckedRef = useRef(false);
-  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 未落盘评分改动标记（断点续评加固，与桌面端同款）：驱动 beforeunload 原生防误关——
-  // 关页/刷新弹浏览器确认，回调内同步补写 localStorage（服务端槽位由 2s 防抖兜底）
-  const scoresRef = useRef<Record<string, ScoreEntry>>({});
-  // TAB-SYNC-01：scoresRef 恒随最新 scores（三方合并拉取须读当前值而非事件闭包快照；
-  // beforeunload 同步补写同源）——纯重渲染 scores 引用未变不触发
-  useEffect(() => { scoresRef.current = scores; }, [scores]);
-  // TAB-SYNC-01 §4.1 last-synced 基线：草稿三方合并的「本页起点」——恢复草稿/服务端数据
-  // 合并落定后初始化为当时快照；此后 pull 接受（onDraftSaved）与 push 推进
-  // （advanceBaselineAfterPush）逐键更新。savedAt 不参与内容相等（draft-merge 契约）
-  const baselineRef = useRef<Record<string, ScoreEntry>>({});
-  const unflushedRef = useRef(false);
-  const [hasUnflushed, setHasUnflushed] = useState(false);
-  const draftStorageKey = useMemo(() => {
-    const expertId = project?.myExpertRecord?.id;
-    return expertId ? `expert-draft-tablet:${projectId}:${expertId}` : '';
-  }, [project?.myExpertRecord?.id, projectId]);
+  // TAB-SYNC-02 ⑤：草稿状态/基线/防抖计时器/未落盘标记全部收敛进 useScoreDraftSync
+  //（与桌面端评分页同源——原页内副本 2026-11-18 删除；serverDraft 检查缓存态随之消灭，
+  //  restore 无本地草稿时现拉服务端槽，语义等价）
+  const [draftConflicts, setDraftConflicts] = useState<DraftSyncConflict[]>([]);
+  const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const draftSync = useScoreDraftSync({
+    projectId,
+    expertId: project?.myExpertRecord?.id,
+    device: 'tablet',
+    active: true,            // 平板单页评分，无桌面 step 门
+    checkReady: !!project,   // 检查需 project 已加载（restore 防御归一依赖 scoreItems）
+    scores, setScores,
+    scoreItems: project?.scoreItems ?? [],
+    myScores: project?.myScores ?? [],
+    conflictModalOpen, draftConflicts, setDraftConflicts,
+  });
+  const {
+    onDraftSaved, restoreDraft, discardDraft,
+    draftAvailable, draftDismissed, snapshotBaselineFromScores, setBaselineEntries,
+  } = draftSync;
 
   // P0-1: hydrate 时用 composite key（与桌面端一致，避免跨供应商串分）
   // P0-B: committedSupplierId 传入本次提交的供应商，合并刷新时仅覆盖该供应商、保留其他供应商未提交编辑
@@ -146,7 +141,7 @@ export default function TabletEvaluatePage() {
           }
           // TAB-SYNC-01：服务端已提交数据合并落定 → 快照即新的 last-synced 基线
           //（提交分非本端未同步分歧，后续 WS pull 与此对表）
-          baselineRef.current = { ...next };
+          snapshotBaselineFromScores(next);
           return next;
         });
         // 同时取 pointDecisions（checklist hydrate）+ disputesBySupplier（Phase 2 争议徽章）
@@ -175,7 +170,7 @@ export default function TabletEvaluatePage() {
               }
               // TAB-SYNC-01：已提交点决策合并落定 → 快照基线（承接上一处 committed 合并，
               // 与桌面端 loadMyScores 落点同源）
-              baselineRef.current = { ...next };
+              snapshotBaselineFromScores(next);
               return next;
             });
           })
@@ -220,215 +215,9 @@ export default function TabletEvaluatePage() {
       // 平板从不提交评分——任何 scoresSubmitted 都来自桌面端或其他专家，都应刷新
       loadProject();
     },
-    onDraftSaved: (d) => {
-      if (d.device === 'tablet') return;
-      // 跨专家噪音过滤：draft:saved 按项目房间广播，只响应本人草稿（他人保存不触发本端拉取）
-      if (!project?.myExpertRecord?.id || d.expertId !== project.myExpertRecord.id) return;
-      // TAB-SYNC-01（T8 接线契约②）：冲突未裁决期间暂停拉取合并——冲突键 baseline 已前移到
-      // local，此时拉取会把同一远端分歧静默接受为「远端未变」（桌面端评审 Minor#1）
-      if (conflictModalOpen || draftConflicts.length > 0) return;
-      api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
-        .then(draft => {
-          if (!draft?.scores) return;
-          // TAB-SYNC-01 §4.1：last-synced 基线三方合并——本端未动的键接受远端（含新增键静默
-          // 并入）、双端并发分歧进横幅/裁决弹窗（next 对冲突键保留本端）；baseline 推进为本次
-          // 接受后的快照。scoresRef 读当前值（事件闭包里的 scores 可能滞后于最近编辑）。
-          // 归一先行（桌面端复审 Minor 项，平板做对）：服务端形状 passed=null 先剥为缺省再进
-          // threeWayMerge——JSON.stringify 深比较视 null≠缺省，数值项会整批假冲突。
-          const remote = normalizeDraftEntries(draft.scores);
-          const result = threeWayMerge(scoresRef.current, baselineRef.current, remote);
-          const nextScores = normalizeDraftEntries(result.next);
-          setScores(prev => {
-            let changed = false;
-            for (const k of new Set([...Object.keys(prev), ...Object.keys(nextScores)])) {
-              if (JSON.stringify(prev[k]) !== JSON.stringify(nextScores[k])) { changed = true; break; }
-            }
-            return changed ? nextScores : prev;
-          });
-          baselineRef.current = normalizeDraftEntries(result.baseline);
-          if (result.conflicts.length > 0) {
-            const conflicts: typeof draftConflicts = result.conflicts.map(c => ({
-              key: c.key,
-              scoreItemName: project?.scoreItems.find(si => c.key.endsWith(`:${si.id}`))?.name ?? c.key,
-              localVal: c.local,
-              remoteVal: c.remote,
-            }));
-            setDraftConflicts(prev => [...prev, ...conflicts]);
-          }
-        })
-        .catch(() => {});
-    },
+    // TAB-SYNC-02 ⑤：pull 合并主体收敛到 useScoreDraftSync（与桌面端同源）
+    onDraftSaved,
   });
-
-  // 草稿：项目加载后检查本地草稿；无本地则 fallback 服务端草稿（跨设备恢复）
-  useEffect(() => {
-    if (!draftStorageKey || !project) return;
-    // A2：deps 含 project 身份（WS 刷新会重跑），once-guard 保证只检查一次、不反复设闸
-    if (draftCheckedRef.current) return;
-    draftCheckedRef.current = true;
-    try {
-      const raw = localStorage.getItem(draftStorageKey);
-      if (raw) {
-        const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
-        const count = Object.keys(draft.scores ?? {}).length;
-        if (count > 0) { setDraftAvailable({ count, savedAt: draft.savedAt }); setDraftCheckDone(true); return; }
-      }
-    } catch { /* 本地草稿损坏 → 继续 fallback 服务端 */ }
-    api.get<{ scores: Record<string, ScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=tablet`)
-      .then((d) => {
-        // A1：无论服务端有无草稿都置位，解除自动保存悬置
-        setDraftCheckDone(true);
-        if (!d || !d.scores) return;
-        const count = Object.keys(d.scores).length;
-        if (count > 0) { setServerDraft(d.scores); setDraftAvailable({ count, savedAt: d.savedAt ?? Date.now() }); }
-      })
-      .catch(() => { setDraftCheckDone(true); /* 服务端草稿可选 — ignore */ });
-  }, [draftStorageKey, project, projectId]);
-
-  // pending-only 草稿构建（对齐桌面）：与已提交记录等价（三字段+有效得分点映射）的条目不入草稿；
-  // 原按键成员过滤会静默丢弃「已提交项再修改」，改为值感知（隐藏缺陷一并修复）
-  const buildPendingTabletDraft = useCallback((source: Record<string, ScoreEntry>): Record<string, ScoreEntry> => {
-    const draftScores: Record<string, ScoreEntry> = {};
-    for (const [k, v] of Object.entries(source)) {
-      const [sid, itemId] = k.split(':');
-      const rec = committedRecordFor(project?.myScores, sid, itemId);
-      const si = project?.scoreItems.find(s => s.id === itemId);
-      if (!rec || !si || !isCommittedEquivalent(v, rec, si)) draftScores[k] = v;
-    }
-    return draftScores;
-  }, [project]);
-
-  // TAB-SYNC-01（T8 接线契约①）：本端推送成功后对「本次推送的键」推进 baseline——
-  // 推送值即双端共同所见，不推进则桌面端后续对同键的编辑会被误判为双端分歧（假冲突）。
-  // 只并入本端推送键、不整表重拉：GET score-draft 返回双槽逐键取新的合并视图，会把桌面
-  // 尚未拉取合并的新值提为基线，随后 pull 判其「远端未变」而静默丢弃本端编辑。
-  // 有未裁决冲突时跳过（T8 契约②同源：冲突键 baseline 已前移到 local）。
-  const advanceBaselineAfterPush = (pending: Record<string, ScoreEntry>) => {
-    if (conflictModalOpen || draftConflicts.length > 0) return;
-    for (const [k, v] of Object.entries(pending)) baselineRef.current[k] = v;
-  };
-
-  // 草稿自动暂存（scores 变化后 2 秒防抖）
-  useEffect(() => {
-    if (!draftStorageKey) return;
-    // 草稿检查未完成或仍有待处理草稿横幅时暂停自动保存，避免覆盖待恢复草稿；
-    // 悬置期间清掉已排定的定时器（A3）
-    if (!draftCheckDone || draftAvailable !== null) {
-      if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
-      return;
-    }
-    if (draftTimer.current) clearTimeout(draftTimer.current);
-    // 改动已发生但 2s 防抖未落盘——挂起 beforeunload 防误关
-    unflushedRef.current = true;
-    setHasUnflushed(true);
-    draftTimer.current = setTimeout(() => {
-      unflushedRef.current = false;
-      setHasUnflushed(false);
-      try {
-        const draftScores = buildPendingTabletDraft(scores);
-        if (Object.keys(draftScores).length > 0) {
-          localStorage.setItem(draftStorageKey, JSON.stringify({ scores: draftScores, savedAt: Date.now() }));
-          // 同步草稿到服务端（与桌面端一致，跨设备恢复）；成功后推进 last-synced 基线（T8 契约①）
-          api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: draftScores, savedAt: Date.now() })
-            .then(() => advanceBaselineAfterPush(draftScores))
-            .catch(() => {});
-        } else {
-          localStorage.removeItem(draftStorageKey); // 无未提交条目 → 清掉草稿
-          // 服务端 tablet 槽同步清空（此前只清 localStorage，槽内残留仍会触发恢复横幅）
-          api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: {}, savedAt: Date.now() }).catch(() => {});
-        }
-      } catch { /* quota exceeded — silent */ }
-    }, 2000);
-    return () => {
-      if (draftTimer.current) clearTimeout(draftTimer.current);
-    };
-  }, [scores, draftStorageKey, project, draftAvailable, draftCheckDone, buildPendingTabletDraft]);
-
-  // 防误关加固（与桌面端同款）：有未落盘改动时关页/刷新弹浏览器原生确认；确认离开前同步补写 localStorage
-  //（beforeunload 内无异步机会，服务端槽位靠 2s 防抖兜底——最坏丢服务端同步，本地草稿已保住）。
-  useEffect(() => {
-    if (!hasUnflushed) return;
-    const flushLocalSync = () => {
-      if (!unflushedRef.current || !draftStorageKey) return;
-      try {
-        const pending = buildPendingTabletDraft(scoresRef.current);
-        if (Object.keys(pending).length > 0) {
-          localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
-        }
-      } catch { /* quota — ignore */ }
-    };
-    const handler = (e: BeforeUnloadEvent) => {
-      if (!unflushedRef.current) return;
-      flushLocalSync();
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [hasUnflushed, draftStorageKey, buildPendingTabletDraft]);
-
-  // 草稿操作
-  // 防御：恢复时把存量部分映射草稿补全为完整映射（缺失点按 passed/提交分回退）
-  const normalizeDraftScores = useCallback((draftScores: Record<string, ScoreEntry>): Record<string, ScoreEntry> => {
-    const norm: Record<string, ScoreEntry> = {};
-    for (const [k, v] of Object.entries(draftScores)) {
-      const [sid, itemId] = k.split(':');
-      const si = project?.scoreItems.find(s => s.id === itemId);
-      const committedScore = committedRecordFor(project?.myScores, sid, itemId)?.score ?? null;
-      const hasPartialPoints = v.points && Object.keys(v.points).length > 0;
-      if (si && hasPartialPoints) {
-        const points = buildFullPoints(si, v, committedScore);
-        // EXP-P3-08：草稿可能缺 passed（旧版存档/中断保存）——通过性项从客观分点重导
-        // （与桌面端 restoreDraft 同规则），否则恢复后勾选全亮、项头却「未评」
-        let passed = v.passed;
-        if (typeof passed !== 'boolean' && isPassFailCategory(si.category)) {
-          const objectivePts = (si.points ?? []).filter((p: any) => p.objective);
-          if (objectivePts.length > 0) passed = objectivePts.every((p: any) => points[p.id]?.checked === true);
-        }
-        norm[k] = { ...v, points, ...(typeof passed === 'boolean' ? { passed } : {}) };
-      } else {
-        norm[k] = v;
-      }
-    }
-    return norm;
-  }, [project]);
-
-  const restoreDraft = useCallback(() => {
-    if (!draftStorageKey) return;
-    try {
-      const raw = localStorage.getItem(draftStorageKey);
-      if (raw) {
-        const draft = JSON.parse(raw) as { scores: Record<string, ScoreEntry>; savedAt: number };
-        const norm = normalizeDraftScores(draft.scores);
-        // TAB-SYNC-01：恢复落定即本页起点——以合并后快照初始化 last-synced 基线
-        //（scoresRef 在本点击前已同步提交态，等效于 setScores 的 prev）
-        const merged = { ...scoresRef.current, ...norm };
-        setScores(merged);
-        baselineRef.current = merged;
-        toast.success(`已恢复 ${Object.keys(norm).length} 项评分`);
-        setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
-        return;
-      }
-    } catch { /* 本地损坏 → fallback 服务端 */ }
-    if (serverDraft) {
-      const norm = normalizeDraftScores(serverDraft);
-      // 同上：恢复落定即新基线（服务端草稿是双槽逐键取新的合并视图）
-      const merged = { ...scoresRef.current, ...norm };
-      setScores(merged);
-      baselineRef.current = merged;
-      toast.success(`已恢复 ${Object.keys(norm).length} 项评分（来自已保存的草稿）`);
-    }
-    setDraftAvailable(null); setDraftDismissed(true); setServerDraft(null);
-  }, [draftStorageKey, serverDraft, normalizeDraftScores]);
-
-  const discardDraft = useCallback(() => {
-    if (draftStorageKey) localStorage.removeItem(draftStorageKey);
-    // 报告确认后草稿端点对空清载荷豁免锁定——丢弃同时清服务端 tablet 槽
-    api.post(`/expert/projects/${projectId}/score-draft?device=tablet`, { scores: {}, savedAt: Date.now() }).catch(() => {});
-    setServerDraft(null);
-    setDraftAvailable(null);
-    setDraftDismissed(true);
-  }, [draftStorageKey, projectId]);
 
   useEffect(() => {
     if (project && project.suppliers.length > 0 && !activeSupplier) {
@@ -541,13 +330,6 @@ export default function TabletEvaluatePage() {
     newVal: PointDecisionValue;
     applyFn: (val: PointDecisionValue) => void;
   } | null>(null);
-  const [draftConflicts, setDraftConflicts] = useState<Array<{
-    key: string;
-    scoreItemName: string;
-    localVal: any;
-    remoteVal: any;
-  }>>([]);
-  const [conflictModalOpen, setConflictModalOpen] = useState(false);
 
   const grouped = useMemo(() => {
     const g: Record<string, NonNullable<typeof project>['scoreItems']> = {};
@@ -1496,9 +1278,9 @@ export default function TabletEvaluatePage() {
           });
           // TAB-SYNC-01（draft-merge 契约）：裁决后同步 last-synced 基线——被采纳值成为该键
           // 新基线，本端后续对同键的编辑不再误报冲突（'local' 裁决键 baseline 已=local 无需动）
-          for (const c of draftConflicts) {
-            if (resolved[c.key] === 'remote') baselineRef.current[c.key] = c.remoteVal;
-          }
+          setBaselineEntries(Object.fromEntries(
+            draftConflicts.filter(c => resolved[c.key] === 'remote').map(c => [c.key, c.remoteVal]),
+          ));
           setDraftConflicts([]);
           setConflictModalOpen(false);
         }}
