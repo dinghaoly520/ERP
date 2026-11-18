@@ -281,6 +281,27 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.logger.debug(`WS connected role=${role} host=${(socket.data as any).isHost}`);
   }
 
+  /** TAB-SYNC-02 P2-2：吊销广播——向项目房发 pairing:revoked（平板在房内收事件后断开/
+   *  回配对页；桌面同房刷新配对徽章）。客户端合作踢出足够：写路径 AuthGuard 恒有 Redis
+   *  存活校验兜底（401 PAIRING_REVOKED），忽略事件的客户端拿不到任何写面。 */
+  notifyPairingRevoked(projectId: string, expertId: string): void {
+    this.server?.to(`project:${projectId}`).emit('pairing:revoked', { projectId, expertId });
+  }
+
+  /** TAB-SYNC-02 P2-2：踢除该专家名下的配对（scoped）socket——仅 pairingPid 有值的连接
+   *  （P2-1 连接态）；全量桌面/专家连接不动。未 join 的悬挂 scoped socket 无业务房可收
+   *  事件，靠握手存活校验（T6/fix#8）拒绝，不在本方法责任面。 */
+  kickPairingSockets(expertId: string): void {
+    const set = this.expertSockets.get(expertId);
+    if (!set) return;
+    for (const sid of set) {
+      const sock = this.server?.sockets?.sockets?.get?.(sid) as
+        | { data?: { pairingPid?: string }; disconnect?: (close: boolean) => void }
+        | undefined;
+      if (sock?.data?.pairingPid) sock.disconnect?.(true);
+    }
+  }
+
   handleDisconnect(socket: Socket) {
     const supplierId: string | undefined = (socket.data as any).supplierId;
     const projectId = this.socketProjects.get(socket.id);

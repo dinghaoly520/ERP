@@ -655,3 +655,42 @@ describe('BidGateway join 层平板配对 pid 绑定（TAB-SYNC-02 P2-1）', () 
     expect(joined).toEqual(['project:p9', 'experts:p9']);
   });
 });
+
+// ── TAB-SYNC-02 P2-2：吊销即时断连——广播 + scoped socket 踢除 ──
+
+describe('BidGateway 吊销即时断连（TAB-SYNC-02 P2-2）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
+  } as any;
+
+  function makeGateway() {
+    return new BidGateway({} as any, prismaMock);
+  }
+
+  it('notifyPairingRevoked → 向 project 房发 pairing:revoked {projectId, expertId}', () => {
+    const gw = makeGateway();
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = { to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }) } as any;
+    gw.notifyPairingRevoked('p1', 'be1');
+    expect(emitted).toEqual([{ room: 'project:p1', event: 'pairing:revoked', payload: { projectId: 'p1', expertId: 'be1' } }]);
+  });
+
+  it('kickPairingSockets → 仅踢 pairingPid 有值的 scoped 连接，全量连接不动', () => {
+    const gw = makeGateway();
+    const scopedSock = { data: { pairingPid: 'p1' }, disconnect: jest.fn() };
+    const fullSock = { data: {}, disconnect: jest.fn() };
+    const sockets = new Map([['sid-scoped', scopedSock], ['sid-full', fullSock]]);
+    gw.server = { sockets: { sockets: { get: (id: string) => sockets.get(id) } } } as any;
+    gw['expertSockets'].set('be1', new Set(['sid-scoped', 'sid-full']));
+    gw.kickPairingSockets('be1');
+    expect(scopedSock.disconnect).toHaveBeenCalledWith(true);
+    expect(fullSock.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('kickPairingSockets → 无登记（空 Map/未 join）幂等不炸', () => {
+    const gw = makeGateway();
+    expect(() => gw.kickPairingSockets('nobody')).not.toThrow();
+  });
+});
