@@ -613,3 +613,45 @@ describe('BidGateway 专家连接表与复议定向推送（B1，2026-11-12）',
     expect(emitted.map(e => e.room)).toEqual(['host:p1']);
   });
 });
+
+// ── TAB-SYNC-02 P2-1：WS join 层 scoped pid 绑定闸（HTTP 面 PAIRING_PROJECT_MISMATCH 的镜像）──
+
+describe('BidGateway join 层平板配对 pid 绑定（TAB-SYNC-02 P2-1）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
+  } as any;
+
+  function makeGateway() {
+    return new BidGateway({} as any, prismaMock);
+  }
+
+  it('scoped（pairingPid=p1）join 非绑定项目 p2 → PAIRING_PROJECT_MISMATCH、不进任何房、不登记连接表', async () => {
+    const gw = makeGateway();
+    prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'be1', projectId: 'p2', userId: 'u-exp' });
+    const joined: string[] = [];
+    const client = { id: 'sock-tab', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p2')).toEqual({ error: 'PAIRING_PROJECT_MISMATCH' });
+    expect(joined).toEqual([]);
+    expect(gw['expertSockets'].get('be1')).toBeUndefined(); // 闸在指派查询后、登记前——不得留半登记
+  });
+
+  it('scoped join 绑定项目 p1（本人被指派）→ 正常进房 ok', async () => {
+    const gw = makeGateway();
+    prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'be1', projectId: 'p1', userId: 'u-exp' });
+    const joined: string[] = [];
+    const client = { id: 'sock-tab2', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(['project:p1', 'experts:p1']);
+  });
+
+  it('全量令牌专家（无 pairingPid）join 任意被指派项目不受新闸影响', async () => {
+    const gw = makeGateway();
+    prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'be2', projectId: 'p9', userId: 'u-full' });
+    const joined: string[] = [];
+    const client = { id: 'sock-full', data: { role: 'bid_expert', userId: 'u-full' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p9')).toEqual({ ok: true });
+    expect(joined).toEqual(['project:p9', 'experts:p9']);
+  });
+});

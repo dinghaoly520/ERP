@@ -203,7 +203,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     let role: string | undefined;
     let userId: string | undefined;
-    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string } | undefined;
+    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string; pid?: string } | undefined;
     try {
       payload = await this.jwt.verifyAsync(token);
       role = payload?.role;
@@ -273,6 +273,11 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     (socket.data as any).userId = userId;
     (socket.data as any).role = role;
     (socket.data as any).isHost = canJoinHostRoom(role);
+    // TAB-SYNC-02 P2-1：scoped 令牌绑定项目落连接态——join:project 层据此设闸
+    //（HTTP 面 PairingScopeGuard PAIRING_PROJECT_MISMATCH 的 WS 镜像；全量令牌无 pid 不设闸）
+    if (payload?.scope === 'tablet-pairing' && typeof payload.pid === 'string') {
+      (socket.data as any).pairingPid = payload.pid;
+    }
     this.logger.debug(`WS connected role=${role} host=${(socket.data as any).isHost}`);
   }
 
@@ -339,6 +344,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
         where: { projectId, userId, invitationStatus: { not: 'declined' } },
       });
       if (!assigned) return { error: 'NOT_ASSIGNED_EXPERT' };
+      // TAB-SYNC-02 P2-1：scoped 平板只能进配对绑定项目的房间（读他项目实时流 = 越权面）
+      const pairingPid = (client.data as any).pairingPid as string | undefined;
+      if (pairingPid && projectId !== pairingPid) return { error: 'PAIRING_PROJECT_MISMATCH' };
       // B1（2026-11-12）：登记专家连接表——组长复议召集等定向投递按 expertId 寻址（镜像 supplier 分支）
       (client.data as any).expertId = assigned.id;
       let expertSet = this.expertSockets.get(assigned.id);
