@@ -141,7 +141,7 @@ export default function ExpertEvaluatePage() {
     conflictModalOpen, draftConflicts, setDraftConflicts,
   });
   const {
-    onDraftSaved, restoreDraft, discardDraft, saveDraftNow, clearDraftBanner,
+    onDraftSaved, restoreDraft, discardDraft, saveDraftNow, clearDraftBanner, cancelPendingAutosave,
     draftAvailable, draftDismissed, advanceBaselineAfterServerData, setBaselineEntries,
   } = draftSync;
 
@@ -997,6 +997,9 @@ export default function ExpertEvaluatePage() {
     setBusy(true);
     try {
       await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName });
+      // T5 审查 Minor#1：先取消已排定的防抖自动保存——armed timer 会以 stale myScores 重推
+      // 刚提交键（新键打点 > updatedAt 穿透 ② 过滤 → 幽灵横幅）
+      cancelPendingAutosave();
       // 不再整键删除草稿（会误删其他供应商未提交分）；TAB-SYNC-02 ②：按供应商前缀清本端槽
       // ——该供应商键即时出槽（其余未提交分保留），对端槽由 GET 服务端陈旧过滤兜底
       const remaining = Object.fromEntries(

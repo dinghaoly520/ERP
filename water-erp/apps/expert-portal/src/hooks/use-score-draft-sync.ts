@@ -323,6 +323,17 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
     setDraftAvailable(null);
   }, []);
 
+  /**
+   * T5 审查 Minor#1 回修：取消已排定的防抖自动保存——提交评分成功后必须先调本函数再清槽，
+   * 否则 armed timer 以 stale myScores 重推刚提交的供应商键（stampDraftEntries 视作新键打
+   * 服务器钟 > updatedAt），② 过滤被穿透、复活出「检测到未提交草稿」幽灵横幅。
+   */
+  const cancelPendingAutosave = useCallback(() => {
+    if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
+    unflushedRef.current = false;
+    setHasUnflushed(false);
+  }, []);
+
   // ── WS pull：对方设备保存草稿 → 拉取 + 三方合并（mergePulledDraft 双侧归一）──
   const onDraftSaved = useCallback((d: DraftSavedPayload) => {
     if (d.device === device) return;
@@ -371,6 +382,7 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
     discardDraft,
     saveDraftNow,
     clearDraftBanner,
+    cancelPendingAutosave,
     advanceBaselineAfterServerData,
     setBaselineEntries,
   };
