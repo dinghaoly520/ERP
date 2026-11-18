@@ -2374,14 +2374,22 @@ export class ExpertService {
       // PRICE 项由公式引擎出分、专家不写记录——同 recomputeExpertProgress 口径排除，
       // 否则竞价采购（仅通过性+PRICE）每家恒「尚 1 项未评」，核对/报告确认/末签全链死锁。
       const itemCount = await this.prisma.bidScoreItem.count({ where: { projectId, category: { not: 'PRICE' } } });
+      // bug#140a 资格短路豁免（2026-11-18 验收实录）：该专家已判该供应商任一通过性项「不通过」→
+      // 其非通过性项免评，完整性闸只要求通过性项——与 recomputeExpertProgress 分母/前端校验同口径。
+      // 否则豁免家永远过不了核对 → allVerified 恒 false → canConfirm 恒 false → 报告确认新死锁。
+      // passed===false 只会出现在通过性记录上（数值项落库恒 null），无需再按类目复核。
+      const shortCircuited = scores.some(r => r.passed === false);
+      const requiredCount = shortCircuited
+        ? await this.prisma.bidScoreItem.count({ where: { projectId, category: { in: ['QUALIFICATION', 'RESPONSIVE'] } } })
+        : itemCount;
       // 0 记录拒收须 0 项感知（2026-10-20 终审对齐）：非 none 项目 0 个非 PRICE 项（如仅 PRICE 公式标）
       // 的 progress 已按真实比例算到 100，旧序先判 scores.length===0 → 恒 400 SCORING_INCOMPLETE
       // 的混合态——先取 itemCount 再判「有项且 0 记录」（scores.length < itemCount 对 0 项天然放行）。
       if (itemCount > 0 && scores.length === 0) {
         throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
       }
-      if (scores.length < itemCount) {
-        throw new BadRequestException({ error: `该供应商尚有 ${itemCount - scores.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
+      if (scores.length < requiredCount) {
+        throw new BadRequestException({ error: `该供应商尚有 ${requiredCount - scores.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
       }
     }
 
@@ -3738,7 +3746,9 @@ export class ExpertService {
   /** 配对留档照登记（检测级证据；skipped=摄像头不可用跳过——如实留痕）
    *  严版（2026-09-23，迁移制沿用）：签到无留档照者（transferPhotoPendingAt 非空）skipped
    *  必须有主持人豁免（transferPhotoExemptAt），否则 403 PHOTO_REQUIRED_FOR_TRANSFER——
-   *  服务端权威，前端隐藏只是 UX。 */
+   *  服务端权威，前端隐藏只是 UX。
+   *  2026-11-18 生产 bug 修复：照片三件套落 BidExpert（此前 photoAssetId 收下即丢——照片上传成
+   *  孤儿 FileAsset，:3007 留档照区无处可显）。证据只增不灭：跳过/未拍不触碰旧照，仅新照片覆盖。 */
   async recordPairingPhoto(userId: string, projectId: string, dto: { photoAssetId?: string | null; occlusion?: 'passed' | 'unchecked' | null; skipped?: boolean }) {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId, userId },
@@ -3751,9 +3761,22 @@ export class ExpertService {
         code: 'PHOTO_REQUIRED_FOR_TRANSFER',
       });
     }
+    // 拍照留痕：镜像 signIn 路径三验（存在+类目+归属本人，2026-11-18 评审）——
+    // 落库即成 :3007 核验矩阵权威证据，防塞他人资产/伪 id 污染证据面
+    if (dto.photoAssetId) {
+      const asset = await this.prisma.fileAsset.findUnique({ where: { id: dto.photoAssetId } });
+      if (!asset || asset.category !== 'expert_signin_photo' || asset.uploaderId !== userId) {
+        throw new BadRequestException({ error: '配对留档照无效，请重新拍摄上传', code: 'INVALID_PAIRING_PHOTO' });
+      }
+    }
     await this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { transferPhotoPendingAt: null },
+      data: {
+        transferPhotoPendingAt: null,
+        ...(dto.photoAssetId
+          ? { transferPhotoAssetId: dto.photoAssetId, transferPhotoAt: new Date(), transferPhotoOcclusion: dto.occlusion ?? null }
+          : {}),
+      },
     });
     await this.prisma.bidSupervisionLog.create({
       data: {

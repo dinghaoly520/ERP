@@ -257,9 +257,10 @@ export class BidEvaluationResultsService {
     // ── 通过性审查废标判定：某项不通过票严格过半 → 该供应商废标 ──
     const passFailVerdicts = new Map<string, boolean>(); // supplierId -> disqualified
     const passFailFailures: { supplierId: string; supplierName: string; category: string; fail: number; total: number }[] = [];
+    // bug#140a：通过性项 id 集——下方废标判定与聚合豁免（aggregateSupplierScores）共用
+    const passFailItemIds = new Set<string>();
     {
       // 收集所有通过性 scoreItemId（按项目）
-      const passFailItemIds = new Set<string>();
       // 需要每个 record 的 scoreItem.category；上面 allScoreRecords 未 include scoreItem，单独查一次通过性项
       const passFailItems = await this.prisma.bidScoreItem.findMany({
         where: { projectId, category: { in: ['QUALIFICATION', 'RESPONSIVE'] } },
@@ -460,6 +461,7 @@ export class BidEvaluationResultsService {
       recordsBySupplier,
       formulaPriceScores,
       priceItemIds,
+      passFailItemIds, // bug#140a：聚合层按 (专家,供应商) 对排除资格短路豁免专家
       passFailVerdicts,
       bidPrices,
       isNegotiation,

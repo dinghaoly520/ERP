@@ -237,6 +237,8 @@ export interface ExpertVerificationRow {
   onlineDevice: { deviceClass: string; uaSummary: string; ip?: string | null; at?: string } | null;
   /** TAB-SYNC-01（2026-11-12 spec §9.3）：当前活跃平板配对（Redis 快照）；null=未配对或登记不可用 */
   tabletPaired: { device: { uaSummary: string; ip?: string | null } | null; pairedAt: number | null } | null;
+  /** 配对留档照（2026-11-18 落库证据）：平板配对时拍摄；解绑后 Redis 配对行消失、此据仍留存 */
+  pairingPhoto: { assetId: string; at: string | null; occlusion: 'passed' | 'unchecked' | null } | null;
   /** 签到设备（signInMeta.userAgent 即时分类） */
   signInDevice: { deviceClass: string; uaSummary: string } | null;
   /** 严版（2026-09-23）：迁移留档照待补拍/豁免态 */

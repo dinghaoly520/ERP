@@ -49,12 +49,16 @@ export async function findCrossWindowExperts(
   return conflicts;
 }
 
-/** 评标室口令：8 位随机，去混淆字符集（无 0/O/1/I） */
+/** 评标室口令：4 位随机（2026-11-18 用户裁定 8→4），去混淆字符集（无 0/O/1/I），必含字母与数字 */
+export const ROOM_CODE_LENGTH = 4;
 const ROOM_CODE_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export function generateRoomCode(): string {
-  let code = '';
-  for (let i = 0; i < 8; i++) code += ROOM_CODE_CHARSET[randomInt(ROOM_CODE_CHARSET.length)];
-  return code;
+  for (;;) {
+    let code = '';
+    for (let i = 0; i < ROOM_CODE_LENGTH; i++) code += ROOM_CODE_CHARSET[randomInt(ROOM_CODE_CHARSET.length)];
+    // 「字母加数字」：拒绝纯字母/纯数字抽样（落空率≈0.32，期望约 1.5 轮），拒绝采样保持无偏
+    if (/[A-Z]/.test(code) && /[2-9]/.test(code)) return code;
+  }
 }
 
 /** 口令爆破阈值（2026-09-20 用户裁定：3 次锁 10 分钟） */

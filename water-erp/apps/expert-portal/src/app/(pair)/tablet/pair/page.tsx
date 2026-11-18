@@ -63,10 +63,15 @@ function PairFlow() {
       setPhotoBusy(true);
       try {
         await api.post(`/expert/projects/${projectId}/pairing-photo`, payload);
-      } catch {
-        /* 留痕失败不阻塞进入（会话已配对成功） */
-      } finally {
         router.replace(`/tablet/evaluate/${projectId}`);
+      } catch (e: any) {
+        // 2026-11-18 用户裁定①：登记失败不再静默吞后跳走——照片已上传、登记被吞=再产孤儿资产
+        // （本 bug 的边角路径）。留在原地给重试；放弃走「暂不拍摄」入口（skipped 如实留痕）。
+        setPhotoBusy(false);
+        toast.error(e?.message || '留档照登记失败——照片已上传，请重试登记', {
+          duration: 10000,
+          action: { label: '重试', onClick: () => void finish(payload) },
+        });
       }
     };
     const handlePhoto = async (photoBlob: Blob | null, occlusion: 'passed' | 'unchecked') => {

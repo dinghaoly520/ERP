@@ -273,6 +273,70 @@ describe('ExpertService', () => {
     });
   });
 
+  // 配对留档照落存（2026-11-18 生产 bug：平板拍照上传后 photoAssetId 被丢弃——照片成孤儿资产，
+  // :3007 留档照区无处可显）。修复=recordPairingPhoto 把三件套落 BidExpert（transferPhoto* 族）。
+  describe('recordPairingPhoto（配对留档照落存）', () => {
+    it('拍照登记 → 落存 assetId/occlusion/at 三件套并清 pending', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: new Date(), transferPhotoExemptAt: null });
+      prisma.bidExpert.update.mockResolvedValue({});
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa-pair-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
+      const before = Date.now();
+
+      await service.recordPairingPhoto('user-1', 'proj-1', { photoAssetId: 'fa-pair-1', occlusion: 'passed' });
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledTimes(1);
+      const arg = prisma.bidExpert.update.mock.calls[0][0];
+      expect(arg.where).toEqual({ id: 'exp-1' });
+      expect(arg.data.transferPhotoAssetId).toBe('fa-pair-1');
+      expect(arg.data.transferPhotoOcclusion).toBe('passed');
+      expect(arg.data.transferPhotoAt instanceof Date).toBe(true);
+      expect(arg.data.transferPhotoAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(arg.data.transferPhotoPendingAt).toBeNull(); // 强制补拍态同笔清掉
+    });
+
+    it('跳过/未拍照 → 只清 pending，不触碰既有照片（证据只增不灭）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: null, transferPhotoExemptAt: new Date() });
+      prisma.bidExpert.update.mockResolvedValue({});
+
+      await service.recordPairingPhoto('user-1', 'proj-1', { skipped: true });
+
+      const data = prisma.bidExpert.update.mock.calls[0][0].data;
+      expect(data.transferPhotoPendingAt).toBeNull();
+      expect(data).not.toHaveProperty('transferPhotoAssetId');
+      expect(data).not.toHaveProperty('transferPhotoAt');
+      expect(data).not.toHaveProperty('transferPhotoOcclusion');
+    });
+
+    it('photoRequired 且 skipped 无豁免 → 403 PHOTO_REQUIRED_FOR_TRANSFER（既有铁律回归）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: new Date(), transferPhotoExemptAt: null });
+      await expect(service.recordPairingPhoto('user-1', 'proj-1', { skipped: true }))
+        .rejects.toMatchObject({ response: { code: 'PHOTO_REQUIRED_FOR_TRANSFER' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+
+    it('资产三验（2026-11-18 评审）：不存在/类目不符/非本人上传 → 400 INVALID_PAIRING_PHOTO 不落库', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: null, transferPhotoExemptAt: null });
+      const bad = [
+        null, // 不存在
+        { id: 'fa-x', category: 'general', uploaderId: 'user-1' }, // 类目不符
+        { id: 'fa-x', category: 'expert_signin_photo', uploaderId: 'user-2' }, // 非本人上传
+      ];
+      for (const asset of bad) {
+        prisma.fileAsset.findUnique.mockResolvedValue(asset);
+        await expect(service.recordPairingPhoto('user-1', 'proj-1', { photoAssetId: 'fa-x', occlusion: 'passed' }))
+          .rejects.toMatchObject({ response: { code: 'INVALID_PAIRING_PHOTO' } });
+      }
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      // 对照：本人 expert_signin_photo 资产 → 放行落库
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa-ok', category: 'expert_signin_photo', uploaderId: 'user-1' });
+      prisma.bidExpert.update.mockResolvedValue({});
+      await service.recordPairingPhoto('user-1', 'proj-1', { photoAssetId: 'fa-ok', occlusion: 'passed' });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ transferPhotoAssetId: 'fa-ok' }),
+      }));
+    });
+  });
+
   describe('confirmAvoidance（2026-09-18 用户裁定：只认专家手动申报，系统不自动合并冲突）', () => {
     it('显式传入（含空数组）→ 以传入值整体替换（可清空既有申报）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
@@ -3757,6 +3821,23 @@ describe('ExpertService', () => {
       prisma.bidScoreRecord.findMany.mockResolvedValue([]); // 无评分
       prisma.bidScoreItem.count.mockResolvedValue(2); // 非 PRICE 项 2 个 → 有项且 0 记录 → 仍拒
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORING_INCOMPLETE' } });
+    });
+
+    it('bug#140a：资格短路豁免家只要求通过性项已评——非通过性项未评不再死锁核对', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: 'manual', procurementMethod: '询比采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' });
+      // 两条通过性记录（含一条不通过）——非通过性 2 项未评为豁免设计态
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { scoreItemId: 'si-q', score: 0, passed: false },
+        { scoreItemId: 'si-r', score: 0, passed: true },
+      ]);
+      // count 序列：非 PRICE 全量 4 → 触发豁免后改按通过性项 2
+      prisma.bidScoreItem.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+      prisma.bidScoreReview.upsert.mockResolvedValue({ id: 'rv1', status: 'verified' });
+      const r = await service.verifyScoreReview('user-1', 'p1', 'sup1');
+      expect(r.status).toBe('verified'); // 修复前 2<4 → SCORING_INCOMPLETE → allVerified 恒 false → 报告确认死锁（2026-11-18 UI 验收实录）
+      expect(prisma.bidScoreItem.count).toHaveBeenNthCalledWith(2, { where: { projectId: 'p1', category: { in: ['QUALIFICATION', 'RESPONSIVE'] } } });
     });
 
     it('终审对齐（2026-10-20）：非 none + 0 个非 PRICE 项（仅 PRICE 公式标）+ 0 记录 → 放行核对落 verified（progress 已 100 的混合态消除）', async () => {

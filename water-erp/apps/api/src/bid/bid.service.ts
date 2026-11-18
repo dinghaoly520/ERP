@@ -2995,6 +2995,11 @@ export class BidService {
       select: { id: true, maxScore: true },
     });
     const priceItemIds = new Set(priceItems.map(pi => pi.id));
+    // bug#140a：通过性项 id 集——聚合层按 (专家,供应商) 对排除资格短路豁免专家（与 generate 同口径）
+    const passFailItemIds = new Set((await this.prisma.bidScoreItem.findMany({
+      where: { projectId, category: { in: ['QUALIFICATION', 'RESPONSIVE'] } },
+      select: { id: true },
+    })).map(i => i.id));
     const [openingRecs, amountUnitMap] = await Promise.all([
       this.prisma.bidOpeningRecord.findMany({
         where: { projectId, bidSupplierId: { in: activeSuppliers.map(s => s.id) } },
@@ -3030,13 +3035,13 @@ export class BidService {
     const allScoreRecords = activeSupplierIds.length > 0
       ? await this.prisma.bidScoreRecord.findMany({
           where: { supplierId: { in: activeSupplierIds }, expert: { projectId, expertRole: '正选' } },
-          select: { supplierId: true, expertId: true, scoreItemId: true, score: true },
+          select: { supplierId: true, expertId: true, scoreItemId: true, score: true, passed: true },
         })
       : [];
-    const recordsBySupplier = new Map<string, { expertId: string; scoreItemId: string; score: any }[]>();
+    const recordsBySupplier = new Map<string, { expertId: string; scoreItemId: string; score: any; passed?: boolean | null }[]>();
     for (const r of allScoreRecords) {
       const list = recordsBySupplier.get(r.supplierId) ?? [];
-      list.push({ expertId: r.expertId, scoreItemId: r.scoreItemId, score: r.score });
+      list.push({ expertId: r.expertId, scoreItemId: r.scoreItemId, score: r.score, passed: r.passed });
       recordsBySupplier.set(r.supplierId, list);
     }
 
@@ -3054,6 +3059,7 @@ export class BidService {
       recordsBySupplier,
       formulaPriceScores,
       priceItemIds,
+      passFailItemIds, // bug#140a：聚合层按 (专家,供应商) 对排除资格短路豁免专家
       passFailVerdicts,
       bidPrices,
       isNegotiation: project.procurementMethod === '谈判采购',
@@ -3512,6 +3518,8 @@ export class BidService {
           signedIn: true, signInIp: true, signInMeta: true,
           identityVerified: true, identityVerifiedByName: true, identityDocType: true,
           transferPhotoPendingAt: true, transferPhotoExemptAt: true, transferPhotoExemptByName: true,
+          // 配对留档照三件套（2026-11-18）：:3007 平板配对行缩略图 + 留档照列回退（严版补拍证据）
+          transferPhotoAssetId: true, transferPhotoAt: true, transferPhotoOcclusion: true,
         },
       }),
       this.prisma.bidSupervisionLog.findMany({
@@ -3580,6 +3588,10 @@ export class BidService {
           transferPhotoPending: !!e.transferPhotoPendingAt,
           transferPhotoExempted: !!e.transferPhotoExemptAt,
           transferPhotoExemptByName: e.transferPhotoExemptByName,
+          // 配对留档照（2026-11-18）：落库证据——平板配对行缩略图；解绑后 Redis 行消失此据仍在
+          pairingPhoto: e.transferPhotoAssetId
+            ? { assetId: e.transferPhotoAssetId, at: (e.transferPhotoAt as Date | null)?.toISOString() ?? null, occlusion: e.transferPhotoOcclusion ?? null }
+            : null,
         };
       }),
     };

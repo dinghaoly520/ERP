@@ -7,6 +7,11 @@
  *   - 重试失败项：POST retry-ai-bidders（不传 ids = 全部失败与卡住的供应商）
  *   - 重新分析：POST rerun-ai-analysis（清空全部结果重跑，二次确认；N8 存量无任务时自动补建——
  *     卡片在 task 不存在分支直接给一键补建入口，无需二次确认，因无旧结果可清）
+ *   - 完成态静默入口（2026-11-18）：COMPLETED 且无异常时异常分支不亮任何按钮，但「分析完成≠内容
+ *     可用」（LLM 偶发空产出需全量重跑恢复），且合法窗口=专家产生首个标注/评分之前（后端产出闸
+ *     EVALUATION_IN_PROGRESS 一关就再也跑不了），本卡片又是全系统唯一 rerun 入口——故完成态仍
+ *     保留蓝字次级「重新分析」（N8 分支同款非告警形态，复用二次确认弹窗）；「重试所选」完成态
+ *     无可试对象（retryable 只认 FAILED/卡住）不出现。
  * 分工 v3 下评标管理 tab 为 :3007 现场全操作端（启动评标·专家进度·评分矩阵·排名·3 步生成评标结果向导·专家异议裁决·澄清答疑），本卡片是其中 AI 通道：
  * 写操作（重试/重新分析）非阶段流转；阶段流转按 v3——启动评标在本 tab（:3007），完整归档在 :3005（spec: 2026-08-13-expert-paper-signing-design §2）。
  */
@@ -48,6 +53,11 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   const [progress, setProgress] = useState<AiAnalysisProgress | null>(null);
   const [busy, setBusy] = useState<'retry' | 'rerun' | null>(null);
   const [rerunConfirm, setRerunConfirm] = useState(false);
+  // 轮询重启纪元：F13 ①无任务/②终态无异常都会 stop() 定时器——此后点重试/重新分析只会经
+  // await load() 拉到一次快照，卡片永久冻结在首帧（N8 补建路径今天就踩此坑）。动作成功后
+  // bump 纪元令下方 effect 重挂（立即 tick + 恢复 3s 节奏）；异常态 15s 慢轮询本来就活着，
+  // bump 只是把「下一 tick 回 3s」提前到即时。
+  const [pollEpoch, setPollEpoch] = useState(0);
   const stoppedRef = useRef(false);
   // 单家重试选择：deselected 记被取消家（默认全选）；retryable 与后端谓词镜像（M1 后：
   // FAILED 或非 COMPLETED 卡住超阈值——PENDING 停摆行也纳入，双向同步注释见 bid.service.ts
@@ -125,7 +135,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
       document.removeEventListener('visibilitychange', onVisibility);
       stop();
     };
-  }, [load, stage]);
+  }, [load, stage, pollEpoch]);
 
   const doRetry = async () => {
     setBusy('retry');
@@ -133,6 +143,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
       const res = await retryAiBidders(projectId, selectedRetry.map((b) => b.id));
       toast.success(`已重新入队 ${res.retried.length} 家：${res.retried.map((r) => r.name).join('、')}`);
       await load();
+      setPollEpoch((e) => e + 1); // 轮询可能已被 F13 ②停掉——重挂 effect 复活节奏
     } catch (e: any) {
       toast.error(e?.message || '重试失败');
     } finally {
@@ -148,6 +159,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
       // N8：存量补建路径无旧结果可清，文案对两条路径保持中性
       toast.success('已重新入队全量 AI 分析');
       await load();
+      setPollEpoch((e) => e + 1); // F13 ①无任务/②完成态均已停轮询——重挂 effect 复活节奏（修 N8 冻结存量坑）
     } catch (e: any) {
       toast.error(e?.message || '重新分析失败');
     } finally {
@@ -168,7 +180,7 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
         </span>
         {stage === 'EVALUATING' && (
           <button onClick={doRerun} disabled={busy !== null}
-            className="neu-btn-xs inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[oklch(0.56 0.153 251)] disabled:opacity-50">
+            className="neu-btn-xs inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[oklch(0.56_0.153_251)] disabled:opacity-50">
             {busy === 'rerun' ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
             重新分析
           </button>
@@ -188,6 +200,9 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
   const actionsEnabled = stage === 'EVALUATING';
   const showRetry = actionsEnabled && retryable.length > 0;
   const showRerun = actionsEnabled && (anomaly.taskFailed || anomaly.allPending || anomaly.workerIdle || zeroStalled || anomaly.failedNames.length > 0 || anomaly.stuckNames.length > 0);
+  // 完成态静默重跑入口（2026-11-18，口径见文件头注释）：只认干净完成态——COMPLETED_WITH_ERRORS
+  // 有失败家走上方异常分支红字按钮；CANCELLED 后端无写入点不可达，不处理。
+  const showQuietRerun = actionsEnabled && taskStatus === 'COMPLETED' && !anomaly.hasAnomaly;
 
   return (
     <div className={`neu-card-static p-4 ${anomaly.hasAnomaly ? 'bg-[oklch(0.97_0.03_83_/_0.35)]' : ''}`}>
@@ -261,6 +276,15 @@ export default function AiAnalysisCard({ projectId, stage }: { projectId: string
               重新分析
             </button>
           </div>
+        )}
+
+        {/* 右：完成态静默重跑——蓝字次级入口（N8 分支同款非告警形态），复用下方二次确认弹窗 */}
+        {showQuietRerun && (
+          <button onClick={() => setRerunConfirm(true)} disabled={busy !== null}
+            className="neu-btn-xs inline-flex shrink-0 items-center gap-1.5 text-[11px] font-semibold text-[oklch(0.56_0.153_251)] disabled:opacity-50">
+            <RefreshCw size={11} strokeWidth={1.5} />
+            重新分析
+          </button>
         )}
       </div>
 
