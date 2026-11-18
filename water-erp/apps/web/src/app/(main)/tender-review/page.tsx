@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { FileSearch, Loader2 } from 'lucide-react';
+import { FileSearch, FileText, Database, Loader2 } from 'lucide-react';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
 import { useTenderReview } from '@/components/tender-review/use-tender-review';
 import TenderReviewWorkspace from '@/components/tender-review/tender-review-workspace';
@@ -10,52 +10,68 @@ const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 /** hero 右侧统计徽标（需在 Provider 内取 context，故拆为子组件） */
 import { StatusBadge } from '@/components/workbench';
+import ReportContextBar from '@/components/tender-review/report-context-bar';
 
 function HeroStats() {
-  const { stats, runningTasks } = useTenderReview();
+  const { runningTasks } = useTenderReview();
+  if (runningTasks.length === 0) return null;
+  return (
+    <StatusBadge tone="blue"><Loader2 size={11} className="animate-spin" />进行中 {runningTasks.length}</StatusBadge>
+  );
+}
+
+/** hero 右区（2026-11-18）：进行中徽标 + 视图按钮组——报告详情打开时保持不变，
+ *  上下文条改挂 hero 第二行（HeroContextRow）。 */
+function HeroRight() {
   return (
     <div className="page-hero__right">
-      {runningTasks.length > 0 && (
-        <StatusBadge tone="blue"><Loader2 size={11} className="animate-spin" />进行中 {runningTasks.length}</StatusBadge>
-      )}
-      <StatusBadge tone="blue">今日审查 {stats.totalReviews}</StatusBadge>
-      <StatusBadge tone={stats.failedCount > 0 ? 'orange' : 'green'}>违规 {stats.failedCount}</StatusBadge>
+      <HeroStats />
+      <HeroTabButtons />
     </div>
   );
 }
 
-/** 视图切换（审查执行 / 审查报告 + 动态文件/规则管理）——2026-11-06 移出 hero 独立工具行，
- *  并对齐信息发布中心类型切换的 .neu-segment 分段切换设计（内凹轨道+滑动拇指，段内不带图标）；
- *  文件/规则管理为侧栏触发的上下文视图，激活时并入段（段数随之 2↔3，走内联 --segs 通式）。 */
-function ReviewTabBar() {
-  const { activeTab, setActiveTab } = useTenderReview();
-  const tabs = [
-    { id: 'review' as const, label: '审查执行' },
-    { id: 'reports' as const, label: '审查报告' },
-    ...(activeTab === 'files' ? [{ id: 'files' as const, label: '文件管理' }] : []),
-    ...(activeTab === 'rules' ? [{ id: 'rules' as const, label: '规则管理' }] : []),
-  ];
+/** hero 第二行（2026-11-18 二次裁定）：报告详情打开时，上下文条（返回+文件名+导出）
+ *  落在 hairline 下——即 /tender-write「谈判采购/竞价采购/邀请招标」类型切换位；
+ *  未开详情时渲染标准 page-hero__divider 收尾。 */
+function HeroContextRow() {
+  const { activeTab, selectedReportTask, setSelectedReportTask, refreshTasks } = useTenderReview();
+  if (!(activeTab === 'reports' && selectedReportTask)) {
+    return <div className="page-hero__divider" />;
+  }
   return (
-    <div
-      className="neu-segment"
-      role="group"
-      aria-label="审查视图"
-      data-count={String(tabs.length)}
-      data-index={String(Math.max(0, tabs.findIndex((t) => t.id === activeTab)))}
-      style={{ '--segs': tabs.length } as React.CSSProperties}
-    >
-      <span className="neu-segment-thumb" aria-hidden="true" />
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          type="button"
-          className="neu-segment-btn"
-          aria-pressed={activeTab === t.id}
-          onClick={() => setActiveTab(t.id)}
-        >
-          {t.label}
-        </button>
-      ))}
+    <div className="mt-3 pt-2" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+      <ReportContextBar
+        task={selectedReportTask}
+        onBack={() => {
+          setSelectedReportTask(null);
+          void refreshTasks();
+        }}
+      />
+    </div>
+  );
+}
+
+/** hero 右上视图按钮组（2026-11-18 用户裁定）：审查执行/审查报告/知识库 三钮，
+ *  对齐 /tender-write「导入识别/公告/通知书」同款 neu-btn-soft+图标形态；激活钮 is-primary 白瓷。
+ *  「知识库」为中心管理视图入口（文件/规则管理为其下级上下文视图，激活时知识库钮保持高亮——
+ *  点按即回知识库列表）。取代早前 segment 方案（同日二次裁定）。 */
+function HeroTabButtons() {
+  const { activeTab, setActiveTab } = useTenderReview();
+  const kbActive = activeTab === 'kb' || activeTab === 'files' || activeTab === 'rules';
+  const btn = (active: boolean) =>
+    `neu-btn-soft ${active ? 'is-primary pointer-events-none' : ''}`;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button type="button" onClick={() => setActiveTab('review')} className={btn(activeTab === 'review')}>
+        <FileSearch size={14} />审查执行
+      </button>
+      <button type="button" onClick={() => setActiveTab('reports')} className={btn(activeTab === 'reports')}>
+        <FileText size={14} />审查报告
+      </button>
+      <button type="button" onClick={() => setActiveTab('kb')} className={btn(kbActive)}>
+        <Database size={14} />知识库
+      </button>
     </div>
   );
 }
@@ -86,16 +102,10 @@ export default function TenderReviewPage() {
                 <div className="page-hero__sub">上传采购文件，自动比对合规规则并生成审查意见</div>
               </div>
             </div>
-            <HeroStats />
+            <HeroRight />
           </div>
-          {/* hairline 下横线（cgzxui 规定：标题行与下方内容之间必有分割线） */}
-          <div className="page-hero__divider" />
-        </div>
-
-        {/* 视图切换行——独立工具行（2026-11-06 用户裁定移出标题栏，与采购台账/通知中心同款设计）。
-            flex 行容器：neu-segment 为块级 grid，须作 flex 子项按文字宽度收缩（块级包裹会拉满页宽） */}
-        <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
-          <ReviewTabBar />
+          {/* 第二行：报告详情上下文条（tender-write 类型切换位）/ 未开详情时标准 hairline */}
+          <HeroContextRow />
         </div>
         <TenderReviewWorkspace />
       </motion.div>

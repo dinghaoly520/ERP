@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   FileText,
@@ -25,10 +24,10 @@ export default function ReportsPanelCompact() {
   // 原实现本地自拉且仅挂载时加载一次，任务完成后列表永卡「执行中」需手动 F5
   const { tasks, loading: ctxLoading, selectedReportTask, setSelectedReportTask, refreshTasks } = useTenderReview();
   const { confirm, dialog } = useConfirm();
-  const [localSelectedTask, setLocalSelectedTask] = useState<ReviewTask | null>(null);
 
-  // Determine which task to show: context-selected takes priority
-  const selectedTask = selectedReportTask ?? localSelectedTask;
+  // 2026-11-18：选中态统一走 context 真源 selectedReportTask（原 localSelectedTask 双轨已废）——
+  // 详情头升格 hero 右上（report-context-bar），返程/导出/文件名均由 hero 消费同一状态
+  const selectedTask = selectedReportTask;
 
   async function handleStop(task: ReviewTask) {
     if (!(await confirm({ message: '确定停止该审查任务？', danger: true }))) return;
@@ -64,11 +63,8 @@ export default function ReportsPanelCompact() {
     return (
       <ReportViewCombined
         task={selectedTask}
-        onBack={() => {
-          setSelectedReportTask(null);
-          setLocalSelectedTask(null);
-          void refreshTasks();
-        }}
+        hideHeader
+        onTaskUpdate={setSelectedReportTask}
       />
     );
   }
@@ -93,7 +89,7 @@ export default function ReportsPanelCompact() {
               animate={{ opacity: 1 }}
               className={`p-2.5 rounded-[12px] hover:bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] transition-colors
                 ${task.status === 'completed' ? 'cursor-pointer' : task.status === 'failed' ? 'opacity-60' : 'opacity-60'}`}
-              onClick={() => task.status === 'completed' && setLocalSelectedTask(task)}
+              onClick={() => task.status === 'completed' && setSelectedReportTask(task)}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 flex-1 min-w-0">

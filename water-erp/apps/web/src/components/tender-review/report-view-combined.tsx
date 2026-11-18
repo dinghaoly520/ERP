@@ -3,9 +3,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft,
-  Download,
-  FileDown,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -16,92 +13,14 @@ import {
   X,
   Search,
 } from 'lucide-react';
-import { toast } from 'sonner';
-import type { ReviewTask, Issue, ReviewReport, LlmFreeIssue } from '@/lib/types/tender-review';
+import type { ReviewTask, Issue, ReviewReport } from '@/lib/types/tender-review';
 import { SEVERITY_COLORS, SEVERITY_LABELS } from '@/lib/types/tender-review';
-import { getDownloadUrl, getReportDocxUrl, resolveIssue } from '@/lib/api/review';
-import { apiFetch } from '@/lib/api/api-fetch';
+import { resolveIssue } from '@/lib/api/review';
 import { useTenderReview } from './tender-review-context';
 import OriginalTextCompare from './original-text-compare';
 import SuggestionEditor from './suggestion-editor';
-
-function flattenReport(report: ReviewReport): Issue[] {
-  const issues: Issue[] = [];
-
-  if (report.generalResults) {
-    report.generalResults.forEach((section) => {
-      section.issues.forEach((issue, idx) => {
-        issues.push({
-          id: `gen-${section.sectionName}-${idx}`,
-          severity: issue.severity,
-          title: issue.description.split(/[。，；]/)[0] || issue.description,
-          description: issue.description,
-          evidence: issue.evidence || '',
-          suggestion: issue.suggestion || '',
-          documentExcerpt: issue.documentExcerpt,
-          kbExcerpt: issue.kbExcerpt,
-          documentLocation: issue.documentLocation,
-          knowledgeBaseReferences: issue.knowledgeBaseReferences,
-          sectionName: section.sectionName,
-          source: issue.relatedClause,
-          status: issue.status || 'pending',
-          editedSuggestion: issue.editedSuggestion,
-          resolvedAt: issue.resolvedAt,
-        });
-      });
-    });
-  } else {
-    const addResults = (results: any[], passed: boolean) => {
-      results.forEach((r, idx) => {
-        issues.push({
-          id: `${r.ruleId || idx}`,
-          severity: r.severity,
-          title: r.ruleName || r.details?.split(/[。，；]/)[0] || '检查项',
-          description: r.details || '',
-          evidence: r.evidence || '',
-          suggestion: r.suggestion ?? '',
-          documentExcerpt: r.documentExcerpt,
-          kbExcerpt: r.kbExcerpt,
-          documentLocation: r.documentLocation,
-          knowledgeBaseReferences: r.knowledgeBaseReferences,
-          ruleType: r.ruleType,
-          source: r.source,
-          status: r.status || 'pending',
-          editedSuggestion: r.editedSuggestion,
-          resolvedAt: r.resolvedAt,
-          passed,
-          notApplicable: r.notApplicable,
-          dataMissing: r.dataMissing,
-        });
-      });
-    };
-    addResults(report.criticalIssues || [], false);
-    addResults(report.warnings || [], false);
-    addResults(report.passedChecks || [], true);
-  }
-
-  if (report.llmFreeIssues) {
-    report.llmFreeIssues.forEach((issue: LlmFreeIssue, idx: number) => {
-      issues.push({
-        id: `llm-free-${idx}`,
-        severity: issue.severity,
-        title: issue.description.split(/[。，；]/)[0] || issue.description,
-        description: issue.description,
-        evidence: issue.evidence || '',
-        suggestion: issue.suggestion || '',
-        documentExcerpt: issue.documentExcerpt,
-        documentLocation: issue.documentLocation,
-        sectionName: issue.sectionName,
-        source: 'llm-free',
-        status: issue.status || 'pending',
-        editedSuggestion: issue.editedSuggestion,
-        resolvedAt: issue.resolvedAt,
-      });
-    });
-  }
-
-  return issues;
-}
+// flattenReport/导出处理器已迁 report-context-bar（2026-11-18 头部升格，独立页/编写弹窗两处共用）
+import ReportContextBar, { flattenReport } from './report-context-bar';
 
 type FilterKey = 'all' | 'critical' | 'warning' | 'info' | 'dataMissing' | 'passed' | 'skipped';
 
@@ -124,19 +43,20 @@ const FILTER_OPTIONS: Array<{ key: FilterKey; label: string; icon: React.ReactNo
   { key: 'skipped', label: '跳过', icon: <CircleSlash className="h-4 w-4" />, colorClass: 'text-[var(--muted-foreground)]/60' },
 ];
 
-/** 文档名编号分离（2026-11-12）：形如「SWHI-TP-2026111201-名称…」/「TP-2026101901-名称…」——
- *  前段 字母数字(-字母2-4)?-数字4+ 即项目编号；匹配失败整名作标题（不拆）。 */
-const DOC_CODE_RE = /^([A-Za-z0-9]+(?:-[A-Za-z]{1,4})?-\d{4,})-(.+)$/;
-
 interface ReportViewCombinedProps {
   task: ReviewTask;
-  onBack: () => void;
-  /** 隐藏「返回」按钮（2026-11-12 用户裁定）：编写弹窗审查流已有右上角 ✕ 关闭，返回冗余；
-   *  审查报告面板（reports-panel-compact）的返回是唯一返程入口，不传。 */
+  /** 返程回调（2026-11-18 起独立审查页的返回升格 hero，不传时上下文条不渲染返回钮） */
+  onBack?: () => void;
+  /** 隐藏「返回」按钮（2026-11-12 用户裁定）：编写弹窗审查流已有右上角 ✕ 关闭，返回冗余。 */
   hideBack?: boolean;
+  /** 隐藏整条详情头（2026-11-18）：独立审查页头部升格至 hero 右上（report-context-bar），
+   *  详情区只留内容——编写弹窗流不传，保持原位头部。 */
+  hideHeader?: boolean;
+  /** 处置后任务回写（2026-11-18）：hero 上下文条据此刷新已采纳计数/导出可用态 */
+  onTaskUpdate?: (task: ReviewTask) => void;
 }
 
-export default function ReportViewCombined({ task: initialTask, onBack, hideBack }: ReportViewCombinedProps) {
+export default function ReportViewCombined({ task: initialTask, onBack, hideBack, hideHeader, onTaskUpdate }: ReportViewCombinedProps) {
   const [task, setTask] = useState<ReviewTask>(initialTask);
   const report = task.results as ReviewReport | null;
   const [issues, setIssues] = useState<Issue[]>(() => report ? flattenReport(report) : []);
@@ -226,8 +146,6 @@ export default function ReportViewCombined({ task: initialTask, onBack, hideBack
   const selectedIssue = issues[selectedIndex];
   const totalIssues = issues.filter(i => !i.passed && !i.notApplicable && !i.dataMissing).length;
   const resolvedCount = issues.filter(i => i.status === 'accepted' || i.status === 'rejected').length;
-  const acceptedCount = issues.filter(i => i.status === 'accepted').length;
-  const hasModifications = acceptedCount > 0 && !!task.objectKey;
   const allResolved =
     totalIssues > 0 &&
     issues
@@ -248,37 +166,7 @@ export default function ReportViewCombined({ task: initialTask, onBack, hideBack
     const updated = await resolveIssue(task.id, selectedIndex, action, editedSuggestion);
     setTask(updated);
     setIssues(flattenReport(updated.results as ReviewReport));
-  }
-
-  function handleDownload() {
-    if (hasModifications) {
-      window.open(getDownloadUrl(task.id), '_blank');
-    }
-  }
-
-  // 审查报告 Word（含处置留痕）——项目管理流与独立审查页共用；需 PDF 时在 Word 侧另存
-  async function handleDownloadPdf() {
-    try {
-      const res = await apiFetch(getReportDocxUrl(task.id), { credentials: 'include' });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.message || '报告下载失败，请稍后重试');
-      }
-      const blob = await res.blob();
-      const disp = res.headers.get('content-disposition') || '';
-      const m = /filename\*=UTF-8''([^;]+)/i.exec(disp);
-      const fileName = m
-        ? decodeURIComponent(m[1])
-        : `${task.documentName.replace(/\.docx?$/i, '')}-审查报告.docx`;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : '报告下载失败');
-    }
+    onTaskUpdate?.(updated);
   }
 
   if (!report?.summary) {
@@ -291,84 +179,42 @@ export default function ReportViewCombined({ task: initialTask, onBack, hideBack
 
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* Header */}
-      <div className="flex items-center gap-3 pt-3 px-4 shrink-0">
-        {!hideBack && (
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            返回
-          </button>
-        )}
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          {(() => {
-            const m = DOC_CODE_RE.exec(task.documentName);
-            return (
-              <>
-                <span className="text-sm font-medium text-[var(--foreground)] truncate">
-                  {m ? m[2] : task.documentName}
-                </span>
-                {m && (
-                  <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 text-[10px] font-semibold tabular-nums tracking-[0.04em] text-[var(--accent)]">
-                    {m[1]}
-                  </span>
-                )}
-              </>
-            );
-          })()}
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-            task.reviewMode === 'strict'
-              ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)]'
-              : 'bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] text-[var(--muted-foreground)]'
-          }`}>
-            {task.reviewMode === 'strict' ? '严格审查' : '通用审查'}
-          </span>
-        </div>
-        <div className="flex items-center gap-3 shrink-0">
-          {acceptedCount > 0 && (
-            <span className="text-xs text-[var(--muted-foreground)]">
-              已采纳 {acceptedCount} 项
-            </span>
-          )}
-          <button
-            onClick={handleDownload}
-            disabled={!hasModifications}
-            className="neu-btn-xs gap-1.5"
-            title="下载已采纳修改建议的采购文件（docx）"
-          >
-            <Download className="h-3 w-3" />
-            导出修订文件
-          </button>
-          <button
-            onClick={() => void handleDownloadPdf()}
-            className="neu-btn-xs gap-1.5"
-          >
-            <FileDown className="h-3 w-3" />
-            审查报告 Word
-          </button>
-          {allResolved && onReviewComplete && (
+      {/* 详情头（2026-11-18 升格）：独立审查页 hideHeader——返程/导出/文件名在 hero 右上
+          （report-context-bar），此处只留终态元素；编写弹窗流仍在原位渲染整条 */}
+      {(() => {
+        const terminal = allResolved ? (
+          onReviewComplete ? (
             <button
               type="button"
               onClick={() => onReviewComplete(task)}
-              className="neu-btn-xs is-success gap-1.5"
+              className="neu-btn-xs is-success gap-1.5 shrink-0"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
               审查结束，提交采购文件
             </button>
-          )}
-          {/* R6-8③（2026-09-30 审计③）：独立 /tender-review 页无 onReviewComplete（不传项目上下文），
-              全部处置完后此前按钮永不出现、无终态——补终态徽标引导导出留档 */}
-          {allResolved && !onReviewComplete && (
-            <span className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[var(--success)]">
+          ) : (
+            /* R6-8③（2026-09-30 审计③）：独立 /tender-review 页无 onReviewComplete（不传项目上下文），
+               全部处置完后补终态徽标引导导出留档 */
+            <span className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-semibold bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-[var(--success)] shrink-0">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              全部问题已处置 · 独立审查入口无提交目标，请导出报告留档
+              全部问题已处置 · 请导出报告留档
             </span>
-          )}
-        </div>
-      </div>
-
+          )
+        ) : null;
+        if (hideHeader) {
+          return terminal ? (
+            <div className="flex shrink-0 justify-end px-4 pt-3">
+              {terminal}
+            </div>
+          ) : null;
+        }
+        return (
+          <div className="flex items-center gap-3 pt-3 px-4 shrink-0">
+            <ReportContextBar task={task} onBack={hideBack ? undefined : onBack} />
+            {terminal}
+          </div>
+        );
+      })()}
       {/* Stats bar with filter buttons —— 多选一筛选走 neu-tab-bar 内凹轨道规范（2026-11-12 cgzxui 对齐） */}
       <div className="neu-tile flex items-center gap-3 px-3 py-2 shrink-0">
         <div className="neu-tab-bar flex flex-wrap">

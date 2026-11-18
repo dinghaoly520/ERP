@@ -4,7 +4,8 @@ import { createContext, useContext } from 'react';
 import type { KnowledgeBase, ReviewTask } from '@/lib/types/tender-review';
 import type { TodayStats } from '@/lib/api/review';
 
-export type TenderReviewTab = 'review' | 'files' | 'rules' | 'reports';
+/** 'kb' = 知识库管理中心视图（2026-11-18：hero 右上按钮组入口，自右栏二态升格） */
+export type TenderReviewTab = 'review' | 'files' | 'rules' | 'reports' | 'kb';
 
 export interface TenderReviewLoadingState {
   kbs: boolean;
