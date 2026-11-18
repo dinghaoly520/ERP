@@ -277,6 +277,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     //（HTTP 面 PairingScopeGuard PAIRING_PROJECT_MISMATCH 的 WS 镜像；全量令牌无 pid 不设闸）
     if (payload?.scope === 'tablet-pairing' && typeof payload.pid === 'string') {
       (socket.data as any).pairingPid = payload.pid;
+      (socket.data as any).pairingJti = payload.jti; // join 层存活复查寻址（T8 审查 Important）
     }
     this.logger.debug(`WS connected role=${role} host=${(socket.data as any).isHost}`);
   }
@@ -295,9 +296,11 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const set = this.expertSockets.get(expertId);
     if (!set) return;
     for (const sid of set) {
-      const sock = this.server?.sockets?.sockets?.get?.(sid) as
-        | { data?: { pairingPid?: string }; disconnect?: (close: boolean) => void }
-        | undefined;
+      // T8 审查 Critical 修正：本网关是 namespace:'bid' 命名空间网关，@WebSocketServer 注入的
+      // 是 Namespace——其 .sockets 直接就是 Map<SocketId, Socket>（非根 Server 的
+      // server.sockets.sockets 三层路径；旧路径恒 undefined = 静默 no-op）
+      const sock = (this.server as unknown as { sockets?: Map<string, { data?: { pairingPid?: string }; disconnect?: (close: boolean) => void }> })
+        ?.sockets?.get?.(sid);
       if (sock?.data?.pairingPid) sock.disconnect?.(true);
     }
   }
@@ -368,6 +371,17 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // TAB-SYNC-02 P2-1：scoped 平板只能进配对绑定项目的房间（读他项目实时流 = 越权面）
       const pairingPid = (client.data as any).pairingPid as string | undefined;
       if (pairingPid && projectId !== pairingPid) return { error: 'PAIRING_PROJECT_MISMATCH' };
+      // T8 审查 Important：join 层配对存活复查——存活校验只在握手期，长连接经 leave→rejoin
+      // 可绕回房间（吊销后 12h JWT 内 pid claim 不变）；fail closed（registry 缺失/异常拒绝）
+      if (pairingPid) {
+        let alive = false;
+        try {
+          alive = this.pairingRegistry
+            ? await this.pairingRegistry.isAlive((client.data as any).pairingJti as string, userId)
+            : false;
+        } catch { alive = false; }
+        if (!alive) return { error: 'PAIRING_REVOKED' };
+      }
       // B1（2026-11-12）：登记专家连接表——组长复议召集等定向投递按 expertId 寻址（镜像 supplier 分支）
       (client.data as any).expertId = assigned.id;
       let expertSet = this.expertSockets.get(assigned.id);

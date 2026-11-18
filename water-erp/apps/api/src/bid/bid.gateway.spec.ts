@@ -623,8 +623,8 @@ describe('BidGateway join 层平板配对 pid 绑定（TAB-SYNC-02 P2-1）', () 
     bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
   } as any;
 
-  function makeGateway() {
-    return new BidGateway({} as any, prismaMock);
+  function makeGateway(registry?: any) {
+    return new BidGateway({} as any, prismaMock, registry);
   }
 
   it('scoped（pairingPid=p1）join 非绑定项目 p2 → PAIRING_PROJECT_MISMATCH、不进任何房、不登记连接表', async () => {
@@ -637,11 +637,11 @@ describe('BidGateway join 层平板配对 pid 绑定（TAB-SYNC-02 P2-1）', () 
     expect(gw['expertSockets'].get('be1')).toBeUndefined(); // 闸在指派查询后、登记前——不得留半登记
   });
 
-  it('scoped join 绑定项目 p1（本人被指派）→ 正常进房 ok', async () => {
-    const gw = makeGateway();
+  it('scoped join 绑定项目 p1（本人被指派、配对存活）→ 正常进房 ok', async () => {
+    const gw = makeGateway({ isAlive: jest.fn().mockResolvedValue(true) });
     prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'be1', projectId: 'p1', userId: 'u-exp' });
     const joined: string[] = [];
-    const client = { id: 'sock-tab2', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    const client = { id: 'sock-tab2', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1', pairingJti: 'j1' }, join: (r: string) => joined.push(r) } as any;
     expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
     expect(joined).toEqual(['project:p1', 'experts:p1']);
   });
@@ -657,6 +657,46 @@ describe('BidGateway join 层平板配对 pid 绑定（TAB-SYNC-02 P2-1）', () 
 });
 
 // ── TAB-SYNC-02 P2-2：吊销即时断连——广播 + scoped socket 踢除 ──
+
+describe('BidGateway join 层配对存活复查（T8 审查 Important）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn().mockResolvedValue({ id: 'be1', projectId: 'p1', userId: 'u-exp' }) },
+  } as any;
+
+  function makeGateway(registry?: any) {
+    return new BidGateway({} as any, prismaMock, registry);
+  }
+
+  it('scoped socket join 时配对已被吊销 → PAIRING_REVOKED，不进房不登记（leave→rejoin 回流封死）', async () => {
+    const registry = { isAlive: jest.fn().mockResolvedValue(false) };
+    const gw = makeGateway(registry);
+    const joined: string[] = [];
+    const client = { id: 'sock-t', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ error: 'PAIRING_REVOKED' });
+    expect(joined).toEqual([]);
+    expect(gw['expertSockets'].get('be1')).toBeUndefined();
+  });
+
+  it('scoped socket join 时配对存活 → 正常进房', async () => {
+    const registry = { isAlive: jest.fn().mockResolvedValue(true) };
+    const gw = makeGateway(registry);
+    const joined: string[] = [];
+    const client = { id: 'sock-t2', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(['project:p1', 'experts:p1']);
+  });
+
+  it('registry 缺失（fail closed）→ scoped join 拒绝；全量专家不受复查影响', async () => {
+    const gw = makeGateway(undefined);
+    const joined: string[] = [];
+    const scoped = { id: 'sock-t3', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(scoped, 'p1')).toEqual({ error: 'PAIRING_REVOKED' });
+    const full = { id: 'sock-f', data: { role: 'bid_expert', userId: 'u-exp' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(full, 'p1')).toEqual({ ok: true }); // 全量令牌无 pairingPid 不查
+  });
+});
 
 describe('BidGateway 吊销即时断连（TAB-SYNC-02 P2-2）', () => {
   const prismaMock = {
@@ -681,8 +721,11 @@ describe('BidGateway 吊销即时断连（TAB-SYNC-02 P2-2）', () => {
     const gw = makeGateway();
     const scopedSock = { data: { pairingPid: 'p1' }, disconnect: jest.fn() };
     const fullSock = { data: {}, disconnect: jest.fn() };
+    // 真实运行时形状：网关是 namespace:'bid' 命名空间网关，注入的 server 是 Namespace，
+    // 其 .sockets 直接就是 Map<SocketId, Socket>（T8 审查 Critical：旧测试伪造
+    // sockets.sockets.get 三层结构——镜像了错误心智模型，放过了 no-op 实现）
     const sockets = new Map([['sid-scoped', scopedSock], ['sid-full', fullSock]]);
-    gw.server = { sockets: { sockets: { get: (id: string) => sockets.get(id) } } } as any;
+    gw.server = { sockets } as any;
     gw['expertSockets'].set('be1', new Set(['sid-scoped', 'sid-full']));
     gw.kickPairingSockets('be1');
     expect(scopedSock.disconnect).toHaveBeenCalledWith(true);
