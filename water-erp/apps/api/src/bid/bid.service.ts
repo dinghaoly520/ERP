@@ -3512,6 +3512,8 @@ export class BidService {
           signedIn: true, signInIp: true, signInMeta: true,
           identityVerified: true, identityVerifiedByName: true, identityDocType: true,
           transferPhotoPendingAt: true, transferPhotoExemptAt: true, transferPhotoExemptByName: true,
+          // 配对留档照三件套（2026-11-18）：:3007 平板配对行缩略图 + 留档照列回退（严版补拍证据）
+          transferPhotoAssetId: true, transferPhotoAt: true, transferPhotoOcclusion: true,
         },
       }),
       this.prisma.bidSupervisionLog.findMany({
@@ -3580,6 +3582,10 @@ export class BidService {
           transferPhotoPending: !!e.transferPhotoPendingAt,
           transferPhotoExempted: !!e.transferPhotoExemptAt,
           transferPhotoExemptByName: e.transferPhotoExemptByName,
+          // 配对留档照（2026-11-18）：落库证据——平板配对行缩略图；解绑后 Redis 行消失此据仍在
+          pairingPhoto: e.transferPhotoAssetId
+            ? { assetId: e.transferPhotoAssetId, at: (e.transferPhotoAt as Date | null)?.toISOString() ?? null, occlusion: e.transferPhotoOcclusion ?? null }
+            : null,
         };
       }),
     };

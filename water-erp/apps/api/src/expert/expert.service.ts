@@ -3738,7 +3738,9 @@ export class ExpertService {
   /** 配对留档照登记（检测级证据；skipped=摄像头不可用跳过——如实留痕）
    *  严版（2026-09-23，迁移制沿用）：签到无留档照者（transferPhotoPendingAt 非空）skipped
    *  必须有主持人豁免（transferPhotoExemptAt），否则 403 PHOTO_REQUIRED_FOR_TRANSFER——
-   *  服务端权威，前端隐藏只是 UX。 */
+   *  服务端权威，前端隐藏只是 UX。
+   *  2026-11-18 生产 bug 修复：照片三件套落 BidExpert（此前 photoAssetId 收下即丢——照片上传成
+   *  孤儿 FileAsset，:3007 留档照区无处可显）。证据只增不灭：跳过/未拍不触碰旧照，仅新照片覆盖。 */
   async recordPairingPhoto(userId: string, projectId: string, dto: { photoAssetId?: string | null; occlusion?: 'passed' | 'unchecked' | null; skipped?: boolean }) {
     const expert = await this.prisma.bidExpert.findFirst({
       where: { projectId, userId },
@@ -3753,7 +3755,12 @@ export class ExpertService {
     }
     await this.prisma.bidExpert.update({
       where: { id: expert.id },
-      data: { transferPhotoPendingAt: null },
+      data: {
+        transferPhotoPendingAt: null,
+        ...(dto.photoAssetId
+          ? { transferPhotoAssetId: dto.photoAssetId, transferPhotoAt: new Date(), transferPhotoOcclusion: dto.occlusion ?? null }
+          : {}),
+      },
     });
     await this.prisma.bidSupervisionLog.create({
       data: {

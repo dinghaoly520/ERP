@@ -1005,7 +1005,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     ? '主持人确认'
                     : row.occlusion === 'passed' ? '遮挡检测通过' : row.occlusion === 'unchecked' ? '未过检测' : row.method === 'off_mode' ? '应急放行' : '未记录'}
                 </span>
-                <span className="flex flex-1 items-center justify-center">
+                <span className="flex flex-1 flex-col items-center justify-center gap-0.5">
                   {row.photoAssetId ? (
                     <a href={`/api/upload/files/${row.photoAssetId}`} target="_blank" rel="noopener" title="查看签到留档照">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1014,6 +1014,23 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                         alt={`${row.expertName} 签到留档照`}
                         className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
                       />
+                    </a>
+                  ) : row.pairingPhoto ? (
+                    /* 2026-11-18：签到无照但配对有照（严版强制补拍场景）→ 回退显示配对照——
+                       补拍证据此前被服务端丢弃，留档照列对这类专家永远显示"未记录" */
+                    <a
+                      href={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                      target="_blank"
+                      rel="noopener"
+                      title={`配对补拍留档照${row.pairingPhoto.at ? ` · ${new Date(row.pairingPhoto.at).toLocaleString('zh-CN', { hour12: false })}` : ''}${row.pairingPhoto.occlusion === 'passed' ? ' · 遮挡检测通过' : row.pairingPhoto.occlusion === 'unchecked' ? ' · 遮挡检测未运行' : ''}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                        alt={`${row.expertName} 配对补拍留档照`}
+                        className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
+                      />
+                      <span className="block text-center text-[9px] font-semibold leading-none text-[var(--accent-strong)]">配对补拍</span>
                     </a>
                   ) : (
                     <span className="text-center text-[10px] leading-tight text-[var(--muted-foreground)]">
@@ -1039,14 +1056,57 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   ) : (
                     <span className="text-[10px] text-[var(--muted-foreground)]" title={row.signedIn ? '无活动会话（已解锁或未登录）' : '未登录'}>离线</span>
                   )}
-                  {/* TAB-SYNC-01（spec §9.3）：监督可见第二行——活跃平板配对（设备摘要+配对时间） */}
+                  {/* TAB-SYNC-01（spec §9.3）：监督可见第二行——活跃平板配对（设备摘要+配对时间）。
+                      2026-11-18：配对留档照缩略图随行展示（照片证据落库后 :3007 可见）；
+                      解绑/配对过期后 Redis 行消失，降级「最近配对照」弱化行保留——留档证据不随 TTL 蒸发 */}
                   {row.tabletPaired && (
                     <span
-                      className="max-w-full text-center text-[9px] font-semibold leading-tight text-[var(--accent-strong)]"
+                      className="flex max-w-full items-center justify-center gap-1.5"
                       title={`平板配对：${row.tabletPaired.device?.uaSummary ?? '未记录'}${row.tabletPaired.device?.ip ? ` · ${row.tabletPaired.device.ip}` : ''}${row.tabletPaired.pairedAt ? ` · 配对于 ${new Date(row.tabletPaired.pairedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}`}
                     >
-                      平板（配对）· {row.tabletPaired.device?.uaSummary ?? '未记录'}
-                      {row.tabletPaired.pairedAt ? ` · 配对于 ${new Date(row.tabletPaired.pairedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}
+                      {row.pairingPhoto && (
+                        <a
+                          href={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                          target="_blank"
+                          rel="noopener"
+                          title={`查看配对留档照${row.pairingPhoto.at ? ` · ${new Date(row.pairingPhoto.at).toLocaleString('zh-CN', { hour12: false })}` : ''}`}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                            alt={`${row.expertName} 配对留档照`}
+                            className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
+                          />
+                        </a>
+                      )}
+                      <span className="text-center text-[9px] font-semibold leading-tight text-[var(--accent-strong)]">
+                        平板（配对）· {row.tabletPaired.device?.uaSummary ?? '未记录'}
+                        {row.tabletPaired.pairedAt ? ` · 配对于 ${new Date(row.tabletPaired.pairedAt).toLocaleString('zh-CN', { hour12: false })}` : ''}
+                      </span>
+                    </span>
+                  )}
+                  {!row.tabletPaired && row.pairingPhoto && (
+                    <span
+                      className="flex max-w-full items-center justify-center gap-1.5"
+                      title={`平板已解绑或配对过期——最近一张配对留档照留档备查${row.pairingPhoto.at ? ` · ${new Date(row.pairingPhoto.at).toLocaleString('zh-CN', { hour12: false })}` : ''}`}
+                    >
+                      <a
+                        href={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                        target="_blank"
+                        rel="noopener"
+                        title="查看配对留档照"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`/api/upload/files/${row.pairingPhoto.assetId}`}
+                          alt={`${row.expertName} 配对留档照`}
+                          className="h-10 w-10 rounded-lg border border-[oklch(0.6_0.04_258/0.2)] object-cover"
+                        />
+                      </a>
+                      <span className="text-center text-[9px] leading-tight text-[var(--muted-foreground)]">
+                        最近配对照
+                        {row.pairingPhoto.at ? ` · ${new Date(row.pairingPhoto.at).toLocaleString('zh-CN', { hour12: false })}` : ''}
+                      </span>
                     </span>
                   )}
                 </span>

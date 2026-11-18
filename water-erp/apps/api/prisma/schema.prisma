@@ -802,6 +802,12 @@ model BidExpert {
   transferPhotoPendingAt    DateTime? // 工位迁移留档照待完成（严版 2026-09-23：签到无留档照者迁移后强制补拍；拍完/豁免跳过即清）
   transferPhotoExemptAt     DateTime? // 迁移留档照豁免时间（主持人现场确认摄像头不可用后；理由存监督日志）
   transferPhotoExemptByName String? // 豁免确认人姓名快照
+  // 配对留档照三件套（2026-11-18 生产 bug 修复：recordPairingPhoto 此前丢弃 photoAssetId 致照片成孤儿资产，
+  // :3007 留档照区无处可显）。沿用 transfer 前缀族=配对留档照既有命名（迁移制→配对制沿革）；证据只增不灭：
+  // 重配对不清旧照，仅在新照片到达时覆盖；解绑/Redis TTL 后仍留存（监督留档语义）。
+  transferPhotoAssetId      String? // 最近一张配对留档照 → FileAsset（pair 页上传，类目 expert_signin_photo）
+  transferPhotoAt          DateTime? // 拍摄登记时间
+  transferPhotoOcclusion   String? // 遮挡检测结论（passed | unchecked | null=未记录）
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
 

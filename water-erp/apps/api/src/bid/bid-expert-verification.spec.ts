@@ -145,6 +145,19 @@ describe('BidService.getExpertVerification（TAB-SYNC-01 平板配对可见性�
     const r = await bare.getExpertVerification('proj-1');
     expect(r.experts.every((e: any) => e.tabletPaired === null)).toBe(true);
   });
+
+  // 配对留档照落库可见（2026-11-18）：照片证据不随 Redis 配对 TTL 蒸发——解绑后仍可查
+  it('transferPhoto 三件套 → pairingPhoto { assetId, at, occlusion }；无照为 null', async () => {
+    const photoAt = new Date('2026-11-18T09:30:00Z');
+    registry.getActive.mockResolvedValue(null);
+    prisma.bidExpert.findMany.mockResolvedValue([
+      { ...EXPERT_ROW('e1'), transferPhotoAssetId: 'fa-pair-1', transferPhotoAt: photoAt, transferPhotoOcclusion: 'passed' },
+      EXPERT_ROW('e2'),
+    ]);
+    const r = await svc.getExpertVerification('proj-1');
+    expect(r.experts[0].pairingPhoto).toEqual({ assetId: 'fa-pair-1', at: photoAt.toISOString(), occlusion: 'passed' });
+    expect(r.experts[1].pairingPhoto).toBeNull();
+  });
 });
 
 // TAB-SYNC-01（2026-11-12）：主持人豁免端点随配对制由旧「迁移」名改为「配对」名——

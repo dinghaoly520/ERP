@@ -273,6 +273,47 @@ describe('ExpertService', () => {
     });
   });
 
+  // 配对留档照落存（2026-11-18 生产 bug：平板拍照上传后 photoAssetId 被丢弃——照片成孤儿资产，
+  // :3007 留档照区无处可显）。修复=recordPairingPhoto 把三件套落 BidExpert（transferPhoto* 族）。
+  describe('recordPairingPhoto（配对留档照落存）', () => {
+    it('拍照登记 → 落存 assetId/occlusion/at 三件套并清 pending', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: new Date(), transferPhotoExemptAt: null });
+      prisma.bidExpert.update.mockResolvedValue({});
+      const before = Date.now();
+
+      await service.recordPairingPhoto('user-1', 'proj-1', { photoAssetId: 'fa-pair-1', occlusion: 'passed' });
+
+      expect(prisma.bidExpert.update).toHaveBeenCalledTimes(1);
+      const arg = prisma.bidExpert.update.mock.calls[0][0];
+      expect(arg.where).toEqual({ id: 'exp-1' });
+      expect(arg.data.transferPhotoAssetId).toBe('fa-pair-1');
+      expect(arg.data.transferPhotoOcclusion).toBe('passed');
+      expect(arg.data.transferPhotoAt instanceof Date).toBe(true);
+      expect(arg.data.transferPhotoAt.getTime()).toBeGreaterThanOrEqual(before);
+      expect(arg.data.transferPhotoPendingAt).toBeNull(); // 强制补拍态同笔清掉
+    });
+
+    it('跳过/未拍照 → 只清 pending，不触碰既有照片（证据只增不灭）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: null, transferPhotoExemptAt: new Date() });
+      prisma.bidExpert.update.mockResolvedValue({});
+
+      await service.recordPairingPhoto('user-1', 'proj-1', { skipped: true });
+
+      const data = prisma.bidExpert.update.mock.calls[0][0].data;
+      expect(data.transferPhotoPendingAt).toBeNull();
+      expect(data).not.toHaveProperty('transferPhotoAssetId');
+      expect(data).not.toHaveProperty('transferPhotoAt');
+      expect(data).not.toHaveProperty('transferPhotoOcclusion');
+    });
+
+    it('photoRequired 且 skipped 无豁免 → 403 PHOTO_REQUIRED_FOR_TRANSFER（既有铁律回归）', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: new Date(), transferPhotoExemptAt: null });
+      await expect(service.recordPairingPhoto('user-1', 'proj-1', { skipped: true }))
+        .rejects.toMatchObject({ response: { code: 'PHOTO_REQUIRED_FOR_TRANSFER' } });
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('confirmAvoidance（2026-09-18 用户裁定：只认专家手动申报，系统不自动合并冲突）', () => {
     it('显式传入（含空数组）→ 以传入值整体替换（可清空既有申报）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
