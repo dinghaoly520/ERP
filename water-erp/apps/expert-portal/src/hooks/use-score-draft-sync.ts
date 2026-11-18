@@ -317,6 +317,10 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
     // TAB-SYNC-01（T8 接线契约②）：冲突未裁决期间暂停拉取合并——冲突键 baseline 已前移到
     // local，此时拉取会把同一远端分歧静默接受为「远端未变」
     if (conflictModalOpen || draftConflicts.length > 0) return;
+    // TAB-SYNC-02 ⑥：横幅期暂停门（与 autosave 同口径）——草稿检查未完成或待恢复横幅挂着
+    // 时拉取仍会 setScores+推进 baseline，旧草稿恢复与新远端值互踩（恢复值可被横幅期拉取
+    // 覆盖；横幅消失后首个 pull 再补拉，不丢数据）
+    if (!draftCheckDone || draftAvailable !== null) return;
     api.get<{ scores: Record<string, DraftScoreEntry>; savedAt?: number }>(`/expert/projects/${projectId}/score-draft?device=${device}`)
       .then(draft => {
         if (!draft?.scores) return;
