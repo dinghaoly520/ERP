@@ -653,9 +653,9 @@ export function ProjectManagementPage() {
             <div className="mx-6 h-px shrink-0 bg-[oklch(0.6_0.04_258_/_0.16)]" />
             <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
               {deletionRecords.length === 0 ? (
-                <div className="wb-panel flex items-center justify-center px-5 py-10 text-sm leading-6 text-[color:var(--muted-foreground)]">
+                <p className="py-10 text-center text-sm leading-6 text-[color:var(--muted-foreground)]">
                   暂无移除记录。在已终止项目卡片上点「移除」并确认后，会在此留下记录。
-                </div>
+                </p>
               ) : (
                 <DeletionRecordList records={filteredRecords} showHeader={false} />
               )}

@@ -64,7 +64,7 @@ export function ExpertInfoField({ value }: { value: string | null | undefined })
               <tr>
                 <th className="text-center" style={{ width: 24 }}>#</th>
                 <th className="text-center" style={{ width: '22%', minWidth: 120 }}>专家</th>
-                <th className="text-center">部门</th>
+                <th className="text-center">公司</th>
                 <th className="text-center">专业</th>
                 <th className="text-center">职称</th>
                 <th className="text-center" style={{ width: 80 }}>角色</th>
