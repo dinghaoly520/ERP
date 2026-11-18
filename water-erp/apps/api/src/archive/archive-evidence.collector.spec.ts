@@ -28,6 +28,13 @@ describe('extractEvidenceRefIds（证据件引用 id 提取，纯函数）', () 
     };
     expect([...extractEvidenceRefIds(s)]).toEqual(['scan1']);
   });
+  it('配对留档照 transferPhotoAssetId 入引用集（§五.1 追修：签字包/回流包已披露，须进案卷防悬空）', () => {
+    const s: EvidenceRefSources = {
+      memoInks: [], experts: [{ signScanFileId: null, signInMeta: null, transferPhotoAssetId: 'pair1' }],
+      packet: null, clarifications: [], aiReport: null,
+    };
+    expect([...extractEvidenceRefIds(s)]).toEqual(['pair1']);
+  });
 });
 
 describe('取件常量单一源（P1-1：检测/导出/勾稽共用）', () => {

@@ -317,4 +317,14 @@ describe('BidSignPacketDocxService 配对留档照回退（§五.1）', () => {
     expect(text).toContain('留档照 ✓ · 遮挡检测未运行'); // 签到侧 unchecked 优先于配对侧 passed
     expect(text).not.toContain('配对补拍留档照');
   });
+
+  it('留痕行：off 态应急签到（无照无配对，signInMeta 自带检测结论）→ 遮挡披露不回归（评审追修）', () => {
+    // 真实可达形态：signin-camera 应急按钮 onSignIn(null,'unchecked') 无照上送 →
+    // expert.service 无条件落 signInMeta.occlusion——旧版该行披露「遮挡检测未运行」，不能因配对回退被吞
+    const text = textOf(svc.buildChildren(snapTrace({
+      at: '2026-11-18T08:00:00.000Z',
+      meta: { method: 'off_mode', timestamp: '2026-11-18T08:00:00.000Z', occlusion: 'unchecked' },
+    })));
+    expect(text).toContain('无留档照（应急） · 遮挡检测未运行');
+  });
 });

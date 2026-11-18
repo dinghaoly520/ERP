@@ -116,7 +116,9 @@ export class BidSignPacketDocxService {
             : pairing
               ? `配对补拍留档照 ✓${pairing.at ? `（${pairing.at.slice(5, 16).replace('T', ' ')}）` : ''}`
               : meta.method === 'manual_confirm' ? '无留档照（主持人现场确认）' : '无留档照（应急）';
-          const ocSource = meta.photoAssetId ? meta.occlusion : pairing?.occlusion;
+          // 配对照真被展示时才改取配对侧；双无照（off 态应急签到 signInMeta 自带检测结论）回退签到 meta——
+          // 评审追修（2026-11-18）：旧版恒取 meta.occlusion，此处不得吞掉应急签到的「遮挡检测未运行」披露
+          const ocSource = meta.photoAssetId ? meta.occlusion : pairing ? pairing.occlusion : meta.occlusion;
           const oc = ocSource === 'passed' ? '遮挡检测通过' : ocSource === 'unchecked' ? '遮挡检测未运行' : '';
           value = `${label}：${iv.at.replace('T', ' ').slice(0, 16)} · ${photo}${oc ? ` · ${oc}` : ''}（IP ${iv.ip ?? '未知'}）`;
         } else {
