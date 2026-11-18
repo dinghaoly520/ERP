@@ -3823,6 +3823,23 @@ describe('ExpertService', () => {
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORING_INCOMPLETE' } });
     });
 
+    it('bug#140a：资格短路豁免家只要求通过性项已评——非通过性项未评不再死锁核对', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: 'manual', procurementMethod: '询比采购' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' });
+      // 两条通过性记录（含一条不通过）——非通过性 2 项未评为豁免设计态
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { scoreItemId: 'si-q', score: 0, passed: false },
+        { scoreItemId: 'si-r', score: 0, passed: true },
+      ]);
+      // count 序列：非 PRICE 全量 4 → 触发豁免后改按通过性项 2
+      prisma.bidScoreItem.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+      prisma.bidScoreReview.upsert.mockResolvedValue({ id: 'rv1', status: 'verified' });
+      const r = await service.verifyScoreReview('user-1', 'p1', 'sup1');
+      expect(r.status).toBe('verified'); // 修复前 2<4 → SCORING_INCOMPLETE → allVerified 恒 false → 报告确认死锁（2026-11-18 UI 验收实录）
+      expect(prisma.bidScoreItem.count).toHaveBeenNthCalledWith(2, { where: { projectId: 'p1', category: { in: ['QUALIFICATION', 'RESPONSIVE'] } } });
+    });
+
     it('终审对齐（2026-10-20）：非 none + 0 个非 PRICE 项（仅 PRICE 公式标）+ 0 记录 → 放行核对落 verified（progress 已 100 的混合态消除）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', evaluationMethod: 'manual', procurementMethod: '询比采购' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
