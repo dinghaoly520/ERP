@@ -11,7 +11,7 @@ import {
   CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory, DECRYPT_LABEL,
 } from '@water-erp/shared';
 import type { ExpertProjectDetail } from '@/lib/types';
-import { buildFullPoints, committedRecordFor, isCommittedEquivalent, type ScoreEntry } from '@/lib/score-validation';
+import { buildFullPoints, committedRecordFor, isCommittedEquivalent, isQualificationShortCircuited, type ScoreEntry } from '@/lib/score-validation';
 import { threeWayMerge, normalizeDraftEntries } from '@/lib/draft-merge';
 import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
@@ -521,6 +521,9 @@ export default function TabletEvaluatePage() {
     !conflictedSupplierIds.has(activeSupplier) &&
     !invalidSupplierIds.has(activeSupplier);
   const scoreLocked = !!project?.myExpertRecord?.reportConfirmed;
+  // bug#140a 资格短路：本专家已判任一通过性项不通过 → 该供应商非通过性项免评（平板只存草稿、
+  // 正式提交在桌面端；此处只读态与桌面同口径，防豁免类目草稿经双槽合并回流成「已评」假象）
+  const activeSupplierShortCircuited = isQualificationShortCircuited(project?.scoreItems ?? [], scores, activeSupplier, scoreKey);
   // 身份核验/回避/AI声明完成标志（后端仍强制；前端对齐桌面体验，避免专家填完才报错）
   // EXP-P2-05：补齐后端五项核验中的保密承诺/评标纪律（与桌面同口径）
   const verificationComplete =
@@ -1130,6 +1133,8 @@ export default function TabletEvaluatePage() {
           <div className="space-y-4">
             {Object.entries(grouped).map(([category, items]) => {
               const catColor = CATEGORY_COLOR[category] || 'var(--accent-strong)';
+              // bug#140a：短路豁免只作用于非通过性类目（QUALIFICATION/RESPONSIVE 仍须给结论）
+              const exempted = activeSupplierShortCircuited && !isPassFailCategory(category);
               return (
                 <section key={category}>
                   {/* 类目分组标题（.exp-category-group 外壳由 point-checklist-scoring 自行处理） */}
@@ -1139,6 +1144,11 @@ export default function TabletEvaluatePage() {
                       {CATEGORY_LABEL[category] || category}
                     </h3>
                     <span className="neu-tab-count">{items.length} 项</span>
+                    {exempted && (
+                      <span className="exp-pill" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
+                        资格未过·免评
+                      </span>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {items.map(item => {
@@ -1154,7 +1164,8 @@ export default function TabletEvaluatePage() {
                         seq: p.seq,
                       }));
                       const passFail = isPassFailCategory(item.category);
-                      const readOnly = !canScoreActiveSupplier || scoreLocked || !verificationComplete;
+                      const readOnly = !canScoreActiveSupplier || scoreLocked || !verificationComplete
+                        || (activeSupplierShortCircuited && !passFail); // bug#140a：豁免类目免评只读
                       // 数值单点项无 pointDecisions 时按提交分回显得分点
                       const committedScore = committedRecordFor(project?.myScores, activeSupplier, item.id)?.score ?? null;
 

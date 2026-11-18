@@ -113,9 +113,28 @@ export interface MissingScore {
 }
 
 /**
+ * bug#140a 资格短路（2026-11-18 复裁补实施）：本专家对该供应商已判任一通过性项
+ * 「不通过」→ 该供应商的非通过性类目免评。与后端 recomputeExpertProgress 豁免分母
+ * 同口径（豁免仅本专家；废标仍按多专家过半投票，两轨并行不互斥）。
+ * 消费面：validateSupplierScores（校验跳过）/ 提交 payload 过滤（防 0 分污染聚合）/
+ * 双端评分 UI「资格未过·免评」只读态。
+ */
+export function isQualificationShortCircuited(
+  scoreItems: { id: string; category: string }[],
+  scores: Record<string, ScoreEntryLike>,
+  supplierId: string,
+  scoreKey: (supplierId: string, scoreItemId: string) => string = (s, i) => `${s}:${i}`,
+): boolean {
+  return scoreItems.some(
+    (si) => isPassFailCategory(si.category) && scores[scoreKey(supplierId, si.id)]?.passed === false,
+  );
+}
+
+/**
  * 校验某供应商的评分完整性（桌面端与平板端共用）：
- * - 通过性项（QUALIFICATION/RESPONSIVE）：必须有通过/不通过结论；不通过须填写理由。
+ * - 通过性项（QUALIFICATION/RESPONSIVE）：必须有通过/不通过结论；不通过须填写理由（含触发豁免的那一项）。
  * - 数值项：低于满分须填写理由。
+ * - bug#140a 资格短路：已判任一通过性项不通过 → 跳过非通过性项校验（免评）。
  * 返回缺漏项列表（空数组 = 完整可提交）。
  */
 export function validateSupplierScores(
@@ -125,6 +144,7 @@ export function validateSupplierScores(
   scoreKey: (supplierId: string, scoreItemId: string) => string = (s, i) => `${s}:${i}`,
 ): MissingScore[] {
   const missing: MissingScore[] = [];
+  const shortCircuited = isQualificationShortCircuited(scoreItems, scores, supplierId, scoreKey);
   for (const si of scoreItems) {
     const entry = scores[scoreKey(supplierId, si.id)];
     if (isPassFailCategory(si.category)) {
@@ -134,6 +154,7 @@ export function validateSupplierScores(
         missing.push({ itemId: si.id, message: '不通过须填写理由' });
       }
     } else {
+      if (shortCircuited) continue; // bug#140a：资格未过·免评——非通过性项不校验
       const score = entry?.score ?? 0;
       if (score < Number(si.maxScore) && !(entry?.reason || '').trim()) {
         missing.push({ itemId: si.id, message: '低于满分须填写理由' });

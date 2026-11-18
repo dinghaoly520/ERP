@@ -268,6 +268,90 @@ describe('recomputeExpertProgress', () => {
   });
 });
 
+describe('bug#140a 资格短路豁免（分母排除本专家已判通过性不通过家的非通过性项）', () => {
+  const PF_ITEMS = [
+    { id: 'q', category: 'QUALIFICATION' },
+    { id: 'r', category: 'RESPONSIVE' },
+    { id: 't', category: 'TECHNICAL' },
+  ];
+
+  /** 场景：a 家 QUALIFICATION 判不通过（豁免），b 家正常——a 只评了两项通过性，b 全评 */
+  function buildTx(records: any[], countImpl?: (args: any) => any) {
+    return {
+      bidScoreItem: { findMany: jest.fn().mockResolvedValue(PF_ITEMS) },
+      bidSupplier: { findMany: jest.fn().mockResolvedValue([{ id: 'a' }, { id: 'b' }]) },
+      bidScoreRecord: {
+        count: jest.fn(countImpl ?? (async (args: any) => (args.where.supplierId.in.includes('b') ? 3 : 2))),
+        findMany: jest.fn().mockResolvedValue(records),
+      },
+    } as any;
+  }
+
+  const baseRecords = [
+    { supplierId: 'a', scoreItemId: 'q', passed: false, score: 0 },
+    { supplierId: 'a', scoreItemId: 'r', passed: true, score: 0 },
+    { supplierId: 'b', scoreItemId: 'q', passed: true, score: 0 },
+    { supplierId: 'b', scoreItemId: 'r', passed: true, score: 0 },
+    { supplierId: 'b', scoreItemId: 't', passed: null, score: 80 },
+  ];
+
+  it('豁免家只评通过性项即可达 100（分母 = 非豁免家×全部项 + 豁免家×通过性项）', async () => {
+    const tx = buildTx(baseRecords);
+    const res = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    // 分母 = 1×3（b 全部）+ 1×2（a 仅通过性）= 5；分子 = b 3 条 + a 通过性 2 条 = 5
+    expect(res.progress).toBe(100);
+    // 分子第二段（豁免家）必须按通过性类目收口——历史全量评分记录不得虚增
+    const secondCall = (tx.bidScoreRecord.count as jest.Mock).mock.calls[1]?.[0]?.where;
+    expect(secondCall.scoreItem.category).toEqual({ in: ['QUALIFICATION', 'RESPONSIVE'] });
+    expect(secondCall.supplierId).toEqual({ in: ['a'] });
+  });
+
+  it('豁免家的历史全量评分记录不虚增分子（分子对其只数通过性项）', async () => {
+    // a 曾全量评过 3 项（含技术 90 分）后才改判资格不通过——分子对 a 只数 2 条
+    const tx = buildTx([
+      ...baseRecords,
+      { supplierId: 'a', scoreItemId: 't', passed: null, score: 90 },
+    ]);
+    const res = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(res.progress).toBe(100); // 5/5，a 的技术分记录不入分子（第二段 count 类别已收口）
+  });
+
+  it('均分口径排除豁免家（其通过性 0 分记录不稀释 totalScore）', async () => {
+    const tx = buildTx(baseRecords);
+    const res = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    // b 家 0+0+80=80 / 1 家 = 80；若把 a 的两条 0 分记录计入（/2）会得 40
+    expect(res.totalScore).toBe(80);
+  });
+
+  it('改票/复议推翻（无 passed=false）→ 豁免消失分母回扩（无状态自愈）', async () => {
+    const records = [
+      { supplierId: 'a', scoreItemId: 'q', passed: true, score: 0 }, // 改判通过
+      { supplierId: 'a', scoreItemId: 'r', passed: true, score: 0 },
+      { supplierId: 'a', scoreItemId: 't', passed: null, score: 70 },
+      { supplierId: 'b', scoreItemId: 'q', passed: true, score: 0 },
+      { supplierId: 'b', scoreItemId: 'r', passed: true, score: 0 },
+      { supplierId: 'b', scoreItemId: 't', passed: null, score: 80 },
+    ];
+    const tx = buildTx(records, async () => 6);
+    const res = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    expect(res.progress).toBe(100); // 无豁免：分母 3×2=6，单次 count 全量 6
+    // 豁免为空时不得发第二段 count（既有单 count 契约）
+    expect((tx.bidScoreRecord.count as jest.Mock).mock.calls.length).toBe(1);
+    expect((tx.bidScoreRecord.count as jest.Mock).mock.calls[0][0].where.supplierId).toEqual({ in: ['a', 'b'] });
+  });
+
+  it('passed=false 但记录已不在活跃集（陈旧幻影）→ 不产生幻影豁免', async () => {
+    const tx = buildTx([
+      ...baseRecords,
+      { supplierId: 'gone', scoreItemId: 'q', passed: false, score: 0 }, // 撤回/废标后遗留
+    ]);
+    const res = await recomputeExpertProgress(tx, 'exp1', 'p1');
+    // 'gone' 不在活跃集 → 不豁免任何人；但 a 本就豁免——换成 b 场景断言更准：
+    // 此用例核心=幻影记录不把非豁免家误扩进豁免集，a/b 行为同 baseRecords
+    expect(res.progress).toBe(100);
+  });
+});
+
 describe('filterEvaluableSuppliers（P1-5/P1-6 单一口径·终审补）', () => {
   it('可评集合 = 活跃行 − 回避 − 废标', () => {
     const rows = [

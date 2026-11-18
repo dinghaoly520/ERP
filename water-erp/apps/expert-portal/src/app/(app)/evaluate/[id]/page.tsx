@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
-import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, type ScoreEntry } from '@/lib/score-validation';
+import { validateSupplierScores, buildFullPoints, committedRecordFor, isCommittedEquivalent, filterScorableItems, isQualificationShortCircuited, type ScoreEntry } from '@/lib/score-validation';
 import { threeWayMerge, normalizeDraftEntries } from '@/lib/draft-merge';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
@@ -1188,7 +1188,12 @@ export default function ExpertEvaluatePage() {
       toast.warning(`以下类别有异议条款未核对：${unconfirmed.map((c) => CATEGORY_LABEL[c] || c).join('、')}`);
       return;
     }
-    const scoresPayload = scorableItems.map(si => {
+    // bug#140a 资格短路：本专家已判任一通过性项不通过 → 该供应商非通过性项免评。
+    // 校验已跳过（validateSupplierScores 同口径），payload 过滤防 0 分记录污染主持端聚合与评标结果；
+    // 豁免仅本专家——废标仍按多专家过半投票（与后端 recomputeExpertProgress 分母豁免成对生效）。
+    const shortCircuited = isQualificationShortCircuited(scorableItems, scores, activeSupplier, scoreKey);
+    const payloadItems = shortCircuited ? scorableItems.filter(si => isPassFailCategory(si.category)) : scorableItems;
+    const scoresPayload = payloadItems.map(si => {
       const entry = scores[scoreKey(activeSupplier, si.id)];
       const hasPoints = (si.points ?? []).length > 0;
       if (isPassFailCategory(si.category)) {
@@ -2312,6 +2317,8 @@ export default function ExpertEvaluatePage() {
                   grouped[si.category].push(si);
                 });
                 const scoringSupplierName = project.suppliers.find(su => su.id === activeSupplier)?.supplierName || '';
+                // bug#140a 资格短路：已判任一通过性项不通过 → 非通过性类目「资格未过·免评」只读态
+                const shortCircuited = isQualificationShortCircuited(scorableItems, scores, activeSupplier, scoreKey);
                 return (
                   // 不可评供应商（未解密/已撤回/已回避/已废标）整卡置灰防白填（惯用语同身份核验解锁门）；
                   // 报告已确认时异常供应商仍不可评分，正常供应商的锁定由评分控件处理。
@@ -2322,6 +2329,8 @@ export default function ExpertEvaluatePage() {
                       // Fix 1: 按当前 activeSupplier 过滤异议类别。
                       const activeDisputes = new Set(disputeCategoriesBySupplier[activeSupplier] ?? []);
                       const disputed = activeDisputes.has(category);
+                      // bug#140a：短路豁免只作用于非通过性类目（QUALIFICATION/RESPONSIVE 仍须给结论）
+                      const exempted = shortCircuited && !isPassFailCategory(category);
                       const catColor = CATEGORY_COLOR[category] || 'var(--accent-strong)';
                       return (
                         <div key={category} className={`exp-category-group ${disputed ? '!shadow-[inset_0_1px_0_oklch(1_0_0/0.8),2px_2px_5px_oklch(0.55_0.03_258/0.1),-1.5px_-1.5px_4px_oklch(1_0_0/0.85),inset_0_0_0_1.5px_color-mix(in_oklch,var(--warning)_55%,transparent)]' : ''}`}>
@@ -2337,10 +2346,17 @@ export default function ExpertEvaluatePage() {
                                   <AlertTriangle size={9} strokeWidth={2} /> 有异议条款待核对
                                 </span>
                               )}
+                              {exempted && (
+                                <span className="exp-pill" style={{ '--c': 'var(--accent)' } as React.CSSProperties}>
+                                  资格未过·免评
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2">
                               {isPassFailCategory(category) ? (
                                 <span className="text-sm font-bold text-[var(--muted-foreground)]">通过性审查</span>
+                              ) : exempted ? (
+                                <span className="text-sm font-bold text-[var(--muted-foreground)]">免评</span>
                               ) : (
                                 <>
                                   <span className="text-xs text-[var(--muted-foreground)]">得分</span>
@@ -2350,7 +2366,8 @@ export default function ExpertEvaluatePage() {
                               )}
                             </div>
                           </div>
-                          <div className="space-y-4">
+                          {/* bug#140a：豁免类目整区只读（惯用语同不可评供应商置灰） */}
+                          <div className={`space-y-4 ${exempted ? 'pointer-events-none select-none opacity-50' : ''}`}>
                             {/* 异议备注区 — disputed category 顶部列出异议条款摘要 + note，供专家打分参考 */}
                             {disputed && (disputesBySupplier[activeSupplier]?.[category]?.filter((d) => d.verdict === 'dispute').length ?? 0) > 0 && (
                               <div className="exp-alert exp-alert--warn space-y-2 !p-3">
