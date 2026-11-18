@@ -279,6 +279,7 @@ describe('ExpertService', () => {
     it('拍照登记 → 落存 assetId/occlusion/at 三件套并清 pending', async () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: new Date(), transferPhotoExemptAt: null });
       prisma.bidExpert.update.mockResolvedValue({});
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa-pair-1', category: 'expert_signin_photo', uploaderId: 'user-1' });
       const before = Date.now();
 
       await service.recordPairingPhoto('user-1', 'proj-1', { photoAssetId: 'fa-pair-1', occlusion: 'passed' });
@@ -311,6 +312,28 @@ describe('ExpertService', () => {
       await expect(service.recordPairingPhoto('user-1', 'proj-1', { skipped: true }))
         .rejects.toMatchObject({ response: { code: 'PHOTO_REQUIRED_FOR_TRANSFER' } });
       expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+    });
+
+    it('资产三验（2026-11-18 评审）：不存在/类目不符/非本人上传 → 400 INVALID_PAIRING_PHOTO 不落库', async () => {
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'exp-1', expertName: '王建国', transferPhotoPendingAt: null, transferPhotoExemptAt: null });
+      const bad = [
+        null, // 不存在
+        { id: 'fa-x', category: 'general', uploaderId: 'user-1' }, // 类目不符
+        { id: 'fa-x', category: 'expert_signin_photo', uploaderId: 'user-2' }, // 非本人上传
+      ];
+      for (const asset of bad) {
+        prisma.fileAsset.findUnique.mockResolvedValue(asset);
+        await expect(service.recordPairingPhoto('user-1', 'proj-1', { photoAssetId: 'fa-x', occlusion: 'passed' }))
+          .rejects.toMatchObject({ response: { code: 'INVALID_PAIRING_PHOTO' } });
+      }
+      expect(prisma.bidExpert.update).not.toHaveBeenCalled();
+      // 对照：本人 expert_signin_photo 资产 → 放行落库
+      prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa-ok', category: 'expert_signin_photo', uploaderId: 'user-1' });
+      prisma.bidExpert.update.mockResolvedValue({});
+      await service.recordPairingPhoto('user-1', 'proj-1', { photoAssetId: 'fa-ok', occlusion: 'passed' });
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ transferPhotoAssetId: 'fa-ok' }),
+      }));
     });
   });
 

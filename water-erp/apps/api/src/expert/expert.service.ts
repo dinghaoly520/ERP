@@ -3753,6 +3753,14 @@ export class ExpertService {
         code: 'PHOTO_REQUIRED_FOR_TRANSFER',
       });
     }
+    // 拍照留痕：镜像 signIn 路径三验（存在+类目+归属本人，2026-11-18 评审）——
+    // 落库即成 :3007 核验矩阵权威证据，防塞他人资产/伪 id 污染证据面
+    if (dto.photoAssetId) {
+      const asset = await this.prisma.fileAsset.findUnique({ where: { id: dto.photoAssetId } });
+      if (!asset || asset.category !== 'expert_signin_photo' || asset.uploaderId !== userId) {
+        throw new BadRequestException({ error: '配对留档照无效，请重新拍摄上传', code: 'INVALID_PAIRING_PHOTO' });
+      }
+    }
     await this.prisma.bidExpert.update({
       where: { id: expert.id },
       data: {
