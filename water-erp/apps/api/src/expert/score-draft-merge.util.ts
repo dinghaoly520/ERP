@@ -130,3 +130,30 @@ function entryContentEquals(a: ScoreEntry, b: ScoreEntry): boolean {
   }
   return true;
 }
+
+/**
+ * TAB-SYNC-02 ②：陈旧 committed 草稿过滤——提交后旧草稿不再回显提交前旧值。
+ *
+ * 语义：committed 键存在且草稿有效时戳（per-entry savedAt 缺省回退 fallbackSavedAt=
+ * 槽顶层 savedAt，与 mergeDraftSlots effectiveSavedAt 同口径）**<=** 该键提交时刻
+ * （BidScoreRecord.updatedAt，服务端钟——④打点后草稿时戳同为服务端钟，比较自洽）
+ * → 剔除；严格大于（提交后的新编辑/修正）→ 保留；无 committed 记录 → 保留。
+ * 同毫秒视提交前（savedAt==committedAt 剔除）——提交后编辑须严格更新。
+ * 客户端半（restore 路径）在 expert-portal lib/draft-merge.ts 同语义双副本，改一处须改两处。
+ */
+export function filterStaleCommittedEntries(
+  entries: Record<string, ScoreEntry>,
+  committedAt: Record<string, number>,
+  fallbackSavedAt: number,
+): { kept: Record<string, ScoreEntry>; droppedKeys: string[] } {
+  const kept: Record<string, ScoreEntry> = {};
+  const droppedKeys: string[] = [];
+  for (const [k, v] of Object.entries(entries)) {
+    const at = committedAt[k];
+    if (at === undefined) { kept[k] = v; continue; }
+    const effective = typeof v?.savedAt === 'number' ? v.savedAt : fallbackSavedAt;
+    if (effective <= at) droppedKeys.push(k);
+    else kept[k] = v;
+  }
+  return { kept, droppedKeys };
+}

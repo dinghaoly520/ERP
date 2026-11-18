@@ -30,7 +30,7 @@ import {
   type ScoreEntry,
   type CommittedScoreRecord,
 } from '@/lib/score-validation';
-import { mergePulledDraft, advanceBaselineAfterServerData as advanceBaselineOnServerKeys, normalizeDraftEntries, type ScoreEntry as DraftScoreEntry } from '@/lib/draft-merge';
+import { mergePulledDraft, advanceBaselineAfterServerData as advanceBaselineOnServerKeys, filterStaleCommittedEntries, normalizeDraftEntries, type ScoreEntry as DraftScoreEntry } from '@/lib/draft-merge';
 
 /** 页面冲突裁决弹窗的条目形状（双页原 inline 类型收敛） */
 export interface DraftSyncConflict {
@@ -262,7 +262,21 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
       setDraftDismissed(true);
       return;
     }
-    const norm = normalizeRestoreEntries(draft.scores);
+    // TAB-SYNC-02 ②：陈旧 committed 过滤（客户端半——localStorage 草稿不经服务端）：
+    // 提交时刻之前的条目剔除，恢复不再回显提交前旧值；全陈旧 → 横幅就地消除
+    const committedAtRestore: Record<string, number> = {};
+    for (const rec of myScores) {
+      const at = rec.updatedAt != null ? new Date(rec.updatedAt).getTime() : NaN;
+      if (Number.isFinite(at)) committedAtRestore[`${rec.supplierId}:${rec.scoreItemId}`] = at;
+    }
+    const filtered = filterStaleCommittedEntries(draft.scores, committedAtRestore, draft.savedAt ?? 0);
+    if (Object.keys(filtered.kept).length === 0) {
+      toast.info('草稿均已随评分提交，无需恢复');
+      setDraftAvailable(null);
+      setDraftDismissed(true);
+      return;
+    }
+    const norm = normalizeRestoreEntries(filtered.kept);
     // TAB-SYNC-01：恢复落定即本页起点——以合并后快照初始化 last-synced 基线
     const merged = { ...scoresRef.current, ...norm };
     setScores(merged);

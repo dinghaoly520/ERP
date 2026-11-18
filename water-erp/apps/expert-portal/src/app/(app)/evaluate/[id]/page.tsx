@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
-import { validateSupplierScores, buildFullPoints, committedRecordFor, filterScorableItems, isQualificationShortCircuited, buildServerMentionedEntries, type ScoreEntry } from '@/lib/score-validation';
+import { validateSupplierScores, buildFullPoints, committedRecordFor, filterScorableItems, isQualificationShortCircuited, buildServerMentionedEntries, buildPendingScoreDraft, type ScoreEntry } from '@/lib/score-validation';
 import { useScoreDraftSync } from '@/hooks/use-score-draft-sync';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
@@ -986,7 +986,13 @@ export default function ExpertEvaluatePage() {
     setBusy(true);
     try {
       await api.post(`/expert/projects/${projectId}/scores`, { scores: scoresPayload, supplierName });
-      // 不再整键删除草稿（会误删其他供应商未提交分）；合并刷新后自动暂存按剩余未提交分重写
+      // 不再整键删除草稿（会误删其他供应商未提交分）；TAB-SYNC-02 ②：按供应商前缀清本端槽
+      // ——该供应商键即时出槽（其余未提交分保留），对端槽由 GET 服务端陈旧过滤兜底
+      const remaining = Object.fromEntries(
+        Object.entries(buildPendingScoreDraft(scores, project?.myScores, project?.scoreItems))
+          .filter(([k]) => !k.startsWith(`${activeSupplier}:`)),
+      );
+      api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: remaining, savedAt: Date.now() }).catch(() => {});
       clearDraftBanner();
       loadProject(activeSupplier);
       toast.success(`${supplierName} 评分提交成功`);

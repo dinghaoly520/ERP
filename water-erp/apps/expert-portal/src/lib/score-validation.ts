@@ -19,6 +19,8 @@ export type CommittedScoreRecord = {
   score: number;
   passed?: boolean | null;
   reason?: string | null;
+  /** 提交时刻（服务端钟，ISO/毫秒）——TAB-SYNC-02 ② 陈旧草稿过滤用；服务端 myScores 行天然携带 */
+  updatedAt?: string | number | Date;
 };
 
 /**

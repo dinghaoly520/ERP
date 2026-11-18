@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { threeWayMerge, mergePulledDraft, advanceBaselineAfterServerData } from '../draft-merge.ts';
+import { threeWayMerge, mergePulledDraft, advanceBaselineAfterServerData, filterStaleCommittedEntries } from '../draft-merge.ts';
 import type { ScoreEntry } from '../draft-merge.ts';
 
 /**
@@ -276,4 +276,19 @@ test('EQ-③ 本端已编辑 + 远端为基线内容的 jsonb 键序回声 → �
   const m = threeWayMerge({ price: l }, { price: b }, { price: r });
   assert.deepEqual(m.conflicts, []); // 旧 stringify：r≠b（键序）→ 假冲突弹窗，误采远端丢最新编辑
   assert.equal(m.next.price.score, 95); // 保留本地最新编辑
+});
+
+// ── TAB-SYNC-02 ②客户端副本：restore 路径的陈旧 committed 过滤（与服务端同语义双副本）──
+
+test('FSC-① 陈旧剔除/提交后新编辑保留/无记录保留/槽顶层回退（四合一语义钉）', () => {
+  const entries = {
+    stale: { score: 80, reason: '', savedAt: 100 },
+    fresh: { score: 95, reason: '', savedAt: 200 },
+    noRec: { score: 10, reason: '', savedAt: 100 },
+    noTs: { score: 70, reason: '' },
+  };
+  const committedAt = { stale: 150, fresh: 150, noTs: 150 };
+  const r = filterStaleCommittedEntries(entries, committedAt, 100);
+  assert.deepEqual([...r.droppedKeys].sort(), ['noTs', 'stale']); // noTs 回退槽顶层 100<=150 陈旧
+  assert.deepEqual(Object.keys(r.kept).sort(), ['fresh', 'noRec']);
 });

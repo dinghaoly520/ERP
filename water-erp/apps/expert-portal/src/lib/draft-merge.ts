@@ -176,3 +176,28 @@ export function advanceBaselineAfterServerData(
   for (const k of keys) next[k] = serverEntries[k];
   return next;
 }
+
+/**
+ * TAB-SYNC-02 ②客户端副本：陈旧 committed 草稿过滤（restore 路径——localStorage 草稿
+ * 不经服务端，须本端过滤）。语义与服务端 score-draft-merge.util.ts
+ * filterStaleCommittedEntries 完全一致（双副本交叉注释互指，改一处须改两处）：
+ * committed 键 + 有效时戳（per-entry 回退 fallbackSavedAt）<= 提交时刻 → 剔除；
+ * 严格大于（提交后新编辑）→ 保留；无记录 → 保留。committedAt 由调用方从
+ * project.myScores 的 updatedAt（毫秒）构造。
+ */
+export function filterStaleCommittedEntries(
+  entries: Record<string, ScoreEntry>,
+  committedAt: Record<string, number>,
+  fallbackSavedAt: number,
+): { kept: Record<string, ScoreEntry>; droppedKeys: string[] } {
+  const kept: Record<string, ScoreEntry> = {};
+  const droppedKeys: string[] = [];
+  for (const [k, v] of Object.entries(entries)) {
+    const at = committedAt[k];
+    if (at === undefined) { kept[k] = v; continue; }
+    const effective = typeof v?.savedAt === 'number' ? v.savedAt : fallbackSavedAt;
+    if (effective <= at) droppedKeys.push(k);
+    else kept[k] = v;
+  }
+  return { kept, droppedKeys };
+}

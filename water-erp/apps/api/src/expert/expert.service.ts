@@ -21,7 +21,7 @@ import {
   assertEvaluationStage, assertEvaluationStarted,
   isRoomVerified, ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
 } from './expert-room.util';
-import { mergeDraftSlots, stampDraftEntries } from './score-draft-merge.util';
+import { mergeDraftSlots, stampDraftEntries, filterStaleCommittedEntries } from './score-draft-merge.util';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -2875,11 +2875,28 @@ export class ExpertService {
   ) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     await assertEvaluationStarted(this.prisma, projectId); // 启动闸（2026-10-21）
-    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { id: true, scoreDraft: true } });
     // TAB-SYNC-01 §4.1：合并语义抽到纯函数 mergeDraftSlots——逐键取最新 savedAt
     // （旧「本设备槽整槽优先」× 回声 = 同键双端再编辑静默分叉，已废弃）
     // TAB-SYNC-01：scoped 读同槽强制 tablet（读无害，与写同口径——配对平板 tiebreak 本槽优先）
-    return mergeDraftSlots(expert?.scoreDraft, pairingScope ? 'tablet' : device);
+    const merged = mergeDraftSlots(expert?.scoreDraft, pairingScope ? 'tablet' : device);
+    if (!merged || !expert) return merged;
+    // TAB-SYNC-02 ②：陈旧 committed 过滤——提交时刻（服务端钟）之前的草稿条目剔除，
+    // 恢复横幅/pull 合并不再回显提交前旧值（提交后新编辑 savedAt>updatedAt 保留）。
+    // ④ 打点后草稿时戳同为服务端钟，比较自洽；记录查询失败 fail-open 原样返回（过滤是
+    // 净化面不是安全面）。
+    try {
+      const records = await this.prisma.bidScoreRecord.findMany({
+        where: { expertId: expert.id },
+        select: { supplierId: true, scoreItemId: true, updatedAt: true },
+      });
+      if (records.length > 0) {
+        const committedAt: Record<string, number> = {};
+        for (const r of records) committedAt[`${r.supplierId}:${r.scoreItemId}`] = new Date(r.updatedAt).getTime();
+        return { ...merged, scores: filterStaleCommittedEntries(merged.scores, committedAt, merged.savedAt).kept };
+      }
+    } catch { /* 过滤失败原样返回 */ }
+    return merged;
   }
 
   /** 评分历史：已提交值 + 修改快照 + 草稿值 + 未评分项，按 scoreItemId 分组 */

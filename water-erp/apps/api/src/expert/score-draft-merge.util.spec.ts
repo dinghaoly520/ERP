@@ -1,4 +1,4 @@
-import { mergeDraftSlots, stampDraftEntries } from './score-draft-merge.util';
+import { mergeDraftSlots, stampDraftEntries, filterStaleCommittedEntries } from './score-draft-merge.util';
 
 /**
  * TAB-SYNC-01 §4.1：草稿双槽合并改「逐键取最新 savedAt」（替代旧「本设备槽整槽优先」）。
@@ -155,5 +155,40 @@ describe('stampDraftEntries 键序无关性（T4 审查 Critical）', () => {
     const existing = { scores: { 's1:i2': { ...mk('asc'), savedAt: 120 } }, savedAt: 120 };
     const out = stampDraftEntries({ 's1:i2': mk('desc') }, existing, 5000);
     expect(out['s1:i2'].savedAt).toBe(120);
+  });
+});
+
+// ── TAB-SYNC-02 ②：陈旧 committed 草稿过滤——提交后旧草稿不再回显提交前旧值 ──
+
+describe('filterStaleCommittedEntries（TAB-SYNC-02 ②）', () => {
+  it('committed 键且草稿时戳 <= 提交时刻 → 剔除（提交前保存的陈旧草稿）', () => {
+    const entries = { 's1:i1': { score: 80, reason: '旧', savedAt: 100 }, 's2:i2': { score: 60, reason: '', savedAt: 100 } };
+    const r = filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 0);
+    expect(r.droppedKeys).toEqual(['s1:i1']);
+    expect(Object.keys(r.kept)).toEqual(['s2:i2']);
+  });
+
+  it('committed 键但草稿时戳 > 提交时刻（提交后新编辑）→ 保留', () => {
+    const entries = { 's1:i1': { score: 95, reason: '改', savedAt: 200 } };
+    const r = filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 0);
+    expect(r.droppedKeys).toEqual([]);
+    expect(r.kept['s1:i1'].score).toBe(95);
+  });
+
+  it('无 committed 记录的键 → 保留（未提交编辑是草稿本体）', () => {
+    const entries = { 's9:i9': { score: 10, reason: '', savedAt: 100 } };
+    const r = filterStaleCommittedEntries(entries, {}, 0);
+    expect(Object.keys(r.kept)).toEqual(['s9:i9']);
+  });
+
+  it('条目无 per-entry savedAt → 回退槽顶层 fallbackSavedAt 参与比较', () => {
+    const entries = { 's1:i1': { score: 80, reason: '' } }; // 无时戳（旧格式）
+    expect(filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 100).droppedKeys).toEqual(['s1:i1']); // 100<=150 陈旧
+    expect(filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 180).droppedKeys).toEqual([]); // 180>150 新
+  });
+
+  it('同毫秒边界：savedAt == committedAt → 剔除（同毫秒视提交后编辑须严格更新）', () => {
+    const entries = { 's1:i1': { score: 80, reason: '', savedAt: 150 } };
+    expect(filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 0).droppedKeys).toEqual(['s1:i1']);
   });
 });
