@@ -1042,8 +1042,14 @@ export default function TabletEvaluatePage() {
         {/* 总分 pod */}
         <div className="neu-card-static flex flex-shrink-0 items-center gap-2 !rounded-xl px-4 py-2">
           <span className="text-xs font-semibold text-[var(--muted-foreground)]">总分</span>
-          <span className="text-lg font-black tabular-nums leading-none text-[var(--accent-strong)]">{totalScored}</span>
-          <span className="text-xs tabular-nums text-[var(--muted-foreground)]">/ {totalMax}</span>
+          {activeSupplierShortCircuited ? (
+            <span className="text-lg font-black leading-none text-[var(--muted-foreground)]">资格未过 · 免评</span>
+          ) : (
+            <>
+              <span className="text-lg font-black tabular-nums leading-none text-[var(--accent-strong)]">{totalScored}</span>
+              <span className="text-xs tabular-nums text-[var(--muted-foreground)]">/ {totalMax}</span>
+            </>
+          )}
         </div>
       </div>
 

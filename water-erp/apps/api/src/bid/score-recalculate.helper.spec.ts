@@ -340,15 +340,27 @@ describe('bug#140a 资格短路豁免（分母排除本专家已判通过性不�
     expect((tx.bidScoreRecord.count as jest.Mock).mock.calls[0][0].where.supplierId).toEqual({ in: ['a', 'b'] });
   });
 
-  it('passed=false 但记录已不在活跃集（陈旧幻影）→ 不产生幻影豁免', async () => {
-    const tx = buildTx([
-      ...baseRecords,
-      { supplierId: 'gone', scoreItemId: 'q', passed: false, score: 0 }, // 撤回/废标后遗留
-    ]);
+  it('passed=false 但记录已不在活跃集（陈旧幻影）→ 不产生幻影豁免（区分度版）', async () => {
+    // a/b 两家在册均无 fail（各 3 项全评）+ 一条已离场家 fail 幻影：
+    // 若无活跃集闸，幻影会虚增豁免分母（2×3+1×2=8 → 6/8=75%）并多发第二段 count
+    const tx = buildTx(
+      [
+        { supplierId: 'a', scoreItemId: 'q', passed: true, score: 0 },
+        { supplierId: 'a', scoreItemId: 'r', passed: true, score: 0 },
+        { supplierId: 'a', scoreItemId: 't', passed: null, score: 70 },
+        { supplierId: 'b', scoreItemId: 'q', passed: true, score: 0 },
+        { supplierId: 'b', scoreItemId: 'r', passed: true, score: 0 },
+        { supplierId: 'b', scoreItemId: 't', passed: null, score: 80 },
+        { supplierId: 'gone', scoreItemId: 'q', passed: false, score: 0 }, // 撤回/废标后遗留
+      ],
+      async (args: any) => (args.where.supplierId.in.includes('a') ? 6 : 1),
+    );
     const res = await recomputeExpertProgress(tx, 'exp1', 'p1');
-    // 'gone' 不在活跃集 → 不豁免任何人；但 a 本就豁免——换成 b 场景断言更准：
-    // 此用例核心=幻影记录不把非豁免家误扩进豁免集，a/b 行为同 baseRecords
-    expect(res.progress).toBe(100);
+    expect(res.progress).toBe(100); // 有闸：6/6；无闸 7/8=87 → 断言有区分度
+    // 豁免集为空 → 只发单段 count，且 supplierId 即全量活跃集
+    const calls = (tx.bidScoreRecord.count as jest.Mock).mock.calls;
+    expect(calls.length).toBe(1);
+    expect(calls[0][0].where.supplierId).toEqual({ in: ['a', 'b'] });
   });
 });
 

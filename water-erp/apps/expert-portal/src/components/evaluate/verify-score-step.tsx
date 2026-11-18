@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Lock, Check, ShieldCheck, StickyNote } from 'lucide-react';
 import { verifyScoreReview } from '@/lib/api';
+import { isQualificationShortCircuited } from '@/lib/score-validation';
 import { toast } from 'sonner';
 import {
   isPassFailCategory,
@@ -47,6 +48,8 @@ export function VerifyScoreStep({
   noneEvaluation,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  // bug#140a：资格短路豁免——非通过性项显示「免评」而非 0 分（与评分 tab 只读态同口径）
+  const shortCircuited = isQualificationShortCircuited(scoreItems, scores, supplierId, key);
   const verified = reviewStatus === 'verified';
 
   // 按类别分组（镜像 scoring step 的分组逻辑，只读展示）
@@ -172,6 +175,8 @@ export function VerifyScoreStep({
                                   ? '通过'
                                   : '未评'}
                             </span>
+                          ) : shortCircuited ? (
+                            <span className="text-sm font-bold text-[var(--muted-foreground)]">免评</span>
                           ) : (
                             <span className="text-sm text-[var(--muted-foreground)]">
                               <span className="font-bold text-[var(--foreground)]">

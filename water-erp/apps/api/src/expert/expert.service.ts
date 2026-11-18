@@ -2682,7 +2682,12 @@ export class ExpertService {
         bidPriceUnit: openingUnitMap.get(supplier.id) ?? null, // 2026-09-15 dual-v2 万元口径戳，前端按 unitHint 渲染
         categoryScores,
         // none 轨道：0 评分项 → true（0 项=完成；非 none 项目 0 项属数据异常，同样宽容放行）
-        perSupplierComplete: project.scoreItems.length === 0 || records.length === project.scoreItems.length,
+        // bug#140a：资格短路豁免家只要求通过性项已评（passed=false 只会出现在通过性记录上）——
+        // 否则报告步「评分完整」徽章对豁免家永不显示
+        perSupplierComplete: project.scoreItems.length === 0
+          || records.length >= ((records as any[]).some(r => r.passed === false)
+            ? project.scoreItems.filter(i => i.category === 'QUALIFICATION' || i.category === 'RESPONSIVE').length
+            : project.scoreItems.length),
         scoreReview: reviewBySupplier.has(supplier.id)
           ? { status: reviewBySupplier.get(supplier.id)!.status, verifiedAt: reviewBySupplier.get(supplier.id)!.verifiedAt }
           : null,
