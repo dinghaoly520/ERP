@@ -1,12 +1,11 @@
 import { RuleResult } from './rule-executor.service';
 import { ClauseParserService } from './clause-parser.service';
+import { normalizeMultipartFilename } from '../../common/filename-encoding.util';
 
+/** multipart 文件名 latin1 归一化（§五.4-2 收口）：委身铁律 util 条件式安全版——
+ *  旧无条件 latin1→utf8 对 filename* 扩展参数来的正确 UTF-8 名会二次毁伤。 */
 export function decodeFileName(name: string): string {
-  try {
-    return Buffer.from(name, 'latin1').toString('utf-8');
-  } catch {
-    return name;
-  }
+  return normalizeMultipartFilename(name);
 }
 
 export interface ChunkSearchResult {
