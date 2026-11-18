@@ -626,7 +626,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                 onClick={(e) => {
                   // §五.4-1：下载语义直链收敛守护式下载（X-Portal 确定性+CD 带名落盘）；href 保留供中键/新标签兜底
                   e.preventDefault();
-                  void downloadAsBlob(`/api/bid/projects/${projectId}/sign-packet/evidence-zip`, `评标证据包-${projectId.slice(-8)}.zip`);
+                  void downloadAsBlob(`/api/bid/projects/${projectId}/sign-packet/evidence-zip`, `评标证据包-${projectId.slice(-8)}.zip`, '证据包');
                 }}
                 className="neu-btn-soft !h-[30px] !text-[11px]"
               >
