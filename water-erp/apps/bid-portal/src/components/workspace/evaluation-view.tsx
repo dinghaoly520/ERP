@@ -963,6 +963,17 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               <div key={row.id} className="flex items-center gap-4 px-3.5 py-2">
                 <div className="flex flex-[0.7] min-w-0 items-center gap-1.5">
                   <span className="truncate text-xs font-semibold text-[var(--foreground)]">{row.expertName}</span>
+                  {/* FE-5（2026-09-24）组长徽章，2026-11-18 用户裁定迁至本卡专家实名后——
+                      原挂专家状态卡，非特权视角该卡名字是匿名编号「专家 1」，出现「专家1 组长」错位；
+                      本卡恒实名，管理端替换/递补接任组长后现场端可辨新任组长（匿名评分矩阵不变） */}
+                  {row.isLead && (
+                    <span
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[oklch(0.94_0.09_83/0.45)] px-1.5 py-0.5 align-middle text-[9px] font-bold text-[var(--warning)]"
+                      title="评审组长（管理端替换/递补后随详情实时更新）"
+                    >
+                      <Crown size={10} strokeWidth={1.7} /> 组长
+                    </span>
+                  )}
                   {row.expertRole !== EXPERT_ROLE.REGULAR && (
                     <span className="bid-pill bid-pill--muted shrink-0 text-[9px]">候补</span>
                   )}
@@ -1203,15 +1214,8 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                         业主代表
                       </span>
                     )}
-                    {/* FE-5（2026-09-24）：组长徽章——管理端替换/递补接任组长后现场端可辨新任组长（仅实名区，匿名矩阵不变） */}
-                    {expert.isLead && (
-                      <span
-                        className="ml-1.5 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[oklch(0.94_0.09_83/0.45)] px-1.5 py-0.5 align-middle text-[9px] font-bold text-[var(--warning)]"
-                        title="评审组长（管理端替换/递补后随详情实时更新）"
-                      >
-                        <Crown size={10} strokeWidth={1.7} /> 组长
-                      </span>
-                    )}
+                    {/* FE-5 组长徽章已迁至上方「身份核验」卡专家实名后（2026-11-18 用户裁定：
+                        本卡对非特权角色显示匿名编号「专家 N」，挂组长徽章会出现「专家1 组长」错位） */}
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                     {/* A-132：评委分工（分组·职责）——两维皆空则不渲染 */}
                     {(expert.reviewGroup || expert.dutyRole) && (
