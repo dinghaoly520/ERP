@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Activity,
   AlertCircle,
   BarChart3,
   Building2,
@@ -13,6 +14,7 @@ import {
   Lightbulb,
   Bot,
   PieChart,
+  Radio,
   RefreshCw,
   Radar,
   Gauge,
@@ -32,7 +34,8 @@ import {
   type DashboardData,
 } from "@/lib/api/dashboard";
 import { fetchDashboardAnalysis, fetchMobileBrief, type DashboardAnalysisResult, type MobileBrief } from "@/lib/api/ai";
-import { fetchAlertsOverview, fetchPerformanceMetrics, type AlertsOverview, type PerformanceMetrics } from "@/lib/api/cockpit";
+import { fetchAlertsOverview, fetchBidLiveProjects, fetchPerformanceMetrics, type AlertsOverview, type BidLiveProject, type PerformanceMetrics } from "@/lib/api/cockpit";
+import { fetchUpcoming, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
 import { RangePicker, RANGE_LABELS, type RangeKey } from "@/components/m/range-picker";
@@ -45,6 +48,7 @@ import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
 import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { usePolling } from "@/hooks/use-polling";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
@@ -55,16 +59,16 @@ type DashboardSavedFilters = { rangeKey: RangeKey; companyIds: string[] };
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/* 分析中心宫格（2026-11-17 一屏总览 spec）：首屏外的分析卡分五组收进弹层——
- * 排行=龙虎榜+节资Top5 / 构成=方式+规模+结果+未成交原因 / 公司=各公司分布+项目质效 /
- * 风险=风险项目预警+资源告警 / 供应商=重点供应商动态 */
-type AnalysisTileKey = "ranking" | "composition" | "company" | "risk" | "supplier";
+/* 分析中心宫格（2026-11-18 指挥台改版：首页=要报+实时态势+4指标，趋势/AI 也收进宫格——七组）*/
+type AnalysisTileKey = "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "ai";
 const ANALYSIS_TILES: Array<{ key: AnalysisTileKey; label: string; icon: typeof PieChart; color: string }> = [
+  { key: "trend", label: "趋势", icon: Activity, color: "var(--accent)" },
   { key: "ranking", label: "排行", icon: Trophy, color: "var(--gold)" },
   { key: "composition", label: "构成分析", icon: PieChart, color: "var(--accent)" },
   { key: "company", label: "公司对比", icon: Building2, color: "var(--accent)" },
   { key: "risk", label: "风险告警", icon: AlertCircle, color: "var(--danger)" },
   { key: "supplier", label: "供应商", icon: Users, color: "var(--success)" },
+  { key: "ai", label: "AI 分析", icon: Sparkles, color: "var(--gold)" },
 ];
 
 function rangeFor(key: RangeKey): { startDate?: string; endDate?: string } {
@@ -247,6 +251,25 @@ export default function DashboardPage() {
   /* 资源告警 + 项目质效（2026-11-03 数据利用评审：后端现成、此前 :3011 零呈现） */
   const [alerts, setAlerts] = useState<AlertsOverview | null>(null);
   const [perf, setPerf] = useState<PerformanceMetrics | null>(null);
+  /* 实时运行态势（2026-11-18 指挥台改版，自进展页上移）：30s 轮询 bid live +
+   * upcoming（即将截标计数）。失败保旧数据。异常数不另取——指标卡「异常项目」紧邻其下。 */
+  const [live, setLive] = useState<{ projects: BidLiveProject[] } | null>(null);
+  const [upcoming, setUpcoming] = useState<UpcomingResult | null>(null);
+  usePolling(
+    useCallback(async () => {
+      const [l, u] = await Promise.all([
+        fetchBidLiveProjects().catch(() => null),
+        fetchUpcoming(14, companyIds.length ? companyIds.join(",") : undefined).catch(() => null),
+      ]);
+      if (l) setLive(l);
+      if (u) setUpcoming(u);
+    }, [companyIds]),
+    30_000,
+  );
+  const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
+  const evaluatingNow = live?.projects.filter((p) => p.stage === "EVALUATING") ?? [];
+  const submittingNow = live?.projects.filter((p) => p.stage === "SUBMIT") ?? [];
+  const upcomingDeadlineCount = upcoming?.items.reduce((s, d) => s + d.events.filter((e) => e.type !== "OPENING").length, 0) ?? 0;
   const [rankingRange, setRankingRange] = useState<CompanyRankingRange>("year");
   useEffect(() => {
     let active = true;
@@ -548,236 +571,72 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
+
+      {/* ── 实时运行态势（2026-11-18 指挥台改版：从进展页上移——首页即指挥台；
+           30s 轮询 bid live + badges + upcoming 计数；不随区间/公司筛选）── */}
+      <SectionCard
+        icon={Radio}
+        title="实时运行态势"
+        index={0}
+        right={
+          <>
+            <span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">不随筛选</span>
+            {openingNow.length + evaluatingNow.length > 0 ? (
+              <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
+              </span>
+            ) : null}
+          </>
+        }
+      >
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { label: "投标中", n: submittingNow.length, color: "var(--accent)" },
+            { label: "开标中", n: openingNow.length, color: "var(--danger)" },
+            { label: "评标中", n: evaluatingNow.length, color: "var(--warning)" },
+            { label: "即将截标", n: upcomingDeadlineCount, color: "var(--gold)" },
+          ].map((c) => (
+            <button
+              key={c.label}
+              type="button"
+              onClick={() => router.push("/progress")}
+              className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]"
+              aria-label={`${c.label} ${c.n} 项，查看进展`}
+            >
+              <div className={`text-[20px] font-black leading-none tabular-nums ${c.n > 0 ? "" : "text-[var(--muted-foreground)]"}`} style={c.n > 0 ? { color: c.color } : undefined}>
+                {c.n}
+              </div>
+              <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">{c.label}</div>
+            </button>
+          ))}
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {[...openingNow, ...evaluatingNow, ...submittingNow].slice(0, 4).map((p) => (
+            <div key={p.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: p.stage === "OPENING" ? "var(--danger)" : p.stage === "EVALUATING" ? "var(--warning)" : "var(--accent)" }}
+              />
+              <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{p.name}</span>
+              <span className="shrink-0 tabular-nums">已投 {p.supplierSubmitted}/{p.supplierCount} · 专家 {p.expertCount}</span>
+            </div>
+          ))}
+          {openingNow.length + evaluatingNow.length + submittingNow.length === 0 ? (
+            <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">当前无进行中的开评标</div>
+          ) : null}
+        </div>
+      </SectionCard>
+
       {data && summary ? (
         <>
-          {/* ── 汇总指标 ── */}
+          {/* ── 核心指标（2026-11-18 指挥台改版：6→4——项目总数/总预算/已成交预算收进「构成分析」弹层结果构成）── */}
           <div className="mb-3 grid grid-cols-2 gap-2">
-            <MetricCard label="项目总数" value={String(summary.totalCount)} tone="accent" sub={`已完成 ${summary.completedCount}`} delta={deltaOf(summary.totalCount, cmp?.totalCount, null)} onClick={() => router.push("/ledger")} />
-            <MetricCard label="异常项目" value={String(summary.abnormalCount)} tone="danger" delta={deltaOf(summary.abnormalCount, cmp?.abnormalCount, false)} onClick={() => router.push("/ledger?abnormal=1")} />
-            <MetricCard label="总预算" value={summary.totalBudgetLabel} />
-            <MetricCard label="已成交预算" value={summary.awardedBudgetLabel} delta={deltaOf(parseBudgetLabel(summary.awardedBudgetLabel), cmp?.awardedBudget, true)} />
-            <MetricCard label="成交总额" value={summary.totalAwardLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true)} />
+            <MetricCard label="成交总额" value={summary.totalAwardLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true)} onClick={() => router.push("/ledger")} />
             <MetricCard label="累计节资" value={summary.totalSavingsLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true)} />
+            <MetricCard label="待处理" value={String(data.resultStats.find((r) => r.label.includes("待处理"))?.count ?? 0)} tone="warning" onClick={() => router.push("/ledger?status=PENDING")} />
+            <MetricCard label="异常项目" value={String(summary.abnormalCount)} tone="danger" delta={deltaOf(summary.abnormalCount, cmp?.abnormalCount, false)} onClick={() => router.push("/ledger?abnormal=1")} />
           </div>
-
-          {/* ── 采购执行趋势 ── */}
-          <SectionCard
-            icon={BarChart3}
-            title="采购执行趋势"
-            index={1}
-            right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=数量 · 线=金额(万)</span>}
-          >
-            {trend ? (
-              <svg viewBox={`0 0 ${trend.W} ${trend.H}`} className="w-full" role="img" aria-label="采购执行趋势图">
-                <defs>
-                  <linearGradient id="trendBarFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.32" />
-                    <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.07" />
-                  </linearGradient>
-                  <linearGradient id="trendAreaFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--success)" stopOpacity="0.15" />
-                    <stop offset="100%" stopColor="var(--success)" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                {/* 金额刻度线（发丝线）+ 左侧刻度小字 */}
-                {trend.ticks.map((tk, i) => (
-                  <g key={`tick-${i}`}>
-                    <line x1={trend.padL} y1={tk.y} x2={trend.W - 8} y2={tk.y} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
-                    <text x={trend.padL - 5} y={tk.y + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
-                      {tk.v >= 100 ? Math.round(tk.v) : Math.round(tk.v * 10) / 10}
-                    </text>
-                  </g>
-                ))}
-                {/* 基线 */}
-                <line x1={trend.padL} y1={trend.baseline} x2={trend.W - 8} y2={trend.baseline} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
-                {/* 数量柱（渐变圆角柱）+ 高亮列淡染 */}
-                {trend.series.map((t, i) => {
-                  const barH = (t.count / trend.maxCount) * (trend.plotH * 0.55);
-                  return (
-                    <g key={`bar-${i}`}>
-                      {activeIdx === i ? (
-                        <rect x={trend.colX(i)} y={trend.padT - 6} width={trend.colW} height={trend.plotH + 6} rx={6} fill="var(--accent)" opacity={0.06} />
-                      ) : null}
-                      {barH > 0 ? (
-                        <rect
-                          x={trend.x(i) - trend.barW / 2}
-                          y={trend.baseline - barH}
-                          width={trend.barW}
-                          height={Math.max(barH, 2)}
-                          rx={3}
-                          fill="url(#trendBarFill)"
-                        />
-                      ) : null}
-                    </g>
-                  );
-                })}
-                {/* 金额面积 + 折线 */}
-                <path d={trend.areaPath} fill="url(#trendAreaFill)" />
-                <path
-                  d={trend.linePath}
-                  fill="none"
-                  stroke="var(--success)"
-                  strokeWidth={2.2}
-                  strokeLinejoin="round"
-                  strokeLinecap="round"
-                  className="m-draw-line"
-                  style={{ ["--m-path-len" as string]: "1200" }}
-                />
-                {/* 数据点 + 月份标签（高亮月加重） */}
-                {trend.series.map((t, i) => (
-                  <g key={`pt-${i}`}>
-                    <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={activeIdx === i ? 5.2 : 3.2} fill="var(--success)" stroke="white" strokeWidth={activeIdx === i ? 2 : 1.2} />
-                    {i % trend.labelStep === 0 ? (
-                      <text
-                        x={trend.x(i)}
-                        y={trend.H - 6}
-                        textAnchor="middle"
-                        fontSize={10.5}
-                        fontWeight={activeIdx === i ? 700 : 400}
-                        fill={activeIdx === i ? "var(--accent-strong)" : "var(--muted-foreground)"}
-                      >
-                        {t.label.slice(-5)}
-                      </text>
-                    ) : null}
-                  </g>
-                ))}
-                {/* 高亮值签：柱列上方的当期金额小胶囊 */}
-                {activeIdx != null
-                  ? (() => {
-                      const t = trend.series[activeIdx];
-                      const chip = `${t.amount.toFixed(1)}万`;
-                      const cw = chip.length * 7.5 + 12;
-                      const cx = Math.min(Math.max(trend.x(activeIdx), trend.padL + cw / 2), trend.W - 8 - cw / 2);
-                      const cy = Math.max(trend.amountY(t.amount) - 34, 1);
-                      return (
-                        <g>
-                          <rect x={cx - cw / 2} y={cy} width={cw} height={18} rx={9} fill="var(--foreground)" />
-                          <text x={cx} y={cy + 12.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--background)">
-                            {chip}
-                          </text>
-                        </g>
-                      );
-                    })()
-                  : null}
-                {/* 命中区：按下高亮、点按开下钻（click 开层——同拍 click 不会再打蒙层，见 BottomSheet 幽灵点击防护） */}
-                {trend.series.map((t, i) => (
-                  <rect
-                    key={`hit-${i}`}
-                    x={trend.colX(i)}
-                    y={trend.padT - 6}
-                    width={trend.colW}
-                    height={trend.plotH + 6}
-                    fill="transparent"
-                    style={{ cursor: "pointer" }}
-                    onPointerDown={() => setActiveIdx(i)}
-                    onPointerCancel={() => setActiveIdx(null)}
-                    onClick={() => {
-                      setActiveIdx(null);
-                      setActiveTrend(t);
-                    }}
-                  />
-                ))}
-              </svg>
-            ) : (
-              <EmptyState text="该范围内暂无趋势数据" />
-            )}
-          </SectionCard>
-
-          {/* ── AI 综合分析（折叠卡）── */}
-          <SectionCard
-            icon={Sparkles}
-            title="AI 综合分析"
-            index={0}
-            right={
-              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[14px]">
-                {aiOpen ? "收起" : "展开"}
-              </button>
-            }
-          >
-            {aiOpen ? (
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <span className="min-w-0 flex-1 text-[14px] text-[var(--muted-foreground)]">
-                    {aiResult ? "以下为当前筛选范围的分析结果" : "基于当前筛选数据生成综合研判"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={runAnalysis}
-                    disabled={aiLoading || !data}
-                    className="neu-btn-primary h-9 rounded-[10px] px-3.5 text-[15px] disabled:opacity-60"
-                  >
-                    {aiLoading ? (
-                      <>
-                        <RefreshCw size={12} className="animate-spin" /> 分析中
-                      </>
-                    ) : (
-                      "生成分析"
-                    )}
-                  </button>
-                </div>
-                {aiError ? (
-                  <div className="mb-3 flex items-center gap-2 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_25%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5 text-[15px] text-[var(--danger)]">
-                    <AlertCircle size={13} /> {aiError}
-                  </div>
-                ) : null}
-                {aiResult ? (
-                  <div className="space-y-2.5">
-                    <div className="rounded-[12px] m-tile px-3.5 py-3">
-                      <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--accent)]">
-                        <Target size={11} /> 综合研判
-                      </div>
-                      <p className="text-[16px] font-medium leading-relaxed text-[var(--foreground)]">{aiResult.overview}</p>
-                    </div>
-                    {aiResult.highlights.length ? (
-                      <div className="rounded-[12px] m-tile px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--success)]">
-                          <TrendingUp size={11} /> 核心亮点
-                        </div>
-                        {aiResult.highlights.map((h, i) => (
-                          <div key={i} className="flex items-start gap-2 py-0.5">
-                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]" />
-                            <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{h}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {aiResult.concerns.length ? (
-                      <div className="rounded-[12px] m-tile px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--warning)]">
-                          <AlertCircle size={11} /> 待关注
-                        </div>
-                        {aiResult.concerns.map((c, i) => (
-                          <div key={i} className="flex items-start gap-2 py-0.5">
-                            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--warning)]" />
-                            <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{c}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                    {aiResult.suggestions.length ? (
-                      <div className="rounded-[12px] m-tile px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--accent)]">
-                          <Lightbulb size={11} /> 建议方向
-                        </div>
-                        {aiResult.suggestions.map((s, i) => (
-                          <div key={i} className="flex items-start gap-2 py-0.5">
-                            <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[12px] font-bold text-[var(--accent)]">
-                              {i + 1}
-                            </span>
-                            <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{s}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <EmptyState text="点击「生成分析」获取 AI 综合研判" />
-                )}
-              </div>
-            ) : (
-              <p className="px-1 text-[14px] text-[var(--muted-foreground)]">展开后可基于当前数据生成综合研判 / 亮点 / 建议方向</p>
-            )}
-          </SectionCard>
 
           {/* ── 分析中心（一屏总览：其余分析卡分五组收进弹层，2026-11-17 spec）── */}
           <div className="mb-3 grid grid-cols-3 gap-2">
@@ -820,6 +679,134 @@ export default function DashboardPage() {
       >
         {analysisOpen && data ? (
           <>
+            {analysisOpen === "trend" ? (
+              <>
+
+            {/* ── 采购执行趋势 ── */}
+            <SectionCard
+              icon={BarChart3}
+              title="采购执行趋势"
+              index={1}
+              right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=数量 · 线=金额(万)</span>}
+            >
+              {trend ? (
+                <svg viewBox={`0 0 ${trend.W} ${trend.H}`} className="w-full" role="img" aria-label="采购执行趋势图">
+                  <defs>
+                    <linearGradient id="trendBarFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.32" />
+                      <stop offset="100%" stopColor="var(--accent)" stopOpacity="0.07" />
+                    </linearGradient>
+                    <linearGradient id="trendAreaFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--success)" stopOpacity="0.15" />
+                      <stop offset="100%" stopColor="var(--success)" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  {/* 金额刻度线（发丝线）+ 左侧刻度小字 */}
+                  {trend.ticks.map((tk, i) => (
+                    <g key={`tick-${i}`}>
+                      <line x1={trend.padL} y1={tk.y} x2={trend.W - 8} y2={tk.y} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
+                      <text x={trend.padL - 5} y={tk.y + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
+                        {tk.v >= 100 ? Math.round(tk.v) : Math.round(tk.v * 10) / 10}
+                      </text>
+                    </g>
+                  ))}
+                  {/* 基线 */}
+                  <line x1={trend.padL} y1={trend.baseline} x2={trend.W - 8} y2={trend.baseline} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
+                  {/* 数量柱（渐变圆角柱）+ 高亮列淡染 */}
+                  {trend.series.map((t, i) => {
+                    const barH = (t.count / trend.maxCount) * (trend.plotH * 0.55);
+                    return (
+                      <g key={`bar-${i}`}>
+                        {activeIdx === i ? (
+                          <rect x={trend.colX(i)} y={trend.padT - 6} width={trend.colW} height={trend.plotH + 6} rx={6} fill="var(--accent)" opacity={0.06} />
+                        ) : null}
+                        {barH > 0 ? (
+                          <rect
+                            x={trend.x(i) - trend.barW / 2}
+                            y={trend.baseline - barH}
+                            width={trend.barW}
+                            height={Math.max(barH, 2)}
+                            rx={3}
+                            fill="url(#trendBarFill)"
+                          />
+                        ) : null}
+                      </g>
+                    );
+                  })}
+                  {/* 金额面积 + 折线 */}
+                  <path d={trend.areaPath} fill="url(#trendAreaFill)" />
+                  <path
+                    d={trend.linePath}
+                    fill="none"
+                    stroke="var(--success)"
+                    strokeWidth={2.2}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    className="m-draw-line"
+                    style={{ ["--m-path-len" as string]: "1200" }}
+                  />
+                  {/* 数据点 + 月份标签（高亮月加重） */}
+                  {trend.series.map((t, i) => (
+                    <g key={`pt-${i}`}>
+                      <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={activeIdx === i ? 5.2 : 3.2} fill="var(--success)" stroke="white" strokeWidth={activeIdx === i ? 2 : 1.2} />
+                      {i % trend.labelStep === 0 ? (
+                        <text
+                          x={trend.x(i)}
+                          y={trend.H - 6}
+                          textAnchor="middle"
+                          fontSize={10.5}
+                          fontWeight={activeIdx === i ? 700 : 400}
+                          fill={activeIdx === i ? "var(--accent-strong)" : "var(--muted-foreground)"}
+                        >
+                          {t.label.slice(-5)}
+                        </text>
+                      ) : null}
+                    </g>
+                  ))}
+                  {/* 高亮值签：柱列上方的当期金额小胶囊 */}
+                  {activeIdx != null
+                    ? (() => {
+                        const t = trend.series[activeIdx];
+                        const chip = `${t.amount.toFixed(1)}万`;
+                        const cw = chip.length * 7.5 + 12;
+                        const cx = Math.min(Math.max(trend.x(activeIdx), trend.padL + cw / 2), trend.W - 8 - cw / 2);
+                        const cy = Math.max(trend.amountY(t.amount) - 34, 1);
+                        return (
+                          <g>
+                            <rect x={cx - cw / 2} y={cy} width={cw} height={18} rx={9} fill="var(--foreground)" />
+                            <text x={cx} y={cy + 12.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--background)">
+                              {chip}
+                            </text>
+                          </g>
+                        );
+                      })()
+                    : null}
+                  {/* 命中区：按下高亮、点按开下钻（click 开层——同拍 click 不会再打蒙层，见 BottomSheet 幽灵点击防护） */}
+                  {trend.series.map((t, i) => (
+                    <rect
+                      key={`hit-${i}`}
+                      x={trend.colX(i)}
+                      y={trend.padT - 6}
+                      width={trend.colW}
+                      height={trend.plotH + 6}
+                      fill="transparent"
+                      style={{ cursor: "pointer" }}
+                      onPointerDown={() => setActiveIdx(i)}
+                      onPointerCancel={() => setActiveIdx(null)}
+                      onClick={() => {
+                        setActiveIdx(null);
+                        setActiveTrend(t);
+                      }}
+                    />
+                  ))}
+                </svg>
+              ) : (
+                <EmptyState text="该范围内暂无趋势数据" />
+              )}
+            </SectionCard>
+
+              </>
+            ) : null}
             {analysisOpen === "company" ? (
               <>
 
@@ -1220,6 +1207,107 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <EmptyState text="暂无供应商动态" />
+              )}
+            </SectionCard>
+
+              </>
+            ) : null}
+            {analysisOpen === "ai" ? (
+              <>
+
+            {/* ── AI 综合分析（折叠卡）── */}
+            <SectionCard
+              icon={Sparkles}
+              title="AI 综合分析"
+              index={0}
+              right={
+                <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[14px]">
+                  {aiOpen ? "收起" : "展开"}
+                </button>
+              }
+            >
+              {aiOpen ? (
+                <div>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="min-w-0 flex-1 text-[14px] text-[var(--muted-foreground)]">
+                      {aiResult ? "以下为当前筛选范围的分析结果" : "基于当前筛选数据生成综合研判"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={runAnalysis}
+                      disabled={aiLoading || !data}
+                      className="neu-btn-primary h-9 rounded-[10px] px-3.5 text-[15px] disabled:opacity-60"
+                    >
+                      {aiLoading ? (
+                        <>
+                          <RefreshCw size={12} className="animate-spin" /> 分析中
+                        </>
+                      ) : (
+                        "生成分析"
+                      )}
+                    </button>
+                  </div>
+                  {aiError ? (
+                    <div className="mb-3 flex items-center gap-2 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_25%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5 text-[15px] text-[var(--danger)]">
+                      <AlertCircle size={13} /> {aiError}
+                    </div>
+                  ) : null}
+                  {aiResult ? (
+                    <div className="space-y-2.5">
+                      <div className="rounded-[12px] m-tile px-3.5 py-3">
+                        <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--accent)]">
+                          <Target size={11} /> 综合研判
+                        </div>
+                        <p className="text-[16px] font-medium leading-relaxed text-[var(--foreground)]">{aiResult.overview}</p>
+                      </div>
+                      {aiResult.highlights.length ? (
+                        <div className="rounded-[12px] m-tile px-3.5 py-3">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--success)]">
+                            <TrendingUp size={11} /> 核心亮点
+                          </div>
+                          {aiResult.highlights.map((h, i) => (
+                            <div key={i} className="flex items-start gap-2 py-0.5">
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]" />
+                              <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{h}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {aiResult.concerns.length ? (
+                        <div className="rounded-[12px] m-tile px-3.5 py-3">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--warning)]">
+                            <AlertCircle size={11} /> 待关注
+                          </div>
+                          {aiResult.concerns.map((c, i) => (
+                            <div key={i} className="flex items-start gap-2 py-0.5">
+                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--warning)]" />
+                              <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{c}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      {aiResult.suggestions.length ? (
+                        <div className="rounded-[12px] m-tile px-3.5 py-3">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--accent)]">
+                            <Lightbulb size={11} /> 建议方向
+                          </div>
+                          {aiResult.suggestions.map((s, i) => (
+                            <div key={i} className="flex items-start gap-2 py-0.5">
+                              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[12px] font-bold text-[var(--accent)]">
+                                {i + 1}
+                              </span>
+                              <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <EmptyState text="点击「生成分析」获取 AI 综合研判" />
+                  )}
+                </div>
+              ) : (
+                <p className="px-1 text-[14px] text-[var(--muted-foreground)]">展开后可基于当前数据生成综合研判 / 亮点 / 建议方向</p>
               )}
             </SectionCard>
 
