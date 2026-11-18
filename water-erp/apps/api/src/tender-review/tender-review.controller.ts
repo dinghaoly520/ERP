@@ -23,6 +23,7 @@ import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { normalizeMultipartFilename } from '../common/filename-encoding.util';
 import { DocumentParserService } from '../knowledge/services/document-parser.service';
 import { RuleExtractorService } from './services/rule-extractor.service';
 import { FieldExtractorService } from './services/field-extractor.service';
@@ -377,8 +378,9 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     if (!file) {
       throw new BadRequestException('请上传文件');
     }
+    // multipart 文件名 latin1 铁律（§五.4-2 评审追修：全库最后一处无条件版——同模块 review-utils 已换）
     const fileName = file.originalname
-      ? Buffer.from(file.originalname, 'latin1').toString('utf-8')
+      ? normalizeMultipartFilename(file.originalname)
       : 'unknown';
     const content = await this.parser.parse(
       file.buffer,
