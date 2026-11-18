@@ -135,3 +135,119 @@ describe('aggregateSupplierScores（F12 提取纯函数）', () => {
     expect(ranked.map(r => r.supplierId)).toEqual(['s2', 's1', 's3']); // 100 < 120 < 无报价垫底
   });
 });
+
+describe('bug#140a 资格短路豁免——判不通过的专家不进该供应商聚合', () => {
+  const PF = new Set(['si-pf']);
+  const base = {
+    formulaPriceScores: emptyFormula, priceItemIds: emptyItemIds,
+    passFailVerdicts: emptyVerdicts, bidPrices: emptyPrices, isNegotiation: false,
+  };
+
+  it('豁免专家（通过性记录 passed=false）不进 perExpert：幻影 0 不拖均分、不虚增 expertCount', () => {
+    const records = new Map<string, any[]>([
+      ['s1', [
+        { expertId: 'e1', scoreItemId: 'si-pf', score: 0, passed: false },
+        { expertId: 'e2', scoreItemId: 'si-tech', score: 85 },
+        { expertId: 'e3', scoreItemId: 'si-tech', score: 90 },
+      ]],
+    ]);
+    const ranked = aggregateSupplierScores({
+      ...base, passFailItemIds: PF,
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }],
+      recordsBySupplier: records,
+    });
+    expect(ranked[0].averageScore).toBe(87.5); // 修复前 [0,85,90] → 58.33
+    expect(ranked[0].expertCount).toBe(2);
+    expect(ranked[0].totalScore).toBe(175);
+  });
+
+  it('豁免专家的历史全量残留记录一并排除（先全量评完再改判不通过——同态同果）', () => {
+    const records = new Map<string, any[]>([
+      ['s1', [
+        { expertId: 'e1', scoreItemId: 'si-pf', score: 0, passed: false },
+        { expertId: 'e1', scoreItemId: 'si-tech', score: 88 }, // 改判前残留
+        { expertId: 'e2', scoreItemId: 'si-tech', score: 90 },
+      ]],
+    ]);
+    const ranked = aggregateSupplierScores({
+      ...base, passFailItemIds: PF,
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }],
+      recordsBySupplier: records,
+    });
+    expect(ranked[0].averageScore).toBe(90); // 残留 88 不参与，与「先判后评」一致
+    expect(ranked[0].expertCount).toBe(1);
+  });
+
+  it('豁免只按 (专家,供应商) 对：e1 对 s1 豁免不影响其对 s2 的正常参与', () => {
+    const records = new Map<string, any[]>([
+      ['s1', [
+        { expertId: 'e1', scoreItemId: 'si-pf', score: 0, passed: false },
+        { expertId: 'e2', scoreItemId: 'si-tech', score: 90 },
+      ]],
+      ['s2', [
+        { expertId: 'e1', scoreItemId: 'si-pf', score: 0, passed: true },
+        { expertId: 'e1', scoreItemId: 'si-tech', score: 80 },
+        { expertId: 'e2', scoreItemId: 'si-tech', score: 90 },
+      ]],
+    ]);
+    const ranked = aggregateSupplierScores({
+      ...base, passFailItemIds: PF,
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }, { id: 's2', supplierName: '乙' }],
+      recordsBySupplier: records,
+    });
+    expect(ranked.find(r => r.supplierId === 's1')!.expertCount).toBe(1);
+    const s2 = ranked.find(r => r.supplierId === 's2')!;
+    expect(s2.expertCount).toBe(2);
+    expect(s2.averageScore).toBe(85);
+  });
+
+  it('改票（passed 翻 true）→ 自动回参与（无状态自愈，与 recompute 分母豁免同构）', () => {
+    const records = new Map<string, any[]>([
+      ['s1', [
+        { expertId: 'e1', scoreItemId: 'si-pf', score: 0, passed: true }, // 改判通过
+        { expertId: 'e1', scoreItemId: 'si-tech', score: 82 },
+        { expertId: 'e2', scoreItemId: 'si-tech', score: 90 },
+      ]],
+    ]);
+    const ranked = aggregateSupplierScores({
+      ...base, passFailItemIds: PF,
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }],
+      recordsBySupplier: records,
+    });
+    expect(ranked[0].averageScore).toBe(86); // (82+90)/2
+    expect(ranked[0].expertCount).toBe(2);
+  });
+
+  it('passFailItemIds 缺省 → 不过滤（未提供 PF 集的既有调用零变化）', () => {
+    const records = new Map<string, any[]>([
+      ['s1', [
+        { expertId: 'e1', scoreItemId: 'si-pf', score: 0, passed: false },
+        { expertId: 'e2', scoreItemId: 'si-tech', score: 90 },
+      ]],
+    ]);
+    const ranked = aggregateSupplierScores({
+      ...base,
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }],
+      recordsBySupplier: records,
+    });
+    expect(ranked[0].averageScore).toBe(45); // (0+90)/2 —— 旧口径
+    expect(ranked[0].expertCount).toBe(2);
+  });
+
+  it('幻影 0 不再提前触发去极值（4 真实 + 1 豁免 → 4 人不去极值，真实最高分不被误剔）', () => {
+    const records = new Map<string, any[]>([
+      ['s1', [
+        { expertId: 'e0', scoreItemId: 'si-pf', score: 0, passed: false },
+        ...Object.entries({ e1: 80, e2: 85, e3: 90, e4: 95 }).map(([expertId, score]) => ({ expertId, scoreItemId: 'si-tech', score })),
+      ]],
+    ]);
+    const ranked = aggregateSupplierScores({
+      ...base, passFailItemIds: PF,
+      activeSuppliers: [{ id: 's1', supplierName: '甲' }],
+      recordsBySupplier: records,
+    });
+    expect(ranked[0].expertCount).toBe(4);
+    expect(ranked[0].trimmedCount).toBe(4); // 修复前 5 值（含幻影 0）去极值误剔真实最高 95
+    expect(ranked[0].averageScore).toBe(87.5); // (80+85+90+95)/4
+  });
+});

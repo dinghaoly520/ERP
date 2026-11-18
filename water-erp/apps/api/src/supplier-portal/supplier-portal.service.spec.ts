@@ -1178,9 +1178,9 @@ describe('SupplierPortalService', () => {
         expect(select[f]).toBeUndefined();
       }
       // C9（第四波验收根修）：解密窗口时点有意下发——供应商大厅倒计时数据源；
-      // handoverAt（2026-11-05）随交流终局判定下发；白名单仍仅限四字段，
-      // openingSession 其余字段（主持人/口令/会话元数据）仍不得暴露
-      expect(select.openingSession).toEqual({ select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true, handoverAt: true } });
+      // handoverAt（2026-11-05）随交流终局判定下发；exchangeControl（2026-11-17 禁言兜底）同窗；
+      // 白名单仅限五字段，openingSession 其余字段（主持人/口令/会话元数据）仍不得暴露
+      expect(select.openingSession).toEqual({ select: { decryptWindowStart: true, decryptWindowEnd: true, pausedAt: true, handoverAt: true, exchangeControl: true } });
     });
   });
 

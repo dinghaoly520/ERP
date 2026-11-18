@@ -1,4 +1,16 @@
-import { assertRoomUnlocked, assertEvaluationStarted } from './expert-room.util';
+import { assertRoomUnlocked, assertEvaluationStarted, generateRoomCode } from './expert-room.util';
+
+describe('generateRoomCode — 4 位字母+数字（2026-11-18 用户裁定 8→4）', () => {
+  it('长度恒 4、字符集去混淆（无 0/O/1/I）、必含字母与数字', () => {
+    for (let i = 0; i < 300; i++) {
+      const code = generateRoomCode();
+      expect(code).toHaveLength(4);
+      expect(code).toMatch(/^[A-HJ-NP-Z2-9]{4}$/); // 去混淆：无 I/O/0/1
+      expect(code).toMatch(/[A-Z]/); // 「字母加数字」：必含字母
+      expect(code).toMatch(/[2-9]/); // 「字母加数字」：必含数字
+    }
+  });
+});
 
 /**
  * P3-3（2026-09-21 全流程审查）：roomCode 非空而 roomCodeAt 为 NULL（手工改库/数据漂移——

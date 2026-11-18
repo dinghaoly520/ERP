@@ -9,6 +9,8 @@ export interface SupplierScoreRecordLite {
   expertId: string;
   scoreItemId: string;
   score: number | string | { toNumber?: () => number };
+  /** 通过性结论（bug#140a 聚合豁免过滤用；缺省/null = 非通过性记录或未投） */
+  passed?: boolean | null;
 }
 
 export interface ActiveSupplierLite {
@@ -44,16 +46,31 @@ export interface AggregateSupplierScoresInput {
   /** 去极值开关（2026-09-26 项目级配置 BidProject.scoreTrimEnabled）：false=全额均分（即便 ≥5 人）；
    *  缺省 true=沿用 ≥5 去 1 高 1 低（存量调用方零变化） */
   trimOutliers?: boolean;
+  /** 通过性评分项 id 集（bug#140a 资格短路豁免）：该专家对该供应商任一通过性记录 passed=false →
+   *  该专家不进该供应商的专家总分（豁免家只交通过性记录 score=0，计入即幻影 0 拖均分/虚增
+   *  expertCount/提前触发去极值误剔真实极值；历史全量残留记录同口径一并排除）。
+   *  与 recomputeExpertProgress 分母豁免同构——改票后 passed 不再 false 自动回参与。
+   *  缺省 = 不过滤（未接线的既有调用零变化） */
+  passFailItemIds?: Set<string>;
 }
 
 export function aggregateSupplierScores(input: AggregateSupplierScoresInput): AggregatedSupplierRank[] {
-  const { activeSuppliers, recordsBySupplier, formulaPriceScores, priceItemIds, passFailVerdicts, bidPrices, isNegotiation, trimOutliers = true } = input;
+  const { activeSuppliers, recordsBySupplier, formulaPriceScores, priceItemIds, passFailVerdicts, bidPrices, isNegotiation, trimOutliers = true, passFailItemIds } = input;
   const ranked: AggregatedSupplierRank[] = [];
   for (const supplier of activeSuppliers) {
     const records = recordsBySupplier.get(supplier.id) ?? [];
+    // bug#140a 资格短路豁免：该专家对该供应商已判任一通过性项「不通过」→ 该专家不进该供应商的
+    // 专家总分（豁免仅本专家×本供应商；废标置后仍由 passFailVerdicts 全员投票轨决定，两轨不互斥）
+    const exemptExperts = new Set<string>();
+    if (passFailItemIds && passFailItemIds.size > 0) {
+      for (const r of records) {
+        if (r.passed === false && passFailItemIds.has(r.scoreItemId)) exemptExperts.add(r.expertId);
+      }
+    }
     // 每位专家对该供应商的总评分
     const perExpert = new Map<string, number>();
     for (const r of records) {
+      if (exemptExperts.has(r.expertId)) continue; // bug#140a：豁免专家整体不参与（含历史残留记录）
       if (formulaPriceScores.size > 0 && priceItemIds.has(r.scoreItemId)) continue; // P1: 仅在公式引擎产出价格分时跳过专家 PRICE 打分
       perExpert.set(r.expertId, (perExpert.get(r.expertId) ?? 0) + Number(r.score));
     }

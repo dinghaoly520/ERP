@@ -47,6 +47,10 @@ export async function recomputeExpertProgress(
   // P1-12fix：PRICE 类评分项由公式引擎自动出分（专家不写 BidScoreRecord），
   // 计入分母会使竞价采购（仅通过性+价格公式）专家进度封顶 66% → 报告确认死锁。
   const expertScorableItems = allScoreItems.filter(i => i.category !== 'PRICE');
+  // bug#140a：通过性类目（与 recomputeItemFromDecisions / 前端 score-validation 同对硬编码，
+  // canon 见 @water-erp/shared isPassFailCategory）——豁免分母的另一半口径
+  const passfailItems = expertScorableItems.filter(i => i.category === 'QUALIFICATION' || i.category === 'RESPONSIVE');
+  const passfailItemIds = new Set(passfailItems.map(i => i.id));
   // P1-9：活跃供应商（解密成功且未撤回）——分子分母同口径，避免撤回后 progress 漂移/超 100
   const activeSuppliers = await tx.bidSupplier.findMany({
     where: { projectId, decryptStatus: 'SUCCESS', submitStatus: { not: '已撤回' } },
@@ -55,19 +59,43 @@ export async function recomputeExpertProgress(
   // P1-5/P1-6（中断审查）：旧口径分母含回避/废标家，而 submitScores 拒收回避家、
   // 前端锁死废标家 → 评不出即永远到不了 100 → confirmReport 死锁（两型同根）。
   const activeIds = filterEvaluableSuppliers(activeSuppliers, conflictedSupplierIds).map(s => s.id);
-  const totalItems = expertScorableItems.length * activeIds.length;
-  const scoredItems = await tx.bidScoreRecord.count({
-    // N8b：分子与分母同口径排 PRICE——手填价格分记录不得虚增进度（P1-12fix 分母已排）
-    where: { expertId, scoreItem: { projectId, category: { not: 'PRICE' } }, supplierId: { in: activeIds } },
-  });
-  // 0 评分项（none 直接采购）且有可评家=定性审查口径已评完；0 家=可评集合空维持 0（spec §4.2，防普通项目回避/废标殆尽语义漂移）
-  const progress = totalItems > 0 ? Math.min(100, Math.floor((scoredItems / totalItems) * 100)) : (activeIds.length > 0 ? 100 : 0); // P1-6 下取整 + P1-9 封顶
+  const activeIdSet = new Set(activeIds);
   const allRecords = await tx.bidScoreRecord.findMany({
     where: { expertId, scoreItem: { projectId }, supplierId: { in: activeIds } },
   });
-  // 语义修正：totalScore = 跨可评供应商的均分（非总分），避免专家看到 N×76 的总分混淆
-  const totalSum = allRecords.reduce((sum, r) => sum + Number(r.score), 0);
-  const activeCount = activeIds.length;
+  // bug#140a 资格短路豁免（2026-11-18 复裁补实施）：本专家已判任一通过性项「不通过」的家，
+  // 其非通过性项免评（分母/分子同口径排除）。两点口径：
+  // ① 豁免仅本专家——集体票过半翻 invalid 后由 filterEvaluableSuppliers 全员剔除（两轨并行不互斥）；
+  // ② 无状态自愈——改票/复议推翻（passed 不再为 false）后，下次重算分母自动回扩，
+  //    投票翻转与 host 处置路径均经 recomputeAllExpertsProgress 走本函数，无需额外联动。
+  const exemptSupplierIds = new Set(
+    allRecords
+      .filter(r => r.passed === false && passfailItemIds.has(r.scoreItemId))
+      .map(r => r.supplierId)
+      .filter(id => activeIdSet.has(id)), // 双保险：where 已按活跃集收口，防撤回/废标翻转后的陈旧幻影
+  );
+  const nonExemptIds = activeIds.filter(id => !exemptSupplierIds.has(id));
+  const totalItems =
+    nonExemptIds.length * expertScorableItems.length + exemptSupplierIds.size * passfailItems.length;
+  const scoredItems =
+    (await tx.bidScoreRecord.count({
+      // N8b：分子与分母同口径排 PRICE——手填价格分记录不得虚增进度（P1-12fix 分母已排）
+      where: { expertId, scoreItem: { projectId, category: { not: 'PRICE' } }, supplierId: { in: nonExemptIds } },
+    })) +
+    // bug#140a：豁免家分子只数通过性项（历史全量评分记录不虚增）；豁免集为空不发第二段查询
+    (exemptSupplierIds.size > 0
+      ? await tx.bidScoreRecord.count({
+          where: { expertId, scoreItem: { projectId, category: { in: ['QUALIFICATION', 'RESPONSIVE'] } }, supplierId: { in: [...exemptSupplierIds] } },
+        })
+      : 0);
+  // 0 评分项（none 直接采购）且有可评家=定性审查口径已评完；0 家=可评集合空维持 0（spec §4.2，防普通项目回避/废标殆尽语义漂移）
+  const progress = totalItems > 0 ? Math.min(100, Math.floor((scoredItems / totalItems) * 100)) : (activeIds.length > 0 ? 100 : 0); // P1-6 下取整 + P1-9 封顶
+  // 语义修正：totalScore = 跨可评供应商的均分（非总分），避免专家看到 N×76 的总分混淆；
+  // bug#140a：均分口径排除豁免家（其记录仅剩通过性 0 分项，计入只会稀释均分）
+  const totalSum = allRecords
+    .filter(r => !exemptSupplierIds.has(r.supplierId))
+    .reduce((sum, r) => sum + Number(r.score), 0);
+  const activeCount = nonExemptIds.length;
   const totalScore = activeCount > 0
     ? Math.round((totalSum / activeCount) * 10) / 10
     : 0;

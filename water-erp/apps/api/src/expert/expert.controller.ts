@@ -517,7 +517,7 @@ export class ExpertController {
   @Post('projects/:projectId/scores')
   @ApiOperation({
     summary: '提交评分（按供应商批量）',
-    description: '每次调用提交一个供应商的全部评分项。**需提交全部 5 类评分项**（含资格性审查/符合性审查，可打 0 分）方可达到 progress=100% 并确认报告。supplierName 为供应商企业全称，scores 数组中每项包含 scoreItemId/supplierId/score/reason。',
+    description: '每次调用提交一个供应商的全部评分项。需提交全部可评类目（含资格性审查/符合性审查，可打 0 分）方可达到 progress=100% 并确认报告；**资格短路豁免（bug#140a）**：该专家对该供应商已判任一通过性项「不通过」时，其非通过性类目免评（不提交、不进进度分母与聚合）。supplierName 为供应商企业全称，scores 数组中每项包含 scoreItemId/supplierId/score/reason。',
   })
   async submitScores(
     @CurrentUser('sub') userId: string,
