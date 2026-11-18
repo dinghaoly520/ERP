@@ -2846,6 +2846,27 @@ describe('ExpertService', () => {
       expect((report.supplierScores[0] as any).completed).toBeUndefined();
     });
 
+    it('bug#140a：资格短路豁免家 perSupplierComplete 按通过性项口径（2 记录含 fail vs 3 项全量）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING',
+        id: 'p1', name: '豁免项目', projectCode: 'BID-1',
+        evaluationMethod: 'manual', procurementMethod: '询比采购',
+        suppliers: [{ id: 's1', supplierName: '甲' }],
+        scoreItems: [
+          { id: 'q', category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 },
+          { id: 'r', category: 'RESPONSIVE', name: '符合性审查', maxScore: 0 },
+          { id: 't', category: 'TECHNICAL', name: '技术评分', maxScore: 50 },
+        ],
+      });
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { supplierId: 's1', scoreItemId: 'q', score: 0, passed: false, reason: '证书过期',
+          scoreItem: { id: 'q', category: 'QUALIFICATION', name: '资格性审查', maxScore: 0 } },
+        { supplierId: 's1', scoreItemId: 'r', score: 0, passed: true, reason: '',
+          scoreItem: { id: 'r', category: 'RESPONSIVE', name: '符合性审查', maxScore: 0 } },
+      ]);
+      const report = await service.getReport('u1', 'p1');
+      expect(report.supplierScores[0].perSupplierComplete).toBe(true); // 修复前 2<3 → false（徽章永不亮）
+    });
+
     it('none 轨道（直接采购）：0 评分项 → perSupplierComplete=true 且 payload noneEvaluation=true（2026-10-19 spec §4.2）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING',
         id: 'p1', name: '直接采购项目', projectCode: 'BID-1',
