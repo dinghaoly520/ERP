@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REVIEW_FIELD_VOCAB } from '@water-erp/shared';
 import { RuleResult } from './rule-executor.service';
 import { GeneralReviewResult } from './general-reviewer.service';
 import type { LlmFreeReviewIssue, LlmFreeReviewResult } from './llm-free-reviewer.service';
@@ -35,6 +36,11 @@ export interface ReviewReport {
   passedChecks: RuleResult[];
   generalResults?: GeneralReviewResult[];
   llmFreeIssues?: LlmFreeIssue[];
+  /** 严格审查模式提取到的字段（2026-11-19 透明化）：按词表序，词表外键附尾；
+   *  general 模式不提取字段（不跑数值规则），恒 undefined=前端隐藏块。
+   *  mergeWithLlmFreeResults 为 spread 透传——重构改逐字段组装会丢此字段，
+   *  有回归测试锁定（report-generator.service.spec.ts）。 */
+  extractedFields?: Array<{ field: string; value: unknown }>;
 }
 
 const MIN_MATCH_LENGTH = 8;
@@ -43,7 +49,10 @@ const MIN_MATCH_LENGTH = 8;
 export class ReportGeneratorService {
   constructor(private prisma: PrismaService) {}
 
-  generateFromRuleResults(results: RuleResult[]): ReviewReport {
+  generateFromRuleResults(
+    results: RuleResult[],
+    extracted?: Record<string, unknown>,
+  ): ReviewReport {
     const critical = results.filter(
       (r) => !r.passed && r.severity === 'critical',
     );
@@ -65,7 +74,31 @@ export class ReportGeneratorService {
       criticalIssues: critical,
       warnings,
       passedChecks: passed,
+      extractedFields: this.buildExtractedFields(extracted),
     };
+  }
+
+  /** 提取字段组装（2026-11-19 透明化）：按 REVIEW_FIELD_VOCAB 词表序输出已提取
+   *  键值，词表外 LLM 自由产出键附加在尾（原样展示供人工核对）；空/未传=undefined。 */
+  private buildExtractedFields(
+    extracted?: Record<string, unknown>,
+  ): Array<{ field: string; value: unknown }> | undefined {
+    if (!extracted) return undefined;
+    const present = Object.entries(extracted).filter(
+      ([, v]) => v !== undefined && v !== null && v !== '',
+    );
+    if (present.length === 0) return undefined;
+    const ordered: Array<{ field: string; value: unknown }> = [];
+    for (const def of REVIEW_FIELD_VOCAB) {
+      const hit = present.find(([k]) => k === def.value);
+      if (hit) ordered.push({ field: hit[0], value: hit[1] });
+    }
+    for (const [k, v] of present) {
+      if (!REVIEW_FIELD_VOCAB.some((d) => d.value === k)) {
+        ordered.push({ field: k, value: v });
+      }
+    }
+    return ordered;
   }
 
   generateFromGeneralResults(
@@ -169,7 +202,7 @@ export class ReportGeneratorService {
       (i) => i.severity === 'warning',
     ).length;
 
-    // 5. Return merged report
+    // 5. Return merged report（spread 透传 kbReport.extractedFields——见接口注释，有回归测试锁定）
     return {
       ...kbReport,
       summary: {

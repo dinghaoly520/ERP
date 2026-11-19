@@ -6,6 +6,12 @@ export interface ExtractedFields {
   announcementDate?: string;
   deadlineDate?: string;
   publicityDays?: number;
+  bidBondPercent?: number;
+  performanceBondPercent?: number;
+  clarificationLeadDays?: number;
+  expertPanelSize?: number;
+  bidValidDays?: number;
+  warrantyMonths?: number;
   procurementMethod?: string;
   hasRenewalJustification?: boolean;
   hasPublicAnnouncement?: boolean;
@@ -18,10 +24,16 @@ export interface ExtractedFields {
 const FIELD_EXTRACTION_PROMPT = `你是一个采购文件字段提取专家。从提供的采购招标文件文本中提取以下结构化字段，以 JSON 格式输出：
 
 {
-  "budgetAmount": 金额数值（单位：元，如50万填500000），
+  "budgetAmount": 预算/估算金额数值（单位：元，如50万填500000），
+  "publicityDays": 公示期天数（整数），
+  "bidBondPercent": 投标保证金比例（纯数字百分数，2%填2，勿填"2%"或0.02），
+  "performanceBondPercent": 履约保证金比例（口径同上），
+  "clarificationLeadDays": 澄清/答疑须在截止前多少天提出的整数天数（如"截止15日前"填15），
+  "expertPanelSize": 评标委员会人数（整数，如5人以上单数填5），
+  "bidValidDays": 投标有效期天数（整数，如90日填90），
+  "warrantyMonths": 质保期月数（整数；文档以年计则换算为月），
   "announcementDate": "公告发布日期，格式 YYYY-MM-DD",
   "deadlineDate": "投标截止日期，格式 YYYY-MM-DD",
-  "publicityDays": 公示期天数（整数），
   "procurementMethod": "采购方式，如公开招标、邀请招标、谈判采购、询价、单一来源",
   "hasRenewalJustification": 是否包含续约必要性说明（boolean），
   "hasPublicAnnouncement": 是否发布了公示（boolean），
@@ -30,7 +42,10 @@ const FIELD_EXTRACTION_PROMPT = `你是一个采购文件字段提取专家。�
   "documentType": "文件类型，如采购公告、招标文件、投标文件、合同、评标报告"
 }
 
-如果某个字段无法从文档中确定，则不包含该字段。不要编造信息。`;
+注意：
+- 所有数值字段一律输出纯数字（不带单位、引号、百分号）
+- 如果某个字段无法从文档中确定，则不包含该字段。不要编造信息
+- 采购公告类文档通常不含招标文件/合同字段（质保期、评标委员会人数等），缺失是正常的，不要硬填`;
 
 @Injectable()
 export class FieldExtractorService {

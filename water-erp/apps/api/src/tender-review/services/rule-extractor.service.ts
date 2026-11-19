@@ -5,6 +5,7 @@ import { ClauseParserService, Clause } from './clause-parser.service';
 import {
   RULE_UNITS,
   RULE_SEVERITIES,
+  RULE_NUMERIC_FIELDS,
 } from '@water-erp/shared';
 
 /** 枚举段自 @water-erp/shared 单源注入（2026-11-19 审查 #13）：提示词/后端归一/
@@ -12,6 +13,11 @@ import {
  *  checkTarget（检查对象）已砍（2026-11-19 用户裁定）：登记性元数据零消费——
  *  执行/列表/报告三面均不读，LLM 判定纯属浪费 token */
 const UNIT_ENUM_LINE = RULE_UNITS.map((u) => `"${u.value}"(${u.label})`).join(', ');
+/** numeric field 白名单（自词表派生，与提取器字段对齐）：词表外 field=执行侧
+ *  fields[field] 永远 miss=每次审查「数据缺失」——LLM 自造字段名即废规则 */
+const NUMERIC_FIELD_ENUM_LINE = RULE_NUMERIC_FIELDS.map(
+  (f) => `"${f.value}"(${f.label})`,
+).join('、');
 
 const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的任务是从采购管理制度条款中提取可自动检查的结构化规则。
 
@@ -23,8 +29,10 @@ const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的�
 - "ruleType": 必须是以下三者之一："numeric_compare"、"existence_check"、"semantic"
 - "logicExpression": 规则逻辑对象
   - numeric_compare 类型: { "field": "字段名", "operator": ">="或"<="或">"或"<"或"=="或"!=", "threshold": 数值, "unit": 单位代码 }
+    field 只能使用以下值之一（对应审查时可从文档提取的字段）: ${NUMERIC_FIELD_ENUM_LINE}
+    条款数值无法对应上述任何字段时，改用 semantic 类型，不要自造字段名
     unit 可选值: ${UNIT_ENUM_LINE}
-    根据条款内容选择最合适的单位，例如"30日内"用"days"，"3%以上"用"percent"，"不少于3家"用"count"
+    unit 必须与字段语义匹配（如比例用percent、天数用days、人数用count）
   - existence_check 类型: { "checkType": "keyword"或"section", "keywords": ["关键词1"], "sectionName": "章节名" }
   - semantic 类型: { "description": "检查描述" }
 - "severity": 必须是以下三者之一："critical"、"warning"、"info"

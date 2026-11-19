@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Document, Packer } from 'docx';
 import { htmlToDocxChildren } from '../../project-management/docx/html-to-docx.converter';
+import { REVIEW_FIELD_VOCAB } from '@water-erp/shared';
 
 export interface ReportIssueRow {
   sectionName: string;
@@ -87,6 +88,18 @@ export class ReviewReportDocxService {
   <tr><td>总检查项</td><td>通过</td><td>警告</td><td>不通过</td></tr>
   <tr><td>${report.summary.totalChecks}</td><td>通过 ${report.summary.passed}</td><td>警告 ${report.summary.warnings}</td><td>不通过 ${report.summary.failed}</td></tr>
 </table>
+${(report.extractedFields ?? []).length > 0 ? `
+<h3>提取字段（严格审查自动提取）</h3>
+<table>
+  <tr><td>字段</td><td>值</td></tr>
+  ${(report.extractedFields ?? [])
+    .map((f) => {
+      const def = REVIEW_FIELD_VOCAB.find((d) => d.value === f.field);
+      const label = def ? def.label : `${f.field}（词表外）`;
+      return `<tr><td>${esc(label)}</td><td>${esc(String(f.value))}</td></tr>`;
+    })
+    .join('')}
+</table>` : ''}
 <h2>二、问题明细（含处置留痕）</h2>
 <table>
   <tr><td>序号</td><td>章节/规则</td><td>严重度</td><td>问题描述</td><td>修改建议</td><td>处置结果</td></tr>

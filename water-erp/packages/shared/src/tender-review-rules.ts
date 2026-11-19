@@ -7,15 +7,43 @@
  *  审查执行/规则列表/报告三面均不读，LLM 判定与表单下拉徒增噪音；DB 列 NOT NULL
  *  无默认暂留（写入点兜底 '全部'），删列待安全 schema 窗口。 */
 
-/** 数值比较字段全集（value=入库 logic.field、label=表单展示、unit=绑定单位）。
- *  词表须与 field-extractor 提示词字段对齐——执行器按 fields[field] 精确键名
- *  匹配（无别名映射），词表外值=每次审查「数据缺失」；单位绑定并锁定：执行
- *  比的是裸数值、unit 不参与运算，自由选单位会造出「看起来对、实际差一万倍」
- *  的规则（同构 2026-09-14 唱标万元事故）。 */
-export const RULE_NUMERIC_FIELDS: ReadonlyArray<{ value: string; label: string; unit: string }> = [
-  { value: 'budgetAmount', label: '预算金额（元）', unit: 'cny' },
-  { value: 'publicityDays', label: '公示期天数（天）', unit: 'days' },
+/** 审查提取字段全集（单一权威，2026-11-19 扩充）：field-extractor 提示词
+ *  （提取侧）、规则表单数值字段下拉（配置侧）、审查报告「提取字段」块（展示侧）
+ *  三面共用。kind=number 可配数值比较（unit 绑定锁定）；boolean/string/date
+ *  供报告展示与存在性 field 检查。
+ *  ⚠️ 增删字段必须同步 field-extractor.service.ts 提示词——词表漂移=提取不到/
+ *  规则「数据缺失」；rule-extractor 提示词的 field 白名单引同一名单（派生）。
+ *  注意：公告类文档天然不含招标文件/合同字段（如质保期），报告灰显「未提取」
+ *  是预期行为非提取故障。 */
+export type ReviewFieldDef =
+  | { value: string; label: string; kind: 'number'; unit: string; hint?: string }
+  | { value: string; label: string; kind: 'boolean' | 'string' | 'date'; hint?: string };
+
+export const REVIEW_FIELD_VOCAB: ReadonlyArray<ReviewFieldDef> = [
+  { value: 'budgetAmount', label: '预算金额', kind: 'number', unit: 'cny', hint: '单位元；50万填500000' },
+  { value: 'publicityDays', label: '公示期天数', kind: 'number', unit: 'days' },
+  { value: 'bidBondPercent', label: '投标保证金比例', kind: 'number', unit: 'percent', hint: '数值2表示2%，勿填"2%"或0.02' },
+  { value: 'performanceBondPercent', label: '履约保证金比例', kind: 'number', unit: 'percent', hint: '同上' },
+  { value: 'clarificationLeadDays', label: '澄清答疑提前天数', kind: 'number', unit: 'days' },
+  { value: 'expertPanelSize', label: '评标委员会人数', kind: 'number', unit: 'count', hint: '单数约束需另配语义规则，数值只查人数下限' },
+  { value: 'bidValidDays', label: '投标有效期', kind: 'number', unit: 'days' },
+  { value: 'warrantyMonths', label: '质保期', kind: 'number', unit: 'months' },
+  { value: 'announcementDate', label: '公告发布日期', kind: 'date' },
+  { value: 'deadlineDate', label: '投标截止日期', kind: 'date' },
+  { value: 'procurementMethod', label: '采购方式', kind: 'string' },
+  { value: 'documentType', label: '文件类型', kind: 'string' },
+  { value: 'hasRenewalJustification', label: '续约必要性说明', kind: 'boolean' },
+  { value: 'hasPublicAnnouncement', label: '发布公示', kind: 'boolean' },
+  { value: 'hasTechnicalRequirements', label: '完整技术要求', kind: 'boolean' },
+  { value: 'hasEvaluationCriteria', label: '评分标准', kind: 'boolean' },
 ];
+
+/** 数值比较字段下拉（自词表 number 子集派生，单位随字段锁定——执行比的是裸
+ *  数值、unit 不参与运算，自由选单位会造出「看起来对、实际差一万倍」的规则） */
+export const RULE_NUMERIC_FIELDS: ReadonlyArray<{ value: string; label: string; unit: string }> =
+  REVIEW_FIELD_VOCAB.filter(
+    (f): f is ReviewFieldDef & { kind: 'number'; unit: string } => f.kind === 'number',
+  ).map(({ value, label, unit }) => ({ value, label, unit }));
 
 /** 数值比较单位全集（value=入库值，label=表单展示） */
 export const RULE_UNITS: ReadonlyArray<{ value: string; label: string }> = [

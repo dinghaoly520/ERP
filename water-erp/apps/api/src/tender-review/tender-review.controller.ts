@@ -1196,7 +1196,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       ...existenceResults,
       ...semanticResults,
     ];
-    return this.reportGenerator.generateFromRuleResults(allResults);
+    // 提取字段随报告落库（2026-11-19 透明化）：供报告页/docx 展示，缺什么一目了然
+    return this.reportGenerator.generateFromRuleResults(allResults, fields);
   }
 
   private async runGeneralReview(
