@@ -2513,8 +2513,10 @@ export class ExpertAdminService {
     const [totalExperts, availGroups, disabledRetired, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d, busyRows] = await Promise.all([
       this.prisma.user.count({ where: { role: 'bid_expert', ...f } }),
       // 可用/占用（2026-10-28 口径收口）：库内 ACTIVE+账号在编——「可用」与可抽取池三元组同口径
-      // （录入/导入即 PENDING+可用，裸 availability 会把待审核专家虚增进「可参与抽取」）
-      this.prisma.expertProfile.groupBy({ by: ['availability'], where: { entryStatus: 'ACTIVE', user: { role: 'bid_expert', isActive: true, ...f } }, _count: true }),
+      // （录入/导入即 PENDING+可用，裸 availability 会把待审核专家虚增进「可参与抽取」）。
+      // 「停用」组排除（2026-11-19 用户裁定⑴）：临时需求方代表（建档即停用、不入抽取池）与
+      // 手动停用专家不得虚增「空闲」——空闲+在途与可抽取人口对齐（与下方 busyRows 两侧同滤）
+      this.prisma.expertProfile.groupBy({ by: ['availability'], where: { entryStatus: 'ACTIVE', availability: { not: '停用' }, user: { role: 'bid_expert', isActive: true, ...f } }, _count: true }),
       // 已停用=退库专家：以 entryStatus 为准（availability='停用' 是 RETIRED 的镜像且历史档案可能失真）
       this.prisma.expertProfile.count({ where: { entryStatus: 'RETIRED', user: { role: 'bid_expert', ...f } } }),
       this.prisma.expertProfile.groupBy({
@@ -2539,9 +2541,10 @@ export class ExpertAdminService {
         where: {
           invitationStatus: { not: 'declined' }, // 除名口径：婉拒不占状态
           project: { stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
-          // 在途并集限库内 ACTIVE（与分母 availGroups、负荷口径 getLoadDistribution 对称）：
-          // 库外在途行进占用会把 idle 减法被 Math.max 静默钳低、available+occupied 不再还原库内总数
-          user: { role: 'bid_expert', isActive: true, expertProfile: { entryStatus: 'ACTIVE' }, ...f },
+          // 在途并集与分母同人口（库内 ACTIVE+非停用，2026-11-19 裁定⑴两侧同滤）：库外/停用在途行
+          // 不占占用——临时需求方代表虽经 BidExpert 绑定项目（:881）但非库内可抽取人口，单侧过滤会让
+          // idle 减法被 Math.max 静默钳低、available+occupied 不再还原库内总数
+          user: { role: 'bid_expert', isActive: true, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } }, ...f },
         },
         select: { userId: true, expertRole: true, project: { select: { stage: true } } },
       }),
@@ -2569,7 +2572,7 @@ export class ExpertAdminService {
     }
 
     // 阶段派生四态：正在评标 ＞ 已被抽取（正选在途）＞ 候补待命（仅候补在途）；
-    // 空闲 = 库内 ACTIVE+在编 − 在途并集（不再读 availability 镜像列）
+    // 空闲 = 库内可抽取人口（ACTIVE+非停用，2026-11-19 裁定⑴）− 在途并集（不再读 availability 镜像列）
     const inLibraryActive = availGroups.reduce((sum, g) => sum + g._count, 0);
     const evaluatingSet = new Set<string>();
     const assignedSet = new Set<string>();
@@ -2659,10 +2662,11 @@ export class ExpertAdminService {
   async getLoadDistribution(user?: AuthenticatedUser, companyId?: string) {
     const f = await this.expertScopeFilter(user, companyId);
     const [totalActiveExperts, activeAssigns] = await Promise.all([
-      // 2026-10-28 口径收口：负荷分母限库内 ACTIVE（PENDING/SUSPENDED 不算「活跃专家/空闲」）
-      this.prisma.user.count({ where: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE' } } }),
+      // 2026-10-28 口径收口：负荷分母限库内 ACTIVE（PENDING/SUSPENDED 不算「活跃专家/空闲」）；
+      // 停用组排除（2026-11-19 裁定⑴同口径）：临时需求方代表等 availability='停用' 者不虚增「空闲」桶
+      this.prisma.user.count({ where: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } } }),
       this.prisma.bidExpert.findMany({
-        where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE' } } },
+        where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } } },
         select: { userId: true, user: { select: { displayName: true } } },
       }),
     ]);

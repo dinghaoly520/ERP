@@ -208,18 +208,24 @@ describe('ExpertAdminService', () => {
   describe('统计口径收口（2026-10-28：可用=可抽取人口、停用=退库、统计闸去重）', () => {
     const ACTOR = { sub: 'u-1', role: 'leader', username: 'S-01' } as any;
 
-    it('getStatistics：库况四态全库派生（2026-11-18）——available=库内 ACTIVE−在途并集（弃 availability 镜像列）；availGroups 查询仍限 ACTIVE+在编；disabled=RETIRED 计数（entryStatus 为准）', async () => {
+    it('getStatistics：库况四态全库派生（2026-11-18）——available=库内可抽取人口−在途并集（弃镜像列）；「停用」组排除分母（2026-11-19 裁定⑴：临时需求方代表/手动停用不虚增空闲）；disabled=RETIRED 计数（entryStatus 为准）', async () => {
       prisma.user.count.mockResolvedValue(10);
-      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
-        by[0] === 'availability'
-          ? Promise.resolve([{ availability: '可用', _count: 3 }, { availability: '占用', _count: 2 }])
-          : Promise.resolve([]));
+      prisma.expertProfile.groupBy.mockImplementation(({ by, where }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        const all = [
+          { availability: '可用', _count: 3 },
+          { availability: '占用', _count: 2 },
+          { availability: '停用', _count: 2 }, // 临时需求方代表等——where 排除后 DB 不返回（mock 模拟真实过滤）
+        ];
+        return Promise.resolve(where?.availability?.not === '停用' ? all.filter(g => g.availability !== '停用') : all);
+      });
       prisma.expertProfile.count.mockResolvedValue(1);
       const res = await service.getStatistics(ACTOR);
       const availCall = prisma.expertProfile.groupBy.mock.calls.find((c: any[]) => c[0].by?.[0] === 'availability')![0];
       expect(availCall.where.entryStatus).toBe('ACTIVE');
       expect(availCall.where.user.isActive).toBe(true);
-      // 镜像列「可用3/占用2」不再读：无在途 → 库内 5 人全空闲（2026-10-28 旧口径此处为 3/2）
+      expect(availCall.where.availability).toEqual({ not: '停用' }); // 裁定⑴：查询侧即排除停用组
+      // 镜像列「可用3/占用2」不再读、停用2 不进分母：无在途 → 可抽取人口 5 人全空闲（旧口径此处为 3/2）
       expect(res.available).toBe(5);
       expect(res.occupied).toBe(0);
       expect(res.busy).toEqual({ idle: 5, assigned: 0, evaluating: 0, alternate: 0 });
@@ -231,10 +237,15 @@ describe('ExpertAdminService', () => {
 
     it('getStatistics 四态派生（2026-11-18）：优先级链 正在评标＞正选在途＞候补待命 同人只计高位（多在途行去重），declined 不入查询、在途限库内 ACTIVE；空闲=库内 ACTIVE−在途并集', async () => {
       prisma.user.count.mockResolvedValue(10);
-      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
-        by[0] === 'availability'
-          ? Promise.resolve([{ availability: '可用', _count: 4 }, { availability: '占用', _count: 2 }])
-          : Promise.resolve([]));
+      prisma.expertProfile.groupBy.mockImplementation(({ by, where }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        const all = [
+          { availability: '可用', _count: 4 },
+          { availability: '占用', _count: 2 },
+          { availability: '停用', _count: 3 }, // 查询排除后不返回（mock 模拟 DB 过滤）
+        ];
+        return Promise.resolve(where?.availability?.not === '停用' ? all.filter(g => g.availability !== '停用') : all);
+      });
       prisma.expertProfile.count.mockResolvedValue(0);
       prisma.bidExpert.findMany.mockResolvedValue([
         { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },     // 正选在途
@@ -249,14 +260,15 @@ describe('ExpertAdminService', () => {
         where: expect.objectContaining({
           invitationStatus: { not: 'declined' },
           project: { stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
-          user: expect.objectContaining({ expertProfile: { entryStatus: 'ACTIVE' } }),
+          // 在途与分母同人口（裁定⑴两侧同滤）：临时需求方代表（停用）经 BidExpert 绑定项目也不占占用
+          user: expect.objectContaining({ expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } }),
         }),
         select: expect.objectContaining({
           userId: true, expertRole: true,
           project: expect.objectContaining({ select: { stage: true } }),
         }),
       }));
-      // 库内 6（4 可用+2 占用）− 在途 4 人（e1 正选/e2 候补/e3 评标/e4 正选）= 空闲 2
+      // 可抽取人口 6（4 可用+2 占用，停用3 不进分母）− 在途 4 人（e1 正选/e2 候补/e3 评标/e4 正选）= 空闲 2
       expect(res.busy).toEqual({ idle: 2, assigned: 2, evaluating: 1, alternate: 1 });
       expect(res.available).toBe(2);
       expect(res.occupied).toBe(4);
@@ -294,14 +306,14 @@ describe('ExpertAdminService', () => {
       expect(res.evaluationStats.levelCounts.B).toBe(1);
     });
 
-    it('getLoadDistribution：活跃专家/分配均限库内 ACTIVE（PENDING/SUSPENDED 不入负荷分母）', async () => {
+    it('getLoadDistribution：活跃专家/分配均限库内 ACTIVE+非停用（PENDING/SUSPENDED 不入负荷分母；停用组排除同裁定⑴——临时需求方代表不虚增空闲桶）', async () => {
       prisma.user.count.mockResolvedValue(4);
       prisma.bidExpert.findMany.mockResolvedValue([]);
       const res = await service.getLoadDistribution(ACTOR);
       const countWhere = prisma.user.count.mock.calls[0][0].where;
-      expect(countWhere.expertProfile).toEqual({ entryStatus: 'ACTIVE' });
+      expect(countWhere.expertProfile).toEqual({ entryStatus: 'ACTIVE', availability: { not: '停用' } });
       const assignWhere = prisma.bidExpert.findMany.mock.calls[0][0].where;
-      expect(assignWhere.user.expertProfile).toEqual({ entryStatus: 'ACTIVE' });
+      expect(assignWhere.user.expertProfile).toEqual({ entryStatus: 'ACTIVE', availability: { not: '停用' } });
       expect(res.totalActiveExperts).toBe(4);
       expect(res.loadDistribution['空闲']).toBe(4);
     });
