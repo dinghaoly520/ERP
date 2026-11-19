@@ -246,7 +246,7 @@ export default function ProgressPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
       {/* 页头（2026-11-19 九板块页面化）：返回驾驶舱 + 页面名称 */}
-      <div className="mb-3 flex items-center gap-2.5">
+      <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
         <button
           type="button"
           onClick={() => router.push("/dashboard")}

@@ -21,7 +21,7 @@ export default function AnalysisPage() {
   return (
     <div>
       {/* 页头：返回驾驶舱 + 板块标题（=宫格卡片标题） */}
-      <div className="mb-3 flex items-center gap-2.5">
+      <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
         <button
           type="button"
           onClick={() => router.push("/dashboard")}
