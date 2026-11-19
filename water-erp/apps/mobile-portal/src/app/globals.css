@@ -375,7 +375,29 @@ a {
 html { -webkit-tap-highlight-color: transparent; }
 body { overscroll-behavior-y: none; }
 
-/* 底部 Tab 栏（应用壳 in-flow 钉底——非 fixed，结构性永不被滚动/工具栏/键盘顶走）：
+/* 水叮当悬浮钮（2026-11-19 用户裁定）：右下角瓷面圆钮（A 版配方缩样）+ 安全区避让 */
+.m-fab {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + var(--kb-h, 0px));
+  z-index: 35; /* header 40 之下、弹层 50 之下 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.88),
+    4px 6px 18px oklch(0.46 0.07 258 / 0.2),
+    -3px -3px 10px oklch(1 0 0 / 0.94);
+  transition: transform 0.2s var(--ease-out-quart);
+}
+
+/* 底部 Tab 栏（已退役 2026-11-19；类保留供回退）——
+   纯白实底 + 顶部发丝线 + 轻微方向性上影 + 刘海屏安全区：
    纯白实底 + 顶部发丝线 + 轻微方向性上影 + 刘海屏安全区 */
 .m-tabbar {
   display: flex;
@@ -606,11 +628,11 @@ select.m-input { appearance: auto; }
  * 顶起）；--kb-h 由 visualViewport 实时驱动，输入条抬升至键盘上方、消息区垫高避让。 */
 .m-chat-shell {
   --kb-h: 0px;
-  --m-tabbar-h: calc(55px + env(safe-area-inset-bottom)); /* 54 内容 + 1 描边 */
   position: fixed;
   inset-inline: 0;
   top: 2.75rem; /* header h-11 */
-  bottom: var(--m-tabbar-h);
+  /* 2026-11-19 底部工具栏退役：直接落安全区 */
+  bottom: env(safe-area-inset-bottom);
   z-index: 20; /* tabbar 30 < header 40 < sheet 50 之下 */
   display: flex;
   flex-direction: column;

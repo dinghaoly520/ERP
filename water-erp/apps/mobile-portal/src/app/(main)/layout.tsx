@@ -4,23 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, Bell, Crown, LayoutDashboard, LogOut } from "lucide-react";
-import { fetchCurrentUser, logout, type AuthUser, type AuthRole } from "@/lib/api/auth";
-import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
-import { fetchNotifications, fetchUnreadCount, type NotificationItem } from "@/lib/api/notifications";
-import { readSavedFilters } from "@/lib/filter-store";
+import { Bot, Crown, LogOut } from "lucide-react";
+import { fetchCurrentUser, logout, type AuthUser } from "@/lib/api/auth";
 import { AuthProvider } from "@/components/m/auth-context";
-import { usePolling } from "@/hooks/use-polling";
-import { BottomSheet } from "@/components/m/bottom-sheet";
-import { Chip } from "@/components/m/chip";
-import { Skeleton } from "@/components/m/skeleton";
 
-/* 底部 Tab（2026-11-19 用户裁定）：只留驾驶舱+水叮当——台账/进展页保留（宫格
- * 「台账明细/项目进展」入口与各深链直达），只是不占底部导航位 */
-const TABS = [
-  { href: "/dashboard", label: "驾驶舱", icon: LayoutDashboard },
-  { href: "/chat", label: "水叮当", icon: Bot },
-];
+/* 导航形态（2026-11-19 用户裁定）：顶部通知钮与底部工具栏删除——水叮当改
+ * 右下角悬浮钮（/chat 页自身不显，防自跳）；驾驶舱即登录落地首页 */
 
 /* 角色事实标签（2026-11-18 用户裁定「AI 感太重」：欢迎语抒情句撤销→事实行） */
 const ROLE_LABELS: Record<string, string> = {
@@ -50,18 +39,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const t = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(t);
   }, []);
-  /* Tab 角标（驾驶舱=异常；台账/进展 Tab 已撤，待处理/停滞角标随撤）——回前台即时重取 */
-  const [badges, setBadges] = useState<DashboardBadges | null>(null);
-  /* 通知铃铛（2026-11-03）：未读角标 + 待办/全部列表弹层——只读浏览，已读标记留 :3005 */
-  const [unread, setUnread] = useState(0);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifTab, setNotifTab] = useState<"all" | "todo">("todo");
-  const [notifItems, setNotifItems] = useState<NotificationItem[] | null>(null);
-  const [notifTotal, setNotifTotal] = useState(0);
-  const [notifLoading, setNotifLoading] = useState(false);
-  const [notifError, setNotifError] = useState(false);
-  const [notifRetry, setNotifRetry] = useState(0);
-
   useEffect(() => {
     let active = true;
     fetchCurrentUser()
@@ -79,35 +56,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       active = false;
     };
   }, [router]);
-
-  /* 角标+铃铛未读（2026-11-03 实时层）：usePolling 60s 自动刷新；enabled=checked——
-     登录校验通过瞬间立即首拉（F2：此前挂载即取撞上 checked=false 白等 60s） */
-  usePolling(
-    async () => {
-      const companyIds = (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? []).join(",");
-      const [n, b] = await Promise.all([
-        fetchUnreadCount().catch(() => null),
-        fetchDashboardBadges(companyIds || undefined).catch(() => null),
-      ]);
-      if (n != null) setUnread(n);
-      if (b) setBadges(b);
-    },
-    60_000,
-    checked,
-  );
-
-  /* 通知列表：开弹层/切 tab 时拉取（不轮询——铃铛角标已随回前台刷新）；
-     失败≠空数据——显式错误态可重试（与龙虎榜同口径，2026-11-03 稳健性收口） */
-  useEffect(() => {
-    if (!notifOpen) return;
-    let active = true;
-    setNotifLoading(true);
-    fetchNotifications(notifTab)
-      .then((r) => { if (active) { setNotifItems(r.items); setNotifTotal(r.total); setNotifError(false); } })
-      .catch(() => { if (active) setNotifError(true); })
-      .finally(() => { if (active) setNotifLoading(false); });
-    return () => { active = false; };
-  }, [notifOpen, notifTab, notifRetry]);
 
   if (!checked) {
     return (
@@ -135,19 +83,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <div className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
         <button
           type="button"
-          onClick={() => setNotifOpen(true)}
-          aria-label={`站内通知，未读 ${unread} 条`}
-          className="neu-btn-soft relative mr-1.5 h-7 w-7 shrink-0 rounded-[9px] p-0 active:scale-95"
-        >
-          <Bell size={13} />
-          {unread > 0 ? (
-            <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[10px] font-bold leading-none text-white">
-              {unread > 99 ? "99+" : unread}
-            </span>
-          ) : null}
-        </button>
-        <button
-          type="button"
           onClick={handleLogout}
           aria-label="退出登录"
           className="neu-btn-soft h-7 w-7 shrink-0 rounded-[9px] p-0 active:scale-95"
@@ -158,7 +93,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       <main
         id="m-app-scroll"
-        className="relative z-10 mx-auto w-full max-w-lg flex-1 overflow-y-auto overscroll-contain px-[max(0.875rem,env(safe-area-inset-left))] pb-4 pr-[max(0.875rem,env(safe-area-inset-right))] pt-3.5"
+        className="relative z-10 mx-auto w-full max-w-lg flex-1 overflow-y-auto overscroll-contain px-[max(0.875rem,env(safe-area-inset-left))] pb-24 pr-[max(0.875rem,env(safe-area-inset-right))] pt-3.5"
       >
         {/* 欢迎卡——仅 Tab 根页（驾驶舱/水叮当）显示；跳转页（台账/进展/分析板块）不占位
             *  （2026-11-19 用户裁定：跳转的页面中删除欢迎语区） */}
@@ -183,62 +118,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider user={user}>{children}</AuthProvider>
       </main>
 
-      {/* 通知弹层（2026-11-03）：待办/全部两段浏览——只读铁律，不提供已读标记 */}
-      <BottomSheet open={notifOpen} onClose={() => setNotifOpen(false)} title="站内通知">
-        <div className="mb-3 flex gap-2">
-          <Chip active={notifTab === "todo"} onClick={() => setNotifTab("todo")}>待办</Chip>
-          <Chip active={notifTab === "all"} onClick={() => setNotifTab("all")}>全部</Chip>
-        </div>
-        {notifLoading && !notifItems ? (
-          <Skeleton lines={4} height={16} />
-        ) : notifError && !notifItems ? (
-          <button
-            type="button"
-            onClick={() => setNotifRetry((n) => n + 1)}
-            className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]"
-          >
-            通知加载失败，点击重试
-          </button>
-        ) : !notifItems || notifItems.length === 0 ? (
-          <div className="py-6 text-center text-[14px] text-[var(--muted-foreground)]">
-            {notifTab === "todo" ? "暂无待办通知" : "暂无通知"}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {notifItems.map((n) => (
-              <div key={n.id} className="rounded-[12px] m-tile px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  {!n.isRead ? <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--danger)]" /> : null}
-                  <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{n.title}</span>
-                  <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{n.createdAt.slice(5, 10)}</span>
-                </div>
-                {n.content ? <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-[var(--muted-foreground)]">{n.content}</p> : null}
-              </div>
-            ))}
-            {notifTotal > notifItems.length ? (
-              <div className="pt-1 text-center text-[12px] text-[var(--muted-foreground)]">
-                已显示最近 {notifItems.length} 条 · 共 {notifTotal} 条
-              </div>
-            ) : null}
-            <div className="pt-1 text-center text-[12px] text-[var(--muted-foreground)]">处理操作请前往电脑端工作台</div>
-          </div>
-        )}
-      </BottomSheet>
-
-      <nav className="m-tabbar" aria-label="主导航">
-        {TABS.map(({ href, label, icon: Icon }) => {
-          const badge = href === "/dashboard" ? badges?.abnormalCount : undefined;
-          return (
-            <Link key={href} href={href} data-active={pathname.startsWith(href)} className="m-tab-item relative">
-              <span className="relative">
-                <Icon size={20} strokeWidth={1.5} />
-                {badge ? <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--danger)] px-1 text-[11px] font-bold leading-none text-white">{badge > 99 ? "99+" : badge}</span> : null}
-              </span>
-              <span>{label}</span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* 水叮当悬浮钮（2026-11-19 用户裁定：撤底部工具栏改右下角悬浮；/chat 页隐藏） */}
+      {!pathname.startsWith("/chat") ? (
+        <Link
+          href="/chat"
+          aria-label="打开水叮当助手"
+          className="m-fab active:scale-95"
+        >
+          <Bot size={22} strokeWidth={1.6} />
+        </Link>
+      ) : null}
     </div>
   );
 }
