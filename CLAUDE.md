@@ -196,6 +196,8 @@ pnpm --filter api lint
 pnpm --filter <app> lint
 ```
 
+> **dev 堆上限固化（2026-11-19）**：根 `package.json` 10 个 Node 进程 `dev:*` 脚本（8 门户+api+ai-worker）前置 `NODE_OPTIONS='--max-old-space-size=8192 --enable-source-maps'`——命令级赋值覆盖终端继承值（防 96G crutch 残留复发 2026-10-29/11-19 两轮「Turbopack 原生层 std::bad_alloc 静默 exit 0」死亡螺旋）；ocr/embedding/guard 为 Python/bash 不适用；**勿当冗余清理**。`dev:ai-worker` 的赋值在 `&&` 右侧 pnpm 命令上（落 sleep 上不生效）。
+
 ### Node 24 + Turbopack
 
 Next.js 16 defaults to Turbopack, and all `dev` scripts use it (no `--webpack`). An earlier Node 24 incompatibility with `lightningcss` (the Turbopack CSS backend) once forced every `dev` script onto `--webpack`; this is resolved as of `lightningcss` 1.32.0 on Node 24.16, so `--webpack` has been removed and the webpack-only `webpackMemoryOptimizations` flag dropped from `web/next.config.ts`. Do not reintroduce `--webpack`. If a Turbopack CSS regression appears, verify the native binding before falling back: `node -e "require('lightningcss').transform({filename:'a.css',code:Buffer.from('.a{color:red}')})"`.
