@@ -3873,9 +3873,11 @@ ${combined}`,
       throw new BadRequestException({ error: '勾选中包含不存在或非专家域的账号，请刷新后重选', code: 'INVALID_TARGET' });
     }
     // 在评挡闸（收窄到勾选集，2026-11-09 勾选式改版）：勾选专家绑定开标/评标中项目 → 拒绝。
+    // E3 方案①（2026-11-19 用户裁定）：declined 绑定不挡——婉拒/超时弃权者无签到无评分，
+    // 删号级联删该行不影响在场评审，与四态 canonical/库页 live 标记同口径。
     // BidExpert.projectId 是松列无关系——先取其项目集再查活动态
     const bindings = await this.prisma.bidExpert.findMany({
-      where: { userId: { in: ids } },
+      where: { userId: { in: ids }, invitationStatus: { not: 'declined' } },
       select: { projectId: true },
     });
     const projectIds = [...new Set(bindings.map(b => b.projectId))];
