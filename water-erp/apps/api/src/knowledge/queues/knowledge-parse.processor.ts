@@ -99,6 +99,13 @@ export class KnowledgeParseProcessor extends WorkerHost {
         await assertAlive();
       }, { strictOcr: true });
 
+      // 空内容防线（2026-11-19 扫描件准入修复）：任何路径产出空文本都不得 READY
+      // ——空白 docx/txt、OCR 空结果的图片等；落 FAILED 让用户可见可重试，
+      // 防下游（提取/检索）拿到空 content 全程静默无产出
+      if (!content.trim()) {
+        throw new Error('解析结果为空：文档无文本内容（空白文件或无文字层且 OCR 无结果）');
+      }
+
       await assertAlive(); // 嵌入前检查点（OCR 后、长嵌入前的取消窗口）
       const textChunks = this.splitter.split(content);
       let embeddings: number[][] = [];

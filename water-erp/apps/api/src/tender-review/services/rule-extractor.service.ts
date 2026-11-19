@@ -55,8 +55,9 @@ const REVIEW_SYSTEM_PROMPT = `你是一个采购合规审查专家。你将看�
 - 检查跨条款的关联规则（基于可见内容）
 - 不要重复已提取的规则`;
 
-/** 查漏 Pass 2 的未覆盖条款上限（提示词列表与定位窗口两处 slice 同源，
- *  2026-11-19 审查 #15——裸数字两处各改一处即失配） */
+/** 查漏 Pass 2 的每组条款数（2026-11-19 增强①：由「截断上限」改为「分组粒度」——
+ *  未覆盖条款不再截为 15 条×500 字，而是按组逐轮查漏、条款送全文，长文件尾部
+ *  安全网同权覆盖；组内条数即定位窗口预算的除数，两处消费同源） */
 const MAX_REVIEW_ITEMS = 15;
 
 /** 条款工作项（2026-11-19 审查 #11）：offset=条款在原文中的精确偏移
@@ -253,37 +254,43 @@ export class RuleExtractorService {
     const uncoveredItems = items.filter(
       (item) => !coveredLabels.has(item.label),
     );
-    const uncoveredText = uncoveredItems
-      .slice(0, MAX_REVIEW_ITEMS)
-      .map((c) => `[${c.label}]\n${c.text.slice(0, 500)}`)
-      .join('\n\n---\n\n');
 
-    if (uncoveredText) {
+    // 全量查漏·分组逐轮（2026-11-19 增强①）：未覆盖条款去截断——旧实现硬顶
+    // 15 条×每条 500 字，长文件（未覆盖条款多）尾部安全网变薄；现按组（每组
+    // MAX_REVIEW_ITEMS 条）轮询查漏、条款送全文，直至全部覆盖。单组失败重试后
+    // 跳过（reviewForMissedRules 返 []），不拖垮其余组
+    if (uncoveredItems.length > 0) {
       const allExtractedNames = [...existingKeys].map((k) => {
         const parts = k.split(':');
         return parts.length > 1
           ? `[${parts[0]}] ${parts.slice(1).join(':')}`
           : k;
       });
-      const reviewResult = await this.reviewForMissedRules(
-        content,
-        fileName,
-        allExtractedNames,
-        uncoveredText,
-        uncoveredItems.slice(0, MAX_REVIEW_ITEMS),
-      );
-
-      if (reviewResult.length > 0) {
-        const saved = await this.saveRules(
-          reviewResult,
-          items,
+      for (let gi = 0; gi < uncoveredItems.length; gi += MAX_REVIEW_ITEMS) {
+        const group = uncoveredItems.slice(gi, gi + MAX_REVIEW_ITEMS);
+        const groupText = group
+          .map((c) => `[${c.label}]\n${c.text}`)
+          .join('\n\n---\n\n');
+        const reviewResult = await this.reviewForMissedRules(
+          content,
           fileName,
-          knowledgeBaseId,
-          existingKeys,
+          allExtractedNames,
+          groupText,
+          group,
         );
-        count += saved;
-        if (saved > 0 && batchProgress?.onBatchProgress) {
-          await batchProgress.onBatchProgress(count);
+
+        if (reviewResult.length > 0) {
+          const saved = await this.saveRules(
+            reviewResult,
+            items,
+            fileName,
+            knowledgeBaseId,
+            existingKeys,
+          );
+          count += saved;
+          if (saved > 0 && batchProgress?.onBatchProgress) {
+            await batchProgress.onBatchProgress(count);
+          }
         }
       }
     }
