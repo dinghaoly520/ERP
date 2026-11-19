@@ -74,6 +74,13 @@
 
 登录失败沿用 inline 展示（不弹窗——手机端表单内即时反馈更合适），重样式化为无框色调告警条：`color-mix(in oklch, var(--danger) 8%, transparent)` 底 + `var(--danger)` 文字，无 border（清掉现存 `border border-[color-mix(...)]` 写法）。
 
+## 实施纪要（2026-11-19 落地时的小偏差）
+
+1. **splash-cursor 保持 `.jsx`**（spec 原文写转 .tsx）：tsconfig `allowJs: true` 且 include 不含 `**/*.jsx`，tsc 不检查该文件、Next/SWC 照常编译——与 web 的发布形态完全一致（web 即以 .jsx 入库），零类型化收益不成比例。
+2. **标题去掉 `max-w-[16.5rem]` 上限**：该上限沿自 web，实测 web 在 390px 窄窗同样产生孤字换行（「端」掉行）；3011 手机端改为 `clamp(1.55rem,7.2vw,2.3rem)`，320px 起整行显示（对 web 是改进而非背离）。
+3. **usePrefersReducedMotion 用 `useSyncExternalStore`**：effect 内 setState 触发 `react-hooks/set-state-in-effect` 警告，换惯用 API 后新代码零警告。
+4. 按钮入场动画挂在外层 wrapper——`animation-fill-mode: both` 会在动画结束后继续压住元素 transform，直接挂按钮会废掉 `:active` 按压反馈。
+
 ## 验收标准
 
 1. `pnpm --filter mobile-portal lint`、`pnpm --filter mobile-portal build` 通过。
