@@ -23,8 +23,11 @@ export type ExpertEvaluationFacts = {
   specialty: string;
   title: string | null;
   education: string | null;
-  /** 库况四态（2026-11-19 ⑵收口：派生自在途参评，不再读 availability 镜像——「占用」零写入者恒 0） */
-  busyState: string;
+  /** 呈现态（E5 2026-11-19 第二波）：**池外优先**——已退库/已停用 ＞ 四态派生
+   *  （正在评标/已被抽取/候补待命/空闲，自在途参评派生）。refreshAll 刻意全量遍历含
+   *  RETIRED（「退库专家详情仍可看」），四态单喂会让月度批注把退库/停用专家冒充
+   *  「空闲」、其旧 BidExpert 行挂在活项目上时甚至冒充「正在评标」。 */
+  lifecycleState: string;
   expertLevel: string | null;
   /** 参评项目（倒序）：名称、角色（正选/候补）、是否组长、邀请结果、是否签到 */
   projects: { name: string; role: string; isLead: boolean; invitationStatus: string; signedIn: boolean; at: Date }[];
@@ -42,7 +45,8 @@ export async function collectExpertFacts(prisma: EvalPrisma, userId: string): Pr
       where: { id: userId },
       select: {
         displayName: true,
-        expertProfile: { select: { specialty: true, title: true, education: true, expertLevel: true } },
+        // entryStatus/availability（E5）：池外优先级判定用——RETIRED→已退库、停用→已停用
+        expertProfile: { select: { specialty: true, title: true, education: true, expertLevel: true, entryStatus: true, availability: true } },
       },
     }),
     prisma.bidExpert.findMany({
@@ -82,12 +86,17 @@ export async function collectExpertFacts(prisma: EvalPrisma, userId: string): Pr
     specialty: p.specialty,
     title: p.title,
     education: p.education,
-    // 库况四态派生（2026-11-19 ⑵收口）：按在途参评派生，不读 availability 镜像（在途专家会被误标「可用」）
-    busyState: busyStateOf(
-      memberships
-        .filter((m) => m.invitationStatus !== 'declined')
-        .map((m) => ({ expertRole: m.expertRole, project: { stage: m.project.stage } })),
-    ),
+    // 呈现态（E5 2026-11-19 第二波）：池外优先——已退库/已停用 ＞ 四态派生
+    //（四态按在途参评派生、不读 availability 镜像；退库/停用专家不参与抽取，
+    //  其在途行只是历史残留，不得冒充「正在评标/空闲」）
+    lifecycleState:
+      p.entryStatus === 'RETIRED' ? '已退库'
+      : p.availability === '停用' ? '已停用'
+      : busyStateOf(
+          memberships
+            .filter((m) => m.invitationStatus !== 'declined')
+            .map((m) => ({ expertRole: m.expertRole, project: { stage: m.project.stage } })),
+        ),
     expertLevel: p.expertLevel,
     projects: memberships.map(m => ({
       name: m.project.name,
@@ -110,7 +119,13 @@ export function hasServiceRecord(f: ExpertEvaluationFacts): boolean {
 /** 事实清单 → prompt。平实档案批注口径：禁套话、禁编造、一段式直陈。 */
 export function buildEvaluationPrompt(f: ExpertEvaluationFacts): { system: string; user: string } {
   const lines: string[] = [];
-  lines.push(`【专家档案】${f.name}｜专业：${f.specialty}｜职称：${f.title ?? '未填'}｜学历：${f.education ?? '未填'}｜库内等级：${f.expertLevel ?? '未定'}｜当前状态：${f.busyState}（四态：正在评标/已被抽取/候补待命/空闲）`);
+  // 呈现态括注（E5）：四态附枚举说明；池外态附语义框定（防 LLM 编造「待复用」之类）
+  const stateNote: Record<string, string> = {
+    已退库: '（已退出专家库，仅历史档案可陈述）',
+    已停用: '（不参与抽取，如临时需求方代表）',
+  };
+  const stateSuffix = stateNote[f.lifecycleState] ?? '（四态：正在评标/已被抽取/候补待命/空闲）';
+  lines.push(`【专家档案】${f.name}｜专业：${f.specialty}｜职称：${f.title ?? '未填'}｜学历：${f.education ?? '未填'}｜库内等级：${f.expertLevel ?? '未定'}｜当前状态：${f.lifecycleState}${stateSuffix}`);
   lines.push(`【参评记录】共 ${f.projects.length} 次`);
   for (const m of f.projects.slice(0, 6)) {
     const lead = m.isLead ? '，担任组长' : '';
