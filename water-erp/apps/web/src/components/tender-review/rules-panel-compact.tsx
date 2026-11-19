@@ -147,23 +147,18 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
 
   return (
     <>
-      {/* 来源：拆「条款号 · 文件名」两段——去嵌套括号堆叠（排版优化 2026-11-19 二轮），
-          条款号保持完整、文件名截断，悬浮显示原始全文 */}
+      {/* 来源：块级多行折行展示（2026-11-19 三轮，用户裁定）——条款原文可能是整段
+          （如办法第一条全文），旧单行 flex+shrink-0 会横向溢出靠滚动条看；现自然
+          折行、文件名以（）随文尾，break-words 兜底超长无空格串，title 悬浮原文 */}
       {source !== undefined && (
         (() => {
           const sep = source.lastIndexOf('（');
           const clause = sep > 0 && source.endsWith('）') ? source.slice(0, sep) : source;
           const file = sep > 0 && source.endsWith('）') ? source.slice(sep + 1, -1) : '';
           return (
-            <div className="flex items-baseline gap-1.5 text-xs text-[var(--muted-foreground)]" title={source}>
-              <span className="shrink-0">来源：</span>
-              <span className="shrink-0 text-[var(--foreground)]">{clause}</span>
-              {file && (
-                <>
-                  <span className="shrink-0">·</span>
-                  <span className="min-w-0 truncate">{file}</span>
-                </>
-              )}
+            <div className="break-words text-xs leading-relaxed text-[var(--muted-foreground)]" title={source}>
+              来源：<span className="text-[var(--foreground)]">{clause}</span>
+              {file && <span>（{file}）</span>}
             </div>
           );
         })()
