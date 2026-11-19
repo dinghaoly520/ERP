@@ -817,7 +817,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           </text>
                         </g>
                       ))}
-                      <text x={padL - 5} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节约</text>
+                      <text x={padL - 5} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资</text>
                       <text x={W - 2} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资率</text>
                       {/* 右纵轴=节资率（金），两档刻度随 rateY 线性位 */}
                       {[maxRate, maxRate / 2].map((v, i) => (
