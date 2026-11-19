@@ -12,9 +12,7 @@ import {
 import { type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardData, type DashboardData } from "@/lib/api/dashboard";
 import { trendLabelStep, isTrendLabelShown, isMonthBoundary } from "@/components/home/trend-axis";
-import { AwardResultPanel } from "@/components/home/award-result-panel";
 import { ReportMaterialModal } from "@/components/home/report-material-modal";
-import { PerformancePanel } from "@/components/home/performance-panel";
 import { CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import {
   fetchDashboardAnalysis, fetchDashboardAnalysisCache,
@@ -734,9 +732,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         <div className="min-h-[280px]"><MethodPieChartPanel profile={data} index={11} reducedMotion={reducedMotion}/></div>
         <div className="min-h-[280px]"><DepartmentPanel profile={data} index={14} reducedMotion={reducedMotion}/></div>
       </div>
-      <AwardResultPanel startDate={startDate || undefined} endDate={endDate || undefined} companyId={companyId}/>
       {data && <ReportMaterialModal open={reportOpen} onClose={()=>setReportOpen(false)} data={data} companyId={companyId} currentUserRole={currentUserRole}/>}
-      <PerformancePanel/>
       <TrendChartPanel profile={data} index={15} reducedMotion={reducedMotion}/>
     </motion.div>
   </>;
