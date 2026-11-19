@@ -98,6 +98,15 @@ export class ProcurementsController {
     return this.procurementsService.getProcurementMethods();
   }
 
+  /** 台账筛选项枚举（:3011，2026-11-19）：部门 + 经办人（公司口径收口） */
+  @Get('filter-dimensions')
+  @Roles('leader', 'admin', 'bid_host', 'staff')
+  getFilterDimensions(@CurrentUser() user: AuthenticatedUser, @Req() req: Request) {
+    return this.companyScope
+      .resolveScope(user, undefined, portalSourceOf(req))
+      .then((scope) => this.procurementsService.getFilterDimensions(this.companyScope.filter(scope)));
+  }
+
   /** 国资监管采购领域数据提取：项目 18 项、供应商 7 项；组织结构树写入逻辑待确认。
    *  仅管理员可调用；canViewGlobalBusinessData 对 leader 的放行不适用于此端点。 */
   @Get('sasac-extract')

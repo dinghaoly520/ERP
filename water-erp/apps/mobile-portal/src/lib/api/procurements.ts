@@ -12,6 +12,7 @@ export async function fetchProcurements(params: {
   endDate?: string;
   procurementMethod?: string;
   departmentId?: string;
+  createdById?: string;
   resultStatus?: ResultStatusKey;
   searchKeyword?: string;
   abnormalOnly?: boolean;
@@ -28,6 +29,7 @@ export async function fetchProcurements(params: {
   if (params.endDate) query.set('endDate', params.endDate);
   if (params.procurementMethod) query.set('procurementMethod', params.procurementMethod);
   if (params.departmentId) query.set('departmentId', params.departmentId);
+  if (params.createdById) query.set('createdById', params.createdById);
   if (params.resultStatus) query.set('resultStatus', params.resultStatus);
   if (params.searchKeyword) query.set('searchKeyword', params.searchKeyword);
   if (params.abnormalOnly) query.set('abnormalOnly', 'true');
@@ -62,4 +64,13 @@ export async function fetchLedgerStats(filter: {
 
 export async function fetchProcurementMethods(): Promise<string[]> {
   return api.get<string[]>('/procurements/methods');
+}
+
+/* 台账筛选项枚举（2026-11-19）：部门 + 经办人（公司口径收口、中文序） */
+export type ProcurementFilterDimensions = {
+  departments: Array<{ id: string; name: string }>;
+  handlers: Array<{ id: string; name: string }>;
+};
+export async function fetchProcurementDimensions(): Promise<ProcurementFilterDimensions> {
+  return api.get<ProcurementFilterDimensions>('/procurements/filter-dimensions');
 }

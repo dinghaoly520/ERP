@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
 import { InlineSelect } from "@/components/m/inline-select";
+import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { fetchDashboardData, fetchProjectStatusCounts, type DashboardData, type ProjectStatusCounts } from "@/lib/api/dashboard";
 import { Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { fetchProcurements, fetchProcurementMethods } from "@/lib/api/procurements";
+import { fetchProcurements, fetchProcurementDimensions, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -68,6 +69,19 @@ export default function LedgerPage() {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState<ResultStatusKey | null>(saved.statusFilter ?? null);
   const [methodFilter, setMethodFilter] = useState<string | null>(saved.methodFilter ?? null);
+  /* 时间档/部门/经办人筛选（2026-11-19 用户裁定：状态胶囊换时间，增部门+经办人，公司居右） */
+  const [rangeKey, setRangeKey] = useState<RangeKey>("all");
+  const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
+  const [departmentFilter, setDepartmentFilter] = useState<string | null>(null);
+  const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
+  const [dimensions, setDimensions] = useState<ProcurementFilterDimensions | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchProcurementDimensions()
+      .then((d) => { if (active) setDimensions(d); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [retryTick]);
   /* 异常四态快捷筛选（:3011 两步铁律，2026-11-03）——「异常 N」头条数字的一键明细 */
   const [abnormalFilter, setAbnormalFilter] = useState(false);
   const [methods, setMethods] = useState<string[]>([]);
@@ -216,6 +230,12 @@ export default function LedgerPage() {
       .catch(() => undefined);
     return () => { active = false; };
   }, [retryTick]);
+
+  /* 时间档窗（列表取数用） */
+  const queryRange =
+    rangeKey === "custom"
+      ? { startDate: customRange?.from, endDate: customRange?.to }
+      : { startDate: RANGES[rangeKey].start(), endDate: undefined as string | undefined };
 
   /* 公司口径标签（全称短拼，2026-11-19 胶囊筛选） */
   const companyLabel =

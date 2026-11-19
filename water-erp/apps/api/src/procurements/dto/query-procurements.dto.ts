@@ -34,6 +34,11 @@ export class QueryProcurementsDto {
   @IsString()
   departmentId?: string;
 
+  /** 经办人（轮次创建人）筛选——:3011 台账下拉（2026-11-19） */
+  @IsOptional()
+  @IsString()
+  createdById?: string;
+
   @EmptyAsUndefined()
   @IsOptional()
   @IsEnum(ResultStatus)

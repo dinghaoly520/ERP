@@ -356,6 +356,11 @@ export class ProcurementsService {
       where.departmentId = departmentId;
     }
 
+    // 经办人=轮次创建人（:3011 台账下拉，2026-11-19）
+    if (query.createdById) {
+      where.createdById = query.createdById;
+    }
+
     if (resultStatus) {
       where.resultStatus = resultStatus;
     }
@@ -902,6 +907,34 @@ export class ProcurementsService {
       distinct: ['procurementMethod'],
     });
     return methods.map((m) => m.procurementMethod).filter(Boolean);
+  }
+
+  /** 台账筛选项枚举（:3011，2026-11-19）：部门（轮次关联部门去重）与
+   *  经办人（轮次创建人去重）——公司口径由调用方 companyFilter 收口 */
+  async getFilterDimensions(companyFilter: CompanyWhere = {}) {
+    const [departments, handlers] = await Promise.all([
+      this.prisma.procurementRound.findMany({
+        where: { ...companyFilter, departmentId: { not: null } },
+        select: { departmentId: true, department: { select: { id: true, name: true } } },
+        distinct: ['departmentId'],
+      }),
+      this.prisma.procurementRound.findMany({
+        where: { ...companyFilter, createdById: { not: null } },
+        select: { createdById: true, createdBy: { select: { id: true, displayName: true, username: true } } },
+        distinct: ['createdById'],
+      }),
+    ]);
+    return {
+      departments: departments
+        .map((d) => d.department)
+        .filter((d): d is { id: string; name: string } => Boolean(d?.id && d?.name))
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh')),
+      handlers: handlers
+        .map((h) => h.createdBy)
+        .filter((h): h is { id: string; displayName: string; username: string } => Boolean(h?.id))
+        .map((h) => ({ id: h.id, name: h.displayName || h.username }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'zh')),
+    };
   }
 
   private formatRound(round: any, pmInfo?: any) {

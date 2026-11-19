@@ -58,6 +58,21 @@ import {
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
+import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
+
+const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
+  running: "运行中项目",
+  pre: "标前项目",
+  in: "标中项目",
+  post: "标后项目",
+};
+
+function shiftYearIso(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  let t = new Date(Date.UTC(y - 1, m - 1, d));
+  if (t.getUTCMonth() !== m - 1) t = new Date(Date.UTC(y - 1, m, 0)); // 溢出=平年二月，取月末
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+}
 import { InlineSelect } from "@/components/m/inline-select";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -95,34 +110,6 @@ export const ANALYSIS_TILES: Array<{
   { key: "experts", label: "专家库", icon: BookUser, color: "var(--gold)" },
 ];
 
-/* 数据总览口径档（2026-11-19 用户裁定：卡片头「本年 · 全部公司」改下拉选择器）：
- * 默认本年·全部公司；「全部」=不限时段；「自定义」=用户起止日期。首排项目盘点是
- * 当前状态快照，仅随公司口径。 */
-type PresetKey = "day" | "month" | "quarter" | "year" | "all";
-type RangeKey = PresetKey | "custom";
-const RANGES: Record<PresetKey, { label: string; start: () => string | undefined }> = {
-  day: { label: "本日", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; } },
-  month: { label: "本月", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; } },
-  quarter: { label: "本季", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(Math.floor(d.getMonth() / 3) * 3 + 1).padStart(2, "0")}-01`; } },
-  year: { label: "本年", start: () => `${new Date().getFullYear()}-01-01` },
-  all: { label: "全部", start: () => undefined },
-};
-
-/** 态势四桶标签（2026-11-19 布局优化：KPI 格与名录组标共用单源——枚举标签同步铁律） */
-const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
-  running: "运行中项目",
-  pre: "标前项目",
-  in: "标中项目",
-  post: "标后项目",
-};
-
-/** ISO 日期整移一年（02-29 闰年回夹到平年 02-28）——同比窗计算 */
-function shiftYearIso(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  let t = new Date(Date.UTC(y - 1, m - 1, d));
-  if (t.getUTCMonth() !== m - 1) t = new Date(Date.UTC(y - 1, m, 0)); // 溢出=平年二月，取月末
-  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
-}
 const TODAY_ISO = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
