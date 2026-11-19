@@ -255,7 +255,13 @@ export default function ProgressPage() {
         >
           <ArrowLeft size={15} />
         </button>
-        <span className="text-[18px] font-bold tracking-[-0.02em] text-[var(--foreground)]">项目进展</span>
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
+          style={{ background: "color-mix(in oklch, var(--accent) 12%, transparent)", color: "var(--accent)" }}
+        >
+          <TrendingUp size={16} strokeWidth={1.5} />
+        </span>
+        <span className="text-[17px] font-bold tracking-[-0.02em] text-[var(--foreground)]">项目进展</span>
       </div>
       {role === "admin" ? (
         <CompanyPicker

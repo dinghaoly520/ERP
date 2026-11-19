@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, AlertTriangle, Loader2, Search, TrendingUp  } from "lucide-react";
+import { ArrowLeft, AlertTriangle, ClipboardList, Loader2, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -262,7 +262,13 @@ export default function LedgerPage() {
         >
           <ArrowLeft size={15} />
         </button>
-        <span className="text-[18px] font-bold tracking-[-0.02em] text-[var(--foreground)]">台账明细</span>
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
+          style={{ background: "color-mix(in oklch, var(--accent) 12%, transparent)", color: "var(--accent)" }}
+        >
+          <ClipboardList size={16} strokeWidth={1.5} />
+        </span>
+        <span className="text-[17px] font-bold tracking-[-0.02em] text-[var(--foreground)]">台账明细</span>
       </div>
       {/* ── 汇总条 ── */}
       {stats ? (

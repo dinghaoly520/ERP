@@ -30,10 +30,13 @@ export default function AnalysisPage() {
         >
           <ArrowLeft size={15} />
         </button>
-        <span className="flex items-center gap-2 text-[18px] font-bold tracking-[-0.02em] text-[var(--foreground)]">
-          <tile.icon size={17} style={{ color: tile.color }} />
-          {tile.label}
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
+          style={{ background: `color-mix(in oklch, ${tile.color} 12%, transparent)`, color: tile.color }}
+        >
+          <tile.icon size={16} strokeWidth={1.5} />
         </span>
+        <span className="text-[17px] font-bold tracking-[-0.02em] text-[var(--foreground)]">{tile.label}</span>
       </div>
       <DashboardHome panel={key} />
     </div>
