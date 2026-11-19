@@ -130,8 +130,8 @@ export class ExpertTool implements AssistantTool {
           where: { user: companyWhere } as never,
           select: { title: true, user: { select: { company: true, department: { select: { name: true } } } } },
         }),
-        // 评审负荷（在途评审任务）：availability「占用」是登记字段，可能滞后——
-        // 以 BidExpert 挂在未归档项目上的实际指派数为准（同 expert-admin 负荷口径）
+        // 评审负荷（在途评审任务）：以 BidExpert 挂在未归档项目上的实际指派数为准
+        // （同 expert-admin 负荷口径；availability 镜像列已退役——E2 2026-11-19 写入口封死）
         this.prisma.bidExpert.findMany({
           where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...companyWhere } },
           select: { userId: true },

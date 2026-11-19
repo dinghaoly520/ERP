@@ -1397,11 +1397,12 @@ export class ExpertAdminService {
       if (wins.length > 0) windowExcluded.add(c.userId);
     }
 
-    // 资格复核：与 confirmExtraction 同标准，避免把抽取后被停用/退库/关联供应商的候补提为正选
+    // 资格复核：与 confirmExtraction 同标准（E1 2026-11-19 方案A：仅拒「停用」——存量「占用」
+    // 脏行候补照常递补），避免把抽取后被停用/退库/关联供应商的候补提为正选
     const eligible = candidates.filter(c => {
       if (windowExcluded.has(c.userId)) return false;
       const u = c.user;
-      if (!u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') return false;
+      if (!u.isActive || u.expertProfile?.availability === '停用' || u.expertProfile?.entryStatus !== 'ACTIVE') return false;
       const emp = u.expertProfile?.employer?.trim();
       if (emp) {
         for (const sn of supplierNames) {
@@ -3578,15 +3579,16 @@ ${combined}`,
   }
 
   /** 专业→持有公司并集映射（入参=expertProfile 含 user.companyId 的行；配额行 companyIds 附挂用）。
-   *  行带 availability/entryStatus 字段时按可抽取资格过滤（与 listPoolCompanies 同口径）——
-   *  只挂「不可用/非 ACTIVE 专家」的公司会让配额行 chip 查不到名称回落显 ID 且抽取 0 候选。 */
+   *  行带 availability/entryStatus 字段时按可抽取资格过滤（与 listPoolCompanies 同口径——
+   *  E1 2026-11-19 方案A：ACTIVE+非停用，弃「可用」等值闸）——只挂「停用/非 ACTIVE 专家」的
+   *  公司会让配额行 chip 查不到名称回落显 ID 且抽取 0 候选。 */
   private companiesBySpecOf(rows: { specialty: string | null; availability?: string | null; entryStatus?: string | null; user?: { companyId: string | null } | null }[]): Map<string, Set<string>> {
     const map = new Map<string, Set<string>>();
     for (const r of rows) {
       const cid = r.user?.companyId;
       if (!cid || !r.specialty?.trim()) continue;
       if (r.availability != null || r.entryStatus != null) {
-        if (r.availability !== '可用' || r.entryStatus !== 'ACTIVE') continue;
+        if (r.availability === '停用' || r.entryStatus !== 'ACTIVE') continue;
       }
       const set = map.get(r.specialty) ?? new Set<string>();
       set.add(cid);

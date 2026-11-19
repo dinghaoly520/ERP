@@ -1318,6 +1318,58 @@ describe('ExpertAdminService', () => {
     });
   });
 
+
+  describe('E1 残留收口（2026-11-19 评审 Important×2）：`!== 可用` 代码形态同口径', () => {
+    it('autoPromoteCandidate：存量「占用」候补可递补——资格复核与 confirmExtraction 同标准（仅拒停用）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findFirst.mockResolvedValue(null); // 无组长残留
+      prisma.bidExpert.findMany.mockImplementation((args: any) =>
+        args?.where?.signedIn === true
+          ? Promise.resolve([]) // findOpenEvaluationWindows：无跨项目开窗
+          : Promise.resolve([{
+              id: 'be1', userId: 'u1', expertName: '王占', major: '水文', expertRole: '候补',
+              invitationStatus: 'confirmed', isPurchaserRepresentative: false, progress: 0,
+              user: {
+                id: 'u1', isActive: true,
+                expertProfile: { specialty: '水文', title: '高工', availability: '占用', entryStatus: 'ACTIVE' },
+                _count: { bidExperts: 0 }, expertEvaluations: [], bidExperts: [],
+              },
+            }]));
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+      prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '候补', invitationStatus: 'confirmed' }); // 锁内重断言
+      prisma.bidExpert.update.mockResolvedValue({ id: 'be1', expertRole: '正选' });
+      const res = await service.autoPromoteCandidate('p1');
+      // 旧「可用」等值闸下 eligible 空 → return null；新口径仅拒停用，占用候补照常递补
+      expect(res?.userId).toBe('u1');
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'be1' },
+        data: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }),
+      }));
+    });
+
+    it('companiesBySpecOf：配额行附挂公司的资格口径=ACTIVE+非停用——「占用」持有者公司进 companyIds、停用仍排除', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        name: '人事档案数字化服务', procurementMethod: '竞价采购',
+        scope: '档案数字化加工、扫描图像处理与数据挂接', projectManagementItem: null,
+      });
+      prisma.expertProfile.findMany.mockResolvedValue([
+        { specialty: '信息技术应用与管理、保险', availability: '占用', entryStatus: 'ACTIVE', user: { companyId: 'co-jt' } }, // 存量占用——旧闸排除
+        { specialty: '法律', availability: '停用', entryStatus: 'ACTIVE', user: { companyId: 'co-js' } }, // 临时代表等——仍排除
+      ]);
+      llm.chat.mockResolvedValue(JSON.stringify({
+        requiredSpecialties: [
+          { specialty: '信息技术应用与管理、保险', specialties: ['信息技术应用与管理、保险'], count: 2, reason: '档案数字化需信息技术评审' },
+          { specialty: '法律', specialties: ['法律'], count: 1, reason: '合同合规' },
+        ],
+        totalExperts: 2, analysis: '档案数字化以信息技术为核心',
+      }));
+      const res = await service.analyzeProjectSpecialties('p1');
+      expect(res.requiredSpecialties[0].companyIds).toEqual(['co-jt']); // 占用持有者公司进跨公司白名单
+      expect(res.requiredSpecialties[1].companyIds).toEqual([]); // 停用持有者仍排除
+    });
+  });
+
 });
 
 
