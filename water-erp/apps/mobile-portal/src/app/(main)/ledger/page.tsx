@@ -339,7 +339,33 @@ export default function LedgerPage() {
             ariaLabel="按采购方式筛选"
           />
         ) : null}
-        {dimensions && dimensions.departments.length > 0 ? (
+        {/* 右组（2026-11-19 用户裁定：公司→部门→经办人居右成组，换行不散） */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        {role === "admin" ? (
+          <div>
+            <InlineSelect
+              multiple
+              label={companyLabel}
+              active={companyIds.length > 0}
+              options={[{ value: "all", label: "全部公司" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
+              selected={companyIds.length === 0 ? ["all"] : companyIds}
+              onSelect={(next) =>
+                changeFilter(() => {
+                  const hadAll = companyIds.length === 0;
+                  if (next.includes("all") && !hadAll) {
+                    setCompanyIds([]);
+                    persistLedger({ companyIds: [] });
+                  } else {
+                    const v = next.filter((x) => x !== "all");
+                    setCompanyIds(v);
+                    persistLedger({ companyIds: v });
+                  }
+                })
+              }
+              ariaLabel={`公司口径：${companyLabel}`}
+            />
+          </div>
+        ) : null}        {dimensions && dimensions.departments.length > 0 ? (
           <InlineSelect
             label={dimensions.departments.find((d) => d.id === departmentFilter)?.name ?? "部门"}
             active={!!departmentFilter}
@@ -369,31 +395,7 @@ export default function LedgerPage() {
             ariaLabel="按经办人筛选"
           />
         ) : null}
-        {role === "admin" ? (
-          <div className="ml-auto">
-            <InlineSelect
-              multiple
-              label={companyLabel}
-              active={companyIds.length > 0}
-              options={[{ value: "all", label: "全部公司" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
-              selected={companyIds.length === 0 ? ["all"] : companyIds}
-              onSelect={(next) =>
-                changeFilter(() => {
-                  const hadAll = companyIds.length === 0;
-                  if (next.includes("all") && !hadAll) {
-                    setCompanyIds([]);
-                    persistLedger({ companyIds: [] });
-                  } else {
-                    const v = next.filter((x) => x !== "all");
-                    setCompanyIds(v);
-                    persistLedger({ companyIds: v });
-                  }
-                })
-              }
-              ariaLabel={`公司口径：${companyLabel}`}
-            />
-          </div>
-        ) : null}
+        </div>
       </div>
 
       {/* ── 总览八项（2026-11-19 用户裁定：置于筛选项下方，与驾驶舱数据总览同内容同版式）── */}
