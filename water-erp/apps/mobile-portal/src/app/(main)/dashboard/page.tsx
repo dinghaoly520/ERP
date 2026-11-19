@@ -26,9 +26,11 @@ import {
 import {
   fetchCompanyRanking,
   fetchDashboardData,
+  fetchProjectStatusCounts,
   type CompanyRankingRange,
   type CompanyRankingView,
   type DashboardData,
+  type ProjectStatusCounts,
 } from "@/lib/api/dashboard";
 import { fetchMobileBrief, type MobileBrief } from "@/lib/api/ai";
 import {
@@ -252,6 +254,8 @@ export default function DashboardPage() {
   /* 资源告警 + 项目质效（2026-11-03 数据利用评审：后端现成、此前 :3011 零呈现） */
   const [alerts, setAlerts] = useState<AlertsOverview | null>(null);
   const [perf, setPerf] = useState<PerformanceMetrics | null>(null);
+  /* 项目状态盘点（2026-11-19 用户裁定：数据总览首排）——PMI 当前状态快照，随重试重取 */
+  const [projectStatus, setProjectStatus] = useState<ProjectStatusCounts | null>(null);
   /* 实时运行态势（2026-11-18 指挥台改版，自进展页上移）：30s 轮询 bid live +
    * upcoming（即将截标计数）。失败保旧数据。异常数不另取——指标卡「异常项目」紧邻其下。 */
   const [live, setLive] = useState<{ projects: BidLiveProject[] } | null>(null);
@@ -280,11 +284,12 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [rankingRange, retryTick]);
 
-  // 资源告警 + 项目质效：失败保留旧数据（告警）/静默隐藏（质效），随重试重取
+  // 资源告警 + 项目质效 + 项目状态盘点：失败保留旧数据（告警）/静默隐藏（质效），随重试重取
   useEffect(() => {
     let active = true;
     fetchAlertsOverview().then((a) => { if (active) setAlerts(a); }).catch(() => undefined);
     fetchPerformanceMetrics().then((p) => { if (active) setPerf(p); }).catch(() => undefined);
+    fetchProjectStatusCounts().then((s) => { if (active) setProjectStatus(s); }).catch(() => undefined);
     return () => { active = false; };
   }, [retryTick]);
 
@@ -439,8 +444,8 @@ export default function DashboardPage() {
 
 
       {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
-           上移至实时态势上方、套与实时态势同款 SectionCard 格式；可点的两步到对应明细/
-           分析，环比箭头以小字随值呈现）── */}
+           上移至实时态势上方、套同款 SectionCard 格式。首排=PMI 状态盘点（当前状态快照，
+           不随本年窗口）；次排=本年轮次金额四数；可点的两步到对应明细/分析）── */}
       {data && summary ? (
         <SectionCard
           icon={Gauge}
@@ -450,10 +455,12 @@ export default function DashboardPage() {
         >
           <div className="grid grid-cols-4 gap-1.5">
             {[
-              { label: "总轮次", value: String(summary.totalCount), delta: deltaOf(summary.totalCount, cmp?.totalCount, null), onTap: () => router.push("/ledger") },
-              { label: "已成交", value: String(summary.completedCount), onTap: () => router.push("/ledger?status=AWARDED") },
-              { label: "待处理", value: String(data.resultStats.find((r) => r.label.includes("待处理"))?.count ?? 0), onTap: () => router.push("/ledger?status=PENDING") },
-              { label: "异常", value: String(summary.abnormalCount), danger: summary.abnormalCount > 0, delta: deltaOf(summary.abnormalCount, cmp?.abnormalCount, false), onTap: () => router.push("/ledger?abnormal=1") },
+              /* 首排=PMI 状态盘点（2026-11-19 用户裁定：异常项目=终止项目；当前状态快照
+                 口径，不随本年窗口）；项目总数=三态之和收口。异常点跳台账终止轮次留痕 */
+              { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—" },
+              { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => router.push("/progress") },
+              { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => router.push("/ledger?status=CANCELLED") },
+              { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—" },
               { label: "成交预算", value: summary.awardedBudgetLabel },
               { label: "成交额", value: summary.totalAwardLabel, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
               { label: "节约资金", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },

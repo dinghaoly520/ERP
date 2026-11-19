@@ -1165,6 +1165,22 @@ export class DashboardService {
     };
   }
 
+  /** :3011 数据总览首排——PMI 状态盘点（2026-11-19 用户裁定：异常项目=终止项目）。
+   *  当前状态快照口径（存量计数，非本年事件窗）：进行中=ACTIVE、归档=ARCHIVED、
+   *  异常=TERMINATED、总数=三态之和；回收站（RECYCLED）不计入。 */
+  async getProjectStatusCounts(companyFilter?: CompanyWhere) {
+    const rows = await this.prisma.projectManagementItem.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+      where: { ...companyFilter, status: { not: 'RECYCLED' } },
+    });
+    const by = new Map(rows.map((r) => [r.status, r._count._all]));
+    const archived = by.get('ARCHIVED') ?? 0;
+    const active = by.get('ACTIVE') ?? 0;
+    const terminated = by.get('TERMINATED') ?? 0;
+    return { archived, active, terminated, total: archived + active + terminated };
+  }
+
   /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：
    *  异常=非 AWARDED 且非 PENDING；停滞=ACTIVE 项目【当前阶段】停留>30 天） */
   async getBadges(companyFilter?: CompanyWhere) {

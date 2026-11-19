@@ -52,6 +52,21 @@ export class DashboardController {
     return this.dashboardService.getBadges(this.companyScope.filter(scope));
   }
 
+  /** :3011 数据总览首排——PMI 状态盘点（归档/进行中/异常(=终止)/总数；当前状态快照） */
+  @Get('project-status')
+  @ApiOperation({ summary: ':3011 数据总览项目状态盘点（归档/进行中/异常=终止/总数）' })
+  async getProjectStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+    @Query('companyId') companyId?: string,
+  ) {
+    if (!canViewGlobalBusinessData(user.role)) {
+      throw new ForbiddenException('普通账号无法查看数据库页面。');
+    }
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
+    return this.dashboardService.getProjectStatusCounts(this.companyScope.filter(scope));
+  }
+
   /** 公司龙虎榜天然跨公司（比的是全集团排位）——无 companyId 入参：admin 全榜、leader 本公司排位 */
   @Get('company-ranking')
   @ApiOperation({ summary: ':3011 公司龙虎榜（admin 全榜 / leader 本公司排位+集团均值）' })
