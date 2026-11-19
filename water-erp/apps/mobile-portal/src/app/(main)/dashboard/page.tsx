@@ -101,6 +101,14 @@ const RANGES: Record<PresetKey, { label: string; start: () => string | undefined
   all: { label: "全部", start: () => undefined },
 };
 
+/** 态势四桶标签（2026-11-19 布局优化：KPI 格与名录组标共用单源——枚举标签同步铁律） */
+const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
+  running: "运行中项目",
+  pre: "标前项目",
+  in: "标中项目",
+  post: "标后项目",
+};
+
 /** ISO 日期整移一年（02-29 闰年回夹到平年 02-28）——同比窗计算 */
 function shiftYearIso(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
@@ -1650,60 +1658,82 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
           </>
         }
       >
-        <div className="grid grid-cols-4 gap-2.5">
-          {(() => {
-            /* 标段四 KPI（2026-11-19 用户裁定）：运行中=标前+标中、标前=确认开标前
-               （DOWNLOAD/SUBMIT）、标中=已确认开标未完成开评标（OPENING/EVALUATING）、
-               标后=完成开评标（ARCHIVED）；「全部」档隐藏同比/环比子行（同总览裁定） */
-            const bf = bidStage?.flow ?? null;
-            const bstat = (k: "running" | "pre" | "in" | "post") => ({
-              yoy: bf ? deltaOf(bf.cur[k], bf.yoy[k], null) : undefined,
-              hb: bf ? deltaOf(bf.cur[k], bf.prev[k], null) : undefined,
-            });
-            return [
-              { k: "running" as BidStageBucket, label: "运行中项目", n: bidStage?.running, ...bstat("running") },
-              { k: "pre" as BidStageBucket, label: "标前项目", n: bidStage?.pre, ...bstat("pre") },
-              { k: "in" as BidStageBucket, label: "标中项目", n: bidStage?.in, ...bstat("in") },
-              { k: "post" as BidStageBucket, label: "标后项目", n: bidStage?.post, ...bstat("post") },
-            ].map((c) => (
-              <button
-                key={c.k}
-                type="button"
-                onClick={() => setBidBucket(c.k)}
-                aria-pressed={bidBucket === c.k}
-                className={`rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98] ${bidBucket === c.k ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]" : ""}`}
-                aria-label={`${c.label} ${c.n ?? "—"} 项，点看最新项目`}
-              >
-                <div className={`text-[15px] font-black leading-none tabular-nums ${c.n ? (bidBucket === c.k ? "text-[var(--accent)]" : "") : "text-[var(--muted-foreground)]"}`}>
-                  {c.n ?? "—"}
-                </div>
-                {queryBidRange.startDate ? (
-                  <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
-                    <span className={ratioCls(c.yoy)}>同比 {ratioTxt(c.yoy)}</span>
-                    <span className={ratioCls(c.hb)}>环比 {ratioTxt(c.hb)}</span>
-                  </div>
-                ) : null}
-                <div className={`mt-1 text-[12px] ${bidBucket === c.k ? "font-semibold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{c.label}</div>
-              </button>
-            ));
-          })()}
-        </div>
-        <div className="mt-3 space-y-1.5">
-          {/* 桶内最新 5 项（2026-11-19 用户裁定）：状态行规则后端解析——
-              标后=中标单位·当前步骤；标前=当前步骤/已投·专家；标中=开标时间·等待开标/开标中/归档中 */}
-          {(bidRows ?? []).slice(0, 5).map((r) => (
-            <div key={r.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
-              <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ background: bidBucket === "in" ? "var(--warning)" : bidBucket === "post" ? "var(--success)" : "var(--accent)" }}
-              />
-              <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{r.name}</span>
-              <span className="max-w-[55%] shrink-0 truncate tabular-nums">{r.status}</span>
+        {/* 两排分区（2026-11-19 用户裁定「像数据总览一样」）：上=标段盘点 KPI、下=当前桶
+            实名录，排间 hairline；格内层级=值→标签→同比环比（同总览 v3 重设计，选中桶 accent） */}
+        <div className="space-y-3">
+          <div>
+            <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">
+              标段盘点 · {bidRangeKey === "custom" ? "所选区间" : RANGES[bidRangeKey as PresetKey].label}
             </div>
-          ))}
-          {bidRows && bidRows.length === 0 ? (
-            <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">该阶段暂无项目</div>
-          ) : null}
+            <div className="grid grid-cols-4 gap-2.5">
+              {(() => {
+                /* 标段四 KPI（2026-11-19 用户裁定）：运行中=标前+标中、标前=确认开标前
+                   （DOWNLOAD/SUBMIT）、标中=已确认开标未完成开评标（OPENING/EVALUATING）、
+                   标后=完成开评标（ARCHIVED）；「全部」档隐藏同比/环比子行（同总览裁定） */
+                const bf = bidStage?.flow ?? null;
+                const bstat = (k: "running" | "pre" | "in" | "post") => ({
+                  yoy: bf ? deltaOf(bf.cur[k], bf.yoy[k], null) : undefined,
+                  hb: bf ? deltaOf(bf.cur[k], bf.prev[k], null) : undefined,
+                });
+                return (Object.keys(BID_BUCKET_LABELS) as BidStageBucket[]).map((k) => {
+                  const st = bstat(k);
+                  const n = bidStage?.[k];
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setBidBucket(k)}
+                      aria-pressed={bidBucket === k}
+                      className={`rounded-[12px] m-tile px-1 py-2.5 text-center active:scale-[0.98] ${bidBucket === k ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]" : ""}`}
+                      aria-label={`${BID_BUCKET_LABELS[k]} ${n ?? "—"} 项，点看最新项目`}
+                    >
+                      <div
+                        className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${
+                          n == null ? "text-[var(--muted-foreground)]" : bidBucket === k ? "text-[var(--accent)]" : "text-[var(--foreground)]"
+                        }`}
+                      >
+                        {n ?? "—"}
+                      </div>
+                      <div className={`mt-1 truncate text-center text-[12px] ${bidBucket === k ? "font-semibold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>
+                        {BID_BUCKET_LABELS[k]}
+                      </div>
+                      {queryBidRange.startDate ? (
+                        <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                          <span className={ratioCls(st.yoy)}>同比 {ratioTxt(st.yoy)}</span>
+                          <span className={ratioCls(st.hb)}>环比 {ratioTxt(st.hb)}</span>
+                        </div>
+                      ) : null}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+
+          <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
+
+          <div>
+            <div className="mb-1 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">
+              {BID_BUCKET_LABELS[bidBucket]} · 最新
+            </div>
+            <div className="space-y-1.5">
+              {/* 桶内最新 5 项（2026-11-19 用户裁定）：状态行规则后端解析——
+                  标后=中标单位·当前步骤；标前=当前步骤/已投·专家；标中=开标时间·等待开标/开标中/归档中 */}
+              {(bidRows ?? []).slice(0, 5).map((r) => (
+                <div key={r.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ background: bidBucket === "in" ? "var(--warning)" : bidBucket === "post" ? "var(--success)" : "var(--accent)" }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{r.name}</span>
+                  <span className="max-w-[55%] shrink-0 truncate tabular-nums">{r.status}</span>
+                </div>
+              ))}
+              {bidRows && bidRows.length === 0 ? (
+                <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">该阶段暂无项目</div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </SectionCard>
 
