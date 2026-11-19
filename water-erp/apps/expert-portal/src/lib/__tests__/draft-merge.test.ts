@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { threeWayMerge } from '../draft-merge.ts';
+import { threeWayMerge, mergePulledDraft, advanceBaselineAfterServerData, filterStaleCommittedEntries } from '../draft-merge.ts';
 import type { ScoreEntry } from '../draft-merge.ts';
 
 /**
@@ -185,4 +185,110 @@ test('纯度：next 与 baseline 互不共享条目引用，改动 next 不影�
   assert.equal(m.baseline.price.score, 2);
   assert.equal(remote.price.score, 2);
   assert.equal(local.price.score, 1);
+});
+
+// ── TAB-SYNC-02 Task 1（⑤）：mergePulledDraft——双页 onDraftSaved 主体下放（输入/输出双侧归一）──
+
+test('MPD-① 输入侧归一：远端 passed:null 与本地缺省同值 → 不假冲突、静默接受/保留', () => {
+  const base = e(80, 1);
+  // 服务端形状：数值项 passed=null（draft-merge 契约：null≡缺省）
+  const remoteRaw = { price: { score: 80, reason: base.reason, passed: null, savedAt: 2 } };
+  const m = mergePulledDraft({ price: { ...base } }, { price: { ...base } }, remoteRaw as any);
+  assert.deepEqual(m.conflicts, []);
+  assert.equal(m.next.price.score, 80);
+  // 输出侧归一：next/baseline 不得携带 null passed
+  assert.ok(m.next.price.passed !== null);
+  assert.ok(m.baseline.price.passed !== null);
+});
+
+test('MPD-② 自回声：本机刚推的编辑原样回流（local==remote≠baseline）→ 保留本地、不冲突', () => {
+  const base = e(80, 1);
+  const mine = e(85, 2);
+  const m = mergePulledDraft({ price: { ...mine } }, { price: { ...base } }, { price: e(85, 3) });
+  assert.deepEqual(m.conflicts, []);
+  assert.equal(m.next.price.score, 85);
+  assert.equal(m.next.price.savedAt, 2); // 保留本地原打点，不被回声时戳覆盖
+});
+
+test('MPD-③ 双端并发分歧 → conflicts 携带双侧原值，next 保留本地', () => {
+  const base = e(80, 1);
+  const m = mergePulledDraft({ price: e(85, 2) }, { price: { ...base } }, { price: e(90, 3) });
+  assert.equal(m.conflicts.length, 1);
+  assert.equal(m.conflicts[0].key, 'price');
+  assert.equal(m.conflicts[0].local.score, 85);
+  assert.equal(m.conflicts[0].remote.score, 90);
+  assert.equal(m.next.price.score, 85);
+});
+
+// ── TAB-SYNC-02 ①：基线只在服务端提及键上推进（未推送编辑不再被整表重照吞掉）──
+
+test('ABS-① 服务端提及键 → 基线推进为服务端值（含基线缺省键=首拉形态）', () => {
+  const baseline = { A: e(80, 1) };
+  const server = { A: e(90, 5), B: e(70, 5) }; // A 已提交更新、B 新提交
+  const out = advanceBaselineAfterServerData(baseline, server);
+  assert.equal(out.A.score, 90);
+  assert.equal(out.B.score, 70);
+  assert.equal(out.C, undefined);
+});
+
+test('ABS-② 未提及键保留旧基线——本地未推送编辑（不在 serverEntries）不烧入基线', () => {
+  const baseline = { C: e(50, 1) }; // C 的 last-synced 值=50（本地可能已改成 55 但未推送）
+  const out = advanceBaselineAfterServerData(baseline, { A: e(90, 5) });
+  assert.equal(out.C.score, 50); // 仍 50，不是 55——并发远端编辑会正确判分歧进弹窗
+});
+
+test('ABS-③ 空 serverEntries → 原引用短路（零提及零改动）', () => {
+  const baseline = { A: e(80, 1) };
+  const out = advanceBaselineAfterServerData(baseline, {});
+  assert.equal(out, baseline);
+});
+
+// ── T4 审查 Critical 客户端半（纪律回归钉）：entryEquals 跨 jsonb 边界不得假冲突。
+// 现行不可达性论证：pull 输入恒过 normalizeDraftEntries（passed 恒末位）+ baseline 与 local
+// 同源同形（push=客户端序、pull 接受=jsonb 序且 l=b 同对象），键序分歧无假冲突通路。
+// 本组钉住该纪律——未来丢掉 normalize 或破坏 b/l 同源即红。
+
+test('EQ-① 远端原始 jsonb 键序（passed 提前）内容等价回声 → 不判分歧', () => {
+  const b = { score: 80, reason: 'r', savedAt: 1, passed: true } as any; // normalize 形态基线
+  const l = { score: 80, reason: 'r', passed: true, savedAt: 2 } as any; // 客户端构造序
+  const r = { score: 80, passed: true, reason: 'r', savedAt: 3 } as any; // 原始 jsonb 回读序（未经 normalize 的形态假设破坏者）
+  const m = threeWayMerge({ price: l }, { price: b }, { price: r });
+  assert.deepEqual(m.conflicts, []);
+});
+
+test('EQ-② points 点键序互倒、内容等价 → 不判分歧；passed null≡缺省', () => {
+  const pts1 = { p1: { checked: true, awardedScore: 5 }, p2: { checked: false, awardedScore: 0 } };
+  const b = { score: 90, reason: 'r', points: { p2: pts1.p2, p1: pts1.p1 }, passed: null, savedAt: 1 } as any;
+  const l = { score: 90, reason: 'r', points: pts1, savedAt: 2 } as any; // passed 缺省 vs null
+  const m = threeWayMerge({ price: l }, { price: b }, { price: { ...b, savedAt: 3 } });
+  assert.deepEqual(m.conflicts, []);
+});
+
+// ── T4 回修审查 Important#1：points 条目的 r-vs-b 回声比较跨 jsonb 键序边界（可达假冲突）──
+
+test('EQ-③ 本端已编辑 + 远端为基线内容的 jsonb 键序回声 → 判「远端未变」保留本地，不弹假冲突', () => {
+  // b：客户端构造序（score, reason, points）——advanceBaselineAfterPush 落的推送对象
+  const b = { score: 90, reason: 'r', points: { p1: { checked: true, awardedScore: 5 } } } as any;
+  // l：本端在 b 基础上改了分（真实编辑）
+  const l = { score: 95, reason: 'r', points: { p1: { checked: true, awardedScore: 5 } } } as any;
+  // r：平板回声推回 = 同内容经服务端 jsonb 键序（score, points, reason）回读
+  const r = { score: 90, points: { p1: { awardedScore: 5, checked: true } }, reason: 'r', savedAt: 99 } as any;
+  const m = threeWayMerge({ price: l }, { price: b }, { price: r });
+  assert.deepEqual(m.conflicts, []); // 旧 stringify：r≠b（键序）→ 假冲突弹窗，误采远端丢最新编辑
+  assert.equal(m.next.price.score, 95); // 保留本地最新编辑
+});
+
+// ── TAB-SYNC-02 ②客户端副本：restore 路径的陈旧 committed 过滤（与服务端同语义双副本）──
+
+test('FSC-① 陈旧剔除/提交后新编辑保留/无记录保留/槽顶层回退（四合一语义钉）', () => {
+  const entries = {
+    stale: { score: 80, reason: '', savedAt: 100 },
+    fresh: { score: 95, reason: '', savedAt: 200 },
+    noRec: { score: 10, reason: '', savedAt: 100 },
+    noTs: { score: 70, reason: '' },
+  };
+  const committedAt = { stale: 150, fresh: 150, noTs: 150 };
+  const r = filterStaleCommittedEntries(entries, committedAt, 100);
+  assert.deepEqual([...r.droppedKeys].sort(), ['noTs', 'stale']); // noTs 回退槽顶层 100<=150 陈旧
+  assert.deepEqual(Object.keys(r.kept).sort(), ['fresh', 'noRec']);
 });

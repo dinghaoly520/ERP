@@ -244,3 +244,87 @@ describe('BidSignPacketDocxService', () => {
     expect(text).toContain('第 1 名：重庆蜀通岩土工程有限公司（总分 88.5）');
   });
 });
+
+/* ── 2026-11-18 遗留待办 §五.1：配对留档照回退——签字包纸面证据补 :3007 矩阵另一半。
+ * 口径与矩阵同源：签到照 > 配对照 > 无照（槽位制去重，无 assetId 比较）；
+ * 核验记录表「遮挡检测」列恒签到侧；配对侧检测结论内嵌留档照格（纸面无 hover 的等价物）。 ── */
+describe('BidSignPacketDocxService 配对留档照回退（§五.1）', () => {
+  let svc: BidSignPacketDocxService;
+  beforeEach(() => { svc = new BidSignPacketDocxService(); });
+
+  const PAIRING = { transferPhotoAssetId: 'fa-pair-1', transferPhotoAt: '2026-11-18T09:32:00.000Z', transferPhotoOcclusion: 'passed' };
+
+  /** 覆盖 committee[0]（核验记录表面）——expertSheets 保持 baseSnapshot（留痕行走独立用例） */
+  const snapCommittee = (over: Record<string, unknown>): SignPacketSnapshot => ({
+    ...baseSnapshot,
+    committee: [{ ...baseSnapshot.committee[0], ...over } as SignPacketSnapshot['committee'][number]],
+  });
+  /** 覆盖 expertSheets[0].trace.identityVerified（个人表留痕行面） */
+  const snapTrace = (identityVerified: Record<string, unknown>): SignPacketSnapshot => ({
+    ...baseSnapshot,
+    expertSheets: [{
+      ...baseSnapshot.expertSheets[0],
+      trace: { ...baseSnapshot.expertSheets[0].trace, identityVerified: { ...baseSnapshot.expertSheets[0].trace.identityVerified, ...identityVerified } },
+    } as SignPacketSnapshot['expertSheets'][number]],
+  });
+
+  it('核验记录表：签到无照、配对照在场 → 「有（配对补拍 时间 · 检测通过）」+ 脚注披露（严版强制补拍场景）', () => {
+    const text = textOf(svc.buildChildren(snapCommittee({
+      signedIn: true,
+      signInMeta: { method: 'id_card', timestamp: '2026-11-18T08:00:00.000Z' }, // 已签到无照
+      ...PAIRING,
+    })));
+    expect(text).toContain('有（配对补拍 11-18 09:32 · 检测通过）');
+    expect(text).toContain('「配对补拍」留档照为专家平板配对时拍摄');
+  });
+
+  it('核验记录表：签到照+配对照并存 → 单格合并「有（签到+配对补拍）」；配对侧检测不进遮挡检测列', () => {
+    const text = textOf(svc.buildChildren(snapCommittee({
+      signedIn: true,
+      signInMeta: { method: 'id_card', timestamp: '2026-11-18T08:00:00.000Z', photoAssetId: 'fa-sign-1', occlusion: 'passed' },
+      ...PAIRING, transferPhotoOcclusion: 'unchecked', // 配对侧 unchecked——若泄漏则出现「未运行」
+    })));
+    expect(text).toContain('有（签到+配对补拍）');
+    expect(text).not.toContain('有（配对补拍 '); // 回退形态与并存形态互斥
+    expect(text).not.toContain('未运行'); // 配对侧遮挡恒不进检测列/任何格
+  });
+
+  it('核验记录表：无配对照数据（旧快照/未配对）→ 渲染与现状一致（回归锁）', () => {
+    const text = textOf(svc.buildChildren(snapCommittee({
+      signedIn: true,
+      signInMeta: { method: 'id_card', timestamp: '2026-11-18T08:00:00.000Z', photoAssetId: 'fa-sign-1', occlusion: 'passed' },
+      transferPhotoAssetId: null, transferPhotoAt: null, transferPhotoOcclusion: null,
+    })));
+    expect(text).toContain('有（存档）');
+    expect(text).not.toContain('配对补拍'); // 脚注也为条件渲染——无配对数据时整份包零「配对补拍」字样
+  });
+
+  it('留痕行：签到无照 → 「配对补拍留档照 ✓（时间）」+ 遮挡取配对侧（同照片同源）', () => {
+    const text = textOf(svc.buildChildren(snapTrace({
+      at: '2026-11-18T08:00:00.000Z',
+      meta: { method: 'id_card', timestamp: '2026-11-18T08:00:00.000Z' },
+      pairingPhoto: { assetId: 'fa-pair-1', at: '2026-11-18T09:32:00.000Z', occlusion: 'passed' },
+    })));
+    expect(text).toContain('配对补拍留档照 ✓（11-18 09:32） · 遮挡检测通过');
+  });
+
+  it('留痕行：签到照在场 → 签到侧优先（pairingPhoto 在场不改变该行）', () => {
+    const text = textOf(svc.buildChildren(snapTrace({
+      at: '2026-11-18T08:00:00.000Z',
+      meta: { method: 'id_card', timestamp: '2026-11-18T08:00:00.000Z', photoAssetId: 'fa-sign-1', occlusion: 'unchecked' },
+      pairingPhoto: { assetId: 'fa-pair-1', at: '2026-11-18T09:32:00.000Z', occlusion: 'passed' },
+    })));
+    expect(text).toContain('留档照 ✓ · 遮挡检测未运行'); // 签到侧 unchecked 优先于配对侧 passed
+    expect(text).not.toContain('配对补拍留档照');
+  });
+
+  it('留痕行：off 态应急签到（无照无配对，signInMeta 自带检测结论）→ 遮挡披露不回归（评审追修）', () => {
+    // 真实可达形态：signin-camera 应急按钮 onSignIn(null,'unchecked') 无照上送 →
+    // expert.service 无条件落 signInMeta.occlusion——旧版该行披露「遮挡检测未运行」，不能因配对回退被吞
+    const text = textOf(svc.buildChildren(snapTrace({
+      at: '2026-11-18T08:00:00.000Z',
+      meta: { method: 'off_mode', timestamp: '2026-11-18T08:00:00.000Z', occlusion: 'unchecked' },
+    })));
+    expect(text).toContain('无留档照（应急） · 遮挡检测未运行');
+  });
+});

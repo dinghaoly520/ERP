@@ -266,6 +266,11 @@ export function manualConfirmExpertVerification(
   return api.post(`/bid/projects/${projectId}/expert-verification/${expertId}/manual-confirm`, body);
 }
 
+/** TAB-SYNC-02 P2-4：主持端远程解绑平板配对——revoke + 监督日志 + 即时断连广播（幂等） */
+export function unpairTabletPairing(projectId: string, expertId: string): Promise<{ ok: boolean }> {
+  return api.delete(`/bid/projects/${projectId}/experts/${expertId}/pairing`);
+}
+
 /** 严版（2026-09-23；TAB-SYNC-01 配对制沿用）：主持人确认配对留档照豁免——摄像头不可用等现场判定，理由必填 */
 export function confirmPairingPhotoExemption(
   projectId: string,

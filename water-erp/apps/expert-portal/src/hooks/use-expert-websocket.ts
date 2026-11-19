@@ -34,6 +34,11 @@ interface Handlers {
   onLeadReviewSuggested?: (d: LeadReviewSuggestedPayload) => void;
   /** B3（2026-11-12）：动议已发起——全员提醒投票 */
   onMotionCreated?: (d: MotionCreatedPayload) => void;
+  /** TAB-SYNC-02 P2-2：配对已吊销（桌面自解绑/主持端远程解绑广播；服务端 bid.gateway
+   *  字面量 'pairing:revoked'——事件名不进 @water-erp/shared（共享包避让），两端常量交叉注释互指） */
+  onPairingRevoked?: (d: { projectId: string; expertId: string }) => void;
+  /** TAB-SYNC-02 P2-3：配对在线态翻转（'pairing:presence'——平板 scoped 连接建立/断开） */
+  onPairingPresence?: (d: { projectId: string; expertId: string; online: boolean }) => void;
 }
 
 export function useExpertWebSocket(projectId: string | undefined, handlers: Handlers) {
@@ -73,6 +78,8 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     on(BID_EVENT.SCORING_REOPENED, 'onScoringReopened');
     on(BID_EVENT.LEAD_REVIEW_SUGGESTED, 'onLeadReviewSuggested');
     on(BID_EVENT.MOTION_CREATED, 'onMotionCreated');
+    on('pairing:revoked', 'onPairingRevoked');
+    on('pairing:presence', 'onPairingPresence');
   }
 
   const clearHeartbeatTimers = useCallback(() => {

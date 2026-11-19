@@ -21,7 +21,7 @@ import {
   assertEvaluationStage, assertEvaluationStarted,
   isRoomVerified, ROOM_CODE_MAX_ATTEMPTS, ROOM_CODE_LOCK_MINUTES,
 } from './expert-room.util';
-import { mergeDraftSlots } from './score-draft-merge.util';
+import { mergeDraftSlots, stampDraftEntries, filterStaleCommittedEntries } from './score-draft-merge.util';
 import { ConfirmContactDto } from './dto/confirm-contact.dto';
 import { CreateExpertClarificationDto } from './dto/create-expert-clarification.dto';
 import { UpsertRequirementReviewDto } from './dto/upsert-requirement-review.dto';
@@ -358,7 +358,7 @@ export class ExpertService {
     };
   }
 
-  async getProject(userId: string, projectId: string) {
+  async getProject(userId: string, projectId: string, pairingScope?: { projectId: string }) {
     const expertRecord = await this.prisma.bidExpert.findFirst({
       where: { userId, projectId },
       include: {
@@ -448,6 +448,8 @@ export class ExpertService {
         tenderDocument: null,
         noneEvaluation,
         restricted: true,
+        // TAB-SYNC-02 ③：平板 scoped 核验死端——前端据此把核验三件套改「回桌面重核验」引导
+        pairingScoped: !!pairingScope,
       };
     }
 
@@ -490,6 +492,7 @@ export class ExpertService {
       myScores,
       noneEvaluation,
       restricted: false,
+      pairingScoped: !!pairingScope,
       tenderDocument,
       // B6（2026-11-12）：组长兜底——未复议/表决中的过半废标清单（WS 推送只是加速器，刷新即恢复弹窗）
       ...(expertRecord.isLead ? { pendingInvalidReviews: await this.buildPendingInvalidReviews(projectId) } : {}),
@@ -2857,9 +2860,13 @@ export class ExpertService {
     const deviceSlot = pairingScope ? 'tablet' : (device === 'tablet' ? 'tablet' : 'desktop');
     // 兼容旧扁平格式：若 scoreDraft 不含 device 分槽，初始化为空对象
     const existing = (expert.scoreDraft as any) ?? {};
+    // TAB-SYNC-02 ④：落槽前逐键打服务端钟——内容未变键保留原时戳（回声无害），变更/新键
+    // 重打（客户端 Date.now 只是建议值；空清载荷 scores={} 打点为空操作）
+    const stamped = stampDraftEntries((draft as any)?.scores ?? {}, existing[deviceSlot]);
+    const stampedDraft = { ...(draft as any), scores: stamped, savedAt: Date.now() };
     const merged = typeof existing.tablet === 'object' || typeof existing.desktop === 'object'
-      ? { ...existing, [deviceSlot]: draft }
-      : { desktop: existing, [deviceSlot]: draft };
+      ? { ...existing, [deviceSlot]: stampedDraft }
+      : { desktop: existing, [deviceSlot]: stampedDraft };
     return this.prisma.bidExpert.update({ where: { id: expert.id }, data: { scoreDraft: merged as any } });
   }
 
@@ -2871,11 +2878,28 @@ export class ExpertService {
   ) {
     await this.assertRoomUnlocked(projectId, userId); // 评标室口令闸（2026-09-20 spec §4）：roomCode 启用且未验 → 403 ROOM_CODE_REQUIRED
     await assertEvaluationStarted(this.prisma, projectId); // 启动闸（2026-10-21）
-    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { scoreDraft: true } });
+    const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId }, select: { id: true, scoreDraft: true } });
     // TAB-SYNC-01 §4.1：合并语义抽到纯函数 mergeDraftSlots——逐键取最新 savedAt
     // （旧「本设备槽整槽优先」× 回声 = 同键双端再编辑静默分叉，已废弃）
     // TAB-SYNC-01：scoped 读同槽强制 tablet（读无害，与写同口径——配对平板 tiebreak 本槽优先）
-    return mergeDraftSlots(expert?.scoreDraft, pairingScope ? 'tablet' : device);
+    const merged = mergeDraftSlots(expert?.scoreDraft, pairingScope ? 'tablet' : device);
+    if (!merged || !expert) return merged;
+    // TAB-SYNC-02 ②：陈旧 committed 过滤——提交时刻（服务端钟）之前的草稿条目剔除，
+    // 恢复横幅/pull 合并不再回显提交前旧值（提交后新编辑 savedAt>updatedAt 保留）。
+    // ④ 打点后草稿时戳同为服务端钟，比较自洽；记录查询失败 fail-open 原样返回（过滤是
+    // 净化面不是安全面）。
+    try {
+      const records = await this.prisma.bidScoreRecord.findMany({
+        where: { expertId: expert.id },
+        select: { supplierId: true, scoreItemId: true, updatedAt: true },
+      });
+      if (records.length > 0) {
+        const committedAt: Record<string, number> = {};
+        for (const r of records) committedAt[`${r.supplierId}:${r.scoreItemId}`] = new Date(r.updatedAt).getTime();
+        return { ...merged, scores: filterStaleCommittedEntries(merged.scores, committedAt, merged.savedAt).kept };
+      }
+    } catch { /* 过滤失败原样返回 */ }
+    return merged;
   }
 
   /** 评分历史：已提交值 + 修改快照 + 草稿值 + 未评分项，按 scoreItemId 分组 */
@@ -3821,8 +3845,10 @@ export class ExpertService {
     if (!expert) throw new ForbiddenException({ error: '专家不在该项目', code: 'NOT_PROJECT_EXPERT' });
     if (!this.pairingRegistry) throw new ServiceUnavailableException('Redis 不可用，配对状态暂不可用');
     const active = await this.pairingRegistry.getActive(expert.id, projectId);
-    if (!active) return { device: null, pairedAt: null };
-    return { device: active.device, pairedAt: active.pairedAt };
+    // TAB-SYNC-02 P2-3：聚合配对在线态（网关 scoped 连接表；WS pairing:presence 事件驱动 live
+    // 更新）。无活动配对恒 false——吊销即踢连接（P2-2），true 只会是踢除竞态的瞬态假象
+    if (!active) return { device: null, pairedAt: null, online: false };
+    return { device: active.device, pairedAt: active.pairedAt, online: this.gateway?.isPairingOnline?.(expert.id) ?? false };
   }
 
   /** 桌面端主动解除配对：吊销活动配对（平板下一请求 401 PAIRING_REVOKED）+ 监督日志。
@@ -3847,6 +3873,10 @@ export class ExpertService {
           riskFlag: '无',
         },
       }).catch(() => {});
+      // TAB-SYNC-02 P2-2 接线：即时断连——项目房广播 pairing:revoked（平板收事件断开/
+      // 回配对页）+ 直接踢除 scoped socket（主持端远程解绑 bid-pairing.service 同款）
+      this.gateway?.notifyPairingRevoked?.(projectId, expert.id);
+      this.gateway?.kickPairingSockets?.(expert.id);
     }
     return { ok: true };
   }

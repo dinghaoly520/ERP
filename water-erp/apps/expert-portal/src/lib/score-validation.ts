@@ -19,6 +19,8 @@ export type CommittedScoreRecord = {
   score: number;
   passed?: boolean | null;
   reason?: string | null;
+  /** 提交时刻（服务端钟，ISO/毫秒）——TAB-SYNC-02 ② 陈旧草稿过滤用；服务端 myScores 行天然携带 */
+  updatedAt?: string | number | Date;
 };
 
 /**
@@ -175,4 +177,62 @@ export function filterScorableItems<T extends { category: string }>(
 ): T[] {
   if (!priceFormulaActive) return scoreItems;
   return scoreItems.filter((si) => si.category !== 'PRICE');
+}
+
+/**
+ * TAB-SYNC-02 ⑤：pending-only 草稿构建——原桌面 buildPendingDraft / 平板 buildPendingTabletDraft
+ * 逐字重复副本收敛。与已提交记录等价（isCommittedEquivalent 三字段+得分点）的条目不入草稿；
+ * 无已提交记录或评分项缺失（item 缺失仅比较三字段的既有口径）→ 保留。
+ */
+export function buildPendingScoreDraft(
+  scores: Record<string, ScoreEntry>,
+  myScores?: CommittedScoreRecord[] | null,
+  scoreItems?: Array<{ id: string; category: string; points?: BidScorePoint[] }> | null,
+): Record<string, ScoreEntry> {
+  const pending: Record<string, ScoreEntry> = {};
+  for (const [k, v] of Object.entries(scores)) {
+    const [sid, itemId] = k.split(':');
+    const rec = committedRecordFor(myScores, sid, itemId);
+    const si = (scoreItems ?? []).find((s) => s.id === itemId);
+    if (!rec || !si || !isCommittedEquivalent(v, rec, si)) pending[k] = v;
+  }
+  return pending;
+}
+
+/**
+ * TAB-SYNC-02 ①（T2/T3 审查 Important#1 回修）：pointDecisions 提及键的基线条目——
+ * **纯服务端构造**。原实现 `serverMentioned[k] = next[k]`（next 从 prev 起步）会把本地
+ * 未推送 score/reason/passed 与非提及点决策混入基线——对端同键并发编辑被判 local==base
+ * 静默接受（缺陷①在提及键上的残留形态）。本函数与本地 scores 状态完全无关：
+ * 三字段取 committedRecordFor 记录（无记录→零值兜底）、points 仅含该键的服务端点决策
+ * （无服务端决策的点不出现——不回退本地、不造默认值）。
+ */
+export function buildServerMentionedEntries(
+  myScores: CommittedScoreRecord[] | undefined | null,
+  scoreItems: Array<{ id: string; points?: Array<{ id: string }> }> | undefined | null,
+  pointDecisions: Array<{ pointId: string; supplierId: string; checked: boolean; awardedScore: number | string; note?: string }> | undefined | null,
+): Record<string, ScoreEntry> {
+  const pointToItem = new Map<string, string>();
+  for (const si of scoreItems ?? []) {
+    for (const pt of si.points ?? []) pointToItem.set(pt.id, si.id);
+  }
+  const mentioned: Record<string, ScoreEntry> = {};
+  for (const pd of pointDecisions ?? []) {
+    const scoreItemId = pointToItem.get(pd.pointId);
+    if (!scoreItemId) continue; // 悬空点决策（评分项已删改）不造键
+    const k = `${pd.supplierId}:${scoreItemId}`;
+    const rec = committedRecordFor(myScores, pd.supplierId, scoreItemId);
+    let entry = mentioned[k];
+    if (!entry) {
+      entry = {
+        score: Number(rec?.score ?? 0),
+        reason: rec?.reason ?? '',
+        ...(rec?.passed != null ? { passed: rec.passed } : {}),
+        points: {},
+      };
+      mentioned[k] = entry;
+    }
+    entry.points![pd.pointId] = { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined };
+  }
+  return mentioned;
 }

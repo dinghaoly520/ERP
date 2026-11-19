@@ -173,6 +173,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly supplierSockets = new Map<string, Set<string>>();
   /** expertId(BidExpert.id) → socket id 集合（B1 2026-11-12：组长复议召集等专家定向投递）。 */
   private readonly expertSockets = new Map<string, Set<string>>();
+  /** TAB-SYNC-02 P2-3：配对在线跟踪——expertId → scoped socket id 集（连接建立/断开维护） */
+  private readonly pairingOnline = new Map<string, Set<string>>();
   /** socket.id → 所属项目（断连时回收在场表）。 */
   private readonly socketProjects = new Map<string, string>();
 
@@ -203,7 +205,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
     let role: string | undefined;
     let userId: string | undefined;
-    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string } | undefined;
+    let payload: { role?: string; sub?: string; sid?: string; scope?: string; jti?: string; pid?: string; eid?: string } | undefined;
     try {
       payload = await this.jwt.verifyAsync(token);
       role = payload?.role;
@@ -273,10 +275,81 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     (socket.data as any).userId = userId;
     (socket.data as any).role = role;
     (socket.data as any).isHost = canJoinHostRoom(role);
+    // TAB-SYNC-02 P2-1：scoped 令牌绑定项目落连接态——join:project 层据此设闸
+    //（HTTP 面 PairingScopeGuard PAIRING_PROJECT_MISMATCH 的 WS 镜像；全量令牌无 pid 不设闸）
+    if (payload?.scope === 'tablet-pairing' && typeof payload.pid === 'string') {
+      (socket.data as any).pairingPid = payload.pid;
+      (socket.data as any).pairingJti = payload.jti; // join 层存活复查寻址（T8 审查 Important）
+      (socket.data as any).pairingEid = typeof payload.eid === 'string' ? payload.eid : undefined;
+      // TAB-SYNC-02 P2-3：在线跟踪 + 0→1 翻转广播（桌面徽章 live 数据源）
+      this.trackPairingOnline(socket, payload.pid, (socket.data as any).pairingEid);
+    }
     this.logger.debug(`WS connected role=${role} host=${(socket.data as any).isHost}`);
   }
 
+  /** TAB-SYNC-02 P2-2：吊销广播——向项目房发 pairing:revoked（平板在房内收事件后断开/
+   *  回配对页；桌面同房刷新配对徽章）。客户端合作踢出足够：写路径 AuthGuard 恒有 Redis
+   *  存活校验兜底（401 PAIRING_REVOKED），忽略事件的客户端拿不到任何写面。 */
+  notifyPairingRevoked(projectId: string, expertId: string): void {
+    // 终审 F2：投 experts 房（bid_expert join 双房之一；桌面+平板都在）——project 房有投标
+    // 供应商，专家设备在场信号按 §4.3 约定供应商不可见（draft:saved/聚合进度同款路由）
+    this.server?.to(`experts:${projectId}`).emit('pairing:revoked', { projectId, expertId });
+  }
+
+  /** TAB-SYNC-02 P2-2：踢除该专家名下的配对（scoped）socket——仅 pairingPid 有值的连接
+   *  （P2-1 连接态）；全量桌面/专家连接不动。未 join 的悬挂 scoped socket 无业务房可收
+   *  事件，靠握手存活校验（T6/fix#8）拒绝，不在本方法责任面。 */
+  kickPairingSockets(expertId: string): void {
+    const set = this.expertSockets.get(expertId);
+    if (!set) return;
+    for (const sid of set) {
+      // T8 审查 Critical 修正：本网关是 namespace:'bid' 命名空间网关，@WebSocketServer 注入的
+      // 是 Namespace——其 .sockets 直接就是 Map<SocketId, Socket>（非根 Server 的
+      // server.sockets.sockets 三层路径；旧路径恒 undefined = 静默 no-op）
+      const sock = (this.server as unknown as { sockets?: Map<string, { data?: { pairingPid?: string }; disconnect?: (close: boolean) => void }> })
+        ?.sockets?.get?.(sid);
+      if (sock?.data?.pairingPid) sock.disconnect?.(true);
+    }
+  }
+
+  /** TAB-SYNC-02 P2-3：配对在线态查询（GET pairing 聚合 + 徽章初值） */
+  isPairingOnline(expertId: string): boolean {
+    const set = this.pairingOnline.get(expertId);
+    return !!set && set.size > 0;
+  }
+
+  /** 0→1 翻转时向项目房广播 pairing:presence（桌面在房内按 expertId 过滤刷新徽章；
+   *  同专家多连接不重复广播） */
+  private trackPairingOnline(socket: Socket, projectId: string, expertId: string | undefined): void {
+    if (!expertId) return;
+    let set = this.pairingOnline.get(expertId);
+    const wasOnline = !!set && set.size > 0;
+    if (!set) { set = new Set(); this.pairingOnline.set(expertId, set); }
+    set.add(socket.id);
+    if (!wasOnline) this.emitPairingPresence(projectId, expertId, true);
+  }
+
+  private untrackPairingOnline(socket: Socket): void {
+    const expertId: string | undefined = (socket.data as any).pairingEid;
+    if (!expertId) return;
+    const set = this.pairingOnline.get(expertId);
+    if (!set) return;
+    set.delete(socket.id);
+    if (set.size === 0) {
+      this.pairingOnline.delete(expertId);
+      const pid: string | undefined = (socket.data as any).pairingPid;
+      if (pid) this.emitPairingPresence(pid, expertId, false);
+    }
+  }
+
+  private emitPairingPresence(projectId: string, expertId: string, online: boolean): void {
+    // 终审 F2：同 notifyPairingRevoked——experts 房（供应商不可见）
+    this.server?.to(`experts:${projectId}`).emit('pairing:presence', { projectId, expertId, online });
+  }
+
   handleDisconnect(socket: Socket) {
+    // TAB-SYNC-02 P2-3：scoped 连接离线——末连接断开才翻 false 并广播
+    this.untrackPairingOnline(socket);
     const supplierId: string | undefined = (socket.data as any).supplierId;
     const projectId = this.socketProjects.get(socket.id);
     if (supplierId) {
@@ -339,6 +412,20 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
         where: { projectId, userId, invitationStatus: { not: 'declined' } },
       });
       if (!assigned) return { error: 'NOT_ASSIGNED_EXPERT' };
+      // TAB-SYNC-02 P2-1：scoped 平板只能进配对绑定项目的房间（读他项目实时流 = 越权面）
+      const pairingPid = (client.data as any).pairingPid as string | undefined;
+      if (pairingPid && projectId !== pairingPid) return { error: 'PAIRING_PROJECT_MISMATCH' };
+      // T8 审查 Important：join 层配对存活复查——存活校验只在握手期，长连接经 leave→rejoin
+      // 可绕回房间（吊销后 12h JWT 内 pid claim 不变）；fail closed（registry 缺失/异常拒绝）
+      if (pairingPid) {
+        let alive = false;
+        try {
+          alive = this.pairingRegistry
+            ? await this.pairingRegistry.isAlive((client.data as any).pairingJti as string, userId)
+            : false;
+        } catch { alive = false; }
+        if (!alive) return { error: 'PAIRING_REVOKED' };
+      }
       // B1（2026-11-12）：登记专家连接表——组长复议召集等定向投递按 expertId 寻址（镜像 supplier 分支）
       (client.data as any).expertId = assigned.id;
       let expertSet = this.expertSockets.get(assigned.id);

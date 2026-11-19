@@ -17,17 +17,17 @@
  * 因此天然无害。next 与 baseline 为两份独立浅拷贝（points 子对象仍共享引用——页面按
  * 不可变更新使用，勿原地改 points）。
  *
- * 深比较用 JSON.stringify 比较内容（条目字段顺序由打点处构造保证），savedAt 不参与
- * 相等——它是编辑时刻元数据而非内容：本机重刷时间戳不算改、双端改成同值（各自打点）
- * 不算冲突；savedAt 的新旧裁决归服务端 Task 1 双槽合并。可选字段显式 undefined 与
- * 缺省视为相等（JSON 序列化天然丢弃 undefined）。
+ * 深比较为字段级 entryEquals（键序无关——T4 回修审查 Important#1：stringify 对键序敏感，
+ * r-vs-b 回声比较跨 jsonb 键序边界假冲突可达），savedAt 不参与相等——它是编辑时刻元数据
+ * 而非内容：本机重刷时间戳不算改、双端改成同值（各自打点）不算冲突；savedAt 的新旧裁决
+ * 归服务端双槽合并。可选字段显式 undefined 与缺省视为相等（null≡缺省，field-wise 语义）。
  */
 
 export interface ScoreEntry {
   score: number;
   reason: string;
   passed?: boolean | null;
-  points?: Record<string, { checked: boolean; awardedScore: number }>;
+  points?: Record<string, { checked: boolean; awardedScore: number; note?: string }>;
   /** 编辑时刻打点（TAB-SYNC-01 §4.1；形状同服务端 score-draft-merge.util.ts） */
   savedAt?: number;
 }
@@ -64,10 +64,32 @@ export interface ThreeWayMergeResult {
   baseline: Record<string, ScoreEntry>;
 }
 
-/** 内容稳定深比较（savedAt 剥除；undefined 字段序列化天然丢弃）；任一缺省仅当双侧同缺省视为相等 */
+/**
+ * 内容稳定深比较（field-wise，键序无关）。T4 回修审查 Important#1：stringify 比较对键序
+ * 敏感，而 r-vs-b 回声比较天然跨 jsonb 边界（远端 GET 回读键序归一化、normalize 只钉
+ * passed 位不钉 points/reason 序）——points 条目在双端活跃打分时假冲突可达，误采远端
+ * 即丢最新本地编辑。字段级比较与客户端构造序/服务端 jsonb 序均无关；新增内容字段
+ * 必须同步本函数（镜像服务端 score-draft-merge.util.ts entryContentEquals——双副本
+ * 交叉注释互指，改一处须改两处）。
+ */
 const entryEquals = (a: ScoreEntry | undefined, b: ScoreEntry | undefined): boolean => {
   if (a === undefined || b === undefined) return a === b;
-  return JSON.stringify({ ...a, savedAt: undefined }) === JSON.stringify({ ...b, savedAt: undefined });
+  if (Number(a.score) !== Number(b.score)) return false;
+  if ((a.reason ?? '') !== (b.reason ?? '')) return false;
+  if ((a.passed ?? null) !== (b.passed ?? null)) return false;
+  const ap = a.points;
+  const bp = b.points;
+  if (!ap || !bp) return !ap === !bp;
+  if (Object.keys(ap).length !== Object.keys(bp).length) return false;
+  for (const pk of Object.keys(ap)) {
+    const x = ap[pk];
+    const y = bp[pk];
+    if (!x || !y) return false;
+    if (x.checked !== y.checked) return false;
+    if (Number(x.awardedScore) !== Number(y.awardedScore)) return false;
+    if ((x.note ?? '') !== (y.note ?? '')) return false;
+  }
+  return true;
 };
 
 export function threeWayMerge(
@@ -106,4 +128,76 @@ export function threeWayMerge(
   }
 
   return { next, conflicts, baseline: newBaseline };
+}
+
+/**
+ * TAB-SYNC-02 ⑤：pull 侧合并封装——双页 onDraftSaved 主体下放（原桌面/平板各一份的手工
+ * 副本收敛）。输入侧先把 local/baseline/remoteRaw 统一 normalizeDraftEntries（服务端形状
+ * passed=null 剥为缺省——null≠缺省的 JSON.stringify 深比较会整批假冲突），输出侧再归一，
+ * 双页从此共用同一语义；conflicts 携带归一后的 local/remote（passed 已收窄为 boolean/缺省，
+ * 页面裁决弹窗可直接采纳 remoteVal——勿再加防御性二次归一，那正是双副本漂移的老路）。
+ */
+export interface PulledMergeDraftResult {
+  next: Record<string, NormalizedScoreEntry>;
+  baseline: Record<string, NormalizedScoreEntry>;
+  conflicts: DraftMergeConflict[];
+}
+
+export function mergePulledDraft(
+  local: Record<string, ScoreEntry>,
+  baseline: Record<string, ScoreEntry>,
+  remoteRaw: Record<string, ScoreEntry>,
+): PulledMergeDraftResult {
+  const merged = threeWayMerge(normalizeDraftEntries(local), normalizeDraftEntries(baseline), normalizeDraftEntries(remoteRaw));
+  return {
+    next: normalizeDraftEntries(merged.next),
+    baseline: normalizeDraftEntries(merged.baseline),
+    conflicts: merged.conflicts,
+  };
+}
+
+/**
+ * TAB-SYNC-02 ①：服务端数据落定后的基线推进——**只动服务端提及的键**。
+ *
+ * 缺陷背景（遗留待办 §三.1 ①）：原「整表重照」`baseline = {...当前 scores}` 会把本地
+ * ≤2s 防抖窗/推送失败遗留的未推送编辑烧入基线——此后对端对同键的并发编辑被判
+ * 「local==base」而静默接受，本地未推送编辑无声丢失（双端同病）。
+ * 语义：serverEntries（committed 记录 / pointDecisions 键）取服务端值为新基线；
+ * 未提及键保留旧基线（本地未推送编辑不入基线→并发分歧正确进弹窗）；空提及原引用短路。
+ * 注：恢复草稿路径仍是全量重照（恢复=本页新起点，语义不同，见 hook restoreDraft）。
+ */
+export function advanceBaselineAfterServerData(
+  baseline: Record<string, ScoreEntry>,
+  serverEntries: Record<string, ScoreEntry>,
+): Record<string, ScoreEntry> {
+  const keys = Object.keys(serverEntries);
+  if (keys.length === 0) return baseline;
+  const next = { ...baseline };
+  for (const k of keys) next[k] = serverEntries[k];
+  return next;
+}
+
+/**
+ * TAB-SYNC-02 ②客户端副本：陈旧 committed 草稿过滤（restore 路径——localStorage 草稿
+ * 不经服务端，须本端过滤）。语义与服务端 score-draft-merge.util.ts
+ * filterStaleCommittedEntries 完全一致（双副本交叉注释互指，改一处须改两处）：
+ * committed 键 + 有效时戳（per-entry 回退 fallbackSavedAt）<= 提交时刻 → 剔除；
+ * 严格大于（提交后新编辑）→ 保留；无记录 → 保留。committedAt 由调用方从
+ * project.myScores 的 updatedAt（毫秒）构造。
+ */
+export function filterStaleCommittedEntries(
+  entries: Record<string, ScoreEntry>,
+  committedAt: Record<string, number>,
+  fallbackSavedAt: number,
+): { kept: Record<string, ScoreEntry>; droppedKeys: string[] } {
+  const kept: Record<string, ScoreEntry> = {};
+  const droppedKeys: string[] = [];
+  for (const [k, v] of Object.entries(entries)) {
+    const at = committedAt[k];
+    if (at === undefined) { kept[k] = v; continue; }
+    const effective = typeof v?.savedAt === 'number' ? v.savedAt : fallbackSavedAt;
+    if (effective <= at) droppedKeys.push(k);
+    else kept[k] = v;
+  }
+  return { kept, droppedKeys };
 }

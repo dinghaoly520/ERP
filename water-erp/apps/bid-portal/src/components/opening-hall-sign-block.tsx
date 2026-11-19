@@ -6,6 +6,7 @@ import {
   getOpeningSignStatus, generateOpeningSignPage, uploadOpeningSignScan, registerOpeningSign,
   type OpeningSignStatus,
 } from '@/lib/api/bid';
+import { downloadAsBlob } from '@/lib/guarded-download';
 import { WaterBar } from './upload/water-bar';
 
 /** P1-3①A：开标记录签字卡——唯一入口在「评标签字」tab（评标结束一次性打印、一次签完的运营口径）。
@@ -36,7 +37,8 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
     try {
       const r = await generateOpeningSignPage(projectId);
       setMsg(`签字页已生成（校验码 ${r.sha256.slice(0, 8)}），请下载打印`);
-      window.open(r.downloadUrl, '_blank');
+      // §五.4-1：window.open 直链改守护式下载（X-Portal 确定性+CD 带名落盘——原新标签 401 即静默死）
+      void downloadAsBlob(r.downloadUrl, `开标记录签字页-${projectId.slice(-8)}.pdf`, '签字页');
     } catch (e: any) { setMsg(e?.message || '生成失败'); }
     finally { setBusy(false); }
   };

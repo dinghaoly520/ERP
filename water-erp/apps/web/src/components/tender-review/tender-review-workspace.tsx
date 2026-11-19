@@ -81,9 +81,9 @@ export default function TenderReviewWorkspace() {
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden gap-3">
+    <div className="flex flex-1 flex-col overflow-hidden gap-4">
       {/* Main layout: Center workspace + Right panel */}
-      <div ref={containerRef} className="flex flex-1 gap-3 min-h-0 relative">
+      <div ref={containerRef} className="flex flex-1 gap-4 min-h-0 relative">
         {/* Center - Main workspace */}
         <div className="flex-1 min-w-0">
           <ReviewWorkspaceContent />

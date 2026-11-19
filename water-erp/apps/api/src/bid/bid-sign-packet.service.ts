@@ -362,6 +362,8 @@ export class BidSignPacketService {
           id: true, expertName: true, expertRole: true, signStatus: true, signStatusAt: true, signScanFileId: true,
           dissentingOpinion: true, dissentingReason: true, esignature: true, esignatureAt: true,
           signedIn: true, signInIp: true, signInMeta: true,
+          // §五.1（2026-11-18）：配对留档照三件套入回流包（与 :3007 核验矩阵载荷同构）
+          transferPhotoAssetId: true, transferPhotoAt: true, transferPhotoOcclusion: true,
           confidentialityAgreed: true, confidentialityAgreedAt: true,
           disciplineAgreed: true, disciplineAgreedAt: true,
           aiConsentConfirmed: true, aiConsentAt: true,
@@ -460,6 +462,10 @@ export class BidSignPacketService {
         esignatureAt: e.esignatureAt?.toISOString() ?? null,
         // 身份核验域：勾选/承诺的机器可读证据，与签字包 PDF 留痕表互补
         signedIn: e.signedIn, signInIp: e.signInIp, signInMeta: e.signInMeta, // signInMeta 含 photoAssetId（签到照片引用）
+        // §五.1（2026-11-18）：配对留档照入回流包（与 :3007 核验矩阵 pairingPhoto 载荷同构，防 PDF/JSON 证据面漂移）
+        pairingPhoto: e.transferPhotoAssetId
+          ? { assetId: e.transferPhotoAssetId, at: e.transferPhotoAt?.toISOString() ?? null, occlusion: e.transferPhotoOcclusion ?? null }
+          : null,
         confidentialityAgreed: e.confidentialityAgreed, confidentialityAgreedAt: e.confidentialityAgreedAt?.toISOString() ?? null,
         disciplineAgreed: e.disciplineAgreed, disciplineAgreedAt: e.disciplineAgreedAt?.toISOString() ?? null,
         aiConsentConfirmed: e.aiConsentConfirmed, aiConsentAt: e.aiConsentAt?.toISOString() ?? null,
@@ -652,7 +658,7 @@ export class BidSignPacketService {
           // 名册除名口径（2026-10-27）：婉拒正选不进签字页/确认表
           where: { projectId, expertRole: '正选', invitationStatus: { not: 'declined' } },
           orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
-          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true, signedIn: true, aiConsentConfirmed: true, aiConsentAt: true, avoidanceConfirmed: true },
+          select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true, signedIn: true, aiConsentConfirmed: true, aiConsentAt: true, avoidanceConfirmed: true, transferPhotoAssetId: true, transferPhotoAt: true, transferPhotoOcclusion: true },
         }),
         this.prisma.bidOpeningRecord.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.bidSupplier.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' }, select: { id: true, supplierName: true, createdAt: true } }),
@@ -707,7 +713,13 @@ export class BidSignPacketService {
       // 2026-09-18 身份核验 §4.5：签到时间取自 signInMeta.timestamp（旧数据无 → at 保持 null）
       const signInMeta = (e.signInMeta ?? {}) as { timestamp?: string };
       const trace: OperationTrace = {
-        identityVerified: { ip: e.signInIp, meta: e.signInMeta, at: signInMeta.timestamp ?? null },
+        identityVerified: {
+          ip: e.signInIp, meta: e.signInMeta, at: signInMeta.timestamp ?? null,
+          // §五.1（2026-11-18）：配对留档照入留痕——签到无照时 docx 留痕行回退显示
+          pairingPhoto: e.transferPhotoAssetId
+            ? { assetId: e.transferPhotoAssetId, at: e.transferPhotoAt ? e.transferPhotoAt.toISOString() : null, occlusion: e.transferPhotoOcclusion ?? null }
+            : null,
+        },
         confidentialityAgreedAt: e.confidentialityAgreedAt ? e.confidentialityAgreedAt.toISOString() : null,
         disciplineAgreedAt: e.disciplineAgreedAt ? e.disciplineAgreedAt.toISOString() : null,
         aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null, // 留痕表加「AI 辅助声明确认」行
@@ -762,6 +774,10 @@ export class BidSignPacketService {
         signedIn: e.signedIn, aiConsentConfirmed: e.aiConsentConfirmed,
         aiConsentAt: e.aiConsentAt ? e.aiConsentAt.toISOString() : null,
         avoidanceConfirmed: e.avoidanceConfirmed,
+        // §五.1（2026-11-18）：配对留档照三件套入快照（核验记录表回退，At→ISO 与其余日期同风格）
+        transferPhotoAssetId: e.transferPhotoAssetId ?? null,
+        transferPhotoAt: e.transferPhotoAt ? e.transferPhotoAt.toISOString() : null,
+        transferPhotoOcclusion: e.transferPhotoOcclusion ?? null,
       })),
       leaderCoSignedAt: project.leaderCoSignedAt ? project.leaderCoSignedAt.toISOString() : null,
       reportNotes: (project.reportNotes as Array<{ section: string; content: string }>) ?? undefined,

@@ -971,3 +971,65 @@ describe('BidSignPacketService.buildEvidenceZip — 分目录聚合 + 解包断�
     expect(Object.keys(zip.files).filter(n => !zip.files[n].dir).sort()).toEqual(['03-监督时间线/监督日志.csv', '04-评标结果/评标结果.csv', '05-AI辅助评标/AI报告-2.json']);
   });
 });
+
+/* ── 2026-11-18 遗留待办 §五.1：配对留档照三件套入签字包链路
+ *（buildSnapshot select 双路透传 / generateHandover expertSignStatuses 与 :3007 核验矩阵载荷同构） ── */
+describe('BidSignPacketService 配对留档照（§五.1）', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('buildSnapshot：select 带三列 + committee 与 identityVerified.pairingPhoto 双路透传（At→ISO）', async () => {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({
+      name: '测试项目', projectCode: 'BID-1', procurementMethod: '公开招标',
+      openTime: null, deadline: null, scope: null, qualification: null, budget: null, leaderCoSignedAt: null,
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { id: 'e1', expertName: '张三', major: '水利水电', expertRole: '正选', isLead: true, reviewGroup: null, dutyRole: null,
+        isPurchaserRepresentative: false, signInIp: '10.0.0.1', signInMeta: { timestamp: '2026-11-18T08:00:00.000Z', method: 'id_card' },
+        confidentialityAgreedAt: null, disciplineAgreedAt: null, reportConfirmedAt: null, signedIn: true,
+        aiConsentConfirmed: true, aiConsentAt: null, avoidanceConfirmed: true,
+        transferPhotoAssetId: 'fa-pair-1', transferPhotoAt: new Date('2026-11-18T09:32:00Z'), transferPhotoOcclusion: 'passed' },
+    ]);
+    const svc = makeService();
+    const snapshot = await svc.buildSnapshot(projectId);
+    const select = (prisma.bidExpert.findMany as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(select?.transferPhotoAssetId).toBe(true);
+    expect(select?.transferPhotoAt).toBe(true);
+    expect(select?.transferPhotoOcclusion).toBe(true);
+    expect(snapshot.committee[0]).toMatchObject({ transferPhotoAssetId: 'fa-pair-1', transferPhotoAt: '2026-11-18T09:32:00.000Z', transferPhotoOcclusion: 'passed' });
+    expect(snapshot.expertSheets[0].trace.identityVerified.pairingPhoto).toEqual({ assetId: 'fa-pair-1', at: '2026-11-18T09:32:00.000Z', occlusion: 'passed' });
+  });
+
+  it('generateHandover：expertSignStatuses 携带 pairingPhoto（无配对 → null）', async () => {
+    baseArrange();
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue({
+      id: 'pk1', projectId, sha256: 'sha-a', generatedAt: new Date(), fileAssetId: 'fa1',
+      signPageScanFileId: null, closedAt: new Date(), handoverFileAssetId: null, handoverSha256: null,
+    });
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([
+      { expertName: '王建国', expertRole: '正选', signStatus: 'SIGNED', signStatusAt: new Date(), signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null, esignature: null, esignatureAt: null,
+        signedIn: true, signInIp: '10.0.0.1', signInMeta: { timestamp: '2026-11-18T08:00:00.000Z' },
+        confidentialityAgreed: true, confidentialityAgreedAt: null, disciplineAgreed: true, disciplineAgreedAt: null,
+        aiConsentConfirmed: true, aiConsentAt: null, avoidanceConfirmed: true, conflictedSupplierIds: [],
+        transferPhotoAssetId: 'fa-pair-1', transferPhotoAt: new Date('2026-11-18T09:32:00Z'), transferPhotoOcclusion: 'unchecked' },
+      { expertName: '李四', expertRole: '正选', signStatus: 'SIGNED', signStatusAt: new Date(), signScanFileId: null,
+        dissentingOpinion: null, dissentingReason: null, esignature: null, esignatureAt: null,
+        signedIn: true, signInIp: '10.0.0.2', signInMeta: { timestamp: '2026-11-18T08:10:00.000Z', photoAssetId: 'fa-sign-1' },
+        confidentialityAgreed: true, confidentialityAgreedAt: null, disciplineAgreed: true, disciplineAgreedAt: null,
+        aiConsentConfirmed: true, aiConsentAt: null, avoidanceConfirmed: true, conflictedSupplierIds: [],
+        transferPhotoAssetId: null, transferPhotoAt: null, transferPhotoOcclusion: null },
+    ]);
+    const svc = makeService();
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: 'fa97' });
+    (svc as any).evalResults.buildEvaluationPackage.mockResolvedValue({});
+
+    await svc.generateHandover(projectId, 'u1');
+
+    const body = JSON.parse(((svc as any).storage.upload.mock.calls[0][1] as Buffer).toString('utf8'));
+    expect(body.expertSignStatuses[0].pairingPhoto).toEqual({ assetId: 'fa-pair-1', at: '2026-11-18T09:32:00.000Z', occlusion: 'unchecked' });
+    expect(body.expertSignStatuses[1].pairingPhoto).toBeNull();
+    const select = (prisma.bidExpert.findMany as jest.Mock).mock.calls[0]?.[0]?.select;
+    expect(select?.transferPhotoAssetId).toBe(true);
+  });
+});

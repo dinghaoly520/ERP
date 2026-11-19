@@ -1,4 +1,4 @@
-import { mergeDraftSlots } from './score-draft-merge.util';
+import { mergeDraftSlots, stampDraftEntries, filterStaleCommittedEntries } from './score-draft-merge.util';
 
 /**
  * TAB-SYNC-01 §4.1：草稿双槽合并改「逐键取最新 savedAt」（替代旧「本设备槽整槽优先」）。
@@ -84,5 +84,111 @@ describe('mergeDraftSlots — 逐键取最新 savedAt', () => {
     expect(mergeDraftSlots(null)).toBeNull();
     expect(mergeDraftSlots(undefined)).toBeNull();
     expect(mergeDraftSlots({})).toBeNull();
+  });
+});
+
+// ── TAB-SYNC-02 ④：stampDraftEntries——服务端逐键打点（慢钟设备不再单向失步）──
+
+describe('stampDraftEntries（TAB-SYNC-02 ④）', () => {
+  const existing = {
+    scores: {
+      's1:i1': { score: 80, reason: 'r', savedAt: 100 },
+      's1:i2': { score: 70, reason: 'r2', savedAt: 110 },
+    },
+    savedAt: 110,
+  };
+
+  it('内容变更键 → 打服务器钟 now', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 90, reason: 'r' } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(5000);
+  });
+
+  it('内容未变键 → 保留原 savedAt（回声无害：重发不算编辑）', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r' } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(100);
+  });
+
+  it('内容比较剥 savedAt——客户端重发旧时戳但内容相同 → 仍保留服务端原时戳', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r', savedAt: 999 } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(100);
+  });
+
+  it('新键（本槽无此键）→ 打 now；旧槽时戳不迁移', () => {
+    const out = stampDraftEntries({ 's2:i9': { score: 10, reason: '' } }, existing, 5000);
+    expect(out['s2:i9'].savedAt).toBe(5000);
+  });
+
+  it('空入参 → 空对象（空清载荷调用方不经过本函数，此处仅容错）', () => {
+    expect(stampDraftEntries({}, existing, 5000)).toEqual({});
+  });
+
+  it('existingSlot 为旧扁平/畸形形状 → 全部键视为新键打 now（fail-open 到打点）', () => {
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r' } }, { weird: true }, 5000);
+    expect(out['s1:i1'].savedAt).toBe(5000);
+  });
+});
+
+// ── T4 审查 Critical 回修：jsonb 键序归一化 × stringify 比较误判（回声必须无害）──
+
+describe('stampDraftEntries 键序无关性（T4 审查 Critical）', () => {
+  it('存储侧为 jsonb 归一键序（passed 提前于 reason）、内容等价 → 保留原 savedAt（不误重打）', () => {
+    const existing = {
+      scores: {
+        // PG jsonb 键序：score(5) < passed(6) < reason(6) < savedAt(7)
+        's1:i1': { score: 80, passed: true, reason: 'r', savedAt: 100 },
+      },
+      savedAt: 100,
+    };
+    // 客户端构造序：score, reason, passed
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r', passed: true } }, existing, 5000);
+    expect(out['s1:i1'].savedAt).toBe(100);
+  });
+
+  it('points 点键序不同（p2/p1 互倒）内容等价 → 保留原 savedAt', () => {
+    const mk = (order: 'asc' | 'desc') => ({
+      score: 90,
+      reason: 'r',
+      points: order === 'asc'
+        ? { p1: { checked: true, awardedScore: 5, note: 'n' }, p2: { checked: false, awardedScore: 0 } }
+        : { p2: { checked: false, awardedScore: 0 }, p1: { checked: true, awardedScore: 5, note: 'n' } },
+    });
+    const existing = { scores: { 's1:i2': { ...mk('asc'), savedAt: 120 } }, savedAt: 120 };
+    const out = stampDraftEntries({ 's1:i2': mk('desc') }, existing, 5000);
+    expect(out['s1:i2'].savedAt).toBe(120);
+  });
+});
+
+// ── TAB-SYNC-02 ②：陈旧 committed 草稿过滤——提交后旧草稿不再回显提交前旧值 ──
+
+describe('filterStaleCommittedEntries（TAB-SYNC-02 ②）', () => {
+  it('committed 键且草稿时戳 <= 提交时刻 → 剔除（提交前保存的陈旧草稿）', () => {
+    const entries = { 's1:i1': { score: 80, reason: '旧', savedAt: 100 }, 's2:i2': { score: 60, reason: '', savedAt: 100 } };
+    const r = filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 0);
+    expect(r.droppedKeys).toEqual(['s1:i1']);
+    expect(Object.keys(r.kept)).toEqual(['s2:i2']);
+  });
+
+  it('committed 键但草稿时戳 > 提交时刻（提交后新编辑）→ 保留', () => {
+    const entries = { 's1:i1': { score: 95, reason: '改', savedAt: 200 } };
+    const r = filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 0);
+    expect(r.droppedKeys).toEqual([]);
+    expect(r.kept['s1:i1'].score).toBe(95);
+  });
+
+  it('无 committed 记录的键 → 保留（未提交编辑是草稿本体）', () => {
+    const entries = { 's9:i9': { score: 10, reason: '', savedAt: 100 } };
+    const r = filterStaleCommittedEntries(entries, {}, 0);
+    expect(Object.keys(r.kept)).toEqual(['s9:i9']);
+  });
+
+  it('条目无 per-entry savedAt → 回退槽顶层 fallbackSavedAt 参与比较', () => {
+    const entries = { 's1:i1': { score: 80, reason: '' } }; // 无时戳（旧格式）
+    expect(filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 100).droppedKeys).toEqual(['s1:i1']); // 100<=150 陈旧
+    expect(filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 180).droppedKeys).toEqual([]); // 180>150 新
+  });
+
+  it('同毫秒边界：savedAt == committedAt → 剔除（同毫秒视提交后编辑须严格更新）', () => {
+    const entries = { 's1:i1': { score: 80, reason: '', savedAt: 150 } };
+    expect(filterStaleCommittedEntries(entries, { 's1:i1': 150 }, 0).droppedKeys).toEqual(['s1:i1']);
   });
 });

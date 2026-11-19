@@ -13,6 +13,7 @@ import { AiService } from '../ai/ai.service';
 import { encryptBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey } from '../common/crypto/envelope-crypto';
 import { BidGateway } from '../bid/bid.gateway';
+import { ExpertPairingRegistry } from '../auth/expert-pairing.registry';
 import { BidService } from '../bid/bid.service';
 import { NotificationService } from '../notification/notification.service';
 import { minioClient } from '../upload/minio.client';
@@ -26,6 +27,7 @@ describe('ExpertService', () => {
   let gateway: any;
   let signature: any;
   let notification: any;
+  let pairingRegistry: any;
   let bidService: any;
 
   const mockExpert = {
@@ -107,15 +109,20 @@ describe('ExpertService', () => {
       notifyLeadReviewSuggested: jest.fn(),
       notifyMotionCreated: jest.fn(),
       notifyClarificationCreated: jest.fn(),
+      // TAB-SYNC-02 P2-2 接线：桌面自解绑即时断连
+      notifyPairingRevoked: jest.fn(),
+      kickPairingSockets: jest.fn(),
     };
     signature = { verify: jest.fn(), isValidPublicKey: jest.fn() };
     notification = { sendToUser: jest.fn() };
+    pairingRegistry = { getActive: jest.fn().mockResolvedValue(null), revoke: jest.fn().mockResolvedValue(null) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ExpertService,
         { provide: PrismaService, useValue: prisma },
         { provide: AiService, useValue: ai },
+        { provide: ExpertPairingRegistry, useValue: pairingRegistry },
         { provide: PlaintextFetcherService, useValue: { fetchBidderPlaintext: jest.fn() } },
         { provide: BidGateway, useValue: gateway },
         { provide: BidService, useValue: { invalidateResultsForRuling: jest.fn().mockResolvedValue(undefined) } },
@@ -230,7 +237,7 @@ describe('ExpertService', () => {
   });
 
   describe('TAB-SYNC-01 平板配对受限令牌收口（scoped 会话：tablet 槽强制 + 配对项目过滤）', () => {
-    it('saveScoreDraft：pairingScope 存在 → 即便伪报 device=desktop 也恒落 tablet 槽（桌面槽不被覆盖）', async () => {
+    it('saveScoreDraft：pairingScope 存在 → 即便伪报 device=desktop 也恒落 tablet 槽（桌面槽不被覆盖）；④落槽逐键打服务端钟', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', roomCode: null });
       const desktopSlot = { scores: { keep: { score: 9, reason: '桌面既有' } }, savedAt: 100 };
       prisma.bidExpert.findFirst.mockResolvedValue({
@@ -245,13 +252,20 @@ describe('ExpertService', () => {
 
       expect(prisma.bidExpert.update).toHaveBeenCalledTimes(1);
       const data = prisma.bidExpert.update.mock.calls[0][0].data;
-      expect(data.scoreDraft.tablet).toEqual(draft);
+      // TAB-SYNC-02 ④：内容原样、时戳打服务端钟（客户端 savedAt=200 只是建议值，新键重打）
+      const tabletSlot = data.scoreDraft.tablet;
+      // T4 审查 Minor：断言须区分「服务端打点」与「客户端透传」——客户端时戳 200 不得原样落库
+      expect(tabletSlot.savedAt).toBeGreaterThan(1_000_000_000_000);
+      expect(tabletSlot.scores['sup:i']).toMatchObject({ score: 1, reason: '平板' });
+      expect(tabletSlot.scores['sup:i'].savedAt).toBeGreaterThan(1_000_000_000_000);
       expect(data.scoreDraft.desktop).toEqual(desktopSlot); // 桌面槽原样保留，scoped 客户端不可覆盖
 
       // 对照：同一载荷、无 pairingScope（桌面全量会话）→ device=desktop 照旧落 desktop 槽
       await service.saveScoreDraft('user-1', 'proj-1', draft, 'desktop');
       const data2 = prisma.bidExpert.update.mock.calls[1][0].data;
-      expect(data2.scoreDraft.desktop).toEqual(draft);
+      const desktopSlot2 = data2.scoreDraft.desktop;
+      expect(desktopSlot2.scores['sup:i']).toMatchObject({ score: 1, reason: '平板' });
+      expect(desktopSlot2.scores['sup:i'].savedAt).toBeGreaterThan(1_000_000_000_000);
     });
 
     it('listProjects：pairingScope 存在 → 仅返回配对项目（配对项目不在本人项目集 → 空）', async () => {
@@ -4495,6 +4509,65 @@ describe('ExpertService', () => {
       expect(notification.sendToUser).not.toHaveBeenCalled();
     });
   });
+
+// ── TAB-SYNC-02 P2-3：getPairing 聚合在线态 ──
+
+describe('ExpertService.getPairing（TAB-SYNC-02 P2-3）', () => {
+  it('活动配对 → 响应含 online=true（gateway.isPairingOnline 聚合）；无配对 → device:null+online:false', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1' });
+    pairingRegistry.getActive.mockResolvedValue({ pairingId: 'j1', device: { uaSummary: 'iPad' }, pairedAt: 1 });
+    gateway.isPairingOnline = jest.fn().mockReturnValue(true);
+    const r = await service.getPairing('user-1', 'p1');
+    expect(r).toEqual({ device: { uaSummary: 'iPad' }, pairedAt: 1, online: true });
+
+    pairingRegistry.getActive.mockResolvedValue(null);
+    const r2 = await service.getPairing('user-1', 'p1');
+    expect(r2).toEqual({ device: null, pairedAt: null, online: false });
+  });
+});
+
+// ── TAB-SYNC-02 ③：平板 scoped 核验死端——getProject 暴露 pairingScoped ──
+
+describe('ExpertService.getProject pairingScoped（TAB-SYNC-02 ③）', () => {
+  it('传 pairingScope → 响应含 pairingScoped=true；不传 → false（restricted 壳路径）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({
+      id: 'be1', userId: 'user-1', projectId: 'p1', signedIn: false, avoidanceConfirmed: false,
+      confidentialityAgreed: false, disciplineAgreed: false, conflictedSupplierIds: [],
+      user: { expertProfile: null },
+    });
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'DOWNLOAD', roomCode: null, suppliers: [], experts: [] });
+    const r = await service.getProject('user-1', 'p1', { projectId: 'p1' });
+    expect(r.restricted).toBe(true);
+    expect(r.pairingScoped).toBe(true);
+    const r2 = await service.getProject('user-1', 'p1');
+    expect(r2.pairingScoped).toBe(false);
+  });
+});
+
+// ── TAB-SYNC-02 P2-2 接线：桌面自解绑即时断连（广播+踢除）──
+
+describe('ExpertService.unpair（TAB-SYNC-02 P2-2 接线）', () => {
+  it('活动配对吊销 → notifyPairingRevoked 广播 + kickPairingSockets 踢除', async () => {
+    pairingRegistry.getActive.mockResolvedValue({ pairingId: 'jti-9', device: null, pairedAt: 1 });
+    pairingRegistry.revoke.mockResolvedValue({ projectId: 'proj-1' });
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be9', expertName: '测试专家' });
+    prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+    const r = await service.unpair('user-1', 'proj-1');
+
+    expect(r).toEqual({ ok: true });
+    expect(gateway.notifyPairingRevoked).toHaveBeenCalledWith('proj-1', 'be9');
+    expect(gateway.kickPairingSockets).toHaveBeenCalledWith('be9');
+  });
+
+  it('无活动配对 → 幂等 ok，不广播不踢除', async () => {
+    pairingRegistry.getActive.mockResolvedValue(null);
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be9', expertName: '测试专家' });
+    expect(await service.unpair('user-1', 'proj-1')).toEqual({ ok: true });
+    expect(gateway.notifyPairingRevoked).not.toHaveBeenCalled();
+    expect(gateway.kickPairingSockets).not.toHaveBeenCalled();
+  });
+});
 });
 
 describe('ExpertService P1-6 — 候补专家门控（SUBSTITUTE_EXPERT）', () => {

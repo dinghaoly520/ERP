@@ -46,7 +46,8 @@ export interface EvidenceAssetRow {
 /** 引用件来源行形状（与归档导出侧五源查询对齐） */
 export interface EvidenceRefSources {
   memoInks: Array<{ inkFileId: string | null }>;
-  experts: Array<{ signScanFileId: string | null; signInMeta: unknown }>;
+  /** transferPhotoAssetId 可选（2026-11-18 §五.1 追修）：配对留档照升格纸面证据后须进案卷——三端共用本源 */
+  experts: Array<{ signScanFileId: string | null; signInMeta: unknown; transferPhotoAssetId?: string | null }>;
   packet: { fileAssetId: string | null; signPageScanFileId: string | null; handoverFileAssetId: string | null } | null;
   clarifications: Array<{ fileAssetId: string | null; replyAttachmentIds: unknown }>;
   aiReport: { docxFileId: string | null; pdfFileId: string | null } | null;
@@ -60,6 +61,7 @@ export function extractEvidenceRefIds(sources: EvidenceRefSources): Set<string> 
     if (e.signScanFileId) ids.add(e.signScanFileId);
     const photoId = (e.signInMeta as { photoAssetId?: unknown } | null)?.photoAssetId; // 签到拍照留痕引用藏在 signInMeta 内
     if (typeof photoId === 'string') ids.add(photoId);
+    if (e.transferPhotoAssetId) ids.add(e.transferPhotoAssetId); // 配对留档照（§五.1 追修）：key 无项目 ID，走引用 id 取件
   });
   if (sources.packet) [sources.packet.fileAssetId, sources.packet.signPageScanFileId, sources.packet.handoverFileAssetId]
     .forEach((x: string | null) => x && ids.add(x));
@@ -85,7 +87,7 @@ export interface CollectedEvidence {
 export async function collectBidEvidenceAssets(prisma: PrismaService, bpId: string): Promise<CollectedEvidence> {
   const [memoInks, experts, packet, clarifications, aiTask] = await Promise.all([
     prisma.expertMemo.findMany({ where: { projectId: bpId }, select: { inkFileId: true } }),
-    prisma.bidExpert.findMany({ where: { projectId: bpId }, select: { signScanFileId: true, signInMeta: true } }),
+    prisma.bidExpert.findMany({ where: { projectId: bpId }, select: { signScanFileId: true, signInMeta: true, transferPhotoAssetId: true } }),
     prisma.bidSignPacket.findUnique({ where: { projectId: bpId }, select: { fileAssetId: true, signPageScanFileId: true, handoverFileAssetId: true } }),
     prisma.bidClarification.findMany({ where: { projectId: bpId }, select: { fileAssetId: true, replyAttachmentIds: true } }),
     prisma.aiBidAnalysisTask.findUnique({ where: { projectId: bpId }, select: { report: { select: { docxFileId: true, pdfFileId: true } } } }),

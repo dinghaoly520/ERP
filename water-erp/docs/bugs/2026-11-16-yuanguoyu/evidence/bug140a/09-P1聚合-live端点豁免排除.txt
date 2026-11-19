@@ -1,0 +1,15 @@
+bug#140a P1 聚合修复 · live-official-scores 端点实证（2026-11-18 浏览器会话内 fetch）
+
+构造态：HERO1 bs01 恢复 valid（DB 直改），杨睿+马岚均判资格性审查不通过（双豁免专家）；
+bs02 中科院双专家全量 92/92。
+
+GET /api/bid/projects/cmqhero-bid-proj01/live-official-scores →
+[
+  { 中科院: expertCount=2, averageScore=92, totalScore=184 },
+  { 四川水发: expertCount=0, averageScore=0, totalScore=0 }
+]
+
+修复前口径：四川水发 perExpert={杨睿:0(通过性记录), 马岚:0} → expertCount=2 幻影 0
+（5 专家场景下拖均分 + 提前触发去极值误剔真实极值，单测 aggregate-supplier-scores.spec 锁定）。
+修复后：豁免 (专家,供应商) 对整体不进聚合 → count=0。
+验毕已恢复 bs01=invalid（双 fail 2/2 过半废标的真实投票态）。

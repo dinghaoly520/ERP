@@ -25,6 +25,7 @@ import {
   listExpertMemosForAdmin,
   manualConfirmExpertVerification,
   confirmPairingPhotoExemption,
+  unpairTabletPairing,
   rejectExpertVerification,
   retractExpertVerification,
   unverifyExpertIdentity,
@@ -193,6 +194,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   // 闸4 阀门：解除专家登录锁定弹窗（换设备场景，理由必填留痕）
   const [releaseFor, setReleaseFor] = useState<{ id: string; expertName: string; onlineDevice?: { deviceClass: string; uaSummary: string; ip?: string | null; at?: string } | null } | null>(null);
   const [exemptFor, setExemptFor] = useState<{ id: string; expertName: string } | null>(null);
+  // TAB-SYNC-02 P2-4：主持端远程解绑平板（配对中专家；确认弹窗）
+  const [unpairFor, setUnpairFor] = useState<{ id: string; expertName: string; device?: string } | null>(null);
+  const [unpairBusy, setUnpairBusy] = useState(false);
   const [exemptReason, setExemptReason] = useState('');
   const [exemptBusy, setExemptBusy] = useState(false);
   const [releaseReason, setReleaseReason] = useState('');
@@ -409,6 +413,24 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       showToast(e?.message || '豁免失败，请重试', 'err');
     } finally {
       setExemptBusy(false);
+    }
+  };
+
+  // TAB-SYNC-02 P2-4：主持端远程解绑——平板即时收 pairing:revoked 断开/回配对页（P2-2）；
+  // scoped socket 服务端直接踢除。幂等：配对已过期也返回 ok。
+  const handleUnpairTablet = async () => {
+    if (!unpairFor || unpairBusy) return;
+    setUnpairBusy(true);
+    try {
+      await unpairTabletPairing(projectId, unpairFor.id);
+      showToast(`已解除 ${unpairFor.expertName} 的平板配对（已记入监督日志）`, 'ok');
+      setUnpairFor(null);
+      getExpertVerification(projectId).then(setVerification).catch(() => {});
+      onChanged?.();
+    } catch (e: any) {
+      showToast(e?.message || '解绑失败，请重试', 'err');
+    } finally {
+      setUnpairBusy(false);
     }
   };
 
@@ -1150,6 +1172,16 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       解锁登录
                     </button>
                   )}
+                  {row.tabletPaired && canHost && (
+                    <button
+                      type="button"
+                      onClick={() => setUnpairFor({ id: row.id, expertName: row.expertName, device: row.tabletPaired?.device?.uaSummary })}
+                      className="neu-btn-xs !text-[var(--warning)]"
+                      title="远程解除该专家的平板配对：平板即时断开回配对页，需桌面端重新出码（记入监督日志）"
+                    >
+                      解绑平板
+                    </button>
+                  )}
                   {row.transferPhotoPending && !row.transferPhotoExempted && stage === 'EVALUATING' && canHost && (
                     <button
                       type="button"
@@ -1860,6 +1892,35 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       )}
 
       {/* 闸4 阀门（2026-09-20 spec）：解除专家登录锁定（评标期间换设备） */}
+      {unpairFor && (
+        <div className="bid-overlay">
+          <div className="bid-overlay-backdrop" />
+          <div className="bid-dialog relative mx-4 w-full max-w-[440px]" role="dialog" aria-modal="true">
+            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+              <h2 className="text-sm font-semibold tracking-[-0.02em] text-[var(--foreground)]">解绑打分平板</h2>
+              <button type="button" onClick={() => setUnpairFor(null)} className="neu-btn-xs" aria-label="关闭"><X size={16} /></button>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="px-6 py-5">
+              <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
+                <span>解除专家「{unpairFor.expertName}」的平板配对：平板<span className="font-semibold text-[var(--warning)]">即时断开</span>并回到配对页，继续打分需专家在桌面端重新出码配对。</span>
+                <HelpTip text="操作将记入监督日志（操作人留痕）；已保存的平板评分草稿不受影响，桌面端可恢复。" className="mt-px shrink-0" />
+              </p>
+              <div className="flex items-center gap-2 rounded-[10px] bg-[oklch(0.975 0.012 258/0.7)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
+                <MonitorSmartphone size={13} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
+                <span>配对设备：{unpairFor.device || '未记录'}</span>
+              </div>
+            </div>
+            <hr className="wb-section-rule mx-6" />
+            <div className="flex justify-end gap-2 px-6 py-4">
+              <button type="button" onClick={() => setUnpairFor(null)} className="neu-btn-xs !h-8" disabled={unpairBusy}>取消</button>
+              <button type="button" onClick={() => void handleUnpairTablet()} disabled={unpairBusy} className="neu-btn-xs is-warning !h-8">
+                {unpairBusy ? '解绑中…' : '确认解绑'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {releaseFor && (
         <div className="bid-overlay">
           <div className="bid-overlay-backdrop" />

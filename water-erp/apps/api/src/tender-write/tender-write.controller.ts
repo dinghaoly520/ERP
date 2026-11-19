@@ -17,6 +17,7 @@ import { ImportAutofillDto } from './import-autofill.dto';
 import { AnnouncementImportAutofillDto } from './announcement-import-autofill.dto';
 import { TenderWriteService } from './tender-write.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { normalizeMultipartFilename } from '../common/filename-encoding.util';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @Roles('leader', 'admin', 'staff')
@@ -127,7 +128,7 @@ export class TenderWriteController {
       files.map((f) => ({
         buffer: f.buffer,
         // Multer encodes multipart filenames as Latin1; convert back to UTF-8
-        originalname: Buffer.from(f.originalname, 'latin1').toString('utf-8'),
+        originalname: normalizeMultipartFilename(f.originalname),
       })),
     );
   }
@@ -160,7 +161,7 @@ export class TenderWriteController {
       dto.tenderType,
       files.map((f) => ({
         buffer: f.buffer,
-        originalname: Buffer.from(f.originalname, 'latin1').toString('utf-8'),
+        originalname: normalizeMultipartFilename(f.originalname),
       })),
     );
   }
@@ -180,8 +181,8 @@ export class TenderWriteController {
 
     return this.tenderWriteService.importWinningBidFromBuffer(
       file.buffer,
-      // Multer encodes multipart filenames as Latin1; convert back to UTF-8
-      Buffer.from(file.originalname, 'latin1').toString('utf-8'),
+      // multipart 文件名 latin1 铁律：条件式安全版（§五.4-2 收口）
+      normalizeMultipartFilename(file.originalname),
     );
   }
 
@@ -200,7 +201,7 @@ export class TenderWriteController {
     }
 
     const originalName = file.originalname
-      ? Buffer.from(file.originalname, 'latin1').toString('utf-8')
+      ? normalizeMultipartFilename(file.originalname)
       : undefined;
     return this.tenderWriteService.extractNotificationDataFromBuffer(
       file.buffer,

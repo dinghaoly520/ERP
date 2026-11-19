@@ -1,296 +1,109 @@
 'use client';
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useTenderReview, useKnowledgeBaseOps } from './use-tender-review';
+import { useTenderReview } from './use-tender-review';
 import {
-  Database,
-  Plus,
-  ChevronRight,
-  Shield,
-  Trash2,
-  FileText,
-  Loader2,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Clock,
-  ArrowLeft,
 } from 'lucide-react';
-import { toast } from 'sonner';
-import type { KnowledgeBase } from '@/lib/types/tender-review';
+import type { ReviewTask } from '@/lib/types/tender-review';
 
-type PanelState = 'stats' | 'kb-list';
+/**
+ * 右侧统计侧栏（单态）：今日统计 + 进行中 + 最近审查。
+ * 2026-11-18 排版重做：统计改三行大数字（label 左/彩色圆点/数字右）取代三格横排，
+ * 全栏间距放宽；知识库列表管理在中心视图（hero 右上「知识库」入口）。
+ */
+export default function KbNavSidebar({ width = 384 }: { width?: number }) {
+  const { stats, recentReviews, setSelectedReportTask, setActiveTab } = useTenderReview();
+  const todayLabel = new Date().toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
 
-interface KbNavSidebarProps {
-  width?: number;
-}
-
-export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
-  const { knowledgeBases, selectedKbId, setSelectedKbId, setActiveTab, loading, stats, recentReviews, runningTasks, setSelectedReportTask, currentUser } = useTenderReview();
-  const { remove, create, update } = useKnowledgeBaseOps();
-  const [panelState, setPanelState] = useState<PanelState>('stats');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDesc, setNewDesc] = useState('');
-  const [newShared, setNewShared] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-  const selectedKb = knowledgeBases.find(kb => kb.id === selectedKbId);
-
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
-    setCreating(true);
-    try {
-      const kb = await create(newName.trim(), newDesc.trim() || undefined, newShared);
-      setSelectedKbId(kb.id);
-      setShowCreate(false);
-      setNewName('');
-      setNewDesc('');
-      setNewShared(false);
-    } catch (err) {
-      // Error already handled in hook
-      console.error('Create KB error:', err);
-    } finally {
-      setCreating(false);
-    }
+  // 记录按「今日 / 非今日」拆分（2026-11-19 用户裁定）：今日的挂在「今日审查」统计下方，
+  // 非今日的归「最近审查」小节；时间显示随之分化——今日只显 HH:mm，非今日带月日
+  const now = new Date();
+  const isToday = (iso: string) => {
+    const d = new Date(iso);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
   };
+  const todayReviews = recentReviews.filter((t) => isToday(t.createdAt));
+  const earlierReviews = recentReviews.filter((t) => !isToday(t.createdAt)).slice(0, 5);
 
-  const handleDeleteKb = async (kbId: string) => {
-    try {
-      await remove(kbId);
-      setDeleteConfirmId(null);
-    } catch (err) {
-      console.error('Delete KB error:', err);
-    }
-  };
-
-  const handleToggleShare = async (kb: KnowledgeBase) => {
-    try {
-      await update(kb.id, { isShared: !kb.isShared });
-    } catch {
-      // toast 已在 hook 内处理
-    }
-  };
-
-  const handleViewFiles = (kbId: string) => {
-    setSelectedKbId(kbId);
-    setActiveTab('files');
-  };
-
-  const handleViewRules = (kbId: string) => {
-    setSelectedKbId(kbId);
-    setActiveTab('rules');
-  };
-
-  // Stats view (default)
-  if (panelState === 'stats') {
-    return (
-      <div className="wb-panel h-full flex flex-col overflow-hidden"
-        style={{ width: `${width}px` }}>
-        <div className="p-3 shrink-0 border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">今日统计</h3>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-3 space-y-4">
-          <div className="space-y-2">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="neu-tile is-accent p-2.5 text-center">
-                <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--accent)]">{stats.totalReviews}</div>
-                <div className="text-[10px] tracking-[0.08em] text-[color:var(--foreground)] mt-1">审查数</div>
-              </div>
-              <div className="neu-tile is-success p-2.5 text-center">
-                <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--success)]">{stats.passedCount}</div>
-                <div className="text-[10px] tracking-[0.08em] text-[color:var(--success)]/80 mt-1">通过</div>
-              </div>
-              <div className="neu-tile is-danger p-2.5 text-center">
-                <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--danger)]">{stats.failedCount}</div>
-                <div className="text-[10px] tracking-[0.08em] text-[color:var(--danger)]/80 mt-1">违规</div>
-              </div>
-            </div>
-          </div>
-
-          {stats.warningCount > 0 && (
-            <div className="flex items-center gap-2 p-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)]">
-              <AlertTriangle className="h-4 w-4 text-[color:var(--warning)]" />
-              <span className="text-xs text-[color:var(--warning)]">{stats.warningCount} 个警告</span>
-            </div>
-          )}
-
-          {runningTasks.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">进行中</div>
-              {runningTasks.map((task) => (
-                <div key={task.id} className="flex items-center gap-2 p-2 rounded-[10px] bg-[color-mix(in_oklch,var(--accent-soft)_30%,transparent)]">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[color:var(--accent)]" />
-                  <span className="text-xs text-[color:var(--foreground)] truncate">{task.documentName}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--foreground)]">最近审查</div>
-            {recentReviews.length === 0 ? (
-              <div className="text-xs text-[color:var(--muted-foreground)] text-center py-4">
-                暂无审查记录
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {recentReviews.slice(0, 5).map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => {
-                      if (task.status === 'completed') {
-                        setSelectedReportTask(task);
-                        setActiveTab('reports');
-                      }
-                    }}
-                    disabled={task.status !== 'completed'}
-                    className={`w-full flex items-center gap-2 p-2 rounded-[8px] transition-colors ${
-                      task.status === 'completed'
-                        ? 'cursor-pointer hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
-                        : 'cursor-not-allowed opacity-60'
-                    }`}
-                  >
-                    {task.status === 'completed' ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--success)]" />
-                    ) : (
-                      <XCircle className="h-3.5 w-3.5 text-[color:var(--danger)]" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-[color:var(--foreground)] truncate">{task.documentName}</div>
-                      <div className="text-[10px] text-[color:var(--muted-foreground)] flex items-center gap-1">
-                        <Clock className="h-2.5 w-2.5" />
-                        {new Date(task.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="p-3 shrink-0 border-t border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
-          <button
-            onClick={() => setPanelState('kb-list')}
-            className="neu-btn-soft w-full flex items-center justify-center gap-2 !rounded-[14px] !h-[36px]"
-          >
-            <Database className="h-3.5 w-3.5" />
-            知识库
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // KB list view
   return (
-    <div className="wb-panel h-full flex flex-col overflow-hidden"
+    <div className="wb-panel rounded-[24px] tender-section-enter-delay-1 h-full flex flex-col overflow-hidden"
       style={{ width: `${width}px` }}>
-      <div className="p-3 shrink-0 border-b border-[color-mix(in_oklch,var(--muted-foreground)_16%,transparent)]">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setPanelState('stats')}
-            className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            返回统计
-          </button>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="p-1.5 rounded-lg text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] transition-colors"
-            title="新建知识库"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+      <div className="px-3.5 py-2.5 shrink-0" style={{ borderBottom: '1px solid oklch(0.6 0.04 258 / 0.16)' }}>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-[11px] font-semibold tracking-[0.06em] text-[color:var(--foreground)]">今日审查</h3>
+          <span className="text-[10px] tabular-nums text-[color:var(--muted-foreground)]">{todayLabel}</span>
         </div>
-
-        <AnimatePresence>
-          {showCreate && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-2 space-y-1.5"
-            >
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="知识库名称"
-                className="workbench-input w-full !h-[32px] !text-xs"
-              />
-              <textarea
-                value={newDesc}
-                onChange={(e) => setNewDesc(e.target.value)}
-                placeholder="描述（可选）"
-                rows={1}
-                className="neu-input w-full !min-h-[36px] !text-xs !p-1.5 resize-none"
-              />
-              <label className="flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)] cursor-pointer select-none">
-                <input type="checkbox" checked={newShared} onChange={(e) => setNewShared(e.target.checked)} className="h-3 w-3 accent-[var(--accent)]" />
-                共享给所有人（他人可使用、不可编辑）
-              </label>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={handleCreate}
-                  disabled={creating || !newName.trim()}
-                  className="neu-btn-primary flex-1 !rounded-[8px] !h-[30px] !text-xs"
-                >
-                  {creating ? '...' : '创建'}
-                </button>
-                <button
-                  onClick={() => setShowCreate(false)}
-                  className="rounded-[8px] px-2.5 py-1 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                >
-                  取消
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
-        {loading.kbs ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-[var(--accent)]" />
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* 今日统计：三格横排（2026-11-18 还原） */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="neu-tile is-accent p-2.5 text-center">
+            <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--accent)]">{stats.totalReviews}</div>
+            <div className="text-[10px] tracking-[0.08em] text-[color:var(--foreground)] mt-1">审查数</div>
           </div>
-        ) : knowledgeBases.length === 0 ? (
-          <div className="text-center py-8 text-[var(--muted-foreground)] text-xs">
-            <Database className="h-8 w-8 mx-auto mb-2 opacity-30" />
-            暂无知识库
+          <div className="neu-tile is-success p-2.5 text-center">
+            <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--success)]">{stats.passedCount}</div>
+            <div className="text-[10px] tracking-[0.08em] text-[color:var(--success)]/80 mt-1">通过</div>
           </div>
-        ) : (
-          <div className="space-y-1">
-            {knowledgeBases.map((kb) => (
-              <KbNavItem
-                key={kb.id}
-                kb={kb}
-                canEdit={kb.ownerId === currentUser?.id || currentUser?.role === 'admin'}
-                onToggleShare={() => handleToggleShare(kb)}
-                isSelected={selectedKbId === kb.id}
-                isExpanded={expandedIds.has(kb.id)}
-                deleteConfirm={deleteConfirmId === kb.id}
-                onToggleExpand={() => {
-                  const newSet = new Set(expandedIds);
-                  if (newSet.has(kb.id)) newSet.delete(kb.id);
-                  else {
-                    newSet.add(kb.id);
-                    setSelectedKbId(kb.id); // 同时选中
-                  }
-                  setExpandedIds(newSet);
-                }}
-                onViewFiles={() => handleViewFiles(kb.id)}
-                onViewRules={() => handleViewRules(kb.id)}
-                onDelete={() => setDeleteConfirmId(kb.id)}
-                onConfirmDelete={() => handleDeleteKb(kb.id)}
-                onCancelDelete={() => setDeleteConfirmId(null)}
+          <div className="neu-tile is-danger p-2.5 text-center">
+            <div className="text-[1.1rem] font-black tabular-nums tracking-[-0.04em] leading-none text-[color:var(--danger)]">{stats.failedCount}</div>
+            <div className="text-[10px] tracking-[0.08em] text-[color:var(--danger)]/80 mt-1">违规</div>
+          </div>
+        </div>
+
+        {stats.warningCount > 0 && (
+          <div className="mt-4 flex items-center gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3.5 py-2.5">
+            <AlertTriangle className="h-4 w-4 text-[color:var(--warning)]" />
+            <span className="text-xs text-[color:var(--warning)]">{stats.warningCount} 个警告</span>
+          </div>
+        )}
+
+        {/* 今日审查记录——挂在统计下方，只显 HH:mm（「今日」语义已由面板名表达） */}
+        {todayReviews.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {todayReviews.map((task) => (
+              <ReviewRecordButton
+                key={task.id}
+                task={task}
+                timeText={new Date(task.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                onSelect={setSelectedReportTask}
+                onOpenReports={() => setActiveTab('reports')}
               />
             ))}
+          </div>
+        )}
+
+        {/* 非今日记录——「最近审查」小节（无历史记录时整节隐藏） */}
+        {earlierReviews.length > 0 && (
+          <div className="mt-5">
+            <div
+              className="pb-2 text-[11px] font-semibold tracking-[0.06em] text-[color:var(--foreground)] border-b"
+              style={{ borderColor: 'oklch(0.6 0.04 258 / 0.16)' }}
+            >
+              最近审查
+            </div>
+            <div className="mt-2.5 space-y-2">
+              {earlierReviews.map((task) => (
+                <ReviewRecordButton
+                  key={task.id}
+                  task={task}
+                  timeText={new Date(task.createdAt).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  onSelect={setSelectedReportTask}
+                  onOpenReports={() => setActiveTab('reports')}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 全空兜底 */}
+        {todayReviews.length === 0 && earlierReviews.length === 0 && (
+          <div className="mt-4 text-xs text-[color:var(--muted-foreground)] text-center py-6">
+            暂无审查记录
           </div>
         )}
       </div>
@@ -298,116 +111,40 @@ export default function KbNavSidebar({ width = 384 }: KbNavSidebarProps) {
   );
 }
 
-interface KbNavItemProps {
-  kb: KnowledgeBase;
-  canEdit: boolean;
-  onToggleShare: () => void;
-  isSelected: boolean;
-  isExpanded: boolean;
-  deleteConfirm: boolean;
-  onToggleExpand: () => void;
-  onViewFiles: () => void;
-  onViewRules: () => void;
-  onDelete: () => void;
-  onConfirmDelete: () => void;
-  onCancelDelete: () => void;
-}
-
-function KbNavItem({
-  kb,
-  canEdit,
-  onToggleShare,
-  isSelected,
-  isExpanded,
-  deleteConfirm,
-  onToggleExpand,
-  onViewFiles,
-  onViewRules,
-  onDelete,
-  onConfirmDelete,
-  onCancelDelete
-}: KbNavItemProps) {
+/** 审查记录行（今日/最近两节共用）：完成态可点进报告，失败/进行中态置灰 */
+function ReviewRecordButton({ task, timeText, onSelect, onOpenReports }: {
+  task: ReviewTask;
+  timeText: string;
+  onSelect: (task: ReviewTask) => void;
+  onOpenReports: () => void;
+}) {
   return (
-    <div className={`rounded-[10px] overflow-hidden ${isSelected ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] ring-1 ring-[color-mix(in_oklch,var(--accent)_28%,transparent)]' : ''}`}>
-      <button
-        onClick={onToggleExpand}
-        className="w-full flex items-center gap-2 px-2.5 py-2 text-left hover:bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] transition-colors"
-      >
-        <Database className={`h-4 w-4 shrink-0 ${isSelected ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)]'}`} />
-        <div className="min-w-0 flex-1">
-          <span className={`text-xs truncate block ${isSelected ? 'text-[var(--foreground)] font-medium' : 'text-[var(--foreground)]'}`}>
-            {kb.name}
-            {kb.isShared && <span className="ml-1 inline-block px-1 py-px rounded-full text-[9px] bg-[color-mix(in_oklch,var(--accent)_15%,transparent)] text-[var(--accent)] align-middle">共享</span>}
-          </span>
-          <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-[var(--muted-foreground)]">
-            <span>{kb._count.files} 文件</span>
-            <span>{kb._count.rules} 规则</span>
-          </div>
+    <button
+      onClick={() => {
+        if (task.status === 'completed') {
+          onSelect(task);
+          onOpenReports();
+        }
+      }}
+      disabled={task.status !== 'completed'}
+      className={`w-full flex items-center gap-2.5 p-2.5 rounded-[10px] transition-colors ${
+        task.status === 'completed'
+          ? 'cursor-pointer hover:bg-[color-mix(in_oklch,var(--muted)_25%,transparent)]'
+          : 'cursor-not-allowed opacity-60'
+      }`}
+    >
+      {task.status === 'completed' ? (
+        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[color:var(--success)]" />
+      ) : (
+        <XCircle className="h-3.5 w-3.5 shrink-0 text-[color:var(--danger)]" />
+      )}
+      <div className="flex-1 min-w-0 text-left">
+        <div className="text-xs text-[color:var(--foreground)] truncate">{task.documentName}</div>
+        <div className="mt-0.5 text-[10px] text-[color:var(--muted-foreground)] flex items-center gap-1">
+          <Clock className="h-2.5 w-2.5" />
+          {timeText}
         </div>
-        <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)] transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-      </button>
-
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="px-2.5 pb-2 space-y-1"
-          >
-            {canEdit ? (
-              <>
-                <button
-                  onClick={onToggleShare}
-                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium transition-colors
-                    bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_22%,transparent)]"
-                >
-                  {kb.isShared ? '取消共享' : '设为共享'}
-                </button>
-                <button
-                  onClick={onViewFiles}
-                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                    bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[var(--accent)] hover:bg-[color-mix(in_oklch,var(--accent)_18%,transparent)] transition-colors"
-                >
-                  <FileText className="h-3 w-3" />
-                  文件管理
-                </button>
-                <button
-                  onClick={onViewRules}
-                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                    bg-[color-mix(in_oklch,var(--muted)_20%,transparent)] text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)] hover:bg-[color-mix(in_oklch,var(--muted)_35%,transparent)] transition-colors"
-                >
-                  <Shield className="h-3 w-3" />
-                  规则管理
-                </button>
-                <button
-                  onClick={onDelete}
-                  className="flex items-center justify-center gap-1.5 w-full rounded-[8px] px-2.5 py-1.5 text-xs font-medium
-                    bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] transition-colors"
-                >
-                  <Trash2 className="h-3 w-3" />
-                  删除知识库
-                </button>
-              </>
-            ) : (
-              <div className="text-center text-[10px] text-[var(--muted-foreground)] py-1.5">只读 · 他人共享的知识库</div>
-            )}
-            {deleteConfirm && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col gap-2 p-3 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] mt-2"
-              >
-                <span className="text-sm font-medium text-[var(--danger)] text-center">确定删除？</span>
-                <div className="flex gap-2">
-                  <button onClick={onConfirmDelete} className="neu-btn-soft is-danger flex-1 !rounded-[8px] !h-[32px] !text-xs">确认</button>
-                  <button onClick={onCancelDelete} className="neu-btn-soft flex-1 !rounded-[8px] !h-[32px] !text-xs">取消</button>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+      </div>
+    </button>
   );
 }

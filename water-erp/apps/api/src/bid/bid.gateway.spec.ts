@@ -613,3 +613,185 @@ describe('BidGateway 专家连接表与复议定向推送（B1，2026-11-12）',
     expect(emitted.map(e => e.room)).toEqual(['host:p1']);
   });
 });
+
+// ── TAB-SYNC-02 P2-1：WS join 层 scoped pid 绑定闸（HTTP 面 PAIRING_PROJECT_MISMATCH 的镜像）──
+
+describe('BidGateway join 层平板配对 pid 绑定（TAB-SYNC-02 P2-1）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
+  } as any;
+
+  function makeGateway(registry?: any) {
+    return new BidGateway({} as any, prismaMock, registry);
+  }
+
+  it('scoped（pairingPid=p1）join 非绑定项目 p2 → PAIRING_PROJECT_MISMATCH、不进任何房、不登记连接表', async () => {
+    const gw = makeGateway();
+    prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'be1', projectId: 'p2', userId: 'u-exp' });
+    const joined: string[] = [];
+    const client = { id: 'sock-tab', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p2')).toEqual({ error: 'PAIRING_PROJECT_MISMATCH' });
+    expect(joined).toEqual([]);
+    expect(gw['expertSockets'].get('be1')).toBeUndefined(); // 闸在指派查询后、登记前——不得留半登记
+  });
+
+  it('scoped join 绑定项目 p1（本人被指派、配对存活）→ 正常进房 ok', async () => {
+    const gw = makeGateway({ isAlive: jest.fn().mockResolvedValue(true) });
+    prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'be1', projectId: 'p1', userId: 'u-exp' });
+    const joined: string[] = [];
+    const client = { id: 'sock-tab2', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1', pairingJti: 'j1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(['project:p1', 'experts:p1']);
+  });
+
+  it('全量令牌专家（无 pairingPid）join 任意被指派项目不受新闸影响', async () => {
+    const gw = makeGateway();
+    prismaMock.bidExpert.findFirst.mockResolvedValue({ id: 'be2', projectId: 'p9', userId: 'u-full' });
+    const joined: string[] = [];
+    const client = { id: 'sock-full', data: { role: 'bid_expert', userId: 'u-full' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p9')).toEqual({ ok: true });
+    expect(joined).toEqual(['project:p9', 'experts:p9']);
+  });
+});
+
+// ── TAB-SYNC-02 P2-2：吊销即时断连——广播 + scoped socket 踢除 ──
+
+describe('BidGateway join 层配对存活复查（T8 审查 Important）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn().mockResolvedValue({ id: 'be1', projectId: 'p1', userId: 'u-exp' }) },
+  } as any;
+
+  function makeGateway(registry?: any) {
+    return new BidGateway({} as any, prismaMock, registry);
+  }
+
+  it('scoped socket join 时配对已被吊销 → PAIRING_REVOKED，不进房不登记（leave→rejoin 回流封死）', async () => {
+    const registry = { isAlive: jest.fn().mockResolvedValue(false) };
+    const gw = makeGateway(registry);
+    const joined: string[] = [];
+    const client = { id: 'sock-t', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ error: 'PAIRING_REVOKED' });
+    expect(joined).toEqual([]);
+    expect(gw['expertSockets'].get('be1')).toBeUndefined();
+  });
+
+  it('scoped socket join 时配对存活 → 正常进房', async () => {
+    const registry = { isAlive: jest.fn().mockResolvedValue(true) };
+    const gw = makeGateway(registry);
+    const joined: string[] = [];
+    const client = { id: 'sock-t2', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(client, 'p1')).toEqual({ ok: true });
+    expect(joined).toEqual(['project:p1', 'experts:p1']);
+  });
+
+  it('registry 缺失（fail closed）→ scoped join 拒绝；全量专家不受复查影响', async () => {
+    const gw = makeGateway(undefined);
+    const joined: string[] = [];
+    const scoped = { id: 'sock-t3', data: { role: 'bid_expert', userId: 'u-exp', pairingPid: 'p1' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(scoped, 'p1')).toEqual({ error: 'PAIRING_REVOKED' });
+    const full = { id: 'sock-f', data: { role: 'bid_expert', userId: 'u-exp' }, join: (r: string) => joined.push(r) } as any;
+    expect(await gw.handleJoinProject(full, 'p1')).toEqual({ ok: true }); // 全量令牌无 pairingPid 不查
+  });
+});
+
+describe('BidGateway 吊销即时断连（TAB-SYNC-02 P2-2）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
+  } as any;
+
+  function makeGateway() {
+    return new BidGateway({} as any, prismaMock);
+  }
+
+  it('notifyPairingRevoked → 向 project 房发 pairing:revoked {projectId, expertId}', () => {
+    const gw = makeGateway();
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = { to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }) } as any;
+    gw.notifyPairingRevoked('p1', 'be1');
+    // 终审 F2：改投 experts 房（§4.3 供应商不可见——project 房有投标供应商）
+    expect(emitted).toEqual([{ room: 'experts:p1', event: 'pairing:revoked', payload: { projectId: 'p1', expertId: 'be1' } }]);
+  });
+
+  it('kickPairingSockets → 仅踢 pairingPid 有值的 scoped 连接，全量连接不动', () => {
+    const gw = makeGateway();
+    const scopedSock = { data: { pairingPid: 'p1' }, disconnect: jest.fn() };
+    const fullSock = { data: {}, disconnect: jest.fn() };
+    // 真实运行时形状：网关是 namespace:'bid' 命名空间网关，注入的 server 是 Namespace，
+    // 其 .sockets 直接就是 Map<SocketId, Socket>（T8 审查 Critical：旧测试伪造
+    // sockets.sockets.get 三层结构——镜像了错误心智模型，放过了 no-op 实现）
+    const sockets = new Map([['sid-scoped', scopedSock], ['sid-full', fullSock]]);
+    gw.server = { sockets } as any;
+    gw['expertSockets'].set('be1', new Set(['sid-scoped', 'sid-full']));
+    gw.kickPairingSockets('be1');
+    expect(scopedSock.disconnect).toHaveBeenCalledWith(true);
+    expect(fullSock.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('kickPairingSockets → 无登记（空 Map/未 join）幂等不炸', () => {
+    const gw = makeGateway();
+    expect(() => gw.kickPairingSockets('nobody')).not.toThrow();
+  });
+});
+
+// ── TAB-SYNC-02 P2-3：配对在线徽章——presence 跟踪与翻转广播 ──
+
+describe('BidGateway 配对在线跟踪（TAB-SYNC-02 P2-3）', () => {
+  const prismaMock = {
+    bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    user: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidExpert: { findMany: jest.fn(), findFirst: jest.fn() },
+  } as any;
+
+  function makeGateway(jwtPayload?: Record<string, unknown>) {
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue(jwtPayload ?? {}) };
+    return new BidGateway(jwt as any, prismaMock, { isAlive: jest.fn().mockResolvedValue(true) } as any);
+  }
+
+  it('isPairingOnline：无跟踪 → false；scoped 连接建立（handleConnection）→ true；断开 → false', async () => {
+    const gw = makeGateway({ sub: 'u1', role: 'bid_expert', scope: 'tablet-pairing', jti: 'j1', pid: 'p1', eid: 'be1' });
+    const emitted: Array<{ room: string; event: string; payload: any }> = [];
+    gw.server = {
+      to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }),
+      sockets: new Map(),
+    } as any;
+    expect(gw.isPairingOnline('be1')).toBe(false);
+
+    const sock = { id: 'sock-p1', data: {}, handshake: { headers: { cookie: 'token_expert=exp-jwt', 'x-portal': 'expert' }, query: {} }, disconnect: jest.fn() } as any;
+    await gw.handleConnection(sock);
+    expect(gw.isPairingOnline('be1')).toBe(true);
+    // 0→1 翻转广播 pairing:presence online=true 至项目房
+    expect(emitted).toContainEqual({ room: 'experts:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: true } });
+
+    gw.handleDisconnect(sock);
+    expect(gw.isPairingOnline('be1')).toBe(false);
+    expect(emitted).toContainEqual({ room: 'experts:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: false } });
+  });
+
+  it('同专家多 scoped 连接：任一在线即 online=true，末连接断开才翻 false（不抖动）', async () => {
+    const gw = makeGateway({ sub: 'u1', role: 'bid_expert', scope: 'tablet-pairing', jti: 'j1', pid: 'p1', eid: 'be1' });
+    const emitted: Array<any> = [];
+    gw.server = {
+      to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push(payload) }),
+      sockets: new Map(),
+    } as any;
+    const mkSock = (id: string) => ({ id, data: {}, handshake: { headers: { cookie: 'token_expert=exp-jwt', 'x-portal': 'expert' }, query: {} }, disconnect: jest.fn() } as any);
+    const s1 = mkSock('sock-a');
+    const s2 = mkSock('sock-b');
+    await gw.handleConnection(s1);
+    await gw.handleConnection(s2);
+    expect(gw.isPairingOnline('be1')).toBe(true);
+    gw.handleDisconnect(s1);
+    expect(gw.isPairingOnline('be1')).toBe(true); // 仍在线——无翻转广播
+    const onlineFlips = emitted.filter(p => p.online === false);
+    expect(onlineFlips).toHaveLength(0);
+    gw.handleDisconnect(s2);
+    expect(gw.isPairingOnline('be1')).toBe(false);
+    expect(emitted.filter(p => p.online === false)).toHaveLength(1);
+  });
+});

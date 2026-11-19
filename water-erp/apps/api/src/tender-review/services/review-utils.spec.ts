@@ -1,4 +1,21 @@
-import { pickManualCommentAnchor } from './review-utils';
+import { decodeFileName, pickManualCommentAnchor } from './review-utils';
+
+/** §五.4-2（2026-11-18）：decodeFileName 已委身 multipart 铁律 util（条件式安全版）——
+ *  钉住与旧无条件版的分叉点：正确 UTF-8 名透传（旧版毁成 '???'+扩展名）。 */
+describe('decodeFileName（multipart 文件名归一化）', () => {
+  it('mojibake 名（latin1 误读形态）→ 还原 UTF-8', () => {
+    const mojibake = Buffer.from('技术要求.docx', 'utf8').toString('latin1');
+    expect(decodeFileName(mojibake)).toBe('技术要求.docx');
+  });
+
+  it('正确 UTF-8 名（filename* 扩展参数来源）→ 原样透传（旧无条件版毁成 ???）', () => {
+    expect(decodeFileName('技术要求.docx')).toBe('技术要求.docx');
+  });
+
+  it('纯 ASCII 名 → 原样透传', () => {
+    expect(decodeFileName('tender-v2.pdf')).toBe('tender-v2.pdf');
+  });
+});
 
 describe('pickManualCommentAnchor', () => {
   it('prefers documentLocation.excerpt when available (most reliable source)', () => {

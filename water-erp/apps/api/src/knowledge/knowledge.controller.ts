@@ -23,6 +23,7 @@ import {
   UpdateKnowledgeBaseDto,
 } from './dto/knowledge.dto';
 import { Roles } from '../common/decorators/roles.decorator';
+import { normalizeMultipartFilename } from '../common/filename-encoding.util';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
@@ -106,11 +107,10 @@ export class KnowledgeController {
         '未找到上传文件，请确保使用 multipart/form-data 格式且文件字段名为 file',
       );
     }
-    // Fix multer Latin-1 encoding for Chinese filenames
+    // multipart 文件名 latin1 铁律（2026-11-13）：条件式安全版——无条件 latin1→utf8 会
+    // 二次毁伤 filename* 扩展参数来的正确 UTF-8 名（§五.4-2 收口，与全库 multipart 端点对齐）
     if (file.originalname) {
-      file.originalname = Buffer.from(file.originalname, 'latin1').toString(
-        'utf-8',
-      );
+      file.originalname = normalizeMultipartFilename(file.originalname);
     }
     return this.knowledge.uploadFile(id, file, user);
   }
