@@ -70,6 +70,12 @@ describe('collectExpertFacts：lifecycleState 池外优先（E5）', () => {
     expect(prompt.user).not.toContain('正在评标');
   });
 
+  it('RETIRED+停用并存（退库正门 :2479 的唯一生产形态）→ 已退库优先（锁序：停用先判会让生产退库专家翻成「已停用」并与 E2 徽标跨端漂移）', async () => {
+    const facts = await collectExpertFacts(makePrisma({ entryStatus: 'RETIRED', availability: '停用' }), 'u1');
+    expect(facts!.lifecycleState).toBe('已退库');
+    expect(buildEvaluationPrompt(facts!).user).toContain('当前状态：已退库');
+  });
+
   it('停用-ACTIVE（临时需求方代表）+ 在途行 → 已停用', async () => {
     const facts = await collectExpertFacts(makePrisma({ availability: '停用' }), 'u1');
     expect(facts!.lifecycleState).toBe('已停用');
