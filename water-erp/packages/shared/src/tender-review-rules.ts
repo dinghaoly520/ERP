@@ -3,11 +3,9 @@
  *  加值漏改任一侧即复发「选项表静默改写」类缺陷（select 的 defaultValue 落空
  *  时浏览器回显首项，用户不碰也会被改写）。 */
 
-/** 检查对象封闭枚举（对应抽取提示词 checkTarget 白名单） */
-export const RULE_CHECK_TARGETS = [
-  '采购公告', '招标文件', '投标文件', '合同', '评标报告',
-  '采购文件', '立项文件', '归档文件', '变更书面材料', '全部',
-] as const;
+/** 检查对象（checkTarget）已砍（2026-11-19 用户裁定）：登记性元数据零消费——
+ *  审查执行/规则列表/报告三面均不读，LLM 判定与表单下拉徒增噪音；DB 列 NOT NULL
+ *  无默认暂留（写入点兜底 '全部'），删列待安全 schema 窗口。 */
 
 /** 数值比较单位全集（value=入库值，label=表单展示） */
 export const RULE_UNITS: ReadonlyArray<{ value: string; label: string }> = [

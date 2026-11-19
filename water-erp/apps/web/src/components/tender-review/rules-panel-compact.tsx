@@ -11,7 +11,6 @@ import {
 import { toast } from 'sonner';
 import { ApiError } from '@water-erp/client';
 import {
-  RULE_CHECK_TARGETS,
   RULE_UNITS,
   RULE_OPERATORS,
   RULE_SEVERITIES,
@@ -39,7 +38,6 @@ const CHECK_TYPE_LABELS: Record<string, string> = {
 interface RuleDraft {
   name: string;
   severity: string;
-  checkTarget: string;
   ruleType: RuleType;
   logic: {
     field?: string;
@@ -59,7 +57,6 @@ function draftFromRule(rule: ComplianceRule): RuleDraft {
   return {
     name: rule.name,
     severity: rule.severity,
-    checkTarget: rule.checkTarget,
     ruleType: rule.ruleType,
     logic: {
       field: str(logic.field),
@@ -78,7 +75,6 @@ function emptyDraft(): RuleDraft {
   return {
     name: '',
     severity: 'warning',
-    checkTarget: '全部',
     ruleType: 'semantic',
     logic: {
       field: '',
@@ -164,9 +160,9 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
         })()
       )}
 
-      {/* 属性区：名称通栏 + 三枚举一行（lg 宽度三列各 ~210px，短值枚举正好；
-          一行放下同时压缩弹窗高度——旧「两列+类型通栏」多占一整行） */}
-      <div className="grid grid-cols-3 gap-x-3 gap-y-2.5">
+      {/* 属性区：名称通栏 + 两枚举一行（检查对象已砍 2026-11-19：登记性元数据
+          零消费——执行/列表/报告三面均不读；grid 由三列收两列） */}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
         <div className="col-span-3">
           <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则名称{isCreate ? ' *' : ''}</label>
           <input
@@ -188,18 +184,6 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
           >
             {opts(RULE_SEVERITIES, draft.severity).map((v) => (
               <option key={v} value={v}>{(SEVERITY_LABELS as Record<string, string>)[v] ?? v}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查对象</label>
-          <select
-            value={draft.checkTarget}
-            onChange={(e) => patch({ checkTarget: e.target.value })}
-            className="workbench-input w-full"
-          >
-            {opts(RULE_CHECK_TARGETS, draft.checkTarget).map((t) => (
-              <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
@@ -497,7 +481,6 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
       const updated = await updateRule(editingRule.id, {
         name,
         severity: editingDraft.severity as Severity,
-        checkTarget: editingDraft.checkTarget,
         ruleType: editingDraft.ruleType,
         logicExpression,
       });
@@ -524,7 +507,6 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
         source: '手动创建',
         name,
         ruleType: createDraft.ruleType,
-        checkTarget: createDraft.checkTarget,
         logicExpression,
         severity: createDraft.severity as Severity,
       });

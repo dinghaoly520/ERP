@@ -3,15 +3,15 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../local-ai/llm.service';
 import { ClauseParserService, Clause } from './clause-parser.service';
 import {
-  RULE_CHECK_TARGETS,
   RULE_UNITS,
   RULE_SEVERITIES,
 } from '@water-erp/shared';
 
 /** 枚举段自 @water-erp/shared 单源注入（2026-11-19 审查 #13）：提示词/后端归一/
- *  前端表单三处同源，加值只改 shared 一处，漏改即「选项表静默改写」复发 */
+ *  前端表单三处同源，加值只改 shared 一处，漏改即「选项表静默改写」复发
+ *  checkTarget（检查对象）已砍（2026-11-19 用户裁定）：登记性元数据零消费——
+ *  执行/列表/报告三面均不读，LLM 判定纯属浪费 token */
 const UNIT_ENUM_LINE = RULE_UNITS.map((u) => `"${u.value}"(${u.label})`).join(', ');
-const CHECK_TARGET_ENUM_LINE = RULE_CHECK_TARGETS.map((t) => `"${t}"`).join('、');
 
 const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的任务是从采购管理制度条款中提取可自动检查的结构化规则。
 
@@ -21,7 +21,6 @@ const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的�
 - "source": 条款来源编号，如 "第十九条"、"一、总体要求"、"第三部分"。如果输入的条款标签是"段落N"或"第N部分"，source 填写该标签原文。不要编造不存在的条款编号。
 - "name": 规则简述，一句话描述检查内容
 - "ruleType": 必须是以下三者之一："numeric_compare"、"existence_check"、"semantic"
-- "checkTarget": 检查对象，如 "采购公告"、"投标文件"、"合同"、"评标报告"、"采购文件"、"全部"
 - "logicExpression": 规则逻辑对象
   - numeric_compare 类型: { "field": "字段名", "operator": ">="或"<="或">"或"<"或"=="或"!=", "threshold": 数值, "unit": 单位代码 }
     unit 可选值: ${UNIT_ENUM_LINE}
@@ -34,13 +33,12 @@ const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的�
 - 不要遗漏任何可检查的规则，包括隐含的合规要求（如"应当公开招标"、"不得分包"等）
 - 当条款包含数字+单位（如"30日"、"50万"、"3家"）时，优先使用 numeric_compare 而非 semantic
 - 当条款包含"应当提供"/"必须包含"/"不得缺少"等存在性要求时，优先使用 existence_check 而非 semantic
-- checkTarget 只能使用以下值之一：${CHECK_TARGET_ENUM_LINE}
 - 对于确实无法归入 numeric_compare 或 existence_check 的规则才使用 semantic 类型
 - 一条条款可能包含多条规则，请全部提取
 - source 必须直接使用输入中 [标签] 的内容，不要推测或改写
 
 示例输出：
-[{"source":"第五条","name":"采购金额50万以上必须竞标","ruleType":"numeric_compare","checkTarget":"采购文件","logicExpression":{"field":"budgetAmount","operator":">=","threshold":500000,"unit":"cny"},"severity":"critical"}]
+[{"source":"第五条","name":"采购金额50万以上必须竞标","ruleType":"numeric_compare","logicExpression":{"field":"budgetAmount","operator":">=","threshold":500000,"unit":"cny"},"severity":"critical"}]
 
 请以 JSON 格式输出，不要包含 markdown 代码块标记。`;
 
@@ -525,7 +523,8 @@ export class RuleExtractorService {
         source: `${normalized.source}（${fileName}）`,
         name: normalized.name,
         ruleType: normalized.ruleType,
-        checkTarget: normalized.checkTarget,
+        // 列 NOT NULL 无默认（schema 待安全窗口再删列）——字段已砍，落库兜底
+        checkTarget: '全部',
         logicExpression: normalized.logicExpression,
         severity: normalized.severity,
       });
@@ -566,7 +565,6 @@ export class RuleExtractorService {
     source: string;
     name: string;
     ruleType: string;
-    checkTarget: string;
     logicExpression: any;
     severity: string;
   } | null {
@@ -575,13 +573,6 @@ export class RuleExtractorService {
     let ruleType = rule.ruleType ?? rule.rule_type ?? rule.type ?? '';
     // 枚举收口（2026-11-19 审查 #6/#13）：LLM 词汇漂移不入库——漂移值落库后
     // 编辑表单回显首项（如 severity 漂移值被强转 critical=升权重）、保存即静默改写
-    const rawCheckTarget =
-      rule.checkTarget ?? rule.check_target ?? rule.检查对象 ?? '全部';
-    const checkTarget = (RULE_CHECK_TARGETS as readonly string[]).includes(
-      rawCheckTarget,
-    )
-      ? rawCheckTarget
-      : '全部';
     const rawSeverity = rule.severity ?? 'warning';
     const severity = (RULE_SEVERITIES as readonly string[]).includes(rawSeverity)
       ? rawSeverity
@@ -617,6 +608,6 @@ export class RuleExtractorService {
       (logic as any).unit = 'none';
     }
 
-    return { source, name, ruleType, checkTarget, logicExpression: logic, severity };
+    return { source, name, ruleType, logicExpression: logic, severity };
   }
 }

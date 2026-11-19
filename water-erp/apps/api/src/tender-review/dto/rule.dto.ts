@@ -26,10 +26,6 @@ export class CreateRuleDto {
   ruleType: 'numeric_compare' | 'existence_check' | 'semantic';
 
   @ApiProperty()
-  @IsString()
-  checkTarget: string;
-
-  @ApiProperty()
   @IsObject()
   logicExpression: Record<string, unknown>;
 

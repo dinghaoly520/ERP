@@ -344,7 +344,9 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   ) {
     await this.assertKbEditable(dto.knowledgeBaseId, user);
     return this.prisma.complianceRule.create({
-      data: this.coerceRuleSeverity(dto) as any,
+      // checkTarget 已砍（2026-11-19 用户裁定，登记性元数据零消费）；列 NOT NULL
+      // 无默认（删列待安全 schema 窗口）——创建路径落库兜底，更新路径不动存量值
+      data: { ...this.coerceRuleSeverity(dto), checkTarget: '全部' } as any,
     });
   }
 

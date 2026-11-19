@@ -40,7 +40,6 @@ export interface ComplianceRule {
   source: string;
   name: string;
   ruleType: 'numeric_compare' | 'existence_check' | 'semantic';
-  checkTarget: string;
   logicExpression: Record<string, unknown>;
   severity: 'critical' | 'warning' | 'info';
   isActive: boolean;
