@@ -196,3 +196,14 @@ it('search：limit>60 带状态过滤 → take 不被 60 硬顶（a 修复：min
   await tool.execute({ action: 'search', availability: '空闲', limit: 80 }, ADMIN);
   expect(prisma.expertProfile.findMany.mock.calls[0][0].take).toBe(80);
 });
+
+it('search：limit 为负数（LLM 畸形输入）→ 兜底为 1 而非穿透 slice(0,负数) 截尾成空表（终评低置信#1）', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { id: 'e2', specialty: '地质', title: null, employer: '局机关', user: { displayName: '王五', bidExperts: [] } },
+  ]);
+  const r = await tool.execute({ action: 'search', limit: -5 }, ADMIN);
+  expect(prisma.expertProfile.findMany.mock.calls[0][0].take).toBe(1); // 旧代码 take=-5（Prisma 负 take=取末行）
+  const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
+  expect(rows).toHaveLength(1); // 新代码曾 slice(0,-5) 截尾成空表——兜底后不再丢行
+});

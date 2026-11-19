@@ -15,7 +15,9 @@ export class ExpertTool implements AssistantTool {
   async execute(args: Record<string, unknown> = {}, ctx?: AssistantToolCtx): Promise<ToolResult> {
     const action = (args.action as string) || 'stats';
     const specialty = args.specialty as string | undefined;
-    const limit = (args.limit as number) || 10;
+    // 负数兜底（终评低置信#1）：|| 10 只兜 NaN/0/undefined，负数会穿透 take/slice
+    //（slice(0,-5) 截尾成空表）——Math.max(1,…) 一行封死畸形输入
+    const limit = Math.max(1, (args.limit as number) || 10);
     // 专家归属不在 ExpertProfile 本表，落 User.companyId（2026-09-24）——过滤经 user 关系嵌套
     const companyWhere = toolCompanyWhere(ctx);
 
