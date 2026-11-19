@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
-import { deriveBusyCounts, busyStateOf, IN_FLIGHT_STAGES, BusyStateLabel } from '../../expert/expert-busy-state.util';
+import { deriveBusyCounts, busyStateOf, lifecycleStateOf, IN_FLIGHT_STAGES, BusyStateLabel } from '../../expert/expert-busy-state.util';
 
 @Injectable()
 export class ExpertTool implements AssistantTool {
@@ -52,6 +52,8 @@ export class ExpertTool implements AssistantTool {
         select: {
           id: true, specialty: true, title: true,
           employer: true,
+          // E7（2026-11-19）：池外优先判定用（lifecycleStateOf——停用/退库档案不冒充四态）
+          availability: true, entryStatus: true,
           user: {
             select: {
               displayName: true,
@@ -64,7 +66,9 @@ export class ExpertTool implements AssistantTool {
           },
         },
       });
-      const enriched = experts.map((e) => ({ e, state: busyStateOf(e.user?.bidExperts ?? []) }));
+      // E7：状态=lifecycleStateOf（已退库＞已停用＞四态）——停用临时代表不再冒充「已被抽取」；
+      // stateFilter 同按 lifecycle 比较（停用/退库档案永不算「空闲」命中）
+      const enriched = experts.map((e) => ({ e, state: lifecycleStateOf(e, e.user?.bidExperts ?? []) }));
       const shown = (stateFilter ? enriched.filter((x) => x.state === stateFilter) : enriched).slice(0, limit);
       // b 修复：带状态过滤时 N 是放大 take 窗内幸存数、非全库匹配总数——标题明示「前 N 名」，
       // 防 LLM 据此断言「全库只有 N 名空闲」
@@ -254,6 +258,8 @@ export class ExpertTool implements AssistantTool {
       select: {
         id: true, specialty: true, title: true,
         employer: true,
+        // E7（2026-11-19）：池外优先判定用（lifecycleStateOf）
+        availability: true, entryStatus: true,
         user: {
           select: {
             displayName: true,
@@ -266,13 +272,14 @@ export class ExpertTool implements AssistantTool {
         },
       },
     });
-    // data 面显式投影（不外泄嵌套 bidExperts 原始行给第二轮 LLM）；状态=四态派生（2026-11-19 ⑵收口）
+    // data 面显式投影（不外泄嵌套 bidExperts 原始行给第二轮 LLM）；状态=lifecycleStateOf
+    //（E7：已退库＞已停用＞四态——停用临时代表不再冒充「已被抽取」）
     const projected = experts.map((e) => ({
       name: e.user?.displayName ?? '-',
       specialty: e.specialty,
       title: e.title ?? '-',
       employer: e.employer ?? '-',
-      state: busyStateOf(e.user?.bidExperts ?? []),
+      state: lifecycleStateOf(e, e.user?.bidExperts ?? []),
     }));
     return {
       success: true,

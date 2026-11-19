@@ -207,3 +207,37 @@ it('search：limit 为负数（LLM 畸形输入）→ 兜底为 1 而非穿透 s
   const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
   expect(rows).toHaveLength(1); // 新代码曾 slice(0,-5) 截尾成空表——兜底后不再丢行
 });
+
+it('E7：停用-ACTIVE 档案（临时需求代表等）+ 在途绑定 → list 状态列「已停用」（不冒充已被抽取）', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { id: 'e1', specialty: '综合', title: null, employer: '项目部', availability: '停用', entryStatus: 'ACTIVE', user: { displayName: '临时代表甲', bidExperts: [{ expertRole: '正选', project: { stage: 'SUBMIT' } }] } },
+    { id: 'e2', specialty: '水文', title: '高工', employer: '设计院', availability: '可用', entryStatus: 'ACTIVE', user: { displayName: '在职乙', bidExperts: [{ expertRole: '正选', project: { stage: 'SUBMIT' } }] } },
+  ]);
+  const r = await tool.execute({ action: 'list' }, ADMIN);
+  const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
+  expect(rows[0]).toMatchObject({ name: '临时代表甲', state: '已停用' });
+  expect(rows[1]).toMatchObject({ name: '在职乙', state: '已被抽取' });
+});
+
+it('E7：RETIRED 档案 → search 状态列「已退库」', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { id: 'e1', specialty: '地质', title: null, employer: '局机关', availability: '停用', entryStatus: 'RETIRED', user: { displayName: '王退库', bidExperts: [] } },
+  ]);
+  const r = await tool.execute({ action: 'search' }, ADMIN);
+  const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
+  expect(rows[0]).toMatchObject({ name: '王退库', state: '已退库' });
+});
+
+it('E7：availability="空闲" 过滤按 lifecycle 比较——停用档案（无在途）不再混入空闲结果', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { id: 'e1', specialty: '综合', title: null, employer: '项目部', availability: '停用', entryStatus: 'ACTIVE', user: { displayName: '临时代表甲', bidExperts: [] } },
+    { id: 'e2', specialty: '地质', title: null, employer: '局机关', availability: '可用', entryStatus: 'ACTIVE', user: { displayName: '王五', bidExperts: [] } },
+  ]);
+  const r = await tool.execute({ action: 'search', availability: '空闲' }, ADMIN);
+  const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ name: '王五', state: '空闲' });
+});

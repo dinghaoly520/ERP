@@ -64,6 +64,21 @@ export function deriveBusySets(rows: BusyRow[]): BusySets {
 
 export type BusyStateLabel = '正在评标' | '已被抽取' | '候补待命' | '空闲';
 
+/** 池外呈现态（E5/E7 2026-11-19）：**已退库 ＞ 已停用 ＞ 四态派生**。
+ *  退库正门写 RETIRED+停用 两列（并存是常态，RETIRED 先判）；停用-ACTIVE 是临时需求
+ *  代表/手工停用人群——不入抽取池，其 BidExpert 在途行只是绑定痕迹，不得冒充库况四态。
+ *  消费面（api 内单源，勿各自手写）：expert-ai-evaluation collectExpertFacts（AI 批注
+ *  prompt）、assistant/tools/expert.tool search/list 状态列；web 详情页 stateBadgeOf
+ *  为跨端镜像（web 无法 import api src——见 docs/bugs/2026-11-19 队列「跨端待办」）。 */
+export function lifecycleStateOf(
+  profile: { entryStatus?: string | null; availability?: string | null },
+  inFlightRows: Array<{ expertRole: string | null; project: { stage: string } }>,
+): string {
+  if (profile.entryStatus === 'RETIRED') return '已退库';
+  if (profile.availability === '停用') return '已停用';
+  return busyStateOf(inFlightRows);
+}
+
 export function busyStateLabel(userId: string, sets: BusySets): BusyStateLabel {
   if (sets.evaluating.has(userId)) return '正在评标';
   if (sets.assigned.has(userId)) return '已被抽取';

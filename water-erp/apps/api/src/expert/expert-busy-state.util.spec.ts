@@ -3,6 +3,7 @@ import {
   busyStateLabel,
   busyStateOf,
   deriveBusyCounts,
+  lifecycleStateOf,
   BusyRow,
 } from './expert-busy-state.util';
 
@@ -123,5 +124,24 @@ describe('expert-busy-state.util', () => {
         user: { role: 'bid_expert', isActive: true, companyId: 'co-1' },
       });
     });
+  });
+});
+
+describe('lifecycleStateOf（E5/E7 2026-11-19：池外呈现态单源——已退库＞已停用＞四态）', () => {
+  const inflight = [{ expertRole: '正选' as const, project: { stage: 'SUBMIT' as const } }];
+
+  it('RETIRED 优先（退库正门并存形态：RETIRED+停用 → 已退库）', () => {
+    expect(lifecycleStateOf({ entryStatus: 'RETIRED', availability: '停用' }, inflight)).toBe('已退库');
+  });
+  it('停用-ACTIVE（临时需求代表等）+ 在途绑定 → 已停用（不冒充已被抽取）', () => {
+    expect(lifecycleStateOf({ entryStatus: 'ACTIVE', availability: '停用' }, inflight)).toBe('已停用');
+  });
+  it('ACTIVE+非停用 → 四态穿透（SUBMIT 正选在途 → 已被抽取）', () => {
+    expect(lifecycleStateOf({ entryStatus: 'ACTIVE', availability: '可用' }, inflight)).toBe('已被抽取');
+    expect(lifecycleStateOf({ entryStatus: 'ACTIVE', availability: '可用' }, [])).toBe('空闲');
+  });
+  it('字段缺省（旧行形态/mock 未带）→ 落四态（与 busyStateOf 等价，不崩）', () => {
+    expect(lifecycleStateOf({}, [])).toBe('空闲');
+    expect(lifecycleStateOf({ entryStatus: null, availability: null }, inflight)).toBe('已被抽取');
   });
 });
