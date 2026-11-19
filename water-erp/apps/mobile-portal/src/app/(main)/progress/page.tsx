@@ -418,7 +418,7 @@ export default function ProgressPage() {
                       </span>
                     </div>
                     <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[14px] text-[var(--muted-foreground)]">
-                      <span className="min-w-0 truncate">{p.requesterDepartment || "—"}</span>
+                      <span className="min-w-0 truncate">{p.companyName || "—"} · {p.requesterDepartment || "—"}</span>
                       <span className="font-semibold text-[var(--gold)]">{p.procurementMethod}</span>
                       <span className="tabular-nums">预算 <b className="font-semibold text-[var(--foreground)]">{fmtBudget(p.budgetAmount)}</b></span>
                     </div>
