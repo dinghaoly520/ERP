@@ -476,6 +476,26 @@ export class BidDocumentService {
       }),
     ]);
 
+    // 公告轨下载落名册（三门户审查 P1-3，2026-11-19）：澄清提问/澄清文件闸（NOT_DOWNLOADED）
+    // 与延时开标通知收件面都读 BidSupplier 名册——此前公告轨下载只写 BidDocumentAccess，
+    // 未投递供应商恒 403「仅已获取招标文件的供应商可提问」（法定提问窗形同虚设）。
+    // 镜像谈判轨 markNegotiationDownloaded 口径：留痕失败静默，不影响已送出的文件；
+    // announce-linked 项目 bidProjectId 可空（未联动建项/已解关联）——无项目不写。
+    if (doc.bidProjectId) {
+      try {
+        const supplier = await this.prisma.supplier.findUnique({ where: { id: supplierId }, select: { name: true } });
+        if (supplier) {
+          await this.prisma.bidSupplier.upsert({
+            where: { projectId_supplierName: { projectId: doc.bidProjectId, supplierName: supplier.name } },
+            update: { downloadStatus: '已下载', lastDownloadAt: new Date(), ...(supplierId ? { supplierId } : {}) },
+            create: { projectId: doc.bidProjectId, supplierId, supplierName: supplier.name, downloadStatus: '已下载', lastDownloadAt: new Date() },
+          });
+        }
+      } catch {
+        // 留痕失败静默（同谈判轨口径——下载本身已成功）
+      }
+    }
+
     return { buffer: plaintext, fileName: doc.fileAsset.originalName, mimeType: doc.fileAsset.mimeType };
   }
 }

@@ -6398,7 +6398,7 @@ export class BidService {
       });
     }
 
-    const [suppliers, experts] = await Promise.all([
+    const [suppliers, experts, intents] = await Promise.all([
       this.prisma.bidSupplier.findMany({
         where: { projectId: id },
         select: { supplier: { select: { userId: true } } },
@@ -6407,9 +6407,21 @@ export class BidService {
         where: { projectId: id },
         select: { userId: true },
       }),
+      // P1-3 伴生（2026-11-19 三门户审查）：公开轨「已确认意向/已下载未投递」供应商无名册行——
+      // 延时开标恒 align（2026-11-18 裁定：截标随最新开标重算）后，按旧截标踩点的未投递者
+      // 恰是最需通知的群体；并入 SupplierBidIntent 确认者并与名册去重。
+      this.prisma.supplierBidIntent.findMany({
+        where: { projectId: id },
+        select: { supplier: { select: { userId: true } } },
+      }),
     ]);
 
-    const supplierUserIds = suppliers.map(s => s.supplier?.userId).filter((u): u is string => !!u);
+    const supplierUserIds = Array.from(new Set(
+      [
+        ...suppliers.map(s => s.supplier?.userId),
+        ...intents.map(i => i.supplier?.userId),
+      ].filter((u): u is string => !!u),
+    ));
     const expertUserIds = experts.map(e => e.userId).filter((u): u is string => !!u);
 
     const pad = (n: number) => String(n).padStart(2, '0');

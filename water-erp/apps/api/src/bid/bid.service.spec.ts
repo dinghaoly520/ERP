@@ -567,6 +567,22 @@ describe('BidService — stage transitions', () => {
       await service.notifyScheduleChange('p1', openTime, 'u1');
       expect(prisma.notification.create).not.toHaveBeenCalled(); // 无收件人（供应商/专家均空）——校验放行即达成
     });
+
+    it('延时通知收件面并入意向确认者（P1-3 伴生）——公开轨未投递无名册行，align 后按旧截标踩点者恰是最需通知的群体；与名册去重', async () => {
+      const openTime = '2026-10-01T10:00:00.000Z';
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'GK-1', name: 'P', openTime: new Date(openTime) });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ supplier: { userId: 'u-roster' } }]);
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u-expert' }]);
+      prisma.supplierBidIntent.findMany.mockResolvedValue([
+        { supplier: { userId: 'u-intent' } },
+        { supplier: { userId: 'u-roster' } }, // 与名册重合——去重后只发一条
+      ]);
+      const notification = (service as any).notificationService;
+      await service.notifyScheduleChange('p1', openTime, 'u1');
+      const recipients = notification.create.mock.calls.map((c: any[]) => c[0].userId);
+      expect(recipients).toEqual(expect.arrayContaining(['u-roster', 'u-expert', 'u-intent']));
+      expect(recipients.filter((r: string) => r === 'u-roster')).toHaveLength(1);
+    });
   });
 
   describe('updateProject — 阶段锁（P1-3，2026-09-09）', () => {
