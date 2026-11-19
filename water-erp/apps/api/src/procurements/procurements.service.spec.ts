@@ -167,3 +167,58 @@ describe('formatRound 台账卡字段（:3011 九模块窗口，2026-11-19）', 
     expect(noPm.requesterName).toBeNull();
   });
 });
+
+describe('台账筛选多选并行（2026-11-19 用户裁定）', () => {
+  it('方式/部门/经办人逗号列表 → where in；单值等价旧行为', async () => {
+    let captured: any;
+    const prisma: any = {
+      procurementRound: {
+        findMany: jest.fn().mockImplementation(({ where, skip, take }) => {
+          if (skip === undefined) captured = where; // 列表主查（count 先行不带 skip）
+          return Promise.resolve([]);
+        }),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      department: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    prisma.procurementRound.count = jest.fn().mockImplementation(({ where }) => { captured = where; return Promise.resolve(0); });
+    const svc = new (ProcurementsService as any)(prisma);
+    await svc.findAll(
+      { procurementMethod: '竞价采购,谈判采购', departmentId: 'd1,d2', createdById: 'u1,u2' } as never,
+      {} as never,
+      {},
+    );
+    expect(captured.procurementMethod).toEqual({ in: ['竞价采购', '谈判采购'] });
+    expect(captured.departmentId).toEqual({ in: ['d1', 'd2'] });
+    expect(captured.createdById).toEqual({ in: ['u1', 'u2'] });
+
+    captured = undefined;
+    await svc.findAll({ procurementMethod: '竞价采购' } as never, {} as never, {});
+    expect(captured.procurementMethod).toBe('竞价采购');
+  });
+});
+
+describe('getStats 全筛透传（2026-11-19 所有下拉适配裁定）', () => {
+  it('部门/经办人（逗号多选）进 where；awardedBudget=AWARDED 预算合计', async () => {
+    const wheres: any[] = [];
+    const prisma: any = {
+      procurementRound: {
+        count: jest.fn().mockImplementation(({ where }) => { wheres.push(where); return Promise.resolve(1); }),
+        aggregate: jest.fn().mockResolvedValue({ _sum: { budgetAmount: 100, awardAmount: 80 } }),
+        findMany: jest.fn().mockResolvedValue([
+          { budgetAmount: 100, awardAmount: 80 },
+          { budgetAmount: 50, awardAmount: 50 },
+        ]),
+      },
+    };
+    const svc = new (ProcurementsService as any)(prisma);
+    const r = await svc.getStats(undefined, undefined, undefined, {}, {
+      departmentId: 'd1,d2',
+      createdById: 'u1',
+    });
+    expect(r.awardedBudget).toBe(150);
+    expect(r.awardedBudgetLabel).toBeTruthy();
+    expect(wheres[0].departmentId).toEqual({ in: ['d1', 'd2'] });
+    expect(wheres[0].createdById).toBe('u1');
+  });
+});

@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
 import { InlineSelect } from "@/components/m/inline-select";
-import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
-import { fetchDashboardData, fetchProjectStatusCounts, type DashboardData, type ProjectStatusCounts } from "@/lib/api/dashboard";
+import { RANGES, priorWindowIso, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
+import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
 import { Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { fetchProcurements, fetchProcurementDimensions, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
+import { fetchProcurements, fetchProcurementDimensions, fetchLedgerStats, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -68,12 +68,12 @@ export default function LedgerPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState<ResultStatusKey | null>(saved.statusFilter ?? null);
-  const [methodFilter, setMethodFilter] = useState<string | null>(saved.methodFilter ?? null);
+  const [methodIds, setMethodIds] = useState<string[]>(saved.methodFilter ? [saved.methodFilter] : []);
   /* 时间档/部门/经办人筛选（2026-11-19 用户裁定：状态胶囊换时间，增部门+经办人，公司居右） */
   const [rangeKey, setRangeKey] = useState<RangeKey>("all");
   const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
-  const [departmentFilter, setDepartmentFilter] = useState<string | null>(null);
-  const [handlerFilter, setHandlerFilter] = useState<string | null>(null);
+  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
+  const [handlerIds, setHandlerIds] = useState<string[]>([]);
   const [dimensions, setDimensions] = useState<ProcurementFilterDimensions | null>(null);
   useEffect(() => {
     let active = true;
@@ -109,8 +109,9 @@ export default function LedgerPage() {
 
   /* 总览八项（2026-11-19 用户裁定：与驾驶舱数据总览同内容同版式，置于筛选项下方）——
      项目盘点走 project-status 存量、金额走 dashboard 汇总，恒全时段（台账页无区间选择器） */
-  const [overview, setOverview] = useState<DashboardData["summary"] | null>(null);
-  const [projectStatus, setProjectStatus] = useState<ProjectStatusCounts | null>(null);
+  const [stats, setStats] = useState<LedgerSummary | null>(null);
+  const [statsYoy, setStatsYoy] = useState<LedgerSummary | null>(null);
+  const [statsPrev, setStatsPrev] = useState<LedgerSummary | null>(null);
   const [activeItem, setActiveItem] = useState<ProcurementRoundItem | null>(null);
 
   /* 搜索 400ms 防抖 */
@@ -169,7 +170,7 @@ export default function LedgerPage() {
     const urlDriven = Boolean(st || q || abnormal === "1" || pmi);
     if (urlDriven) {
       setStatusFilter(st && RESULT_STATUS_CONFIG[st as ResultStatusKey] ? (st as ResultStatusKey) : null);
-      setMethodFilter(null);
+      setMethodIds([]);
     }
     if (q) setSearchInput(q);
     if (abnormal === "1") setAbnormalFilter(true);
@@ -201,13 +202,13 @@ export default function LedgerPage() {
       pageSize: PAGE_SIZE,
       searchKeyword: searchKeyword || undefined,
       resultStatus: statusFilter ?? undefined,
-      procurementMethod: methodFilter ?? undefined,
+      procurementMethod: methodIds.length ? methodIds.join(",") : undefined,
       abnormalOnly: abnormalFilter || undefined,
       companyId: filterCompanyId,
       startDate: queryRange.startDate,
       endDate: queryRange.endDate,
-      departmentId: departmentFilter ?? undefined,
-      createdById: handlerFilter ?? undefined,
+      departmentId: departmentIds.length ? departmentIds.join(",") : undefined,
+      createdById: handlerIds.length ? handlerIds.join(",") : undefined,
     })
       .then((res) => {
         if (!active) return;
@@ -227,19 +228,40 @@ export default function LedgerPage() {
     return () => {
       active = false;
     };
-  }, [page, searchKeyword, statusFilter, methodFilter, abnormalFilter, filterCompanyId, retryTick, queryRange.startDate, queryRange.endDate, departmentFilter, handlerFilter]);
+  }, [page, searchKeyword, statusFilter, methodIds, abnormalFilter, filterCompanyId, retryTick, queryRange.startDate, queryRange.endDate, departmentIds, handlerIds]);
 
-  /* 总览八项：全时段双取（失败静默——块不渲染） */
+  /* 总览八项（2026-11-19 所有下拉实时适配+同比环比实时计算裁定）：与列表同参三窗取数
+     （本窗 + 同比窗=整窗前移一年 + 环比邻窗=紧邻等长前移）；「全部」档只取本窗无子行 */
   useEffect(() => {
     let active = true;
-    fetchProjectStatusCounts()
-      .then((r) => { if (active) setProjectStatus(r); })
+    const base = {
+      searchKeyword: searchKeyword || undefined,
+      resultStatus: statusFilter ?? undefined,
+      procurementMethod: methodIds.length ? methodIds.join(",") : undefined,
+      abnormalOnly: abnormalFilter || undefined,
+      companyId: filterCompanyId,
+      departmentId: departmentIds.length ? departmentIds.join(",") : undefined,
+      createdById: handlerIds.length ? handlerIds.join(",") : undefined,
+    };
+    fetchLedgerStats({ ...base, startDate: queryRange.startDate, endDate: queryRange.endDate })
+      .then((r) => { if (active) setStats(r); })
       .catch(() => undefined);
-    fetchDashboardData(undefined, undefined, undefined, false)
-      .then((d) => { if (active) setOverview(d.summary); })
-      .catch(() => undefined);
+    if (queryRange.startDate) {
+      fetchLedgerStats({ ...base, startDate: shiftYearIso(queryRange.startDate), endDate: shiftYearIso(queryRange.endDate ?? todayIso()) })
+        .then((r) => { if (active) setStatsYoy(r); })
+        .catch(() => undefined);
+      const prev = priorWindowIso(queryRange.startDate, queryRange.endDate);
+      if (prev) {
+        fetchLedgerStats({ ...base, ...prev })
+          .then((r) => { if (active) setStatsPrev(r); })
+          .catch(() => undefined);
+      } else if (active) setStatsPrev(null);
+    } else if (active) {
+      setStatsYoy(null);
+      setStatsPrev(null);
+    }
     return () => { active = false; };
-  }, [retryTick]);
+  }, [searchKeyword, statusFilter, methodIds, abnormalFilter, filterCompanyId, queryRange.startDate, queryRange.endDate, departmentIds, handlerIds, retryTick]);
 
 
   /* 公司口径标签（全称短拼，2026-11-19 胶囊筛选） */
@@ -267,9 +289,9 @@ export default function LedgerPage() {
 
   const persistLedger = useCallback(
     (patch: Partial<LedgerSavedFilters>) => {
-      saveFilters("ledger", { statusFilter, methodFilter, companyIds, ...patch });
+      saveFilters("ledger", { statusFilter, methodFilter: methodIds.join(",") || null, companyIds, ...patch });
     },
-    [statusFilter, methodFilter, companyIds],
+    [statusFilter, methodIds, companyIds],
   );
 
   const { pull, refreshing } = usePullToRefresh(
@@ -320,23 +342,19 @@ export default function LedgerPage() {
         />
         {methods.length > 1 ? (
           <InlineSelect
-            label={methodFilter ?? "采购方式"}
-            active={!!methodFilter}
+            multiple
+            label={methodIds.length === 0 ? "采购方式" : methodIds.length <= 2 ? methodIds.join("、") : `${methodIds.slice(0, 2).join("、")} 等${methodIds.length}项`}
+            active={methodIds.length > 0}
             options={[{ value: "all", label: "全部采购方式" }, ...methods.map((m) => ({ value: m, label: m }))]}
-            selected={methodFilter ? [methodFilter] : ["all"]}
+            selected={methodIds.length === 0 ? ["all"] : methodIds}
             onSelect={(next) =>
               changeFilter(() => {
-                const v = next[0];
-                if (!v || v === "all") {
-                  setMethodFilter(null);
-                  persistLedger({ methodFilter: null });
-                } else {
-                  setMethodFilter(v);
-                  persistLedger({ methodFilter: v });
-                }
+                const hadAll = methodIds.length === 0;
+                if (next.includes("all") && !hadAll) setMethodIds([]);
+                else setMethodIds(next.filter((x) => x !== "all"));
               })
             }
-            ariaLabel="按采购方式筛选"
+            ariaLabel="按采购方式筛选（多选）"
           />
         ) : null}
         {/* 右组（2026-11-19 用户裁定：公司→部门→经办人居右成组，换行不散） */}
@@ -367,14 +385,22 @@ export default function LedgerPage() {
           </div>
         ) : null}        {dimensions && dimensions.departments.length > 0 ? (
           <InlineSelect
-            label={dimensions.departments.find((d) => d.id === departmentFilter)?.name ?? "部门"}
-            active={!!departmentFilter}
+            multiple
+            label={
+              departmentIds.length === 0
+                ? "部门"
+                : departmentIds.length <= 2
+                  ? departmentIds.map((id) => dimensions.departments.find((d) => d.id === id)?.name ?? id).join("、")
+                  : `部门 等${departmentIds.length}项`
+            }
+            active={departmentIds.length > 0}
             options={[{ value: "all", label: "全部部门" }, ...dimensions.departments.map((d) => ({ value: d.id, label: d.name }))]}
-            selected={departmentFilter ? [departmentFilter] : ["all"]}
+            selected={departmentIds.length === 0 ? ["all"] : departmentIds}
             onSelect={(next) =>
               changeFilter(() => {
-                const v = next[0];
-                setDepartmentFilter(!v || v === "all" ? null : v);
+                const hadAll = departmentIds.length === 0;
+                if (next.includes("all") && !hadAll) setDepartmentIds([]);
+                else setDepartmentIds(next.filter((x) => x !== "all"));
               })
             }
             ariaLabel="按部门筛选"
@@ -382,14 +408,22 @@ export default function LedgerPage() {
         ) : null}
         {dimensions && dimensions.handlers.length > 0 ? (
           <InlineSelect
-            label={dimensions.handlers.find((h) => h.id === handlerFilter)?.name ?? "经办人"}
-            active={!!handlerFilter}
+            multiple
+            label={
+              handlerIds.length === 0
+                ? "经办人"
+                : handlerIds.length <= 2
+                  ? handlerIds.map((id) => dimensions.handlers.find((h) => h.id === id)?.name ?? id).join("、")
+                  : `经办人 等${handlerIds.length}项`
+            }
+            active={handlerIds.length > 0}
             options={[{ value: "all", label: "全部经办人" }, ...dimensions.handlers.map((h) => ({ value: h.id, label: h.name }))]}
-            selected={handlerFilter ? [handlerFilter] : ["all"]}
+            selected={handlerIds.length === 0 ? ["all"] : handlerIds}
             onSelect={(next) =>
               changeFilter(() => {
-                const v = next[0];
-                setHandlerFilter(!v || v === "all" ? null : v);
+                const hadAll = handlerIds.length === 0;
+                if (next.includes("all") && !hadAll) setHandlerIds([]);
+                else setHandlerIds(next.filter((x) => x !== "all"));
               })
             }
             ariaLabel="按经办人筛选"
@@ -398,14 +432,25 @@ export default function LedgerPage() {
         </div>
       </div>
 
-      {/* ── 总览八项（2026-11-19 用户裁定：置于筛选项下方，与驾驶舱数据总览同内容同版式）── */}
-      {overview && projectStatus ? (
+      {/* ── 总览八项（2026-11-19 所有下拉实时适配+同比环比实时计算裁定）——
+          与列表同源同筛（台账轮次口径）：项目盘点=归档(AWARDED)/进行中(PENDING)/异常四态，
+          总数=归档+进行中；金额=成交预算/成交额/节约资金/节资率。子行同比/环比随筛选三窗实算，
+          「全部」档无区间概念不显子行 */}
+      {stats ? (
         <div className="neu-card-static mb-3 rounded-[18px] p-3">
           {(() => {
-            const tile = (value: string, label: string, danger = false) => (
+            const rangeLabel = rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label;
+            const showRatio = Boolean(queryRange.startDate);
+            const tile = (value: string, label: string, opts?: { danger?: boolean; success?: boolean; yoy?: DeltaR; hb?: DeltaR }) => (
               <div key={label} className="rounded-[12px] m-tile px-1 py-2.5 text-center">
-                <div className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${danger ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>{value}</div>
+                <div className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${opts?.danger ? "text-[var(--danger)]" : opts?.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>{value}</div>
                 <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{label}</div>
+                {showRatio ? (
+                  <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                    <span className={ratioCls(opts?.yoy)}>同比 {ratioTxt(opts?.yoy)}</span>
+                    <span className={ratioCls(opts?.hb)}>环比 {ratioTxt(opts?.hb)}</span>
+                  </div>
+                ) : null}
               </div>
             );
             const group = (caption: string, list: React.ReactNode[]) => (
@@ -414,21 +459,23 @@ export default function LedgerPage() {
                 <div className="grid grid-cols-4 gap-2.5">{list}</div>
               </div>
             );
-            const rate = overview.awardedBudget > 0 ? `${((overview.totalSavings / overview.awardedBudget) * 100).toFixed(1)}%` : "—";
+            const totalOf = (v?: LedgerSummary | null) => (v ? v.awardedCount + v.pendingCount : undefined);
+            const rateOf = (v?: LedgerSummary | null) => (v && v.awardedBudget > 0 ? v.totalSavings / v.awardedBudget : undefined);
+            const rateNow = stats.awardedBudget > 0 ? stats.totalSavings / stats.awardedBudget : undefined;
             return (
               <div className="space-y-3">
-                {group("项目盘点 · 全部", [
-                  tile(String(projectStatus.total), "项目总数"),
-                  tile(String(projectStatus.archived), "归档项目"),
-                  tile(String(projectStatus.active), "进行中项目"),
-                  tile(String(projectStatus.terminated), "异常项目", (projectStatus.terminated ?? 0) > 0),
+                {group(`项目盘点 · ${rangeLabel}`, [
+                  tile(String(stats.awardedCount + stats.pendingCount), "项目总数", { yoy: deltaOf(totalOf(stats), totalOf(statsYoy), null), hb: deltaOf(totalOf(stats), totalOf(statsPrev), null) }),
+                  tile(String(stats.awardedCount), "归档项目", { yoy: deltaOf(stats.awardedCount, statsYoy?.awardedCount, null), hb: deltaOf(stats.awardedCount, statsPrev?.awardedCount, null) }),
+                  tile(String(stats.pendingCount), "进行中项目", { yoy: deltaOf(stats.pendingCount, statsYoy?.pendingCount, null), hb: deltaOf(stats.pendingCount, statsPrev?.pendingCount, null) }),
+                  tile(String(stats.abnormalCount), "异常项目", { danger: stats.abnormalCount > 0, yoy: deltaOf(stats.abnormalCount, statsYoy?.abnormalCount, false), hb: deltaOf(stats.abnormalCount, statsPrev?.abnormalCount, false) }),
                 ])}
                 <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
-                {group("金额 · 全部", [
-                  tile(overview.awardedBudgetLabel, "成交预算"),
-                  tile(overview.totalAwardLabel, "成交额"),
-                  tile(overview.totalSavingsLabel, "节约资金"),
-                  tile(rate, "节资率", true),
+                {group(`金额 · ${rangeLabel}`, [
+                  tile(stats.awardedBudgetLabel, "成交预算", { yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
+                  tile(stats.totalAwardLabel, "成交额", { yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
+                  tile(stats.totalSavingsLabel, "节约资金", { success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
+                  tile(rateNow != null ? `${(rateNow * 100).toFixed(1)}%` : "—", "节资率", { danger: true, yoy: deltaOf(rateNow, rateOf(statsYoy), true), hb: deltaOf(rateNow, rateOf(statsPrev), true) }),
                 ])}
               </div>
             );

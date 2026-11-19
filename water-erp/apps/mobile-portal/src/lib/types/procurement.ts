@@ -77,6 +77,8 @@ export type LedgerSummary = {
   awardedCount: number;
   pendingCount: number;
   abnormalCount: number;
+  awardedBudget: number;
+  awardedBudgetLabel: string;
   totalBudget: number;
   totalBudgetLabel: string;
   totalAward: number;

@@ -58,7 +58,8 @@ import {
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
+import { RANGES, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
+import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
 
 const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
   running: "运行中项目",
@@ -67,12 +68,8 @@ const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
   post: "标后项目",
 };
 
-function shiftYearIso(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  let t = new Date(Date.UTC(y - 1, m - 1, d));
-  if (t.getUTCMonth() !== m - 1) t = new Date(Date.UTC(y - 1, m, 0)); // 溢出=平年二月，取月末
-  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
-}
+
+
 import { InlineSelect } from "@/components/m/inline-select";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -87,10 +84,6 @@ import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { usePolling } from "@/hooks/use-polling";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
-/* ── 工具 ── */
-
-/* 全部数据入口宫格（2026-11-19 v3 全景裁定）：导航双入口（台账/进展直跳路由）+
- * 七组分析弹层——用户自己决定看什么，不做策展取舍 */
 export type AnalysisTileKey = "ledger" | "progress" | "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "experts";
 export const ANALYSIS_TILES: Array<{
   key: AnalysisTileKey;
@@ -110,10 +103,8 @@ export const ANALYSIS_TILES: Array<{
   { key: "experts", label: "专家库", icon: BookUser, color: "var(--gold)" },
 ];
 
-const TODAY_ISO = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+/** 元数值格式化：过万转「N.N万」，不足万直出「N元」（龙虎榜成交额，后端口径=元） */
+const fmtWan = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : `${v.toFixed(0)}元`);
 
 function statusColor(s: string): string {
   if (/未成交|异常|终止|撤|废/.test(s)) return "text-[var(--danger)]";
@@ -161,32 +152,6 @@ function parseBudgetLabel(bs: string): number {
   if (bs.includes("万")) return parseFloat(bs.replace("万", "").replace(",", "").trim()) * 10000;
   if (bs.includes("元")) return parseFloat(bs.replace("元", "").replace(/,/g, ""));
   return 0;
-}
-
-/** 涨跌比（同比/环比子行共用形态） */
-type DeltaR = { pct: number; tone: "good" | "bad" | "neutral" };
-
-/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral；cur/prev 缺位不显 */
-function deltaOf(cur: number | undefined, prev: number | undefined, goodWhenUp: boolean | null): DeltaR | undefined {
-  if (cur == null || prev == null || prev === 0) return undefined;
-  const pct = Math.round(((cur - prev) / prev) * 100);
-  if (pct === 0) return { pct: 0, tone: "neutral" };
-  const up = pct > 0;
-  const tone = goodWhenUp == null ? "neutral" : (up === goodWhenUp ? "good" : "bad");
-  return { pct: Math.max(Math.min(pct, 999), -99), tone };
-}
-
-/** 元数值格式化：过万转「N.N万」，不足万直出「N元」（龙虎榜成交额，后端口径=元） */
-const fmtWan = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : `${v.toFixed(0)}元`);
-
-/** 同比/环比子行（2026-11-19 用户裁定：值下方一行「同比x 环比x」，无数据显 -；
- *  同日二次裁定：涨=红、跌=绿——方向色统一，替换好坏语义着色） */
-function ratioTxt(d?: DeltaR): string {
-  return d ? `${d.pct > 0 ? "↑" : d.pct < 0 ? "↓" : ""}${Math.abs(d.pct)}%` : "-";
-}
-function ratioCls(d?: DeltaR): string {
-  if (!d) return "text-[var(--muted-foreground)]";
-  return d.pct > 0 ? "text-[var(--danger)]" : d.pct < 0 ? "text-[var(--success)]" : "text-[var(--muted-foreground)]";
 }
 
 /** 数据总览 8 格单元（值 + 同比/环比子行 + 标签；可选强调色/点击跳转） */
@@ -450,7 +415,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
        环比=主请求 compare 邻窗（紧邻等长前移）。「全部」档无起点不做同比（-）。
        主请求失败显横幅，同比失败静默降级（子行退 -） */
     const yoyP = queryRange.startDate
-      ? fetchDashboardData(shiftYearIso(queryRange.startDate), shiftYearIso(queryRange.endDate ?? TODAY_ISO()), cid, false).catch(() => null)
+      ? fetchDashboardData(shiftYearIso(queryRange.startDate), shiftYearIso(queryRange.endDate ?? todayIso()), cid, false).catch(() => null)
       : Promise.resolve(null);
     return Promise.all([mainP, yoyP])
       .then(([d, y]) => {

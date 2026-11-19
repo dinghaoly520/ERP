@@ -348,18 +348,22 @@ export class ProcurementsService {
       if (endDate) where.procurementDate.lte = new Date(endDate);
     }
 
-    if (procurementMethod) {
-      where.procurementMethod = procurementMethod;
-    }
+    // 多选并行（2026-11-19 用户裁定）：方式/部门/经办人收逗号列表，单值等价旧行为
+    const csv = (v?: string) =>
+      v
+        ? v.split(',').map((x) => x.trim()).filter(Boolean)
+        : [];
+    const methods = csv(procurementMethod);
+    if (methods.length === 1) where.procurementMethod = methods[0];
+    else if (methods.length > 1) where.procurementMethod = { in: methods };
 
-    if (departmentId) {
-      where.departmentId = departmentId;
-    }
+    const departments = csv(departmentId);
+    if (departments.length === 1) where.departmentId = departments[0];
+    else if (departments.length > 1) where.departmentId = { in: departments };
 
-    // 经办人=轮次创建人（:3011 台账下拉，2026-11-19）
-    if (query.createdById) {
-      where.createdById = query.createdById;
-    }
+    const handlers = csv(query.createdById);
+    if (handlers.length === 1) where.createdById = handlers[0];
+    else if (handlers.length > 1) where.createdById = { in: handlers };
 
     if (resultStatus) {
       where.resultStatus = resultStatus;
@@ -815,8 +819,16 @@ export class ProcurementsService {
     endDate?: string,
     user?: AuthenticatedUser,
     companyFilter: CompanyWhere = {},
-    /** 与列表同参的筛选（2026-11-03 P1-2：汇总条与列表口径漂移修复）——搜索词/方式/状态/异常四态 */
-    filters: { searchKeyword?: string; procurementMethod?: string; resultStatus?: ResultStatus; abnormalOnly?: boolean } = {},
+    /** 与列表同参的筛选（2026-11-03 P1-2；2026-11-19 多选并行裁定补部门/经办人）——
+     *  搜索词/方式/状态/异常四态/部门/经办人（逗号多选，buildListWhere 同构解析） */
+    filters: {
+      searchKeyword?: string;
+      procurementMethod?: string;
+      resultStatus?: ResultStatus;
+      abnormalOnly?: boolean;
+      departmentId?: string;
+      createdById?: string;
+    } = {},
   ) {
     // 与台账列表同一 where 构造器（回收站排除/日期/搜索/状态/异常四态/公司隔离全同构）——
     // 汇总条数字必须与同筛选列表可互相复现（2026-10-28 回收站口径 + 2026-11-03 筛选同参收口）
@@ -828,6 +840,8 @@ export class ProcurementsService {
         procurementMethod: filters.procurementMethod,
         resultStatus: filters.resultStatus,
         abnormalOnly: filters.abnormalOnly,
+        departmentId: filters.departmentId,
+        createdById: filters.createdById,
       },
       companyFilter,
     );
@@ -887,11 +901,16 @@ export class ProcurementsService {
       return budget > 0 && award > 0 && budget >= award ? sum + (budget - award) : sum;
     }, 0);
 
+    // 成交预算（2026-11-19 台账总览八项）：AWARDED 轮次预算合计（与 dashboard awardedBudget 同源）
+    const awardedBudget = awardedRounds.reduce((sum, r) => sum + Number(r.budgetAmount ?? 0), 0);
+
     return {
       totalCount,
       awardedCount,
       pendingCount,
       abnormalCount,
+      awardedBudget,
+      awardedBudgetLabel: this.formatWan(awardedBudget),
       totalBudget,
       totalBudgetLabel: this.formatWan(totalBudget),
       totalAward,

@@ -71,6 +71,8 @@ export class ProcurementsController {
     @Query('procurementMethod') procurementMethod?: string,
     @Query('resultStatus') resultStatus?: string,
     @Query('abnormalOnly') abnormalOnly?: string,
+    @Query('departmentId') departmentId?: string,
+    @Query('createdById') createdById?: string,
     @CurrentUser() user?: AuthenticatedUser,
     @Req() req?: Request,
   ) {
@@ -89,6 +91,8 @@ export class ProcurementsController {
       procurementMethod,
       resultStatus: (resultStatus as ResultStatus) || undefined,
       abnormalOnly: abnormalOnly === 'true',
+      departmentId,
+      createdById,
     });
   }
 

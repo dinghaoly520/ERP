@@ -50,6 +50,8 @@ export async function fetchLedgerStats(filter: {
   procurementMethod?: string;
   resultStatus?: ResultStatusKey;
   abnormalOnly?: boolean;
+  departmentId?: string;
+  createdById?: string;
 }): Promise<LedgerSummary> {
   const query = new URLSearchParams();
   if (filter.startDate) query.set('startDate', filter.startDate);
@@ -59,6 +61,8 @@ export async function fetchLedgerStats(filter: {
   if (filter.procurementMethod) query.set('procurementMethod', filter.procurementMethod);
   if (filter.resultStatus) query.set('resultStatus', filter.resultStatus);
   if (filter.abnormalOnly) query.set('abnormalOnly', 'true');
+  if (filter.departmentId) query.set('departmentId', filter.departmentId);
+  if (filter.createdById) query.set('createdById', filter.createdById);
   return api.get<LedgerSummary>(`/procurements/stats?${query.toString()}`);
 }
 
