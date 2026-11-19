@@ -523,12 +523,12 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   const overviewTiles: OverviewTile[] = data && summary ? [
     /* 首排=项目盘点（2026-11-19 用户裁定）：项目总数=归档+进行中（不含异常项目）；归档项目=
        台账中的项目（全时段轮次行数，点跳台账）；进行中=PMI ACTIVE；异常项目=
-       终止的项目（点跳台账终止留痕）。headline 为存量，同比/环比子行走窗内流量
-       （归档=窗内轮次、进行中/异常=窗内立项） */
-    { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—", onTap: () => askChat("请介绍当前采购项目总数：归档、进行中、终止（异常）项目各有多少？分布在哪些公司？"), ...fstat("total", null) },
-    { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—", onTap: () => askChat("请概览台账：台账中的项目（轮次）总数、已成交与待处理的构成及金额情况如何？"), ...fstat("archived", null) },
-    { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => askChat("当前进行中的采购项目有哪些？分别处于哪个采购阶段？"), ...fstat("active", null) },
-    { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => askChat("有哪些采购项目被终止了？终止原因分别是什么？"), ...fstat("terminated", false) },
+       终止的项目（点跳台账终止留痕）。值随区间（flow.cur 窗内流量：归档=窗内轮次、进行中/异常=窗内立项；
+       「全部」档回落全时段存量），同比/环比子行同流量口径对比 */
+    { label: "项目总数", value: projectStatus ? String(projectStatus.flow?.cur.total ?? projectStatus.total) : "—", onTap: () => askChat("请介绍当前采购项目总数：归档、进行中、终止（异常）项目各有多少？分布在哪些公司？"), ...fstat("total", null) },
+    { label: "归档项目", value: projectStatus ? String(projectStatus.flow?.cur.archived ?? projectStatus.archived) : "—", onTap: () => askChat("请概览台账：台账中的项目（轮次）总数、已成交与待处理的构成及金额情况如何？"), ...fstat("archived", null) },
+    { label: "进行中项目", value: projectStatus ? String(projectStatus.flow?.cur.active ?? projectStatus.active) : "—", onTap: () => askChat("当前进行中的采购项目有哪些？分别处于哪个采购阶段？"), ...fstat("active", null) },
+    { label: "异常项目", value: projectStatus ? String(projectStatus.flow?.cur.terminated ?? projectStatus.terminated) : "—", danger: (projectStatus?.flow?.cur.terminated ?? projectStatus?.terminated ?? 0) > 0, onTap: () => askChat("有哪些采购项目被终止了？终止原因分别是什么？"), ...fstat("terminated", false) },
     /* 次排金额（2026-11-19 用户裁定）：同比=整窗前移一年（本月↔去年同月/本季↔去年
        同季/本年↔去年），环比=紧邻等长前窗；值下方子行「同比x 环比x」，无数据 - */
     { label: "成交预算", value: summary.awardedBudgetLabel, onTap: () => askChat(`${kpiScope}，已成交项目的成交预算执行情况如何？成交额与节约资金各占多少？`), ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
@@ -1554,35 +1554,50 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
           index={0}
           right={scopeSelectors}
         >
-          <div className="grid grid-cols-4 gap-2.5">
-            {overviewTiles.map((m) => {
+          {/* 总览卡重设计（2026-11-19 用户裁定「突兀」）：两排分区——项目盘点（存量）与
+              金额（随区间）各带组标、排间 hairline；格内层级=值→标签→同比环比 */}
+          {(() => {
+            const tile = (m: (typeof overviewTiles)[number]) => {
               const inner = (
                 <>
                   <div
-                    className={`max-w-full truncate text-center text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                    className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
                   >
                     {m.value}
                   </div>
+                  <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
                   {queryRange.startDate ? (
                     <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
                       <span className={ratioCls(m.yoy)}>同比 {ratioTxt(m.yoy)}</span>
                       <span className={ratioCls(m.hb)}>环比 {ratioTxt(m.hb)}</span>
                     </div>
                   ) : null}
-                  <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
                 </>
               );
               return m.onTap ? (
-                <button key={m.label} type="button" onClick={m.onTap} className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]">
+                <button key={m.label} type="button" onClick={m.onTap} className="rounded-[12px] m-tile px-1 py-2.5 text-center active:scale-[0.98]">
                   {inner}
                 </button>
               ) : (
-                <div key={m.label} className="rounded-[12px] m-tile px-1 py-2 text-center">
+                <div key={m.label} className="rounded-[12px] m-tile px-1 py-2.5 text-center">
                   {inner}
                 </div>
               );
-            })}
-          </div>
+            };
+            const group = (caption: string, list: typeof overviewTiles) => (
+              <div>
+                <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">{caption}</div>
+                <div className="grid grid-cols-4 gap-2.5">{list.map(tile)}</div>
+              </div>
+            );
+            return (
+              <div className="space-y-3">
+                {group(`项目盘点 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(0, 4))}
+                <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
+                {group(`金额 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(4))}
+              </div>
+            );
+          })()}
         </SectionCard>
       ) : null}
 
