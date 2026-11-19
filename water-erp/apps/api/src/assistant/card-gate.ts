@@ -19,3 +19,59 @@ export function applyCardGate(card: Record<string, unknown>): { keep: boolean; d
     rows.map((r) => keys.map((k) => `${k}=${String(r[k] ?? '')}`).join('，')).join('；');
   return { keep: false, droppedText };
 }
+
+/* ── 相关性闸（2026-11-19 用户裁定：问节资率不出采购方式图表——回答跟随提问的
+ *  第二道确定性规则，无 LLM 步骤）── 维度词组：同组词视为同题（问「成交额」命中
+ *  「采购方式成交分布」的「成交」）；问题与卡片标题按组共享→同题保留。 */
+const TERM_GROUPS: readonly (readonly string[])[] = [
+  ['节资率', '节资', '节约资金', '节约'],
+  ['成交额', '成交总额', '成交'],
+  ['预算'],
+  ['待处理'],
+  ['已取消', '取消', '终止', '异常'],
+  ['轮次'],
+  ['采购方式', '方式'],
+  ['阶段'],
+  ['供应商'],
+  ['公司'],
+  ['专家'],
+  ['公告'],
+  ['合同'],
+  ['趋势'],
+  ['构成', '分布'],
+  ['结果'],
+  ['排行'],
+  ['资质'],
+  ['负荷'],
+];
+
+function hitGroups(text: string): Set<number> {
+  const hits = new Set<number>();
+  TERM_GROUPS.forEach((g, i) => {
+    if (g.some((t) => text.includes(t))) hits.add(i);
+  });
+  return hits;
+}
+
+/** 卡片相关性闸：问题命中词组且（本批∪已挂）存在同题表卡时，剪除非同题表卡
+ *  （metric/chart 等非表卡不受限；已挂卡只参与同题判定、永不被剪——跨工具批次）；
+ *  问题无命中或无任何同题表卡→不过滤（宁可多显不可全丢）。 */
+export function applyCardRelevance(
+  cards: Array<Record<string, unknown>>,
+  question: string,
+  existing: Array<Record<string, unknown>> = [],
+): Array<Record<string, unknown>> {
+  const qGroups = hitGroups(question);
+  if (qGroups.size === 0) return cards;
+  const tableCards = cards.filter((c) => c.type === 'table');
+  if (tableCards.length === 0) return cards;
+  const pool = [...existing.filter((c) => c.type === 'table'), ...tableCards];
+  const onTopic = pool.filter((c) => {
+    const g = hitGroups(String(c.title ?? ''));
+    for (const q of qGroups) if (g.has(q)) return true;
+    return false;
+  });
+  if (onTopic.length === 0) return cards;
+  const keepTitles = new Set(onTopic.map((c) => String(c.title ?? '')));
+  return cards.filter((c) => c.type !== 'table' || keepTitles.has(String(c.title ?? '')));
+}

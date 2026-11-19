@@ -20,7 +20,7 @@ import { AssistantRagService } from './knowledge/rag-retrieval.service';
 import { ChatMessage } from './model/assistant-model-provider';
 import { ChatDto } from './dto/chat.dto';
 import { mapToChart } from './chart.mapper';
-import { applyCardGate } from './card-gate';
+import { applyCardGate, applyCardRelevance } from './card-gate';
 import { toolCompanyWhere } from './tools/company-filter';
 
 /** 会话属主：认证用户（JWT）或匿名访客（X-Assistant-Guest 头） */
@@ -332,7 +332,7 @@ ${toolList}
     }
 
     const result = await tool.execute(toolArgs, ctx);
-    const { attachedCount, droppedData } = this.pushCardsWithCharts(result, cards);
+    const { attachedCount, droppedData } = this.pushCardsWithCharts(result, cards, this.lastUserQuestion(messages));
 
     /* 提示词随挂载结果自适应（2026-11-03 回答跟随提问）：挂了卡→现文案；
        规则闸全弃（一句话可答）→ 关键数字写进正文，不再假装「卡片已渲染」 */
@@ -375,7 +375,7 @@ ${toolList}
     const tool = this.toolRegistry.get('global_overview');
     if (tool) {
       const result = await tool.execute({}, ctx);
-      this.pushCardsWithCharts(result, cards);
+      this.pushCardsWithCharts(result, cards, this.lastUserQuestion(messages));
     }
 
     if (cards.length === 0) {
@@ -474,7 +474,7 @@ ${toolList}
     );
     for (const { tc, result } of results) {
       if (!result) continue;
-      const gate = this.pushCardsWithCharts(result, cards);
+      const gate = this.pushCardsWithCharts(result, cards, this.lastUserQuestion(messages));
       droppedAll.push(...gate.droppedData);
       if (result.success) successCount++;
       // 安全网：部分工具的 list/detail 动作只返回 data、不产出 cards，
@@ -766,6 +766,14 @@ ${toolList}
     }
   }
 
+  /** 末条用户消息文本（相关性闸的提问来源） */
+  private lastUserQuestion(messages: ChatMessage[]): string {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') return messages[i].content;
+    }
+    return '';
+  }
+
   /**
    * Push cards from a tool result, auto-generating chart cards for any table with viz.
    * Deduplicates by type+title to avoid duplicate tables/charts when multiple tools
@@ -774,18 +782,29 @@ ${toolList}
   private pushCardsWithCharts(
     result: { success: boolean; cards?: unknown[] },
     cards: unknown[],
+    question?: string,
   ): { attachedCount: number; droppedData: string[] } {
     const droppedData: string[] = [];
     if (!result.success || !result.cards) return { attachedCount: 0, droppedData };
-    let attachedCount = 0;
+    // 规则闸（2026-11-03 回答跟随提问）：一句话可答的小表不挂卡，数字转正文
+    const gated: Array<Record<string, unknown>> = [];
     for (const c of result.cards) {
       const ct = c as Record<string, unknown>;
-      // 规则闸（2026-11-03 回答跟随提问）：一句话可答的小表不挂卡，数字转正文
       const gate = applyCardGate(ct);
       if (!gate.keep) {
         droppedData.push(gate.droppedText ?? '');
         continue;
       }
+      gated.push(ct);
+    }
+    /* 相关性闸（2026-11-19 用户裁定：问节资率不出采购方式图表）：按提问维度词组剪
+     * 非同题表卡——已挂卡参与同题判定（跨工具批次：前批同题卡在场，本批离题不再兜底） */
+    const kept = question
+      ? applyCardRelevance(gated, question, cards as Array<Record<string, unknown>>)
+      : gated;
+    let attachedCount = 0;
+    for (const c of kept) {
+      const ct = c as Record<string, unknown>;
       const cardKey = `${ct.type}:${ct.title}`;
       // 跳过完全重复的卡片（同类型+同标题=真重复，如 global_overview 和 cockpit 都产出"采购阶段分布（在办）"）
       if (cards.some((existing) => {

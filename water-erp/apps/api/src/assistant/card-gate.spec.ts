@@ -1,4 +1,4 @@
-import { applyCardGate } from './card-gate';
+import { applyCardGate, applyCardRelevance } from './card-gate';
 
 describe('卡片规则闸（回答跟随提问，2026-11-03）', () => {
   const table = (o: Partial<Record<string, unknown>>) => ({ type: 'table', title: 'T', ...o });
@@ -47,5 +47,41 @@ describe('卡片规则闸（回答跟随提问，2026-11-03）', () => {
     for (const c of ['采购项目状态分布', '采购阶段分布（在办）', '供应商状态分布', '专家专业分布'].map(mk)) {
       expect(applyCardGate(c).keep).toBe(true);
     }
+  });
+});
+
+describe('卡片相关性闸（2026-11-19 用户裁定：问节资率不出采购方式图表）', () => {
+  const t = (title: string) => ({ type: 'table', title, rows: [{ a: 1, b: 2, c: 3 }] });
+
+  it('问节资率：只留同题表卡（节资率排行），结果分布/采购方式成交分布剪除', () => {
+    const q = '全部时段，节资率水平如何？哪些项目节资率最高？有什么值得关注的？';
+    const kept = applyCardRelevance(
+      [t('结果分布'), t('节资率排行'), t('采购方式成交分布')],
+      q,
+    );
+    expect(kept.map((c) => c.title)).toEqual(['节资率排行']);
+  });
+
+  it('非 table 卡（metric/chart）不受相关性闸限制——剪除发生时原样存活', () => {
+    const kept = applyCardRelevance(
+      [{ type: 'metric', title: '概览' }, t('节资率排行'), t('采购方式成交分布')],
+      '节资率水平如何？',
+    );
+    expect(kept.map((c) => c.title)).toEqual(['概览', '节资率排行']);
+  });
+
+  it('问题无维度词（闲问/泛问）不过滤', () => {
+    const cards = [t('结果分布'), t('采购方式成交分布')];
+    expect(applyCardRelevance(cards, '帮我看看情况')).toHaveLength(2);
+  });
+
+  it('全部表卡都不同题→不过滤（宁可多显不可全丢）', () => {
+    const cards = [t('供应商状态分布'), t('专家专业分布')];
+    expect(applyCardRelevance(cards, '节资率水平如何？')).toHaveLength(2);
+  });
+
+  it('同组词共享（问成交额→采购方式成交分布同题保留）', () => {
+    const kept = applyCardRelevance([t('采购方式成交分布'), t('节资率排行')], '本年成交额表现如何？请分析构成。');
+    expect(kept.map((c) => c.title)).toEqual(['采购方式成交分布']);
   });
 });
