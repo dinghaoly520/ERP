@@ -10,7 +10,6 @@ import {
   ClipboardList,
   Building2,
   CalendarRange,
-  ChevronDown,
   ChevronRight,
   FolderKanban,
   Layers,
@@ -48,7 +47,7 @@ import {
 } from "@/lib/api/cockpit";
 import { fetchUpcoming, type UpcomingResult } from "@/lib/api/progress";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { CompanyPicker } from "@/components/m/company-picker";
+import { InlineSelect } from "@/components/m/inline-select";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
@@ -257,20 +256,20 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [analysisOpen, expertStats]);
 
-  /* 数据口径（2026-11-19 用户裁定：卡片头下拉选择器）：区间档 + 公司多选（admin 专属
-     ——:3011 leader/staff 恒总数据，公司选择无效故不展示）；公司名单开层懒取 */
+  /* 数据口径（2026-11-19 用户裁定：卡片头两个原地选择器——区间档 + 公司多选各自独立，
+     不合并不弹层）：公司选择 admin 专属（:3011 leader/staff 恒总数据无效不展示），
+     名单进页即取 */
   const [rangeKey, setRangeKey] = useState<RangeKey>("year");
-  const [scopeOpen, setScopeOpen] = useState(false);
   const [companyIds, setCompanyIds] = useState<string[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[] | null>(null);
   useEffect(() => {
-    if (!scopeOpen || role !== "admin" || companies) return;
+    if (role !== "admin") return;
     let active = true;
     fetchCompanies()
       .then((list) => { if (active) setCompanies(list); })
       .catch(() => { if (active) setCompanies([]); });
     return () => { active = false; };
-  }, [scopeOpen, role, companies]);
+  }, [role]);
 
   // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
@@ -395,7 +394,7 @@ export default function DashboardPage() {
 
   const summary = data?.summary;
   const cmp = data?.compare?.summary;
-  /* 口径标签（全称——2026-11-19 用户裁定）与「已筛选」高亮态 */
+  /* 公司口径标签（全称——2026-11-19 用户裁定） */
   const companyLabel = companyIds.length === 0
     ? "全部公司"
     : (() => {
@@ -403,8 +402,6 @@ export default function DashboardPage() {
         const names = companyIds.map(nameOf);
         return names.length <= 2 ? names.join("、") : `${names.slice(0, 2).join("、")} 等 ${names.length} 家`;
       })();
-  const scopeLabel = `${RANGES[rangeKey].label} · ${companyLabel}`;
-  const scopeFiltered = rangeKey !== "year" || companyIds.length > 0;
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
   const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
 
@@ -485,26 +482,44 @@ export default function DashboardPage() {
 
 
       {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
-           上移至实时态势上方、套同款 SectionCard 格式，卡片头右侧改口径下拉选择器
-           （区间档+公司多选，默认本年·全部公司）。首排=项目盘点（总数/归档=台账全量/
-           进行中/异常=终止，当前状态快照仅随公司口径）；次排=区间轮次金额四数；
-           可点的两步到对应明细/分析）── */}
+           上移至实时态势上方、套同款 SectionCard 格式；卡片头右侧两个原地选择器（区间
+           档+公司多选各自独立、锚定原地展开，默认本年·全部公司）。首排=项目盘点（总数/
+           归档=台账全量/进行中/异常=终止，当前状态快照仅随公司口径）；次排=区间轮次
+           金额四数；可点的两步到对应明细/分析）── */}
       {data && summary ? (
         <SectionCard
           icon={Gauge}
           title="数据总览"
           index={0}
           right={
-            <button
-              type="button"
-              onClick={() => setScopeOpen(true)}
-              aria-haspopup="listbox"
-              aria-label={`数据口径：${scopeLabel}，点按选择`}
-              className={`m-tile flex max-w-[11rem] shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold active:scale-[0.97] ${scopeFiltered ? "text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}
-            >
-              <span className="min-w-0 truncate">{scopeLabel}</span>
-              <ChevronDown size={13} className="shrink-0" />
-            </button>
+            <>
+              <InlineSelect
+                label={RANGES[rangeKey].label}
+                active={rangeKey !== "year"}
+                options={(Object.keys(RANGES) as RangeKey[]).map((k) => ({ value: k, label: RANGES[k].label }))}
+                selected={[rangeKey]}
+                onSelect={(next) => setRangeKey(next[0] as RangeKey)}
+                ariaLabel={`数据区间：${RANGES[rangeKey].label}`}
+              />
+              {role === "admin" ? (
+                <InlineSelect
+                  multiple
+                  label={companyLabel}
+                  active={companyIds.length > 0}
+                  options={[
+                    { value: "all", label: "全部公司" },
+                    ...(companies ?? []).map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                  selected={companyIds.length === 0 ? ["all"] : companyIds}
+                  onSelect={(next) => {
+                    const hadAll = companyIds.length === 0; // 显示态「全部公司」已勾
+                    if (next.includes("all") && !hadAll) setCompanyIds([]); // 点「全部公司」→ 清空
+                    else setCompanyIds(next.filter((v) => v !== "all")); // 其余增减；全撤=全部
+                  }}
+                  ariaLabel={`公司口径：${companyLabel}`}
+                />
+              ) : null}
+            </>
           }
         >
           <div className="grid grid-cols-4 gap-1.5">
@@ -1266,36 +1281,6 @@ export default function DashboardPage() {
             ) : null}
           </>
         ) : null}
-      </BottomSheet>
-
-      {/* ══ 数据口径选择（卡片头下拉触发；区间即点即生效，公司多选走 CompanyPicker 二层弹层）══ */}
-      <BottomSheet
-        open={scopeOpen}
-        onClose={() => setScopeOpen(false)}
-        title={
-          <span className="flex items-center gap-2">
-            <Gauge size={16} className="text-[var(--accent)]" />
-            数据口径
-          </span>
-        }
-      >
-        <div className="mb-1.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">区间</div>
-        <div className="mb-4 flex gap-2">
-          {(Object.keys(RANGES) as RangeKey[]).map((k) => (
-            <Chip key={k} active={rangeKey === k} onClick={() => setRangeKey(k)}>
-              {RANGES[k].label}
-            </Chip>
-          ))}
-        </div>
-        {role === "admin" ? (
-          <div>
-            <div className="mb-1.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">公司</div>
-            <CompanyPicker value={companyIds} options={companies ?? []} onChange={setCompanyIds} />
-          </div>
-        ) : null}
-        <p className="pt-1 text-center text-[12px] text-[var(--muted-foreground)]">
-          选择即时生效；首排项目盘点仅随公司口径，实时运行态势不随此选择
-        </p>
       </BottomSheet>
 
       {/* ══ 下钻弹层 ══ */}
