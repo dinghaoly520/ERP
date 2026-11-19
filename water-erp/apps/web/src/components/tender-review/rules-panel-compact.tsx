@@ -101,6 +101,12 @@ function emptyDraft(): RuleDraft {
 function buildLogicForSave(draft: RuleDraft): Record<string, unknown> | null {
   const l = draft.logic;
   if (draft.ruleType === 'numeric_compare') {
+    // 字段必选（代码审查 2026-11-19）：空 field 存库=执行侧 fields[''] 永 miss
+    // =每次审查静默「数据缺失」——与阈值同级的必填闸
+    if (!(l.field ?? '').trim()) {
+      toast.error('请选择检查字段');
+      return null;
+    }
     const raw = (l.threshold ?? '').trim();
     const n = Number(raw);
     if (raw === '' || !Number.isFinite(n)) {
@@ -233,7 +239,7 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
               >
                 {(RULE_NUMERIC_FIELDS.some((f) => f.value === (l.field ?? ''))
                   ? RULE_NUMERIC_FIELDS
-                  : [{ value: l.field ?? '', label: `${l.field}（词表外存量值）` }, ...RULE_NUMERIC_FIELDS]
+                  : [{ value: l.field ?? '', label: l.field ? `${l.field}（词表外存量值）` : '请选择字段' }, ...RULE_NUMERIC_FIELDS]
                 ).map((f) => (
                   <option key={f.value} value={f.value}>{f.label}</option>
                 ))}
