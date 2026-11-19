@@ -18,8 +18,9 @@ export async function fetchDashboardBadges(companyId?: string): Promise<Dashboar
 /* 项目盘点（2026-11-19 用户裁定：数据总览首排）——归档=台账中的项目（全时段轮次行数，
    终止留痕在内）；进行中/异常(=终止)为 PMI 当前状态快照，回收站不计；总数=归档+进行中（不含异常） */
 export type ProjectStatusCounts = { archived: number; active: number; terminated: number; total: number };
-export async function fetchProjectStatusCounts(): Promise<ProjectStatusCounts> {
-  return api.get<ProjectStatusCounts>('/dashboard/project-status');
+export async function fetchProjectStatusCounts(companyId?: string): Promise<ProjectStatusCounts> {
+  const q = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+  return api.get<ProjectStatusCounts>(`/dashboard/project-status${q}`);
 }
 
 /* ── 公司龙虎榜（:3011，跨公司榜单——admin 全榜 / leader 本公司排位+集团均值）── */

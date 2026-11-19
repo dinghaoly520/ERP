@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Building2,
   CalendarRange,
+  ChevronDown,
   ChevronRight,
   FolderKanban,
   Layers,
@@ -46,6 +47,8 @@ import {
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
 import { fetchUpcoming, type UpcomingResult } from "@/lib/api/progress";
+import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
+import { CompanyPicker } from "@/components/m/company-picker";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
@@ -82,8 +85,15 @@ const ANALYSIS_TILES: Array<{
   { key: "experts", label: "专家库", icon: GraduationCap, color: "var(--gold)" },
 ];
 
-/* 固定全景口径（2026-11-19 用户裁定：删区间/公司控制行）：本年 · 全部公司 */
-const YEAR_START = () => `${new Date().getFullYear()}-01-01`;
+/* 数据总览口径档（2026-11-19 用户裁定：卡片头「本年 · 全部公司」改下拉选择器）：
+ * 默认本年·全部公司；「全部」=不限时段。首排项目盘点是当前状态快照，仅随公司口径。 */
+type RangeKey = "month" | "quarter" | "year" | "all";
+const RANGES: Record<RangeKey, { label: string; start: () => string | undefined }> = {
+  month: { label: "本月", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; } },
+  quarter: { label: "本季", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(Math.floor(d.getMonth() / 3) * 3 + 1).padStart(2, "0")}-01`; } },
+  year: { label: "本年", start: () => `${new Date().getFullYear()}-01-01` },
+  all: { label: "全部", start: () => undefined },
+};
 
 function statusColor(s: string): string {
   if (/未成交|异常|终止|撤|废/.test(s)) return "text-[var(--danger)]";
@@ -247,6 +257,21 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [analysisOpen, expertStats]);
 
+  /* 数据口径（2026-11-19 用户裁定：卡片头下拉选择器）：区间档 + 公司多选（admin 专属
+     ——:3011 leader/staff 恒总数据，公司选择无效故不展示）；公司名单开层懒取 */
+  const [rangeKey, setRangeKey] = useState<RangeKey>("year");
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const [companyIds, setCompanyIds] = useState<string[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[] | null>(null);
+  useEffect(() => {
+    if (!scopeOpen || role !== "admin" || companies) return;
+    let active = true;
+    fetchCompanies()
+      .then((list) => { if (active) setCompanies(list); })
+      .catch(() => { if (active) setCompanies([]); });
+    return () => { active = false; };
+  }, [scopeOpen, role, companies]);
+
   // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
   /* 龙虎榜失败≠空数据（P2，2026-11-03）：失败保留旧数据 + 显式重试入口，不再伪装成空态 */
@@ -284,14 +309,17 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [rankingRange, retryTick]);
 
-  // 资源告警 + 项目质效 + 项目状态盘点：失败保留旧数据（告警）/静默隐藏（质效），随重试重取
+  // 资源告警 + 项目质效 + 项目状态盘点：失败保留旧数据（告警）/静默隐藏（质效），随重试重取；
+  // 项目盘点仅随公司口径（当前状态快照，不受区间档影响）
   useEffect(() => {
     let active = true;
     fetchAlertsOverview().then((a) => { if (active) setAlerts(a); }).catch(() => undefined);
     fetchPerformanceMetrics().then((p) => { if (active) setPerf(p); }).catch(() => undefined);
-    fetchProjectStatusCounts().then((s) => { if (active) setProjectStatus(s); }).catch(() => undefined);
+    fetchProjectStatusCounts(companyIds.length ? companyIds.join(",") : undefined)
+      .then((s) => { if (active) setProjectStatus(s); })
+      .catch(() => undefined);
     return () => { active = false; };
-  }, [retryTick]);
+  }, [retryTick, companyIds]);
 
   /* 风险项目一键转发（2026-11-03 用户裁定：允许转发类——领导看得见也能推动）；
      share 优先、AbortError 静默、剪贴板降级（要报转发随三句卡撤销，2026-11-18） */
@@ -313,30 +341,33 @@ export default function DashboardPage() {
     window.setTimeout(() => setRiskShared("idle"), 2000);
   }
 
-  const queryRange: { startDate: string; endDate?: string } = { startDate: YEAR_START() };
+  const queryRange = useMemo<{ startDate?: string; endDate?: string }>(
+    () => ({ startDate: RANGES[rangeKey].start() }),
+    [rangeKey],
+  );
 
-  // 今日关注条（一行事实句，随公司口径/页面区间/重试变化重取——区间对齐 2026-11-03：
-  // brief 与 hero 指标同区间，消灭「本月 0 万 vs 本年数百万」同屏打架；effect 置于
+  // 今日关注条（一行事实句，随口径选择器/重试变化重取——区间对齐 2026-11-03：
+  // brief 与总览指标同区间，消灭「本月 0 万 vs 本年数百万」同屏打架；effect 置于
   // queryRange 定义之后——依赖数组渲染期取值不可前向引用）
   const [brief, setBrief] = useState<MobileBrief | null>(null);
 
   useEffect(() => {
     let active = true;
-    fetchMobileBrief(undefined, {
+    fetchMobileBrief(companyIds.length ? companyIds.join(",") : undefined, {
       startDate: queryRange.startDate,
       endDate: queryRange.endDate,
-      /* 快捷档显式携带语义（自定义/全部不传——服务端缺省本月） */
-      rangeKey: "year",
+      /* 快捷档显式携带语义（「全部」档不传——评审 F10） */
+      rangeKey: rangeKey === "all" ? undefined : rangeKey,
     })
       .then((b) => { if (active) setBrief(b); })
       .catch(() => { if (active) setBrief({ available: false }); });
     return () => { active = false; };
-  }, [queryRange.startDate, queryRange.endDate, retryTick]);
+  }, [queryRange.startDate, queryRange.endDate, rangeKey, companyIds, retryTick]);
 
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    return fetchDashboardData(queryRange.startDate, queryRange.endDate, undefined, true)
+    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyIds.length ? companyIds.join(",") : undefined, true)
       .then((d) => {
         setData(d);
       })
@@ -347,7 +378,7 @@ export default function DashboardPage() {
     /* retryTick 不入 deps（R1-3）：下拉回调已直接调 loadData()，若 deps 含 retryTick，
        bump 会重建 loadData 身份 → mount effect 二次触发 → 同轮双取。
        retryTick 仍驱动今日要报/龙虎榜两 effect 的重取。 */
-  }, [queryRange.startDate, queryRange.endDate]);
+  }, [queryRange.startDate, queryRange.endDate, companyIds]);
 
   useEffect(() => {
     loadData();
@@ -364,6 +395,16 @@ export default function DashboardPage() {
 
   const summary = data?.summary;
   const cmp = data?.compare?.summary;
+  /* 口径标签（全称——2026-11-19 用户裁定）与「已筛选」高亮态 */
+  const companyLabel = companyIds.length === 0
+    ? "全部公司"
+    : (() => {
+        const nameOf = (id: string) => companies?.find((c) => c.id === id)?.name ?? id;
+        const names = companyIds.map(nameOf);
+        return names.length <= 2 ? names.join("、") : `${names.slice(0, 2).join("、")} 等 ${names.length} 家`;
+      })();
+  const scopeLabel = `${RANGES[rangeKey].label} · ${companyLabel}`;
+  const scopeFiltered = rangeKey !== "year" || companyIds.length > 0;
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
   const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
 
@@ -444,15 +485,27 @@ export default function DashboardPage() {
 
 
       {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
-           上移至实时态势上方、套同款 SectionCard 格式。首排=项目盘点（总数/归档=台账
-           全量/进行中/异常=终止，当前状态快照不随本年窗口）；次排=本年轮次金额四数；
+           上移至实时态势上方、套同款 SectionCard 格式，卡片头右侧改口径下拉选择器
+           （区间档+公司多选，默认本年·全部公司）。首排=项目盘点（总数/归档=台账全量/
+           进行中/异常=终止，当前状态快照仅随公司口径）；次排=区间轮次金额四数；
            可点的两步到对应明细/分析）── */}
       {data && summary ? (
         <SectionCard
           icon={Gauge}
           title="数据总览"
           index={0}
-          right={<span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">本年 · 全部公司</span>}
+          right={
+            <button
+              type="button"
+              onClick={() => setScopeOpen(true)}
+              aria-haspopup="listbox"
+              aria-label={`数据口径：${scopeLabel}，点按选择`}
+              className={`m-tile flex max-w-[11rem] shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-semibold active:scale-[0.97] ${scopeFiltered ? "text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}
+            >
+              <span className="min-w-0 truncate">{scopeLabel}</span>
+              <ChevronDown size={13} className="shrink-0" />
+            </button>
+          }
         >
           <div className="grid grid-cols-4 gap-1.5">
             {[
@@ -1213,6 +1266,36 @@ export default function DashboardPage() {
             ) : null}
           </>
         ) : null}
+      </BottomSheet>
+
+      {/* ══ 数据口径选择（卡片头下拉触发；区间即点即生效，公司多选走 CompanyPicker 二层弹层）══ */}
+      <BottomSheet
+        open={scopeOpen}
+        onClose={() => setScopeOpen(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <Gauge size={16} className="text-[var(--accent)]" />
+            数据口径
+          </span>
+        }
+      >
+        <div className="mb-1.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">区间</div>
+        <div className="mb-4 flex gap-2">
+          {(Object.keys(RANGES) as RangeKey[]).map((k) => (
+            <Chip key={k} active={rangeKey === k} onClick={() => setRangeKey(k)}>
+              {RANGES[k].label}
+            </Chip>
+          ))}
+        </div>
+        {role === "admin" ? (
+          <div>
+            <div className="mb-1.5 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">公司</div>
+            <CompanyPicker value={companyIds} options={companies ?? []} onChange={setCompanyIds} />
+          </div>
+        ) : null}
+        <p className="pt-1 text-center text-[12px] text-[var(--muted-foreground)]">
+          选择即时生效；首排项目盘点仅随公司口径，实时运行态势不随此选择
+        </p>
       </BottomSheet>
 
       {/* ══ 下钻弹层 ══ */}
