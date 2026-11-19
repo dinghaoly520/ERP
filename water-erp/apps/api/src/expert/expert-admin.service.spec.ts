@@ -291,6 +291,30 @@ describe('ExpertAdminService', () => {
       expect(res.occupied).toBe(2);
     });
 
+    it('getBigscreenStats：库况四态派生（2026-11-19 ⑵收口）——available/occupied 来自在途派生而非 availability 镜像（「占用」零写入者恒 0 的病根），停用组不入分母', async () => {
+      // 本端点此前零 spec 覆盖（正是镜像漂移无告警的根源）；bidScoreRecord 主工厂未提供，本地补
+      (prisma as any).bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.user.count.mockResolvedValue(8);
+      prisma.expertProfile.count.mockResolvedValue(1);
+      prisma.expertProfile.groupBy.mockImplementation(({ by, where }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        const all = [
+          { availability: '可用', _count: 5 },
+          { availability: '占用', _count: 0 },
+          { availability: '停用', _count: 2 },
+        ];
+        return Promise.resolve(where?.availability?.not === '停用' ? all.filter((g: any) => g.availability !== '停用') : all);
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },
+        { userId: 'e2', expertRole: '候补', project: { stage: 'EVALUATING' } },
+      ]);
+      const res = await service.getBigscreenStats();
+      expect(res.availability.available).toBe(3); // 可抽取 5 − 在途 2（≠镜像「可用」5）
+      expect(res.availability.occupied).toBe(2); // 在途并集（≠镜像「占用」0）
+      expect(res.availability.disabled).toBe(1);
+    });
+
     it('getStatistics：评价统计按槽位去重（2026-10-21 统计闸裁定，此前本端点为唯一漏网）', async () => {
       prisma.user.count.mockResolvedValue(5);
       prisma.expertProfile.groupBy.mockResolvedValue([]);

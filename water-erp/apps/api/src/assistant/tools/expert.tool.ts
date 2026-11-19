@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
+import { deriveBusyCounts, busyStateOf, IN_FLIGHT_STAGES } from '../../expert/expert-busy-state.util';
 
 @Injectable()
 export class ExpertTool implements AssistantTool {
@@ -28,6 +29,7 @@ export class ExpertTool implements AssistantTool {
       if (specialty) where.specialty = { contains: specialty };
       if (title) where.title = { contains: title };
       if (employer) where.employer = { contains: employer };
+      // availability 检索=档案登记口径（镜像列）；状态展示列已改四态派生（见 rows）——两口径并存系刻意
       if (availability) where.availability = availability;
       const userWhere: Record<string, unknown> = { ...companyWhere };
       if (kw) userWhere.displayName = { contains: kw };
@@ -36,8 +38,17 @@ export class ExpertTool implements AssistantTool {
         where, take: limit, orderBy: { createdAt: 'desc' },
         select: {
           id: true, specialty: true, title: true,
-          employer: true, availability: true,
-          user: { select: { displayName: true } },
+          employer: true,
+          user: {
+            select: {
+              displayName: true,
+              // 在途指派（四态派生用）：declined/终局项目行查询侧过滤
+              bidExperts: {
+                where: { invitationStatus: { not: 'declined' }, project: { stage: { in: [...IN_FLIGHT_STAGES] } } },
+                select: { expertRole: true, project: { select: { stage: true } } },
+              },
+            },
+          },
         },
       });
       return {
@@ -50,14 +61,15 @@ export class ExpertTool implements AssistantTool {
             { key: 'specialty', label: '专业' },
             { key: 'title', label: '职称' },
             { key: 'employer', label: '单位' },
-            { key: 'availability', label: '状态' },
+            { key: 'state', label: '状态' },
           ],
           rows: experts.map((e) => ({
             name: e.user?.displayName ?? '-',
             specialty: e.specialty,
             title: e.title ?? '-',
             employer: e.employer ?? '-',
-            availability: e.availability,
+            // 状态=四态派生（2026-11-19 ⑵收口）：不再喂 availability 镜像原文（在途专家会被误标「可用」）
+            state: busyStateOf(e.user?.bidExperts ?? []),
           })),
         }],
       };
@@ -95,12 +107,11 @@ export class ExpertTool implements AssistantTool {
       /* 多维度结构（2026-11-04 用户裁定：「分布」类问题是多结构数据——专业之外还有
        * 归属公司/职称/评审负荷等维度，只报单一维度=片面）。公司维度在 admin/
        * :3011 总数据口径下跨公司，是结构性重点。 */
-      const [total, available, busy] = await Promise.all([
+      const [total, busyCounts, bySpecialty, profiles, activeAssigns] = await Promise.all([
         this.prisma.expertProfile.count({ where: { user: companyWhere } }),
-        this.prisma.expertProfile.count({ where: { user: companyWhere, availability: '可用' } }),
-        this.prisma.expertProfile.count({ where: { user: companyWhere, availability: '占用' } }),
-      ]);
-      const [bySpecialty, profiles, activeAssigns] = await Promise.all([
+        // 库况四态派生（2026-11-19 审查⑵收口）：可用=库内可抽取人口−在途并集，expert-busy-state.util
+        // 单源（与 :3005 统计/大屏同口径）——availability 镜像「占用」零写入者恒 0、「可用」虚含在途专家
+        deriveBusyCounts(this.prisma, { role: 'bid_expert', isActive: true, ...companyWhere }),
         this.prisma.expertProfile.groupBy({
           by: ['specialty'], where: { user: companyWhere }, _count: true,
         }),
@@ -160,8 +171,7 @@ export class ExpertTool implements AssistantTool {
             type: 'metric', title: '专家资源概览',
             metrics: [
               { label: '专家总数', value: String(total) },
-              { label: '可用', value: String(available) },
-              { label: '占用（登记）', value: String(busy) },
+              { label: '可用', value: String(busyCounts.idle) },
               { label: '在途评审中', value: String(assignCount.size) },
             ],
           },
@@ -210,10 +220,9 @@ export class ExpertTool implements AssistantTool {
             viz: { kind: 'distribution', category: 'load', value: 'count' },
           },
         ],
-        /* 交叉提示给第二轮 LLM：占用（登记）与在途指派可能不一致——正是「占用恒 0
-         * 是没任务还是没登记」的判别依据 */
+        /* 交叉提示给第二轮 LLM：口径直述（原「占用（登记）」镜像指标已删——零写入者恒 0） */
         data: {
-          note: `availability「占用」为登记字段（当前 ${busy}）；在途评审按实际指派统计为 ${assignCount.size} 人——两者不一致时以在途指派为准。`,
+          note: `可用=库内可抽取人口−在途并集（与 :3005 统计/大屏同口径，停用档案不计）；在途评审中=按未归档项目实际指派统计（负荷口径）。`,
         },
       };
     }
@@ -224,13 +233,30 @@ export class ExpertTool implements AssistantTool {
       where, take: limit, orderBy: { createdAt: 'desc' },
       select: {
         id: true, specialty: true, title: true,
-        employer: true, availability: true,
-        user: { select: { displayName: true } },
+        employer: true,
+        user: {
+          select: {
+            displayName: true,
+            // 在途指派（四态派生用）：declined/终局项目行查询侧过滤
+            bidExperts: {
+              where: { invitationStatus: { not: 'declined' }, project: { stage: { in: [...IN_FLIGHT_STAGES] } } },
+              select: { expertRole: true, project: { select: { stage: true } } },
+            },
+          },
+        },
       },
     });
+    // data 面显式投影（不外泄嵌套 bidExperts 原始行给第二轮 LLM）；状态=四态派生（2026-11-19 ⑵收口）
+    const projected = experts.map((e) => ({
+      name: e.user?.displayName ?? '-',
+      specialty: e.specialty,
+      title: e.title ?? '-',
+      employer: e.employer ?? '-',
+      state: busyStateOf(e.user?.bidExperts ?? []),
+    }));
     return {
       success: true,
-      data: experts,
+      data: projected,
       cards: [{
         type: 'table',
         title: `专家清单（${experts.length} 名）`,
@@ -238,14 +264,9 @@ export class ExpertTool implements AssistantTool {
           { key: 'name', label: '姓名' },
           { key: 'specialty', label: '专业' },
           { key: 'title', label: '职称' },
-          { key: 'availability', label: '状态' },
+          { key: 'state', label: '状态' },
         ],
-        rows: experts.map((e) => ({
-          name: e.user?.displayName ?? '-',
-          specialty: e.specialty,
-          title: e.title ?? '-',
-          availability: e.availability,
-        })),
+        rows: projected,
       }],
     };
   }

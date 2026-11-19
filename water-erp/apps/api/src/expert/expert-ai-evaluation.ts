@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import type { LlmService } from '../local-ai/llm.service';
+import { busyStateOf } from './expert-busy-state.util';
 
 /**
  * 专家 AI 综合评价（2026-11-04）：详情页「履职备注」区块改为 AI 综合评价——
@@ -22,7 +23,8 @@ export type ExpertEvaluationFacts = {
   specialty: string;
   title: string | null;
   education: string | null;
-  availability: string;
+  /** 库况四态（2026-11-19 ⑵收口：派生自在途参评，不再读 availability 镜像——「占用」零写入者恒 0） */
+  busyState: string;
   expertLevel: string | null;
   /** 参评项目（倒序）：名称、角色（正选/候补）、是否组长、邀请结果、是否签到 */
   projects: { name: string; role: string; isLead: boolean; invitationStatus: string; signedIn: boolean; at: Date }[];
@@ -40,7 +42,7 @@ export async function collectExpertFacts(prisma: EvalPrisma, userId: string): Pr
       where: { id: userId },
       select: {
         displayName: true,
-        expertProfile: { select: { specialty: true, title: true, education: true, availability: true, expertLevel: true } },
+        expertProfile: { select: { specialty: true, title: true, education: true, expertLevel: true } },
       },
     }),
     prisma.bidExpert.findMany({
@@ -51,7 +53,7 @@ export async function collectExpertFacts(prisma: EvalPrisma, userId: string): Pr
         invitationStatus: true,
         signedIn: true,
         createdAt: true,
-        project: { select: { name: true } },
+        project: { select: { name: true, stage: true } }, // stage：库况四态派生用（2026-11-19 ⑵）
       },
       orderBy: { createdAt: 'desc' },
     }),
@@ -80,7 +82,12 @@ export async function collectExpertFacts(prisma: EvalPrisma, userId: string): Pr
     specialty: p.specialty,
     title: p.title,
     education: p.education,
-    availability: p.availability,
+    // 库况四态派生（2026-11-19 ⑵收口）：按在途参评派生，不读 availability 镜像（在途专家会被误标「可用」）
+    busyState: busyStateOf(
+      memberships
+        .filter((m) => m.invitationStatus !== 'declined')
+        .map((m) => ({ expertRole: m.expertRole, project: { stage: m.project.stage } })),
+    ),
     expertLevel: p.expertLevel,
     projects: memberships.map(m => ({
       name: m.project.name,
@@ -103,7 +110,7 @@ export function hasServiceRecord(f: ExpertEvaluationFacts): boolean {
 /** 事实清单 → prompt。平实档案批注口径：禁套话、禁编造、一段式直陈。 */
 export function buildEvaluationPrompt(f: ExpertEvaluationFacts): { system: string; user: string } {
   const lines: string[] = [];
-  lines.push(`【专家档案】${f.name}｜专业：${f.specialty}｜职称：${f.title ?? '未填'}｜学历：${f.education ?? '未填'}｜库内等级：${f.expertLevel ?? '未定'}｜当前状态：${f.availability}`);
+  lines.push(`【专家档案】${f.name}｜专业：${f.specialty}｜职称：${f.title ?? '未填'}｜学历：${f.education ?? '未填'}｜库内等级：${f.expertLevel ?? '未定'}｜当前状态：${f.busyState}（四态：正在评标/已被抽取/候补待命/空闲）`);
   lines.push(`【参评记录】共 ${f.projects.length} 次`);
   for (const m of f.projects.slice(0, 6)) {
     const lead = m.isLead ? '，担任组长' : '';

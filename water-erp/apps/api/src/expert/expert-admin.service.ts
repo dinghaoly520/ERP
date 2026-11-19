@@ -8,6 +8,7 @@ import { SASAC_UNITS, SASAC_NAME_ALIASES } from '@water-erp/shared';
 import { resolveRsvpLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
 import { auditDetailSearchClauses } from '../common/audit-search.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { deriveBusyCounts } from './expert-busy-state.util';
 import { sealPii, openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { maskPhone, maskIdNumber, maskEmail, maskLicenseNo } from '../common/pii-mask';
@@ -1990,14 +1991,12 @@ export class ExpertAdminService {
   /* 大屏聚合统计（公开，无需登录） */
 
   async getBigscreenStats() {
-    const [total, availGroups, disabledRetired, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
+    const [total, busyCounts, disabledRetired, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
       this.prisma.user.count({ where: { role: 'bid_expert' } }),
-      // 2026-10-28 口径收口：可用/占用限库内 ACTIVE+账号在编（与 getStatistics/抽取池同口径）
-      this.prisma.expertProfile.groupBy({
-        by: ['availability'],
-        where: { entryStatus: 'ACTIVE', user: { role: 'bid_expert', isActive: true } },
-        _count: true,
-      }),
+      // 库况四态派生（2026-11-19 审查⑵收口）：available/occupied 弃 availability 镜像（「占用」
+      // 零写入者恒 0、「可用」虚含在途专家），改 expert-busy-state.util 单源（含裁定⑴停用组排除，
+      // 临时需求方代表不再虚增「可用」）——与 :3005 统计/水叮当同口径；返回字段名不变，大屏页零改动
+      deriveBusyCounts(this.prisma, { role: 'bid_expert', isActive: true }),
       // 已停用=退库专家（entryStatus 为准，availability 镜像可能失真）
       this.prisma.expertProfile.count({ where: { entryStatus: 'RETIRED', user: { role: 'bid_expert' } } }),
       this.prisma.expertProfile.groupBy({
@@ -2025,11 +2024,9 @@ export class ExpertAdminService {
       }),
     ]);
 
-    // 可用状态
-    const amap: Record<string, number> = {};
-    for (const g of availGroups) amap[g.availability] = g._count;
-    const avail = amap['可用'] ?? 0;
-    const occupied = amap['占用'] ?? 0;
+    // 可用状态（四态派生：空闲=库内可抽取人口−在途并集；occupied=在途并集人数）
+    const avail = busyCounts.idle;
+    const occupied = busyCounts.occupied;
     const disabled = disabledRetired;
 
     // 专业分布（最大值为 100% 基准）
@@ -2510,13 +2507,8 @@ export class ExpertAdminService {
     const cutoff30d = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const f = await this.expertScopeFilter(user, companyId); // 统计在隔离集上算，不是全量算完再减
 
-    const [totalExperts, availGroups, disabledRetired, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d, busyRows] = await Promise.all([
+    const [totalExperts, disabledRetired, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d, busyCounts] = await Promise.all([
       this.prisma.user.count({ where: { role: 'bid_expert', ...f } }),
-      // 可用/占用（2026-10-28 口径收口）：库内 ACTIVE+账号在编——「可用」与可抽取池三元组同口径
-      // （录入/导入即 PENDING+可用，裸 availability 会把待审核专家虚增进「可参与抽取」）。
-      // 「停用」组排除（2026-11-19 用户裁定⑴）：临时需求方代表（建档即停用、不入抽取池）与
-      // 手动停用专家不得虚增「空闲」——空闲+在途与可抽取人口对齐（与下方 busyRows 两侧同滤）
-      this.prisma.expertProfile.groupBy({ by: ['availability'], where: { entryStatus: 'ACTIVE', availability: { not: '停用' }, user: { role: 'bid_expert', isActive: true, ...f } }, _count: true }),
       // 已停用=退库专家：以 entryStatus 为准（availability='停用' 是 RETIRED 的镜像且历史档案可能失真）
       this.prisma.expertProfile.count({ where: { entryStatus: 'RETIRED', user: { role: 'bid_expert', ...f } } }),
       this.prisma.expertProfile.groupBy({
@@ -2535,19 +2527,9 @@ export class ExpertAdminService {
       }).then(latestExpertEvals),
       this.prisma.bidExpert.count({ where: { createdAt: { gte: cutoff7d }, user: { role: 'bid_expert', ...f } } }),
       this.prisma.auditLog.count({ where: { action: 'EXPERT_EXTRACTION_CONFIRMED', createdAt: { gte: cutoff30d }, user: f } }),
-      // 三态全库派生（2026-11-18 修正）：严格按在途项目阶段（与库页状态列 2026-11-16 裁定同口径）——
-      // availability 列是历史镜像（抽取新轨不再回写），曾致 6 名在册只显 2；候补待命单列
-      this.prisma.bidExpert.findMany({
-        where: {
-          invitationStatus: { not: 'declined' }, // 除名口径：婉拒不占状态
-          project: { stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
-          // 在途并集与分母同人口（库内 ACTIVE+非停用，2026-11-19 裁定⑴两侧同滤）：库外/停用在途行
-          // 不占占用——临时需求方代表虽经 BidExpert 绑定项目（:881）但非库内可抽取人口，单侧过滤会让
-          // idle 减法被 Math.max 静默钳低、available+occupied 不再还原库内总数
-          user: { role: 'bid_expert', isActive: true, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } }, ...f },
-        },
-        select: { userId: true, expertRole: true, project: { select: { stage: true } } },
-      }),
+      // 库况四态派生（2026-11-18 裁定弃镜像列 · 2026-11-19 裁定⑴停用组排除两侧同滤）：口径单源
+      // expert-busy-state.util——与大屏 getBigscreenStats/水叮当 expert.tool/AI 评价输入共享
+      deriveBusyCounts(this.prisma, { role: 'bid_expert', isActive: true, ...f }),
     ]);
 
     const levelCounts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
@@ -2571,27 +2553,16 @@ export class ExpertAdminService {
       if (slot >= 0 && slot < 12) counts[slot]++;
     }
 
-    // 阶段派生四态：正在评标 ＞ 已被抽取（正选在途）＞ 候补待命（仅候补在途）；
-    // 空闲 = 库内可抽取人口（ACTIVE+非停用，2026-11-19 裁定⑴）− 在途并集（不再读 availability 镜像列）
-    const inLibraryActive = availGroups.reduce((sum, g) => sum + g._count, 0);
-    const evaluatingSet = new Set<string>();
-    const assignedSet = new Set<string>();
-    const altSet = new Set<string>();
-    for (const b of busyRows) {
-      if (b.project.stage === 'EVALUATING') evaluatingSet.add(b.userId);
-      else if (b.expertRole === '正选') assignedSet.add(b.userId);
-      else altSet.add(b.userId);
-    }
-    for (const uid of evaluatingSet) { assignedSet.delete(uid); altSet.delete(uid); }
-    for (const uid of assignedSet) altSet.delete(uid); // 优先级链收口：正选在途 ＞ 候补待命（同人双身份只计高位，assigned+alternate 不超 occupied）
-    const busyUnion = new Set([...evaluatingSet, ...assignedSet, ...altSet]);
-    const idleCount = Math.max(0, inLibraryActive - busyUnion.size);
-
     return {
       totalExperts,
-      available: idleCount,
-      occupied: busyUnion.size,
-      busy: { idle: idleCount, assigned: assignedSet.size, evaluating: evaluatingSet.size, alternate: altSet.size },
+      available: busyCounts.idle,
+      occupied: busyCounts.occupied,
+      busy: {
+        idle: busyCounts.idle,
+        assigned: busyCounts.assigned,
+        evaluating: busyCounts.evaluating,
+        alternate: busyCounts.alternate,
+      },
       disabled: disabledRetired,
       specialtyDistribution: specGroups.map(g => ({ name: g.specialty, count: g._count })),
       titleDistribution: titleGroups.map(g => ({ name: g.title || '未填写', count: g._count })),
