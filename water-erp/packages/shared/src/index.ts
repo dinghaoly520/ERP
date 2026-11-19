@@ -19,3 +19,4 @@ export * from './evaluation-rules';
 export * from './procurement-method-label';
 export * from './company-order';
 export * from './sasac-units';
+export * from './tender-review-rules';

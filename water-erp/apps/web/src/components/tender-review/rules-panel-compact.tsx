@@ -9,11 +9,257 @@ import {
   Plus,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ApiError } from '@water-erp/client';
+import {
+  RULE_CHECK_TARGETS,
+  RULE_UNITS,
+  RULE_OPERATORS,
+  RULE_SEVERITIES,
+  RULE_CHECK_TYPES,
+} from '@water-erp/shared';
 import { fetchRules, extractRules, getExtractionTask, findActiveExtraction, deleteRule, updateRule, createRuleLegacy } from '@/lib/api/rules';
 import type { ComplianceRule, RuleType, Severity } from '@/lib/types/tender-review';
 import { RULE_TYPE_LABELS, SEVERITY_LABELS, SEVERITY_COLORS } from '@/lib/types/tender-review';
 import { Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
+
+/** 规则表单枚举域（2026-11-19 审查 #13）：自 @water-erp/shared 单源——
+ *  抽取提示词/后端归一/本表单三处同源，加值只改 shared 一处 */
+const OPERATOR_LABELS: Record<string, string> = {
+  '>=': '≥', '<=': '≤', '>': '>', '<': '<', '==': '=', '!=': '≠',
+};
+const CHECK_TYPE_LABELS: Record<string, string> = {
+  keyword: '按关键词', section: '按章节',
+};
+
+/** 规则编辑草稿（2026-11-19 审查 #1/#3/#6/#12/#14 收口）：编辑/新建全受控——
+ *  旧实现 uncontrolled defaultValue + getElementById 收割，导致类型切换面板
+ *  不联动/往返重挂丢输入/隐藏字段被抹/枚举漂移值回显首项静默改写四族缺陷。
+ *  logic 保留全部类型字段（threshold 为文本，保存时校验），切类型不丢已输入。 */
+interface RuleDraft {
+  name: string;
+  severity: string;
+  checkTarget: string;
+  ruleType: RuleType;
+  logic: {
+    field?: string;
+    operator?: string;
+    threshold?: string;
+    unit?: string;
+    checkType?: string;
+    keywords?: string;
+    sectionName?: string;
+    description?: string;
+  };
+}
+
+function draftFromRule(rule: ComplianceRule): RuleDraft {
+  const logic = (rule.logicExpression ?? {}) as Record<string, unknown>;
+  const str = (v: unknown, fallback = '') => (v == null ? fallback : String(v));
+  return {
+    name: rule.name,
+    severity: rule.severity,
+    checkTarget: rule.checkTarget,
+    ruleType: rule.ruleType,
+    logic: {
+      field: str(logic.field),
+      operator: str(logic.operator, '>='),
+      threshold: logic.threshold == null ? '' : String(logic.threshold),
+      unit: str(logic.unit, 'cny'),
+      checkType: str(logic.checkType, 'keyword'),
+      keywords: Array.isArray(logic.keywords) ? (logic.keywords as string[]).join(', ') : '',
+      sectionName: str(logic.sectionName),
+      description: str(logic.description),
+    },
+  };
+}
+
+function emptyDraft(): RuleDraft {
+  return {
+    name: '',
+    severity: 'warning',
+    checkTarget: '全部',
+    ruleType: 'semantic',
+    logic: {
+      field: '',
+      operator: '>=',
+      threshold: '',
+      unit: 'cny',
+      checkType: 'keyword',
+      keywords: '',
+      sectionName: '',
+      description: '',
+    },
+  };
+}
+
+/** 保存前逻辑收口（审查 #1/#12）：existence 双侧字段都持久化——executor 是
+ *  keywords→sectionName 回退链（空 keywords 回退 sectionName），抹掉任一侧
+ *  =静默废掉该规则；numeric 阈值必填数字——旧收割 Number('')===0 把清空的
+ *  阈值静默存成 0（「≥0」恒过=废掉检查）。返回 null=校验失败（已 toast）。 */
+function buildLogicForSave(draft: RuleDraft): Record<string, unknown> | null {
+  const l = draft.logic;
+  if (draft.ruleType === 'numeric_compare') {
+    const raw = (l.threshold ?? '').trim();
+    const n = Number(raw);
+    if (raw === '' || !Number.isFinite(n)) {
+      toast.error('请填写数值阈值');
+      return null;
+    }
+    return {
+      field: (l.field ?? '').trim(),
+      operator: l.operator ?? '>=',
+      threshold: n,
+      unit: l.unit ?? 'cny',
+    };
+  }
+  if (draft.ruleType === 'existence_check') {
+    const keywords = (l.keywords ?? '')
+      .split(/[,，]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return {
+      checkType: l.checkType ?? 'keyword',
+      keywords,
+      sectionName: (l.sectionName ?? '').trim(),
+    };
+  }
+  return { description: (l.description ?? '').trim() };
+}
+
+/** 规则表单字段（编辑/新建共用，审查 #14 去重）：全受控，切换类型/检查型不丢
+ *  已输入（state 驻留父级，面板卸载重挂不回退）；所有枚举 select 对存量漂移值
+ *  「追加为选项原样保留」（#6）——value 不在 options 内时浏览器回显首项，用户
+ *  不碰保存也会被静默改写（如 severity 漂移值被强转 critical=升权重）。 */
+function RuleFormFields({ draft, onChange, disabled, source }: {
+  draft: RuleDraft;
+  onChange: (next: RuleDraft) => void;
+  disabled?: boolean;
+  source?: string;
+}) {
+  const patch = (p: Partial<RuleDraft>) => onChange({ ...draft, ...p });
+  const patchLogic = (p: Partial<RuleDraft['logic']>) =>
+    onChange({ ...draft, logic: { ...draft.logic, ...p } });
+  const opts = (values: readonly string[], current: string): string[] =>
+    values.includes(current) ? [...values] : [current, ...values];
+  const l = draft.logic;
+  const isCreate = source === undefined;
+
+  return (
+    <>
+      {source !== undefined && (
+        <div className="text-xs text-[var(--muted-foreground)]">
+          来源：<span className="text-[var(--foreground)]">{source}</span>
+        </div>
+      )}
+
+      <div>
+        <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则名称{isCreate ? ' *' : ''}</label>
+        <input
+          type="text"
+          value={draft.name}
+          onChange={(e) => patch({ name: e.target.value })}
+          placeholder={isCreate ? '例：投标保证金比例' : undefined}
+          className="workbench-input"
+          readOnly={disabled}
+        />
+      </div>
+
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <label className="block text-xs text-[var(--muted-foreground)] mb-1">严重程度</label>
+          <select
+            value={draft.severity}
+            onChange={(e) => patch({ severity: e.target.value })}
+            className="workbench-input"
+          >
+            {opts(RULE_SEVERITIES, draft.severity).map((v) => (
+              <option key={v} value={v}>{(SEVERITY_LABELS as Record<string, string>)[v] ?? v}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查对象</label>
+          <select
+            value={draft.checkTarget}
+            onChange={(e) => patch({ checkTarget: e.target.value })}
+            className="workbench-input"
+          >
+            {opts(RULE_CHECK_TARGETS, draft.checkTarget).map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则类型</label>
+        <select
+          value={draft.ruleType}
+          onChange={(e) => patch({ ruleType: e.target.value as RuleType })}
+          className="workbench-input"
+        >
+          <option value="numeric_compare">数值比较</option>
+          <option value="existence_check">存在性检查</option>
+          <option value="semantic">语义判定</option>
+        </select>
+      </div>
+
+      {draft.ruleType === 'numeric_compare' && (
+        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
+          <div className="text-xs font-medium text-[var(--muted-foreground)]">检查条件（数值比较）</div>
+          <div className="flex gap-2">
+            <input type="text" value={l.field ?? ''} onChange={(e) => patchLogic({ field: e.target.value })}
+              className="workbench-input flex-1" readOnly={disabled} placeholder="字段名，如 budgetAmount" />
+            <select value={l.operator ?? '>='} onChange={(e) => patchLogic({ operator: e.target.value })}
+              className="workbench-input w-16">
+              {opts(RULE_OPERATORS, l.operator ?? '>=').map((op) => (
+                <option key={op} value={op}>{OPERATOR_LABELS[op] ?? op}</option>
+              ))}
+            </select>
+            <input type="text" value={l.threshold ?? ''} onChange={(e) => patchLogic({ threshold: e.target.value })}
+              className="workbench-input flex-1" readOnly={disabled} placeholder="阈值" inputMode="decimal" />
+            <select value={l.unit ?? 'cny'} onChange={(e) => patchLogic({ unit: e.target.value })}
+              className="workbench-input w-20">
+              {opts(RULE_UNITS.map((u) => u.value), l.unit ?? 'cny').map((v) => (
+                <option key={v} value={v}>{RULE_UNITS.find((u) => u.value === v)?.label ?? v}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
+      {draft.ruleType === 'existence_check' && (
+        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
+          <div className="text-xs font-medium text-[var(--muted-foreground)]">检查条件（存在性检查）</div>
+          <select
+            value={l.checkType ?? 'keyword'}
+            onChange={(e) => patchLogic({ checkType: e.target.value })}
+            className="workbench-input"
+          >
+            {opts(RULE_CHECK_TYPES, l.checkType ?? 'keyword').map((v) => (
+              <option key={v} value={v}>{CHECK_TYPE_LABELS[v] ?? v}</option>
+            ))}
+          </select>
+          {/* 双侧都驻留 draft（审查 #1）：executor 对 keywords→sectionName 是回退链，
+              只渲染一侧+收割抹掉另一侧=静默废掉规则；生效侧由上方检查方式决定 */}
+          <input type="text" value={l.keywords ?? ''} onChange={(e) => patchLogic({ keywords: e.target.value })}
+            className="workbench-input" readOnly={disabled} placeholder="关键词，多个用逗号分隔" />
+          <input type="text" value={l.sectionName ?? ''} onChange={(e) => patchLogic({ sectionName: e.target.value })}
+            className="workbench-input" readOnly={disabled} placeholder="章节名" />
+        </div>
+      )}
+
+      {draft.ruleType === 'semantic' && (
+        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
+          <div className="text-xs font-medium text-[var(--muted-foreground)]">检查条件（语义判定）</div>
+          <textarea value={l.description ?? ''} onChange={(e) => patchLogic({ description: e.target.value })}
+            rows={2} className="neu-input text-sm" readOnly={disabled} placeholder="检查描述" />
+        </div>
+      )}
+    </>
+  );
+}
 
 interface RulesPanelCompactProps {
   knowledgeBaseId: string;
@@ -27,73 +273,121 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
   const [editingRule, setEditingRule] = useState<ComplianceRule | null>(null);
+  const [editingDraft, setEditingDraft] = useState<RuleDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [createDraft, setCreateDraft] = useState<RuleDraft>(emptyDraft);
   const [creating, setCreating] = useState(false);
   const [extractedCount, setExtractedCount] = useState(0);
+  /** 「新」徽章基线（2026-11-19 审查 #10 修正）：=任务开始（createdAt）前已存在的
+   *  规则 id 集——点击提取/刷新接管/409 接管三条路同口径种子，不在基线内的打
+   *  「新」；完成后保留（看清本轮加了什么），下次提取/换库/手动新增入基线时消解 */
   const [prevRuleIds, setPrevRuleIds] = useState<Set<string>>(new Set());
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  /** 轮询纪元（2026-11-19 审查 #9）：切库/接管/终态都会 ++——在飞 tick 与迟到
+   *  响应对不上纪元即丢弃，防旧库轮询清掉新库轮询、旧数据回写新态 */
+  const pollEpochRef = useRef(0);
   const { confirm, dialog } = useConfirm();
 
   useEffect(() => {
-    loadRules();
-    // Check if there's an active extraction task for this KB and resume polling
-    findActiveExtraction(knowledgeBaseId).then((task) => {
+    let cancelled = false;
+    (async () => {
+      // 挂载/换库：载入 → 探询接管（基线=任务开始前已存在的规则，而非空集）
+      const data = await loadRules();
+      if (cancelled) return;
+      const task = await findActiveExtraction(knowledgeBaseId).catch(() => null);
+      if (cancelled) return;
       if (task && task.status === 'running') {
         setExtracting(true);
         setExtractedCount(task.extractedCount ?? 0);
-        setPrevRuleIds(new Set());
+        seedBaseline(data, task.createdAt);
         startPolling(task.id, knowledgeBaseId);
+      } else {
+        setExtracting(false); // 清旧库/旧任务残留态
       }
-    });
+    })();
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
+      cancelled = true;
+      stopPolling();
+      setExtracting(false);
     };
   }, [knowledgeBaseId]);
 
-  async function loadRules() {
+  async function loadRules(): Promise<ComplianceRule[]> {
+    // 换库/重挂载：清新增标记基线
+    setPrevRuleIds(new Set());
     setLoading(true);
     try {
       const data = await fetchRules(knowledgeBaseId);
       setRules(data);
+      return data;
     } catch {
       toast.error('加载规则失败');
+      return [];
     } finally {
       setLoading(false);
     }
   }
 
+  /** 基线种子：createdAt ≤ 任务启动时刻的规则视为「已存在」；无 createdAt 不种子 */
+  function seedBaseline(currentRules: ComplianceRule[], taskCreatedAt?: string) {
+    if (!taskCreatedAt) return;
+    const cut = new Date(taskCreatedAt).getTime();
+    setPrevRuleIds(
+      new Set(
+        currentRules
+          .filter((r) => new Date(r.createdAt).getTime() <= cut)
+          .map((r) => r.id),
+      ),
+    );
+  }
+
+  function stopPolling() {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    pollEpochRef.current++; // 作废在飞 tick 与迟到响应（#9）
+  }
+
   function startPolling(taskId: string, kbId: string) {
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    const epoch = ++pollEpochRef.current;
     pollIntervalRef.current = setInterval(async () => {
+      if (pollEpochRef.current !== epoch) return;
       try {
         const [task, latestRules] = await Promise.all([
           getExtractionTask(taskId),
           fetchRules(kbId),
         ]);
+        if (pollEpochRef.current !== epoch) return; // 响应跨越切库/重启轮询：丢弃
 
         setRules(latestRules);
         if (task.extractedCount != null) {
           setExtractedCount(task.extractedCount);
         }
 
-        if (task.status === 'completed') {
+        if (task.status === 'completed' || task.status === 'failed') {
+          // 终态：注销纪元（作废同刻在飞 tick）再收尾
+          pollEpochRef.current++;
           clearInterval(pollIntervalRef.current!);
           pollIntervalRef.current = null;
           setExtracting(false);
-          setPrevRuleIds(new Set());
 
-          const finalRules = await fetchRules(kbId);
-          setRules(finalRules);
-          toast.success(`规则提取完成，共提取 ${finalRules.length} 条规则`, { duration: 6000 });
-        } else if (task.status === 'failed') {
-          clearInterval(pollIntervalRef.current!);
-          pollIntervalRef.current = null;
-          setExtracting(false);
-          setPrevRuleIds(new Set());
-          toast.error(task.error || '规则提取失败，请重试');
+          if (task.status === 'completed') {
+            // prevRuleIds 保留：完成后「新」标记继续标出本轮新增
+            const finalRules = await fetchRules(kbId).catch(() => null);
+            // 期间无人重启过轮询（纪元仍是本任务终态注销后的值）才落最终列表
+            if (finalRules && pollEpochRef.current === epoch + 1) {
+              setRules(finalRules);
+            }
+            toast.success(
+              `规则提取完成，本次新增 ${task.extractedCount ?? 0} 条，库内共 ${finalRules?.length ?? latestRules.length} 条`,
+              { duration: 6000 },
+            );
+          } else {
+            toast.error(task.error || '规则提取失败，请重试');
+          }
         }
       } catch (err) {
         console.error('Poll extraction task error:', err);
@@ -106,15 +400,47 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
     setExtracting(true);
     setExtractedCount(0);
     setPrevRuleIds(new Set(rules.map(r => r.id)));
-    toast.info('规则提取已在后台开始，提取期间可继续其他操作', { duration: 5000 });
 
     try {
       const { taskId } = await extractRules(knowledgeBaseId);
-
+      toast.info('规则提取已在后台开始，提取期间可继续其他操作', { duration: 5000 });
       startPolling(taskId, knowledgeBaseId);
     } catch (err) {
       console.error('Extract rules error:', err);
-      toast.error('规则提取失败，请重试');
+      // 仅 409（并发闸）才接管（审查 #2）：探询端点无属主校验，无差别接管会把
+      // 403/500/网络错误伪装成「已接管进度」，真实错误只剩 console
+      if (err instanceof ApiError && err.status === 409) {
+        // 探询区分「确认无任务」与「查询失败」（复审 #4/#5）：失败不再伪装成
+        // 「刚刚完成」——那会在任务仍在跑时给出虚假成功提示
+        let active: Awaited<ReturnType<typeof findActiveExtraction>> = null;
+        let probeFailed = false;
+        try {
+          active = await findActiveExtraction(knowledgeBaseId);
+        } catch {
+          probeFailed = true;
+        }
+        if (active && active.status === 'running') {
+          seedBaseline(rules, active.createdAt);
+          toast.info('该知识库正在提取规则，已显示当前进度');
+          startPolling(active.id, knowledgeBaseId);
+          return;
+        }
+        if (probeFailed) {
+          toast.error('该知识库可能正在提取规则，但状态查询失败，请稍后刷新查看');
+          setExtracting(false);
+          setPrevRuleIds(new Set());
+          return;
+        }
+        // 探询确认无 running：任务恰在 409 与探询之间完成——刷新列表让成果
+        // 可见，不弹过时的「请等待完成」
+        const latest = await fetchRules(knowledgeBaseId).catch(() => null);
+        if (latest) setRules(latest);
+        toast.info('提取刚刚完成，已刷新规则列表');
+        setExtracting(false);
+        setPrevRuleIds(new Set());
+        return;
+      }
+      toast.error(err instanceof Error && err.message ? err.message : '规则提取失败，请重试');
       setExtracting(false);
       setPrevRuleIds(new Set());
     }
@@ -132,46 +458,24 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
   }
 
   async function handleSave() {
-    if (!editingRule) return;
+    if (!editingRule || !editingDraft) return;
+    const name = editingDraft.name.trim();
+    if (!name) { toast.error('请填写规则名称'); return; }
+    const logicExpression = buildLogicForSave(editingDraft);
+    if (!logicExpression) return;
     setSaving(true);
     try {
-      const el = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
-      const name = (el('edit-name') as HTMLInputElement)?.value ?? editingRule.name;
-      const severity = (el('edit-severity') as HTMLSelectElement)?.value ?? editingRule.severity;
-      const checkTarget = (el('edit-checkTarget') as HTMLInputElement)?.value ?? editingRule.checkTarget;
-      const ruleType = (el('edit-ruleType') as HTMLSelectElement)?.value ?? editingRule.ruleType;
-
-      let logicExpression = { ...editingRule.logicExpression } as Record<string, unknown>;
-      if (editingRule.ruleType === 'numeric_compare') {
-        logicExpression = {
-          field: (el('edit-le-field') as HTMLInputElement)?.value ?? '',
-          operator: (el('edit-le-operator') as HTMLSelectElement)?.value ?? '>=',
-          threshold: Number((el('edit-le-threshold') as HTMLInputElement)?.value ?? 0),
-          unit: (el('edit-le-unit') as HTMLSelectElement)?.value ?? 'cny',
-        };
-      } else if (editingRule.ruleType === 'existence_check') {
-        const kw = (el('edit-le-keywords') as HTMLInputElement)?.value ?? '';
-        logicExpression = {
-          checkType: (el('edit-le-checkType') as HTMLSelectElement)?.value ?? 'keyword',
-          keywords: kw ? kw.split(/[,，]/).map((s: string) => s.trim()).filter(Boolean) : [],
-          sectionName: (el('edit-le-sectionName') as HTMLInputElement)?.value ?? '',
-        };
-      } else {
-        logicExpression = {
-          description: (el('edit-le-description') as HTMLTextAreaElement)?.value ?? '',
-        };
-      }
-
       const updated = await updateRule(editingRule.id, {
         name,
-        severity: severity as Severity,
-        checkTarget,
-        ruleType: ruleType as RuleType,
+        severity: editingDraft.severity as Severity,
+        checkTarget: editingDraft.checkTarget,
+        ruleType: editingDraft.ruleType,
         logicExpression,
       });
       setRules((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
       toast.success('规则已更新');
       setEditingRule(null);
+      setEditingDraft(null);
     } catch {
       toast.error('更新失败');
     } finally {
@@ -180,47 +484,24 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
   }
 
   async function handleCreate() {
+    const name = createDraft.name.trim();
+    if (!name) { toast.error('请填写规则名称'); return; }
+    const logicExpression = buildLogicForSave(createDraft);
+    if (!logicExpression) return;
     setCreating(true);
     try {
-      const el = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null;
-      const name = (el('create-name') as HTMLInputElement)?.value.trim();
-      const severity = (el('create-severity') as HTMLSelectElement)?.value as Severity;
-      const checkTarget = (el('create-checkTarget') as HTMLInputElement)?.value.trim();
-      const ruleType = (el('create-ruleType') as HTMLSelectElement)?.value as RuleType;
-
-      if (!name) { toast.error('请填写规则名称'); return; }
-
-      let logicExpression: Record<string, unknown>;
-      if (ruleType === 'numeric_compare') {
-        logicExpression = {
-          field: (el('create-le-field') as HTMLInputElement)?.value ?? '',
-          operator: (el('create-le-operator') as HTMLSelectElement)?.value ?? '>=',
-          threshold: Number((el('create-le-threshold') as HTMLInputElement)?.value ?? 0),
-          unit: (el('create-le-unit') as HTMLSelectElement)?.value ?? 'cny',
-        };
-      } else if (ruleType === 'existence_check') {
-        const kw = (el('create-le-keywords') as HTMLInputElement)?.value ?? '';
-        logicExpression = {
-          checkType: (el('create-le-checkType') as HTMLSelectElement)?.value ?? 'keyword',
-          keywords: kw ? kw.split(/[,，]/).map((s: string) => s.trim()).filter(Boolean) : [],
-          sectionName: (el('create-le-sectionName') as HTMLInputElement)?.value ?? '',
-        };
-      } else {
-        logicExpression = {
-          description: (el('create-le-description') as HTMLTextAreaElement)?.value ?? '',
-        };
-      }
-
       const created = await createRuleLegacy({
         knowledgeBaseId,
         source: '手动创建',
         name,
-        ruleType,
-        checkTarget,
+        ruleType: createDraft.ruleType,
+        checkTarget: createDraft.checkTarget,
         logicExpression,
-        severity,
+        severity: createDraft.severity as Severity,
       });
       setRules((prev) => [created, ...prev]);
+      // 手动新增不戴「新」徽章（审查 #10）：入基线
+      setPrevRuleIds((prev) => new Set(prev).add(created.id));
       toast.success('规则已创建');
       setShowCreate(false);
     } catch {
@@ -250,7 +531,10 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
               {extracting ? 'AI 提取中' : 'AI 提取'}
             </button>
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => {
+                setCreateDraft(emptyDraft()); // 每次打开重置草稿
+                setShowCreate(true);
+              }}
               className="flex items-center gap-1.5 rounded-[10px] px-3 py-1.5 text-xs font-medium
                 border border-[var(--accent)]/30 bg-[var(--accent)]/5 text-[var(--accent)]
                 hover:bg-[var(--accent)]/10 transition-colors"
@@ -306,12 +590,17 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_COLORS[rule.severity]}`}>
-                    {SEVERITY_LABELS[rule.severity]}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${SEVERITY_COLORS[rule.severity] ?? ''}`}>
+                    {SEVERITY_LABELS[rule.severity] ?? rule.severity}
                   </span>
                   <span className="text-[10px] text-[var(--muted-foreground)]">
-                    {RULE_TYPE_LABELS[rule.ruleType]}
+                    {RULE_TYPE_LABELS[rule.ruleType] ?? rule.ruleType}
                   </span>
+                  {prevRuleIds.size > 0 && !prevRuleIds.has(rule.id) && (
+                    <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] px-1 py-px text-[9px] font-bold text-[var(--accent)]">
+                      新
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-[var(--foreground)] truncate">
                   {rule.name}
@@ -320,7 +609,10 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
               {canEdit && (
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button
-                    onClick={() => setEditingRule({ ...rule, logicExpression: { ...rule.logicExpression } })}
+                    onClick={() => {
+                      setEditingRule(rule);
+                      setEditingDraft(draftFromRule(rule));
+                    }}
                     className="p-1 text-[var(--muted-foreground)] hover:text-[var(--accent)] transition-colors"
                   >
                     <Pencil className="h-3 w-3" />
@@ -354,48 +646,12 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
             </>
           }
         >
-          <div>
-            <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则名称 *</label>
-            <input
-              id="create-name"
-              type="text"
-              placeholder="例：投标保证金比例"
-              className="workbench-input"
-              readOnly={creating}
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-xs text-[var(--muted-foreground)] mb-1">严重程度</label>
-              <select
-                id="create-severity"
-                defaultValue="warning"
-                className="workbench-input"
-              >
-                <option value="critical">严重</option>
-                <option value="warning">警告</option>
-                <option value="info">提示</option>
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查对象</label>
-              <input
-                id="create-checkTarget"
-                type="text"
-                placeholder="例：投标文件"
-                className="workbench-input"
-                readOnly={creating}
-              />
-            </div>
-          </div>
-
-          <CreateLogicFieldsCompact creating={creating} />
+          <RuleFormFields draft={createDraft} onChange={setCreateDraft} disabled={creating} />
         </Modal>
       )}
 
       {/* Edit Modal */}
-      {editingRule && (
+      {editingRule && editingDraft && (
         <Modal
           open
           onClose={() => !saving && setEditingRule(null)}
@@ -410,188 +666,10 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
             </>
           }
         >
-          <div>
-            <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则名称</label>
-            <input
-              id="edit-name"
-              type="text"
-              defaultValue={editingRule.name}
-              className="workbench-input"
-              readOnly={saving}
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <label className="block text-xs text-[var(--muted-foreground)] mb-1">严重程度</label>
-              <select
-                id="edit-severity"
-                defaultValue={editingRule.severity}
-                className="workbench-input"
-              >
-                <option value="critical">严重</option>
-                <option value="warning">警告</option>
-                <option value="info">提示</option>
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查对象</label>
-              <input
-                id="edit-checkTarget"
-                type="text"
-                defaultValue={editingRule.checkTarget}
-                className="workbench-input"
-                readOnly={saving}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则类型</label>
-            <select
-              id="edit-ruleType"
-              defaultValue={editingRule.ruleType}
-              className="workbench-input"
-            >
-              <option value="numeric_compare">数值比较</option>
-              <option value="existence_check">存在性检查</option>
-              <option value="semantic">语义判定</option>
-            </select>
-          </div>
-
-          {editingRule.ruleType === 'numeric_compare' && (
-            <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-              <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（数值比较）</div>
-              <div className="flex gap-2">
-                <input id="edit-le-field" type="text" defaultValue={String((editingRule.logicExpression as any).field ?? '')}
-                  className="workbench-input flex-1"
-                  readOnly={saving} placeholder="字段" />
-                <select id="edit-le-operator" defaultValue={String((editingRule.logicExpression as any).operator ?? '>=')}
-                  className="workbench-input w-16"
-                >
-                  <option value=">=">≥</option>
-                  <option value="<=">≤</option>
-                  <option value=">">{'>'}</option>
-                  <option value="<">{'<'}</option>
-                  <option value="==">=</option>
-                  <option value="!=">≠</option>
-                </select>
-                <input id="edit-le-threshold" type="number" defaultValue={Number((editingRule.logicExpression as any).threshold ?? 0)}
-                  className="workbench-input flex-1"
-                  readOnly={saving} placeholder="阈值" />
-                <select id="edit-le-unit" defaultValue={String((editingRule.logicExpression as any).unit ?? 'cny')}
-                  className="workbench-input w-16">
-                  <option value="cny">元</option>
-                  <option value="ten_thousand_cny">万元</option>
-                  <option value="percent">%</option>
-                  <option value="days">天</option>
-                  <option value="none">无</option>
-                </select>
-              </div>
-            </div>
-          )}
-
-          {editingRule.ruleType === 'existence_check' && (
-            <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-              <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（存在性检查）</div>
-              <input id="edit-le-keywords" type="text"
-                defaultValue={Array.isArray((editingRule.logicExpression as any).keywords) ? ((editingRule.logicExpression as any).keywords as string[]).join(', ') : ''}
-                className="workbench-input"
-                readOnly={saving} placeholder="关键词（逗号分隔）" />
-              <input id="edit-le-sectionName" type="text"
-                defaultValue={String((editingRule.logicExpression as any).sectionName ?? '')}
-                className="workbench-input"
-                readOnly={saving} placeholder="章节名" />
-            </div>
-          )}
-
-          {editingRule.ruleType === 'semantic' && (
-            <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-              <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（语义判定）</div>
-              <textarea id="edit-le-description" defaultValue={String((editingRule.logicExpression as any).description ?? '')}
-                rows={2}
-                className="neu-input text-sm"
-                readOnly={saving} placeholder="检查描述" />
-            </div>
-          )}
+          <RuleFormFields draft={editingDraft} onChange={setEditingDraft} disabled={saving} source={editingRule.source} />
         </Modal>
       )}
       {dialog}
     </div>
-  );
-}
-
-function CreateLogicFieldsCompact({ creating }: { creating: boolean }) {
-  const [type, setType] = useState<RuleType>('semantic');
-
-  return (
-    <>
-      <div>
-        <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则类型</label>
-        <select
-          id="create-ruleType"
-          value={type}
-          onChange={(e) => setType(e.target.value as RuleType)}
-          className="workbench-input"
-        >
-          <option value="numeric_compare">数值比较</option>
-          <option value="existence_check">存在性检查</option>
-          <option value="semantic">语义判定</option>
-        </select>
-      </div>
-
-      {type === 'numeric_compare' && (
-        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-          <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（数值比较）</div>
-          <div className="flex gap-2">
-            <input id="create-le-field" type="text" placeholder="字段"
-              className="workbench-input flex-1"
-              readOnly={creating} />
-            <select id="create-le-operator" defaultValue=">="
-              className="workbench-input w-16">
-              <option value=">=">≥</option>
-              <option value="<=">≤</option>
-              <option value=">">{'>'}</option>
-              <option value="<">{'<'}</option>
-              <option value="==">=</option>
-              <option value="!=">≠</option>
-            </select>
-            <input id="create-le-threshold" type="number" defaultValue={0}
-              className="workbench-input flex-1"
-              readOnly={creating} />
-            <select id="create-le-unit" defaultValue="cny"
-              className="workbench-input w-16">
-              <option value="cny">元</option>
-              <option value="ten_thousand_cny">万元</option>
-              <option value="percent">%</option>
-              <option value="days">天</option>
-              <option value="none">无</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      {type === 'existence_check' && (
-        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-          <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（存在性检查）</div>
-          <input id="create-le-keywords" type="text" placeholder="关键词（逗号分隔）"
-            className="workbench-input"
-            readOnly={creating} />
-          <input id="create-le-sectionName" type="text" placeholder="章节名"
-            className="workbench-input"
-            readOnly={creating} />
-        </div>
-      )}
-
-      {type === 'semantic' && (
-        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-          <div className="text-xs font-medium text-[var(--muted-foreground)]">逻辑表达式（语义判定）</div>
-          <textarea id="create-le-description" rows={2}
-            placeholder="检查描述"
-            className="neu-input text-sm"
-            readOnly={creating} />
-        </div>
-      )}
-    </>
   );
 }

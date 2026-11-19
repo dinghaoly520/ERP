@@ -2,6 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LlmService } from '../../local-ai/llm.service';
 import { ClauseParserService, Clause } from './clause-parser.service';
+import {
+  RULE_CHECK_TARGETS,
+  RULE_UNITS,
+  RULE_SEVERITIES,
+} from '@water-erp/shared';
+
+/** 枚举段自 @water-erp/shared 单源注入（2026-11-19 审查 #13）：提示词/后端归一/
+ *  前端表单三处同源，加值只改 shared 一处，漏改即「选项表静默改写」复发 */
+const UNIT_ENUM_LINE = RULE_UNITS.map((u) => `"${u.value}"(${u.label})`).join(', ');
+const CHECK_TARGET_ENUM_LINE = RULE_CHECK_TARGETS.map((t) => `"${t}"`).join('、');
 
 const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的任务是从采购管理制度条款中提取可自动检查的结构化规则。
 
@@ -14,7 +24,7 @@ const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的�
 - "checkTarget": 检查对象，如 "采购公告"、"投标文件"、"合同"、"评标报告"、"采购文件"、"全部"
 - "logicExpression": 规则逻辑对象
   - numeric_compare 类型: { "field": "字段名", "operator": ">="或"<="或">"或"<"或"=="或"!=", "threshold": 数值, "unit": 单位代码 }
-    unit 可选值: "cny"(元), "ten_thousand_cny"(万元), "days"(天), "months"(月), "years"(年), "percent"(%), "ratio"(比率), "count"(个/次/人), "copies"(份), "points"(分), "hours"(小时), "none"(无单位)
+    unit 可选值: ${UNIT_ENUM_LINE}
     根据条款内容选择最合适的单位，例如"30日内"用"days"，"3%以上"用"percent"，"不少于3家"用"count"
   - existence_check 类型: { "checkType": "keyword"或"section", "keywords": ["关键词1"], "sectionName": "章节名" }
   - semantic 类型: { "description": "检查描述" }
@@ -24,7 +34,7 @@ const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的�
 - 不要遗漏任何可检查的规则，包括隐含的合规要求（如"应当公开招标"、"不得分包"等）
 - 当条款包含数字+单位（如"30日"、"50万"、"3家"）时，优先使用 numeric_compare 而非 semantic
 - 当条款包含"应当提供"/"必须包含"/"不得缺少"等存在性要求时，优先使用 existence_check 而非 semantic
-- checkTarget 只能使用以下值之一："采购公告"、"招标文件"、"投标文件"、"合同"、"评标报告"、"采购文件"、"立项文件"、"归档文件"、"变更书面材料"、"全部"
+- checkTarget 只能使用以下值之一：${CHECK_TARGET_ENUM_LINE}
 - 对于确实无法归入 numeric_compare 或 existence_check 的规则才使用 semantic 类型
 - 一条条款可能包含多条规则，请全部提取
 - source 必须直接使用输入中 [标签] 的内容，不要推测或改写
@@ -34,16 +44,24 @@ const EXTRACTION_SYSTEM_PROMPT = `你是一个采购合规审查专家。你的�
 
 请以 JSON 格式输出，不要包含 markdown 代码块标记。`;
 
-const REVIEW_SYSTEM_PROMPT = `你是一个采购合规审查专家。你将看到一份采购管理制度的全文，以及已经从中提取的规则列表。
+const REVIEW_SYSTEM_PROMPT = `你是一个采购合规审查专家。你将看到一份采购管理制度的全文，或按未覆盖条款定位的相关节选，以及已经从中提取的规则列表。
 
-你的任务是检查是否有**遗漏的规则**。请仔细阅读全文，找出所有尚未提取的可检查规则。
+你的任务是检查是否有**遗漏的规则**。请仔细阅读可见内容，找出所有尚未提取的可检查规则。
 
 输出格式（JSON 数组），与提取规则格式相同。如果没有遗漏，返回空数组 []。
 
 注意：
 - 重点检查隐含的合规要求（如"应当..."、"不得..."、"必须..."、"禁止..."等表述）
-- 检查跨条款的关联规则
+- 检查跨条款的关联规则（基于可见内容）
 - 不要重复已提取的规则`;
+
+/** 查漏 Pass 2 的未覆盖条款上限（提示词列表与定位窗口两处 slice 同源，
+ *  2026-11-19 审查 #15——裸数字两处各改一处即失配） */
+const MAX_REVIEW_ITEMS = 15;
+
+/** 条款工作项（2026-11-19 审查 #11）：offset=条款在原文中的精确偏移
+ *  （ClauseParser 已算出），查漏定位窗口优先用它，indexOf 首次命中会锚错 */
+type ExtractItem = { label: string; text: string; offset: number | null };
 
 export type ExtractionProgress = {
   /** Incremental callback to report progress during extraction */
@@ -145,11 +163,12 @@ export class RuleExtractorService {
     const clauses = parsed.clauses;
 
     // Fallback: if clause parser found nothing, split into chunks
-    const rawItems: Array<{ label: string; text: string }> =
+    const rawItems: ExtractItem[] =
       clauses.length > 0
         ? clauses.map((c) => ({
             label: `${c.clauseNumber}${c.title ? ' ' + c.title : ''}`,
             text: c.content,
+            offset: c.startOffset,
           }))
         : this.splitIntoChunks(content);
 
@@ -235,7 +254,7 @@ export class RuleExtractorService {
       (item) => !coveredLabels.has(item.label),
     );
     const uncoveredText = uncoveredItems
-      .slice(0, 15)
+      .slice(0, MAX_REVIEW_ITEMS)
       .map((c) => `[${c.label}]\n${c.text.slice(0, 500)}`)
       .join('\n\n---\n\n');
 
@@ -251,6 +270,7 @@ export class RuleExtractorService {
         fileName,
         allExtractedNames,
         uncoveredText,
+        uncoveredItems.slice(0, MAX_REVIEW_ITEMS),
       );
 
       if (reviewResult.length > 0) {
@@ -298,11 +318,18 @@ export class RuleExtractorService {
     fileName: string,
     existingRules: string[],
     uncoveredText: string,
+    uncoveredItems: ExtractItem[],
   ): Promise<any[]> {
-    const truncated =
-      content.length > 50000 ? content.slice(0, 50000) : content;
+    const { text: fullText, mode } = this.buildReviewContextText(content, uncoveredItems);
+    // 标签如实（2026-11-19 审查 #4）：回落头部截断时不再谎称「已按未覆盖条款定位」
+    const fullTextLabel =
+      mode === 'windows'
+        ? '文件相关节选（超长文档，已按未覆盖条款定位上下文）：'
+        : mode === 'head'
+          ? '文件内容（超长文档，截取前 50000 字）：'
+          : '文件全文：';
 
-    const prompt = `文件名: "${fileName}"\n\n已提取的规则列表（${existingRules.length} 条）：\n${existingRules.map((r) => '- ' + r).join('\n')}\n\n以下条款尚未提取到任何规则，请重点检查：\n\n${uncoveredText}\n\n文件全文：\n${truncated}`;
+    const prompt = `文件名: "${fileName}"\n\n已提取的规则列表（${existingRules.length} 条）：\n${existingRules.map((r) => '- ' + r).join('\n')}\n\n以下条款尚未提取到任何规则，请重点检查：\n\n${uncoveredText}\n\n${fullTextLabel}\n${fullText}`;
 
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -328,11 +355,64 @@ export class RuleExtractorService {
     return [];
   }
 
-  private splitIntoChunks(
-    text: string,
-  ): Array<{ label: string; text: string }> {
+  /** 超长文档查漏上下文（2026-11-19 审查 #4/#11）：优先用条款解析器的精确偏移
+   *  （indexOf 首次命中会把窗口锚到前文引用的同 wording 段落），±1500 字窗口
+   *  重叠合并，MAX_REVIEW_ITEMS 上限下 ≤45k 字与旧 50k 预算同量级；偏移缺失
+   *  回落 probe 定位；定位全失败回落头部截断（旧行为兜底，mode 如实标注） */
+  private buildReviewContextText(
+    content: string,
+    uncoveredItems: ExtractItem[],
+  ): { text: string; mode: 'full' | 'windows' | 'head' } {
+    const LIMIT = 50000;
+    if (content.length <= LIMIT) return { text: content, mode: 'full' };
+    const WINDOW = 1500;
+    const ranges: Array<[number, number]> = [];
+    for (const item of uncoveredItems) {
+      let idx = -1;
+      if (
+        typeof item.offset === 'number' &&
+        item.offset >= 0 &&
+        item.offset < content.length
+      ) {
+        idx = item.offset;
+      } else {
+        const probe = item.text.trim().slice(0, 80);
+        if (probe) idx = content.indexOf(probe);
+      }
+      if (idx < 0) continue;
+      ranges.push([
+        Math.max(0, idx - WINDOW),
+        Math.min(content.length, idx + WINDOW),
+      ]);
+    }
+    if (ranges.length === 0) {
+      return { text: content.slice(0, LIMIT), mode: 'head' };
+    }
+    ranges.sort((a, b) => a[0] - b[0]);
+    const merged: Array<[number, number]> = [];
+    for (const r of ranges) {
+      const last = merged[merged.length - 1];
+      if (last && r[0] <= last[1]) {
+        last[1] = Math.max(last[1], r[1]);
+      } else {
+        merged.push([r[0], r[1]]);
+      }
+    }
+    const text = merged
+      .map(([s, e]) => {
+        // 省略号只在真被截断的边缘出现（#4：起点=0 也加前导……会误导 LLM 认为有前文）
+        let seg = content.slice(s, e);
+        if (s > 0) seg = `……${seg}`;
+        if (e < content.length) seg = `${seg}……`;
+        return seg;
+      })
+      .join('\n\n');
+    return { text, mode: 'windows' };
+  }
+
+  private splitIntoChunks(text: string): ExtractItem[] {
     const CHUNK_SIZE = 8000;
-    const chunks: Array<{ label: string; text: string }> = [];
+    const chunks: ExtractItem[] = [];
     let start = 0;
     let index = 1;
 
@@ -344,7 +424,7 @@ export class RuleExtractorService {
       }
       const content = text.slice(start, end).trim();
       if (content.length > 100) {
-        chunks.push({ label: `第${index}部分`, text: content });
+        chunks.push({ label: `第${index}部分`, text: content, offset: start });
         index++;
       }
       start = end;
@@ -353,11 +433,9 @@ export class RuleExtractorService {
     return chunks;
   }
 
-  private expandLongItems(
-    items: Array<{ label: string; text: string }>,
-  ): Array<{ label: string; text: string }> {
+  private expandLongItems(items: ExtractItem[]): ExtractItem[] {
     const LONG_THRESHOLD = 2000;
-    const result: Array<{ label: string; text: string }> = [];
+    const result: ExtractItem[] = [];
 
     for (const item of items) {
       if (item.text.length <= LONG_THRESHOLD) {
@@ -366,24 +444,28 @@ export class RuleExtractorService {
       }
 
       const lines = item.text.split('\n');
-      const groups: Array<{ label: string; lines: string[] }> = [];
+      const groups: Array<{ label: string; lines: string[]; start: number }> = [];
       let currentLines: string[] = [];
       let currentLabel = item.label;
+      let cursor = 0; // 当前行在 item.text 中的起点（组偏移穿透用）
+      let currentStart = 0;
 
       for (const line of lines) {
         const subMatch = line.match(
           /^[（(][一二三四五六七八九十]+[）)]|^\d+[.、]\s/,
         );
         if (subMatch && currentLines.length > 0) {
-          groups.push({ label: currentLabel, lines: currentLines });
+          groups.push({ label: currentLabel, lines: currentLines, start: currentStart });
           currentLines = [line];
           currentLabel = `${item.label} - ${line.trim().slice(0, 30)}`;
+          currentStart = cursor;
         } else {
           currentLines.push(line);
         }
+        cursor += line.length + 1; // +1 = split('\n') 的换行符
       }
       if (currentLines.length > 0) {
-        groups.push({ label: currentLabel, lines: currentLines });
+        groups.push({ label: currentLabel, lines: currentLines, start: currentStart });
       }
 
       if (groups.length <= 1) {
@@ -392,7 +474,12 @@ export class RuleExtractorService {
         for (const g of groups) {
           const text = g.lines.join('\n').trim();
           if (text.length > 20) {
-            result.push({ label: g.label, text });
+            // 组内 trim 可能吞前导空白——±1500 定位窗口容差内
+            result.push({
+              label: g.label,
+              text,
+              offset: item.offset == null ? null : item.offset + g.start,
+            });
           }
         }
       }
@@ -479,9 +566,19 @@ export class RuleExtractorService {
     const source = rule.source ?? rule.来源 ?? batch[0]?.label ?? '';
     const name = rule.name ?? rule.description ?? rule.名称 ?? rule.简述 ?? '';
     let ruleType = rule.ruleType ?? rule.rule_type ?? rule.type ?? '';
-    const checkTarget =
+    // 枚举收口（2026-11-19 审查 #6/#13）：LLM 词汇漂移不入库——漂移值落库后
+    // 编辑表单回显首项（如 severity 漂移值被强转 critical=升权重）、保存即静默改写
+    const rawCheckTarget =
       rule.checkTarget ?? rule.check_target ?? rule.检查对象 ?? '全部';
-    const severity = rule.severity ?? 'warning';
+    const checkTarget = (RULE_CHECK_TARGETS as readonly string[]).includes(
+      rawCheckTarget,
+    )
+      ? rawCheckTarget
+      : '全部';
+    const rawSeverity = rule.severity ?? 'warning';
+    const severity = (RULE_SEVERITIES as readonly string[]).includes(rawSeverity)
+      ? rawSeverity
+      : 'warning';
     const logicExpression =
       rule.logicExpression ??
       rule.logic_expression ??
@@ -503,6 +600,16 @@ export class RuleExtractorService {
     if (!['numeric_compare', 'existence_check', 'semantic'].includes(ruleType))
       return null;
 
-    return { source, name, ruleType, checkTarget, logicExpression, severity };
+    // numeric 单位同收口：漂移单位执行侧无法换算，落 'none' 保数值本体
+    const logic = { ...(logicExpression as object) };
+    if (
+      ruleType === 'numeric_compare' &&
+      typeof (logic as any).unit === 'string' &&
+      !RULE_UNITS.some((u) => u.value === (logic as any).unit)
+    ) {
+      (logic as any).unit = 'none';
+    }
+
+    return { source, name, ruleType, checkTarget, logicExpression: logic, severity };
   }
 }
