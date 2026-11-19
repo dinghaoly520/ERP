@@ -202,7 +202,6 @@ export default function ProgressPage() {
       .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
       .map(([key, count]) => ({ key, count, meta: getStageMeta(key) }));
   }, [filteredProjects]);
-  const stageMax = Math.max(...stageDist.map((d) => d.count), 1);
 
   useEffect(() => {
     let active = true;
@@ -373,10 +372,12 @@ export default function ProgressPage() {
                   <div key={d.key} className="flex items-center gap-2">
                     <span className="w-[6.25rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{d.meta.label}</span>
                     <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                      <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / stageMax) * 100}%`, background: d.meta.color }} />
+                      {/* 2026-11-19 用户裁定：分母=在办总数（占比之和=100%），不再按最大值归一 */}
+                      <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / filteredProjects.length) * 100}%`, background: d.meta.color }} />
                     </div>
-                    <span className="w-[3rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--foreground)]">
-                      {d.count} <span className="font-medium text-[var(--muted-foreground)]">项</span>
+                    <span className="w-[4.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--foreground)]">
+                      {d.count} <span className="font-medium text-[var(--muted-foreground)]">项</span>{" "}
+                      <span className="font-semibold text-[var(--muted-foreground)]">{Math.round((d.count / filteredProjects.length) * 100)}%</span>
                     </span>
                   </div>
                 ))}
