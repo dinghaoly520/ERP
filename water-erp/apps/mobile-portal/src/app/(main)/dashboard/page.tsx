@@ -746,7 +746,7 @@ export default function DashboardPage() {
             </>
           }
         >
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-4 gap-2.5">
             {overviewTiles.map((m) => {
               const inner = (
                 <>
@@ -777,9 +777,6 @@ export default function DashboardPage() {
           </div>
         </SectionCard>
       ) : null}
-
-      {/* 两卡间距加高（2026-11-19 用户裁定）：数据总览 mb-3 之上再垫 10px */}
-      <div className="h-2.5" aria-hidden />
 
       {/* ── 实时运行态势（2026-11-19 标段生命周期裁定：四 KPI=运行中/标前/标中/标后，
            卡片头同款双选择器；进行中开评标实名录 30s 轮询）── */}
@@ -830,7 +827,7 @@ export default function DashboardPage() {
           </>
         }
       >
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid grid-cols-4 gap-2.5">
           {(() => {
             /* 标段四 KPI（2026-11-19 用户裁定）：运行中=标前+标中、标前=确认开标前
                （DOWNLOAD/SUBMIT）、标中=已确认开标未完成开评标（OPENING/EVALUATING）、
@@ -868,7 +865,7 @@ export default function DashboardPage() {
             ));
           })()}
         </div>
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-3 space-y-1.5">
           {/* 桶内最新 5 项（2026-11-19 用户裁定）：状态行规则后端解析——
               标后=中标单位·当前步骤；标前=当前步骤/已投·专家；标中=开标时间·等待开标/开标中/归档中 */}
           {(bidRows ?? []).slice(0, 5).map((r) => (
