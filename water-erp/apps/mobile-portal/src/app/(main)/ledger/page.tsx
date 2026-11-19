@@ -476,7 +476,7 @@ export default function LedgerPage() {
 
       {/* ── 总览八项（2026-11-19 所有下拉实时适配+同比环比实时计算裁定）——
           与列表同源同筛（台账轮次口径）：项目盘点=归档(AWARDED)/进行中(PENDING)/异常四态，
-          总数=归档+进行中；金额=成交预算/成交额/节约资金/节资率。子行同比/环比随筛选三窗实算，
+          总数=归档+进行中；金额=成交预算/成交额/节资/节资率。子行同比/环比随筛选三窗实算，
           「全部」档无区间概念不显子行 */}
       {stats ? (
         <div className="neu-card-static mb-3 rounded-[18px] p-3">
@@ -530,7 +530,7 @@ export default function LedgerPage() {
                 {group(`金额 · ${scopeText}`, [
                   tile(stats.awardedBudgetLabel, "成交预算", { yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
                   tile(stats.totalAwardLabel, "成交额", { yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
-                  tile(stats.totalSavingsLabel, "节约资金", { success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
+                  tile(stats.totalSavingsLabel, "节资", { success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
                   tile(rateNow != null ? `${(rateNow * 100).toFixed(1)}%` : "—", "节资率", { danger: true, yoy: deltaOf(rateNow, rateOf(statsYoy), true), hb: deltaOf(rateNow, rateOf(statsPrev), true) }),
                 ])}
               </div>
@@ -731,7 +731,7 @@ export default function LedgerPage() {
               <MetricCard label="中标单位" value={archiveDetail.extractedInfo["中标单位"] || activeItem.awardedSupplierName || "-"} />
               <MetricCard label="预算金额" value={fmtAmount(activeItem.budgetAmount)} />
               <MetricCard label="合同金额" value={archiveDetail.extractedInfo["合同金额"] && archiveDetail.extractedInfo["合同金额"] !== "-" ? archiveDetail.extractedInfo["合同金额"] : fmtAmount(activeItem.contractAmount)} tone="accent" />
-              <MetricCard label="节约资金" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? fmtAmount(b - a) : "-"; })()} tone="success" />
+              <MetricCard label="节资" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? fmtAmount(b - a) : "-"; })()} tone="success" />
               <MetricCard label="节资率" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? `${(((b - a) / b) * 100).toFixed(1)}%` : "-"; })()} tone="success" />
             </div>
 

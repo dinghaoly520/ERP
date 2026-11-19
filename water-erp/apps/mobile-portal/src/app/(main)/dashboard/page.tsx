@@ -500,10 +500,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     { label: "异常项目", value: projectStatus ? String(projectStatus.flow?.cur.terminated ?? projectStatus.terminated) : "—", danger: (projectStatus?.flow?.cur.terminated ?? projectStatus?.terminated ?? 0) > 0, onTap: () => askChat("有哪些采购项目被终止了？终止原因分别是什么？"), ...fstat("terminated", false) },
     /* 次排金额（2026-11-19 用户裁定）：同比=整窗前移一年（本月↔去年同月/本季↔去年
        同季/本年↔去年），环比=紧邻等长前窗；值下方子行「同比x 环比x」，无数据 - */
-    { label: "成交预算", value: summary.awardedBudgetLabel, onTap: () => askChat(`${kpiScope}，已成交项目的成交预算执行情况如何？成交额与节约资金各占多少？`), ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
+    { label: "成交预算", value: summary.awardedBudgetLabel, onTap: () => askChat(`${kpiScope}，已成交项目的成交预算执行情况如何？成交额与节资各占多少？`), ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
     { label: "成交额", value: summary.totalAwardLabel, onTap: () => askChat(`${kpiScope}，成交额表现如何？请分析趋势变化与主要构成。`), ...amtR(summary.totalAwardLabel, yoy?.totalAward, cmp?.totalAward) },
-    { label: "节约资金", value: summary.totalSavingsLabel, success: true, onTap: () => askChat(`${kpiScope}，节约资金情况如何？节资率最高的项目有哪些？`), ...amtR(summary.totalSavingsLabel, yoy?.totalSavings, cmp?.totalSavings) },
-    /* 节资率=节约资金/成交预算（红显）；率本身的同比/环比=率 vs 去年同窗率/邻窗率 */
+    { label: "节资", value: summary.totalSavingsLabel, success: true, onTap: () => askChat(`${kpiScope}，节资情况如何？节资率最高的项目有哪些？`), ...amtR(summary.totalSavingsLabel, yoy?.totalSavings, cmp?.totalSavings) },
+    /* 节资率=节资/成交预算（红显）；率本身的同比/环比=率 vs 去年同窗率/邻窗率 */
     { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true, onTap: () => askChat(`${kpiScope}，节资率水平如何？哪些项目节资率最高？有什么值得关注的？`), yoy: deltaOf(rateNow, rateOf(yoy ?? undefined), true), hb: deltaOf(rateNow, rateOf(cmp ?? undefined), true) },
   ] : [];
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
@@ -539,7 +539,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     return { W, H, padL, padR, padT, baseline, plotH, x, colW, colX, barW, amountY, maxCount, maxAmount, linePath, areaPath, ticks, series, labelStep };
   }, [data]);
 
-  /* 节资趋势（2026-11-19 执行趋势优化裁定）：月度节约资金（AWARDED 且
+  /* 节资趋势（2026-11-19 执行趋势优化裁定）：月度节资（AWARDED 且
    * budget>=award>0：Σ(预算-成交)）柱 + 节资率（节约/成交预算）线 */
   const savingsTrend = useMemo(() => {
     const series = (data?.trendSeries ?? []).map((t) => {
@@ -771,13 +771,13 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
               </>
             ) : null}
-            {/* ── 节资趋势（月度节约资金柱 + 节资率线，点柱开当月下钻）── */}
+            {/* ── 节资趋势（月度节资柱 + 节资率线，点柱开当月下钻）── */}
             {savingsTrend ? (
               <SectionCard
                 icon={TrendingUp}
                 title="节资趋势"
                 index={1.5}
-                right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=节约资金 · 线=节资率</span>}
+                right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=节资 · 线=节资率</span>}
               >
                 {(() => {
                   const st = savingsTrend;
