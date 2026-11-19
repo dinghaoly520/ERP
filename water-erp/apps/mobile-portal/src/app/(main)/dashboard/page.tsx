@@ -100,7 +100,7 @@ export const ANALYSIS_TILES: Array<{
   { key: "composition", label: "数据分析", icon: ChartPie, color: "oklch(0.6 0.12 188)" },
   { key: "ranking", label: "节资排行", icon: ListOrdered, color: "var(--gold)" },
   { key: "company", label: "公司对比", icon: Scale, color: "oklch(0.55 0.1 228)" },
-  { key: "risk", label: "风险告警", icon: ShieldAlert, color: "var(--danger)" },
+  { key: "risk", label: "公告公示", icon: ShieldAlert, color: "var(--danger)" },
   { key: "supplier", label: "供应商", icon: Handshake, color: "var(--success)" },
   { key: "experts", label: "专家库", icon: BookUser, color: "oklch(0.55 0.13 25)" },
 ];
