@@ -2,7 +2,7 @@ import { DashboardService } from './dashboard.service';
 
 /** getProjectStatusCounts（2026-11-19 用户裁定：数据总览首排）——归档项目=台账中的项目
  *  （ProcurementRound 全时段行数，含终止留痕、不含回收站）；进行中/异常(=终止)/总数为
- *  PMI 当前状态快照（回收站不计）。 */
+ *  PMI 当前状态快照（回收站不计）；总数=另外三项之和。 */
 describe('DashboardService.getProjectStatusCounts', () => {
   let capturedGroupWhere: unknown;
   let capturedCountWhere: unknown;
@@ -36,7 +36,7 @@ describe('DashboardService.getProjectStatusCounts', () => {
     );
     const svc = new (DashboardService as any)(prisma);
     const r = await svc.getProjectStatusCounts({ companyId: 'co-1' });
-    expect(r).toEqual({ archived: 166, active: 2, terminated: 4, total: 6 });
+    expect(r).toEqual({ archived: 166, active: 2, terminated: 4, total: 172 }); // 总数=三格之和
     expect(capturedGroupWhere).toEqual({ companyId: 'co-1', status: { not: 'RECYCLED' } });
     // 台账口径=列表默认视图：仅排回收站，全时段全状态（终止留痕在内）
     expect(capturedCountWhere).toEqual({ companyId: 'co-1', isRecycled: false });
@@ -46,7 +46,7 @@ describe('DashboardService.getProjectStatusCounts', () => {
     const prisma = makePrisma([{ status: 'ACTIVE', _count: { _all: 2 } }], 162);
     const svc = new (DashboardService as any)(prisma);
     const r = await svc.getProjectStatusCounts(undefined);
-    expect(r).toEqual({ archived: 162, active: 2, terminated: 0, total: 2 });
+    expect(r).toEqual({ archived: 162, active: 2, terminated: 0, total: 164 });
     expect(capturedCountWhere).toEqual({ isRecycled: false });
   });
 

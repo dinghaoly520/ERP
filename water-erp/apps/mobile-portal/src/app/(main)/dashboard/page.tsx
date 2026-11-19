@@ -456,7 +456,7 @@ export default function DashboardPage() {
         >
           <div className="grid grid-cols-4 gap-1.5">
             {[
-              /* 首排=项目盘点（2026-11-19 用户裁定）：项目总数=PMI 三态之和；归档项目=
+              /* 首排=项目盘点（2026-11-19 用户裁定）：项目总数=另外三项之和；归档项目=
                  台账中的项目（全时段轮次行数，点跳台账）；进行中=PMI ACTIVE；异常项目=
                  终止的项目（点跳台账终止留痕）。除归档外均为当前状态快照，不随本年窗口 */
               { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—" },
