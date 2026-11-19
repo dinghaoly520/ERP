@@ -375,9 +375,10 @@ export default function ProgressPage() {
                       {/* 2026-11-19 用户裁定：分母=在办总数（占比之和=100%），不再按最大值归一 */}
                       <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / filteredProjects.length) * 100}%`, background: d.meta.color }} />
                     </div>
-                    <span className="w-[4.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--foreground)]">
-                      {d.count} <span className="font-medium text-[var(--muted-foreground)]">项</span>{" "}
-                      <span className="font-semibold text-[var(--muted-foreground)]">{Math.round((d.count / filteredProjects.length) * 100)}%</span>
+                    {/* 文字风格（2026-11-19）：百分比为 primary（粗体主色）、计数退居次级小字 */}
+                    <span className="w-[4.5rem] shrink-0 text-right text-[15px] font-black tabular-nums text-[var(--foreground)]">
+                      {Math.round((d.count / filteredProjects.length) * 100)}%
+                      <span className="ml-1 text-[12px] font-medium text-[var(--muted-foreground)]">{d.count} 项</span>
                     </span>
                   </div>
                 ))}
