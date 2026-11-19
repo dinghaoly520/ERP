@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bot, History, Plus, RefreshCw, SendHorizonal, Sparkles, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/m/auth-context";
 import { sendChat, fetchConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
@@ -145,6 +146,18 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, { role: "user", content: q }]);
     await doAsk(q);
   }
+
+  /* 驾驶舱 KPI 直达问询（2026-11-19 用户裁定）：/chat?ask=<问句> 挂载即自动发送一次
+   * （ref 闸防 StrictMode/重渲染双发；问句由驾驶舱按所点指标+口径生成） */
+  const searchParams = useSearchParams();
+  const autoAskRef = useRef(false);
+  useEffect(() => {
+    const q = searchParams.get("ask");
+    if (!q || autoAskRef.current) return;
+    autoAskRef.current = true;
+    ask(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   /* 发送核心（ask 与失败重试共用——重试不重复追加用户气泡，R1-2） */
   async function doAsk(q: string) {

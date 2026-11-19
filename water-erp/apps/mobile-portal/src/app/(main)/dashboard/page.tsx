@@ -503,6 +503,18 @@ export default function DashboardPage() {
   const companyLabel = companyLabelOf(companyIds);
   const bidCompanyLabel = companyLabelOf(bidCompanyIds);
 
+  /* KPI 点击 → 水叮当自动问询（2026-11-19 用户裁定）：/chat?ask=<问句> 挂载即发；
+     问句带区间/公司口径语境（项目盘点为存量口径不带区间） */
+  const kpiScope =
+    companyIds.length > 0
+      ? `${companyLabel}口径下`
+      : rangeKey === "custom"
+        ? "所选区间内"
+        : rangeKey === "all"
+          ? "全部时段"
+          : `${RANGES[rangeKey as PresetKey].label}（至今）`;
+  const askChat = (q: string) => router.push(`/chat?ask=${encodeURIComponent(q)}`);
+
   /* 数据总览 8 格（显式类型——异构字面量数组直接 .map 会丢可选属性类型）；
      仅 data 就绪后构建（挂载期 data=null 时空数组，勿无条件解构 summary） */
   const overviewTiles: OverviewTile[] = data && summary ? [
@@ -510,17 +522,17 @@ export default function DashboardPage() {
        台账中的项目（全时段轮次行数，点跳台账）；进行中=PMI ACTIVE；异常项目=
        终止的项目（点跳台账终止留痕）。headline 为存量，同比/环比子行走窗内流量
        （归档=窗内轮次、进行中/异常=窗内立项） */
-    { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—", ...fstat("total", null) },
-    { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—", onTap: () => router.push("/ledger"), ...fstat("archived", null) },
-    { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => router.push("/progress"), ...fstat("active", null) },
-    { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => router.push("/ledger?status=CANCELLED"), ...fstat("terminated", false) },
+    { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—", onTap: () => askChat("请介绍当前采购项目总数：归档、进行中、终止（异常）项目各有多少？分布在哪些公司？"), ...fstat("total", null) },
+    { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—", onTap: () => askChat("请概览台账：台账中的项目（轮次）总数、已成交与待处理的构成及金额情况如何？"), ...fstat("archived", null) },
+    { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => askChat("当前进行中的采购项目有哪些？分别处于哪个采购阶段？"), ...fstat("active", null) },
+    { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => askChat("有哪些采购项目被终止了？终止原因分别是什么？"), ...fstat("terminated", false) },
     /* 次排金额（2026-11-19 用户裁定）：同比=整窗前移一年（本月↔去年同月/本季↔去年
        同季/本年↔去年），环比=紧邻等长前窗；值下方子行「同比x 环比x」，无数据 - */
-    { label: "成交预算", value: summary.awardedBudgetLabel, ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
-    { label: "成交额", value: summary.totalAwardLabel, onTap: () => router.push("/ledger"), ...amtR(summary.totalAwardLabel, yoy?.totalAward, cmp?.totalAward) },
-    { label: "节约资金", value: summary.totalSavingsLabel, success: true, onTap: () => setAnalysisOpen("ranking"), ...amtR(summary.totalSavingsLabel, yoy?.totalSavings, cmp?.totalSavings) },
+    { label: "成交预算", value: summary.awardedBudgetLabel, onTap: () => askChat(`${kpiScope}，已成交项目的成交预算执行情况如何？成交额与节约资金各占多少？`), ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
+    { label: "成交额", value: summary.totalAwardLabel, onTap: () => askChat(`${kpiScope}，成交额表现如何？请分析趋势变化与主要构成。`), ...amtR(summary.totalAwardLabel, yoy?.totalAward, cmp?.totalAward) },
+    { label: "节约资金", value: summary.totalSavingsLabel, success: true, onTap: () => askChat(`${kpiScope}，节约资金情况如何？节资率最高的项目有哪些？`), ...amtR(summary.totalSavingsLabel, yoy?.totalSavings, cmp?.totalSavings) },
     /* 节资率=节约资金/成交预算（红显）；率本身的同比/环比=率 vs 去年同窗率/邻窗率 */
-    { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true, yoy: deltaOf(rateNow, rateOf(yoy ?? undefined), true), hb: deltaOf(rateNow, rateOf(cmp ?? undefined), true) },
+    { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true, onTap: () => askChat(`${kpiScope}，节资率水平如何？哪些项目节资率最高？有什么值得关注的？`), yoy: deltaOf(rateNow, rateOf(yoy ?? undefined), true), hb: deltaOf(rateNow, rateOf(cmp ?? undefined), true) },
   ] : [];
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
   const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
