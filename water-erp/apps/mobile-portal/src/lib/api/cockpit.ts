@@ -39,3 +39,20 @@ export type BidLiveProject = {
   expertCount: number;
 };
 export const fetchBidLiveProjects = () => api.get<{ projects: BidLiveProject[] }>("/bid/projects/dashboard");
+
+/* ── 专家库（2026-11-19 驾驶舱宫格入口；bigscreen-stats 公开聚合 + company-counts
+   经 x-portal-source 全库口径）── */
+export type ExpertLibraryStats = {
+  total: number;
+  availability: { available: number; occupied: number; disabled: number; availableRate: number };
+  specialties: Array<{ name: string | null; count: number; pct: number }>;
+  evaluation: { excellentRatio: number; total: number; avgScoreDeviation: number };
+};
+export type ExpertCompanyCount = { name: string; count: number };
+
+export async function fetchExpertLibraryStats(): Promise<ExpertLibraryStats> {
+  return api.get<ExpertLibraryStats>("/expert-admin/bigscreen-stats");
+}
+export async function fetchExpertCompanyCounts(): Promise<ExpertCompanyCount[]> {
+  return api.get<ExpertCompanyCount[]>("/expert-admin/company-counts");
+}

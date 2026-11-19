@@ -5,6 +5,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ExpertAdminService } from './expert-admin.service';
+import { portalSourceOf } from '../common/portal-source.util';
 import { ExtractionReportPdfService } from './extraction-report-pdf.service';
 import { ExpertExtractionService } from './expert-extraction.service';
 import { ExpertMemoService } from './expert-memo.service';
@@ -84,7 +85,9 @@ export class ExpertAdminController {
     @Query('employer') employer?: string,
     @Request() req: any = {},
   ) {
-    return this.expertAdminService.companyCounts(search, specialty, employer, req.user);
+    /* portalSource 穿参（2026-11-19）：mobile-3011 领导端看全库公司分布（与 :3011
+     * 总数据裁定同口径）；PC 端无此头，维持公司隔离不变 */
+    return this.expertAdminService.companyCounts(search, specialty, employer, req.user, portalSourceOf(req));
   }
 
   @Get('specialties')

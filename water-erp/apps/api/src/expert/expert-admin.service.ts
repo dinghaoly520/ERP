@@ -432,8 +432,8 @@ export class ExpertAdminService {
   }
 
   /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径，与列表同 where；台账 company-counts 同款） */
-  async companyCounts(search?: string, specialty?: string, employer?: string, user?: AuthenticatedUser) {
-    const scope = await this.companyScope.resolveScope(user); // admin 默认全部 → 分组才有意义
+  async companyCounts(search?: string, specialty?: string, employer?: string, user?: AuthenticatedUser, portalSource?: string) {
+    const scope = await this.companyScope.resolveScope(user, undefined, portalSource); // admin/3011 全部 → 分组才有意义
     const groups = await this.prisma.user.groupBy({
       by: ['company'],
       where: {

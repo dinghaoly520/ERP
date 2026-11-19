@@ -13,15 +13,12 @@ import {
   ChevronRight,
   FolderKanban,
   Layers,
-  Lightbulb,
   PieChart,
   Radio,
-  RefreshCw,
   Radar,
   Gauge,
+  GraduationCap,
   Share2,
-  Sparkles,
-  Target,
   TrendingUp,
   Trophy,
   Users,
@@ -33,8 +30,19 @@ import {
   type CompanyRankingView,
   type DashboardData,
 } from "@/lib/api/dashboard";
-import { fetchDashboardAnalysis, fetchMobileBrief, type DashboardAnalysisResult, type MobileBrief } from "@/lib/api/ai";
-import { fetchAlertsOverview, fetchBidLiveProjects, fetchPerformanceMetrics, type AlertsOverview, type BidLiveProject, type PerformanceMetrics } from "@/lib/api/cockpit";
+import { fetchMobileBrief, type MobileBrief } from "@/lib/api/ai";
+import {
+  fetchAlertsOverview,
+  fetchBidLiveProjects,
+  fetchExpertCompanyCounts,
+  fetchExpertLibraryStats,
+  fetchPerformanceMetrics,
+  type AlertsOverview,
+  type BidLiveProject,
+  type ExpertCompanyCount,
+  type ExpertLibraryStats,
+  type PerformanceMetrics,
+} from "@/lib/api/cockpit";
 import { fetchUpcoming, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -51,12 +59,9 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 /* ── 工具 ── */
 
-const iso = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
 /* 全部数据入口宫格（2026-11-19 v3 全景裁定）：导航双入口（台账/进展直跳路由）+
  * 七组分析弹层——用户自己决定看什么，不做策展取舍 */
-type AnalysisTileKey = "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "ai";
+type AnalysisTileKey = "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "experts";
 const ANALYSIS_TILES: Array<{
   key: AnalysisTileKey | "ledger" | "progress";
   label: string;
@@ -72,7 +77,7 @@ const ANALYSIS_TILES: Array<{
   { key: "company", label: "公司对比", icon: Building2, color: "var(--accent)" },
   { key: "risk", label: "风险告警", icon: AlertCircle, color: "var(--danger)" },
   { key: "supplier", label: "供应商", icon: Users, color: "var(--success)" },
-  { key: "ai", label: "AI 分析", icon: Sparkles, color: "var(--gold)" },
+  { key: "experts", label: "专家库", icon: GraduationCap, color: "var(--gold)" },
 ];
 
 /* 固定全景口径（2026-11-19 用户裁定：删区间/公司控制行）：本年 · 全部公司 */
@@ -228,10 +233,17 @@ export default function DashboardPage() {
   const [activeSeg, setActiveSeg] = useState<ScaleSegment | null>(null);
 
   // AI 综合分析（按需生成）
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [aiResult, setAiResult] = useState<DashboardAnalysisResult | null>(null);
+  /* 专家库（2026-11-19 用户裁定：AI 分析入口换专家库）——开层懒取，会话内缓存 */
+  const [expertStats, setExpertStats] = useState<ExpertLibraryStats | null>(null);
+  const [expertCompanies, setExpertCompanies] = useState<ExpertCompanyCount[] | null>(null);
+  useEffect(() => {
+    if (analysisOpen !== "experts" || expertStats) return;
+    let active = true;
+    Promise.all([fetchExpertLibraryStats(), fetchExpertCompanyCounts().catch(() => [])])
+      .then(([st, co]) => { if (active) { setExpertStats(st); setExpertCompanies(co); } })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [analysisOpen, expertStats]);
 
   // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
@@ -314,7 +326,7 @@ export default function DashboardPage() {
       .then((b) => { if (active) setBrief(b); })
       .catch(() => { if (active) setBrief({ available: false }); });
     return () => { active = false; };
-  }, [queryRange.startDate, retryTick]);
+  }, [queryRange.startDate, queryRange.endDate, retryTick]);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -322,8 +334,6 @@ export default function DashboardPage() {
     return fetchDashboardData(queryRange.startDate, queryRange.endDate, undefined, true)
       .then((d) => {
         setData(d);
-        setAiResult(null); // 口径变化后旧分析作废
-        setAiError(null);
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "加载仪表盘数据失败");
@@ -397,54 +407,6 @@ export default function DashboardPage() {
     return { segs, total };
   }, [data]);
 
-  async function runAnalysis() {
-    if (!data || aiLoading) return;
-    setAiLoading(true);
-    setAiError(null);
-    try {
-      const result = await fetchDashboardAnalysis({
-        rangeLabel: "本年",
-        startDate: queryRange.startDate ?? "",
-        endDate: queryRange.endDate ?? "",
-        summary: {
-          totalCount: data.summary.totalCount,
-          completedCount: data.summary.completedCount,
-          abnormalCount: data.summary.abnormalCount,
-          totalBudget: data.summary.totalBudgetLabel,
-          totalAward: data.summary.totalAwardLabel,
-          totalSavings: data.summary.totalSavingsLabel,
-        },
-        trendSeries: data.trendSeries.map((t) => ({ label: t.label, count: t.count, amount: t.amount })),
-        // 分布维度与页面实际展示同口径：admin=公司分布；leader=过滤掉未归属的部门分布（2026-10-23）
-        departmentStats:
-          role === "admin"
-            ? data.companyStats.map((d) => ({ name: d.name, amount: d.amountLabel }))
-            : data.departmentStats.filter((d) => d.name !== "未归属部门").map((d) => ({ name: d.name, amount: d.amountLabel })),
-        methodStats: data.methodStats.map((m) => ({ name: m.name, share: String(m.share) })),
-        attachmentProgress: data.attachmentProgress.map((a) => ({ label: a.label, rate: String(a.rate) })),
-        supplierStats: data.supplierStats.slice(0, 5).map((s) => ({
-          name: s.name,
-          participatedCount: s.participatedCount,
-          winCount: s.winCount,
-          awardAmount: s.awardAmountLabel,
-        })),
-        resultStats: data.resultStats.map((r) => ({ label: r.label, count: r.count, amount: r.amountLabel })),
-        nonAwardReasons: data.nonAwardReasons.map((r) => ({ label: r.label, count: r.count, detail: r.detail })),
-        riskProjects: data.riskProjects.map((r) => ({
-          project: r.project,
-          department: r.department,
-          reason: r.reason,
-          pendingDays: r.pendingDays,
-          severity: r.severity,
-        })),
-      });
-      setAiResult(result);
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : "AI 分析生成失败");
-    } finally {
-      setAiLoading(false);
-    }
-  }
 
   const savingsTop = (data?.savingsRanking ?? []).slice(0, 5);
 
@@ -1168,102 +1130,64 @@ export default function DashboardPage() {
 
               </>
             ) : null}
-            {analysisOpen === "ai" ? (
+            {analysisOpen === "experts" ? (
               <>
-
-            {/* ── AI 综合分析（折叠卡）── */}
-            <SectionCard
-              icon={Sparkles}
-              title="AI 综合分析"
-              index={0}
-              right={
-                <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[14px]">
-                  {aiOpen ? "收起" : "展开"}
-                </button>
-              }
-            >
-              {aiOpen ? (
-                <div>
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="min-w-0 flex-1 text-[14px] text-[var(--muted-foreground)]">
-                      {aiResult ? "以下为当前筛选范围的分析结果" : "基于当前筛选数据生成综合研判"}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={runAnalysis}
-                      disabled={aiLoading || !data}
-                      className="neu-btn-primary h-9 rounded-[10px] px-3.5 text-[15px] disabled:opacity-60"
-                    >
-                      {aiLoading ? (
-                        <>
-                          <RefreshCw size={12} className="animate-spin" /> 分析中
-                        </>
-                      ) : (
-                        "生成分析"
-                      )}
-                    </button>
+            {/* ── 专家库（2026-11-19 用户裁定：AI 分析入口换专家库；开层懒取）── */}
+            <SectionCard icon={GraduationCap} title="专家库总览" index={0}>
+              {expertStats ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <MetricCard label="在库专家" value={String(expertStats.total)} tone="accent" />
+                    <MetricCard label="可抽取" value={String(expertStats.availability.available)} tone="success" />
+                    <MetricCard label="评标占用" value={String(expertStats.availability.occupied)} tone="warning" />
+                    <MetricCard label="已退库" value={String(expertStats.availability.disabled)} />
                   </div>
-                  {aiError ? (
-                    <div className="mb-3 flex items-center gap-2 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_25%,transparent)] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5 text-[15px] text-[var(--danger)]">
-                      <AlertCircle size={13} /> {aiError}
+                  <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
+                    <div className="flex justify-between gap-3">
+                      <span className="text-[var(--muted-foreground)]">可抽取率</span>
+                      <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.availability.availableRate}%</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-[var(--muted-foreground)]">履职优良率（A/B 占比）</span>
+                      <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.excellentRatio}%</span>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <span className="text-[var(--muted-foreground)]">平均评分偏离度</span>
+                      <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.avgScoreDeviation}</span>
+                    </div>
+                  </div>
+                  {expertStats.specialties.length ? (
+                    <div>
+                      <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">专业分布 Top</div>
+                      <div className="space-y-1.5">
+                        {expertStats.specialties.map((sp) => (
+                          <div key={sp.name ?? "未填"} className="flex items-center gap-2">
+                            <span className="w-[7.5rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{sp.name ?? "未填"}</span>
+                            <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] bg-[var(--gold)] opacity-80" style={{ width: `${sp.pct}%` }} />
+                            </span>
+                            <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : null}
-                  {aiResult ? (
-                    <div className="space-y-2.5">
-                      <div className="rounded-[12px] m-tile px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--accent)]">
-                          <Target size={11} /> 综合研判
-                        </div>
-                        <p className="text-[16px] font-medium leading-relaxed text-[var(--foreground)]">{aiResult.overview}</p>
+                  {expertCompanies?.length ? (
+                    <div>
+                      <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">各公司在库（全库口径）</div>
+                      <div className="space-y-1.5">
+                        {expertCompanies.map((c) => (
+                          <div key={c.name} className="flex items-center justify-between gap-2 rounded-[10px] m-tile px-3 py-2">
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{c.name}</span>
+                            <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
+                          </div>
+                        ))}
                       </div>
-                      {aiResult.highlights.length ? (
-                        <div className="rounded-[12px] m-tile px-3.5 py-3">
-                          <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--success)]">
-                            <TrendingUp size={11} /> 核心亮点
-                          </div>
-                          {aiResult.highlights.map((h, i) => (
-                            <div key={i} className="flex items-start gap-2 py-0.5">
-                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--success)]" />
-                              <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{h}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                      {aiResult.concerns.length ? (
-                        <div className="rounded-[12px] m-tile px-3.5 py-3">
-                          <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--warning)]">
-                            <AlertCircle size={11} /> 待关注
-                          </div>
-                          {aiResult.concerns.map((c, i) => (
-                            <div key={i} className="flex items-start gap-2 py-0.5">
-                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--warning)]" />
-                              <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{c}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                      {aiResult.suggestions.length ? (
-                        <div className="rounded-[12px] m-tile px-3.5 py-3">
-                          <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--accent)]">
-                            <Lightbulb size={11} /> 建议方向
-                          </div>
-                          {aiResult.suggestions.map((s, i) => (
-                            <div key={i} className="flex items-start gap-2 py-0.5">
-                              <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[12px] font-bold text-[var(--accent)]">
-                                {i + 1}
-                              </span>
-                              <span className="text-[15px] leading-relaxed text-[var(--foreground)]">{s}</span>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
                     </div>
-                  ) : (
-                    <EmptyState text="点击「生成分析」获取 AI 综合研判" />
-                  )}
+                  ) : null}
                 </div>
               ) : (
-                <p className="px-1 text-[14px] text-[var(--muted-foreground)]">展开后可基于当前数据生成综合研判 / 亮点 / 建议方向</p>
+                <Skeleton lines={5} height={40} />
               )}
             </SectionCard>
 
