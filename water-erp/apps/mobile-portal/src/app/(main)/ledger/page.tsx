@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
+import { fetchDashboardData, fetchProjectStatusCounts, type DashboardData, type ProjectStatusCounts } from "@/lib/api/dashboard";
 import { Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
+import { fetchProcurements, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
@@ -87,7 +88,10 @@ export default function LedgerPage() {
   const VISIBLE_STEP = 10;
   const [visibleCount, setVisibleCount] = useState(VISIBLE_INIT);
 
-  const [stats, setStats] = useState<LedgerSummary | null>(null);
+  /* 总览八项（2026-11-19 用户裁定：与驾驶舱数据总览同内容同版式，置于筛选项下方）——
+     项目盘点走 project-status 存量、金额走 dashboard 汇总，恒全时段（台账页无区间选择器） */
+  const [overview, setOverview] = useState<DashboardData["summary"] | null>(null);
+  const [projectStatus, setProjectStatus] = useState<ProjectStatusCounts | null>(null);
   const [activeItem, setActiveItem] = useState<ProcurementRoundItem | null>(null);
 
   /* 搜索 400ms 防抖 */
@@ -202,26 +206,18 @@ export default function LedgerPage() {
     };
   }, [page, searchKeyword, statusFilter, methodFilter, abnormalFilter, filterCompanyId, retryTick]);
 
-  /* 汇总（与列表同筛选，不含分页——P1-2 修复：搜索/方式/状态/异常筛选全部同参） */
+  /* 总览八项：全时段双取（失败静默——块不渲染） */
   useEffect(() => {
     let active = true;
-    fetchLedgerStats({
-      companyId: filterCompanyId,
-      searchKeyword: searchKeyword || undefined,
-      procurementMethod: methodFilter ?? undefined,
-      resultStatus: statusFilter ?? undefined,
-      abnormalOnly: abnormalFilter || undefined,
-    })
-      .then((s) => {
-        if (active) setStats(s);
-      })
+    fetchProjectStatusCounts()
+      .then((r) => { if (active) setProjectStatus(r); })
       .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [filterCompanyId, searchKeyword, methodFilter, statusFilter, abnormalFilter, retryTick]);
+    fetchDashboardData(undefined, undefined, undefined, false)
+      .then((d) => { if (active) setOverview(d.summary); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [retryTick]);
 
-  /* 翻页（2026-11-17：触底自动加载已删——长页元凶，改「展开更多」按钮按需预取） */
   const loadMore = useCallback(() => {
     if (loading || loadingMore || page >= totalPages) return;
     setPage((p) => p + 1);
@@ -254,44 +250,6 @@ export default function LedgerPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
       <PageHeader title="台账明细" icon={NotebookText} />
-      {/* ── 汇总条 ── */}
-      {stats ? (
-        <div className="neu-card-static mb-3 rounded-[16px] p-3">
-          <div className="grid grid-cols-2 gap-1.5 text-center min-[360px]:grid-cols-4">
-            {[
-              { l: "总数", v: stats.totalCount, t: "accent" },
-              { l: "已成交", v: stats.awardedCount, t: "success" },
-              { l: "待处理", v: stats.pendingCount, t: "warning" },
-              { l: "异常", v: stats.abnormalCount, t: "danger" },
-            ].map((m) => (
-              <div key={m.l}>
-                <div
-                  className="text-[21px] font-black leading-none tabular-nums"
-                  style={{
-                    color:
-                      m.t === "success" ? "var(--success)" : m.t === "danger" ? "var(--danger)" : m.t === "warning" ? "var(--warning)" : "var(--accent)",
-                  }}
-                >
-                  {m.v}
-                </div>
-                <div className="mt-1 text-[13px] text-[var(--muted-foreground)]">{m.l}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2.5 flex items-center justify-between border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-2 text-[14px]">
-            <span className="text-[var(--muted-foreground)]">
-              总预算 <span className="font-bold tabular-nums text-[var(--foreground)]">{stats.totalBudgetLabel}</span>
-            </span>
-            <span className="text-[var(--muted-foreground)]">
-              累计节资 <span className="font-bold tabular-nums text-[var(--success)]">{stats.totalSavingsLabel}</span>
-            </span>
-          </div>
-          {searchKeyword || statusFilter || methodFilter || abnormalFilter ? (
-            <div className="mt-1.5 text-[12px] text-[var(--muted-foreground)]">汇总口径：按当前筛选</div>
-          ) : null}
-        </div>
-      ) : null}
-
       {/* ── 搜索 ── */}
       <div className="relative mb-2.5">
         <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
@@ -362,6 +320,44 @@ export default function LedgerPage() {
       ) : (
         <div className="mb-3" />
       )}
+
+      {/* ── 总览八项（2026-11-19 用户裁定：置于筛选项下方，与驾驶舱数据总览同内容同版式）── */}
+      {overview && projectStatus ? (
+        <div className="neu-card-static mb-3 rounded-[18px] p-3">
+          {(() => {
+            const tile = (value: string, label: string, danger = false) => (
+              <div className="rounded-[12px] m-tile px-1 py-2.5 text-center">
+                <div className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${danger ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>{value}</div>
+                <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{label}</div>
+              </div>
+            );
+            const group = (caption: string, list: React.ReactNode[]) => (
+              <div>
+                <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">{caption}</div>
+                <div className="grid grid-cols-4 gap-2.5">{list}</div>
+              </div>
+            );
+            const rate = overview.awardedBudget > 0 ? `${((overview.totalSavings / overview.awardedBudget) * 100).toFixed(1)}%` : "—";
+            return (
+              <div className="space-y-3">
+                {group("项目盘点 · 全部", [
+                  tile(String(projectStatus.total), "项目总数"),
+                  tile(String(projectStatus.archived), "归档项目"),
+                  tile(String(projectStatus.active), "进行中项目"),
+                  tile(String(projectStatus.terminated), "异常项目", (projectStatus.terminated ?? 0) > 0),
+                ])}
+                <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
+                {group("金额 · 全部", [
+                  tile(overview.awardedBudgetLabel, "成交预算"),
+                  tile(overview.totalAwardLabel, "成交额"),
+                  tile(overview.totalSavingsLabel, "节约资金"),
+                  tile(rate, "节资率", true),
+                ])}
+              </div>
+            );
+          })()}
+        </div>
+      ) : null}
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
 
