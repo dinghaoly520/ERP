@@ -29,12 +29,6 @@ type LedgerSavedFilters = {
 };
 
 const RETENTION_LABELS: Record<string, string> = { PERMANENT: "永久", Y30: "30 年", Y10: "10 年" };
-const SOURCE_LABELS: Record<string, string> = {
-  MANUAL: "手工录入",
-  IMPORTED: "导入",
-  PROJECT_MANAGEMENT: "项目管理提取",
-};
-
 /** 金额展示：数字=元（千分位），字符串原样，空=— */
 function fmtAmount(v: number | string | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
