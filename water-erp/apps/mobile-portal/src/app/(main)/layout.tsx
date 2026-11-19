@@ -160,23 +160,26 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         id="m-app-scroll"
         className="relative z-10 mx-auto w-full max-w-lg flex-1 overflow-y-auto overscroll-contain px-[max(0.875rem,env(safe-area-inset-left))] pb-4 pr-[max(0.875rem,env(safe-area-inset-right))] pt-3.5"
       >
-        {/* 欢迎卡——问候语设计容器（玻璃凸起 + 金色图标井），随内容滚动 */}
-        <div className="neu-card-static mb-3 flex items-center gap-3 rounded-[16px] px-3.5 py-3">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
-            style={{ background: "color-mix(in oklch, var(--gold) 14%, transparent)" }}
-          >
-            <Crown size={18} strokeWidth={1.5} className="text-[var(--gold)]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">
-              {user?.displayName ?? ""}
+        {/* 欢迎卡——仅 Tab 根页（驾驶舱/水叮当）显示；跳转页（台账/进展/分析板块）不占位
+            *  （2026-11-19 用户裁定：跳转的页面中删除欢迎语区） */}
+        {pathname === "/dashboard" || pathname === "/chat" ? (
+          <div className="neu-card-static mb-3 flex items-center gap-3 rounded-[16px] px-3.5 py-3">
+            <div
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px]"
+              style={{ background: "color-mix(in oklch, var(--gold) 14%, transparent)" }}
+            >
+              <Crown size={18} strokeWidth={1.5} className="text-[var(--gold)]" />
             </div>
-            <div className="mt-0.5 truncate text-[14px] tabular-nums text-[var(--muted-foreground)]">
-              {user ? `${ROLE_LABELS[user.role] ?? user.role} · ${wallclock(now)}` : ""}
+            <div className="min-w-0 flex-1">
+              <div className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">
+                {user?.displayName ?? ""}
+              </div>
+              <div className="mt-0.5 truncate text-[14px] tabular-nums text-[var(--muted-foreground)]">
+                {user ? `${ROLE_LABELS[user.role] ?? user.role} · ${wallclock(now)}` : ""}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
         <AuthProvider user={user}>{children}</AuthProvider>
       </main>
 
