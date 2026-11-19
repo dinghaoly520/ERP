@@ -534,6 +534,35 @@ select.m-input { appearance: auto; }
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+/* 趋势图动效（2026-11-19 用户裁定）：柱生长/高点脉冲/值签弹入/面积渐显——柱按列
+ * 阶梯延迟；reduced-motion 直通（脉冲环静态淡显） */
+@keyframes m-bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.m-bar {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: m-bar-grow 0.5s var(--ease-out-quart) both;
+}
+@keyframes m-point-pulse {
+  0% { transform: scale(0.6); opacity: 0.65; }
+  70% { transform: scale(2.4); opacity: 0; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.m-point-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: m-point-pulse 1.2s ease-out infinite;
+}
+@keyframes m-chip-in {
+  from { transform: translateY(-5px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.m-chip-in { animation: m-chip-in 0.2s var(--ease-out-quart) both; }
+@keyframes m-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.m-fade-in { animation: m-fade-in 0.6s ease-out 0.35s both; }
+
 /* 页头条白瓷设计（2026-11-19 用户裁定）：纯白瓷+顶缘内高光+方向性双影（弹窗 A 版配方），
  * 台账/进展/七分析页的「返回+页面名称」标题行容器 */
 .m-pagebar {
@@ -609,6 +638,10 @@ select.m-input { appearance: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .m-bar,
+  .m-point-pulse,
+  .m-chip-in,
+  .m-fade-in,
   .m-rise,
   .m-sheet-panel,
   .m-sheet-panel[data-closing="true"],

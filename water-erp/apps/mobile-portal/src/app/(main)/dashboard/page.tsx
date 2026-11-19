@@ -251,6 +251,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   const [activeTrend, setActiveTrend] = useState<DashboardData["trendSeries"][number] | null>(null);
   /** 趋势图按下高亮列（触摸反馈：按下列 → 竖参考线 + 放大点，松开出当日弹层） */
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  /* 节资趋势按下列（十字准线+值签）；点击开当月下钻 */
+  const [savIdx, setSavIdx] = useState<number | null>(null);
   const [activeDept, setActiveDept] = useState<DashboardData["departmentStats"][number] | null>(null);
   const [activeMethod, setActiveMethod] = useState<DashboardData["methodStats"][number] | null>(null);
   const [activeReason, setActiveReason] = useState<DashboardData["nonAwardReasons"][number] | null>(null);
@@ -515,7 +517,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     const W = 340;
     const H = 190;
     const padL = 34; // 左侧金额刻度留位
-    const padR = 8;
+    const padR = 26; /* 右侧数量刻度留位（2026-11-19 双纵轴裁定） */
     const padT = 24; // 顶部留位给高亮值签
     const padB = 24;
     const plotW = W - padL - padR;
@@ -534,7 +536,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     // 金额刻度两档（满值/半值）——横向发丝线 + 左侧小字
     const ticks = [maxAmount, maxAmount / 2].map((v) => ({ v, y: amountY(v) }));
     const labelStep = Math.max(1, Math.ceil(n / 5));
-    return { W, H, padL, padT, baseline, plotH, x, colW, colX, barW, amountY, maxCount, maxAmount, linePath, areaPath, ticks, series, labelStep };
+    return { W, H, padL, padR, padT, baseline, plotH, x, colW, colX, barW, amountY, maxCount, maxAmount, linePath, areaPath, ticks, series, labelStep };
   }, [data]);
 
   /* 节资趋势（2026-11-19 执行趋势优化裁定）：月度节约资金（AWARDED 且
@@ -645,15 +647,23 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   {/* 金额刻度线（发丝线）+ 左侧刻度小字 */}
                   {trend.ticks.map((tk, i) => (
                     <g key={`tick-${i}`}>
-                      <line x1={trend.padL} y1={tk.y} x2={trend.W - 8} y2={tk.y} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
+                      <line x1={trend.padL} y1={tk.y} x2={trend.W - trend.padR} y2={tk.y} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
                       <text x={trend.padL - 5} y={tk.y + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
                         {/* 单位自适应（2026-11-19 执行趋势优化裁定）：≥1亿以亿计 */}
                         {tk.v >= 10000 ? `${Math.round(tk.v / 1000) / 10}亿` : tk.v >= 100 ? Math.round(tk.v) : Math.round(tk.v * 10) / 10}
                       </text>
                     </g>
                   ))}
+                  {/* 右纵轴=数量（柱刻度，双纵轴） */}
+                  {[trend.maxCount, Math.max(1, Math.round(trend.maxCount / 2))].filter((v, i, a) => a.indexOf(v) === i).map((v, i) => (
+                    <text key={`rc-${i}`} x={trend.W - 2} y={trend.baseline - (v / trend.maxCount) * (trend.plotH * 0.55) + 3} textAnchor="end" fontSize={8.5} fontWeight={600} fill="var(--accent-strong)">
+                      {v}
+                    </text>
+                  ))}
+                  <text x={trend.padL - 5} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">金额</text>
+                  <text x={trend.W - 2} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">数量</text>
                   {/* 基线 */}
-                  <line x1={trend.padL} y1={trend.baseline} x2={trend.W - 8} y2={trend.baseline} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
+                  <line x1={trend.padL} y1={trend.baseline} x2={trend.W - trend.padR} y2={trend.baseline} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
                   {/* 数量柱（渐变圆角柱）+ 高亮列淡染 */}
                   {trend.series.map((t, i) => {
                     const barH = (t.count / trend.maxCount) * (trend.plotH * 0.55);
@@ -670,13 +680,15 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                             height={Math.max(barH, 2)}
                             rx={3}
                             fill="url(#trendBarFill)"
+                            className="m-bar"
+                            style={{ animationDelay: `${i * 40}ms` }}
                           />
                         ) : null}
                       </g>
                     );
                   })}
                   {/* 金额面积 + 折线 */}
-                  <path d={trend.areaPath} fill="url(#trendAreaFill)" />
+                  <path d={trend.areaPath} fill="url(#trendAreaFill)" className="m-fade-in" />
                   <path
                     d={trend.linePath}
                     fill="none"
@@ -690,6 +702,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   {/* 数据点 + 月份标签（高亮月加重） */}
                   {trend.series.map((t, i) => (
                     <g key={`pt-${i}`}>
+                      {activeIdx === i ? (
+                        <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={5} fill="var(--success)" opacity={0.5} className="m-point-pulse" />
+                      ) : null}
                       <circle cx={trend.x(i)} cy={trend.amountY(t.amount)} r={activeIdx === i ? 5.2 : 3.2} fill="var(--success)" stroke="white" strokeWidth={activeIdx === i ? 2 : 1.2} />
                       {i % trend.labelStep === 0 ? (
                         <text
@@ -707,7 +722,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   ))}
                   {/* 触摸十字准线（2026-11-19 优化裁定）：按下列全高竖线 */}
                   {activeIdx != null ? (
-                    <line x1={trend.x(activeIdx)} y1={trend.padT - 6} x2={trend.x(activeIdx)} y2={trend.baseline} stroke="var(--accent)" strokeOpacity={0.45} strokeWidth={1} strokeDasharray="3 3" />
+                    <line className="m-chip-in" x1={trend.x(activeIdx)} y1={trend.padT - 6} x2={trend.x(activeIdx)} y2={trend.baseline} stroke="var(--accent)" strokeOpacity={0.45} strokeWidth={1} strokeDasharray="3 3" />
                   ) : null}
                   {/* 高亮值签：柱列上方的当期金额小胶囊（含金额环比小标注） */}
                   {activeIdx != null
@@ -721,7 +736,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         const cx = Math.min(Math.max(trend.x(activeIdx), trend.padL + cw / 2), trend.W - 8 - cw / 2);
                         const cy = Math.max(trend.amountY(t.amount) - 34, 1);
                         return (
-                          <g>
+                          <g className="m-chip-in">
                             <rect x={cx - cw / 2} y={cy} width={cw} height={18} rx={9} fill="var(--foreground)" />
                             <text x={cx} y={cy + 12.5} textAnchor="middle" fontSize={10} fontWeight={700} fill="var(--background)">
                               {chip}
@@ -770,7 +785,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   const W = 340;
                   const H = 140;
                   const padL = 34;
-                  const padR = 8;
+                  const padR = 26; /* 右侧让位节资率纵轴（2026-11-19 用户裁定） */
                   const padT = 14;
                   const padB = 22;
                   const plotW = W - padL - padR;
@@ -796,23 +811,32 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       </defs>
                       {[maxSav, maxSav / 2].map((v, i) => (
                         <g key={`st-${i}`}>
-                          <line x1={padL} y1={savY(v)} x2={W - 8} y2={savY(v)} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
+                          <line x1={padL} y1={savY(v)} x2={W - padR} y2={savY(v)} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
                           <text x={padL - 5} y={savY(v) + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
                             {v >= 10000 ? `${Math.round(v / 1000) / 10}亿` : v >= 100 ? Math.round(v) : Math.round(v * 10) / 10}
                           </text>
                         </g>
                       ))}
-                      <line x1={padL} y1={padT + plotH} x2={W - 8} y2={padT + plotH} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
+                      <text x={padL - 5} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节约</text>
+                      <text x={W - 2} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资率</text>
+                      {/* 右纵轴=节资率（金），两档刻度随 rateY 线性位 */}
+                      {[maxRate, maxRate / 2].map((v, i) => (
+                        <text key={`sr-${i}`} x={W - 2} y={rateY(v) + 3} textAnchor="end" fontSize={8.5} fontWeight={600} fill="var(--gold)">
+                          {`${Math.round(v)}%`}
+                        </text>
+                      ))}
+                      <line x1={padL} y1={padT + plotH} x2={W - padR} y2={padT + plotH} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
                       {st.series.map((t, i) => {
                         const barH = (t.savings / maxSav) * plotH;
                         return barH > 0 ? (
-                          <rect key={`sb-${i}`} x={x(i) - barW / 2} y={padT + plotH - barH} width={barW} height={Math.max(barH, 2)} rx={3} fill="url(#savBarFill)" />
+                          <rect key={`sb-${i}`} x={x(i) - barW / 2} y={padT + plotH - barH} width={barW} height={Math.max(barH, 2)} rx={3} fill="url(#savBarFill)" className="m-bar" style={{ animationDelay: `${i * 40}ms` }} />
                         ) : null;
                       })}
-                      <path d={line} fill="none" stroke="var(--gold)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                      <path d={line} fill="none" stroke="var(--gold)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="m-draw-line" style={{ ["--m-path-len" as string]: "800" }} />
                       {st.series.map((t, i) => (
                         <g key={`sp-${i}`}>
-                          <circle cx={x(i)} cy={rateY(t.rate)} r={3} fill="var(--gold)" stroke="white" strokeWidth={1.2} />
+                          {savIdx === i ? <circle cx={x(i)} cy={rateY(t.rate)} r={5} fill="var(--gold)" opacity={0.5} className="m-point-pulse" /> : null}
+                          <circle cx={x(i)} cy={rateY(t.rate)} r={savIdx === i ? 4.6 : 3} fill="var(--gold)" stroke="white" strokeWidth={savIdx === i ? 2 : 1.2} />
                           {i % labelStep === 0 ? (
                             <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10.5} fill="var(--muted-foreground)">
                               {t.label.slice(-5)}
@@ -820,6 +844,29 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           ) : null}
                         </g>
                       ))}
+                      {savIdx != null ? (
+                        <>
+                          <line className="m-chip-in" x1={x(savIdx)} y1={padT - 4} x2={x(savIdx)} y2={padT + plotH} stroke="var(--gold)" strokeOpacity={0.5} strokeWidth={1} strokeDasharray="3 3" />
+                          {(() => {
+                            const m = st.series[savIdx];
+                            const prev = savIdx > 0 ? st.series[savIdx - 1].savings : 0;
+                            const mom = prev > 0 ? Math.round(((m.savings - prev) / prev) * 100) : null;
+                            const amtTxt = m.savings >= 10000 ? `${(m.savings / 10000).toFixed(2)}亿` : `${m.savings.toFixed(1)}万`;
+                            const chip = `${amtTxt} · ${m.rate.toFixed(1)}%${mom != null ? ` ${mom > 0 ? "↑" : mom < 0 ? "↓" : ""}${Math.abs(mom)}%` : ""}`;
+                            const cw = chip.length * 7 + 12;
+                            const cx = Math.min(Math.max(x(savIdx), padL + cw / 2), W - padR - cw / 2);
+                            const cy = Math.max(savY(m.savings) - 30, 1);
+                            return (
+                              <g className="m-chip-in">
+                                <rect x={cx - cw / 2} y={cy} width={cw} height={18} rx={9} fill="var(--foreground)" />
+                                <text x={cx} y={cy + 12.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="var(--background)">
+                                  {chip}
+                                </text>
+                              </g>
+                            );
+                          })()}
+                        </>
+                      ) : null}
                       {st.series.map((t, i) => (
                         <rect
                           key={`sh-${i}`}
@@ -829,7 +876,12 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           height={plotH + 4}
                           fill="transparent"
                           style={{ cursor: "pointer" }}
-                          onClick={() => setActiveTrend(t.raw)}
+                          onPointerDown={() => setSavIdx(i)}
+                          onPointerCancel={() => setSavIdx(null)}
+                          onClick={() => {
+                            setSavIdx(null);
+                            setActiveTrend(t.raw);
+                          }}
                         />
                       ))}
                     </svg>
