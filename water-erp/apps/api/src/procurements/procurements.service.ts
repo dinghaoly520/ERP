@@ -1016,8 +1016,10 @@ export class ProcurementsService {
       FAILED_REVIEW: '资格审查未通过',
       FILE_REVISION_REQUIRED: '采购文件需修改',
       INVALID_RESPONSE: '未按要求响应',
-      PENDING: '待处理',
-      CANCELLED: '已取消',
+      // 2026-11-19 用户裁定：待处理→进行中（与总览「进行中项目」轮次口径对齐）、
+      // 已取消→已终止（与「异常项目=终止的项目」裁定同语言）
+      PENDING: '进行中',
+      CANCELLED: '已终止',
     };
     return labels[status] || status;
   }

@@ -525,7 +525,7 @@ export default function LedgerPage() {
               key={item.id}
               type="button"
               onClick={() => setActiveItem(item)}
-              className="neu-card-static w-full rounded-[16px] p-3.5 text-left active:scale-[0.99]"
+              className="m-tile w-full rounded-[16px] p-3.5 text-left active:scale-[0.99]"
             >
               <div className="flex items-start gap-2">
                 <span className="shrink-0 pt-0.5 text-[13px] tabular-nums text-[var(--muted-foreground)]">{item.procurementDate || "—"}</span>

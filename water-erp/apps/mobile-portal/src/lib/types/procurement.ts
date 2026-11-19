@@ -108,7 +108,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
   },
   PENDING: {
     key: "PENDING",
-    label: "待处理",
+    label: "进行中",
     color: "rgba(234,188,110,1)",
     bgColor: "rgba(234,188,110,0.12)",
     borderColor: "rgba(234,188,110,0.25)",
@@ -141,10 +141,10 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     borderColor: "rgba(230,140,90,0.25)",
     icon: "alert",
   },
-  // 已取消 - 灰色（流程终止：中性色；仍计入台账异常四态，见后端 ABNORMAL_RESULT_STATES）
+  // 已终止（原「已取消」，2026-11-19 用户裁定更名）- 灰色（流程终止：中性色；仍计入台账异常四态）
   CANCELLED: {
     key: "CANCELLED",
-    label: "已取消",
+    label: "已终止",
     color: "rgba(140,140,140,1)",
     bgColor: "rgba(140,140,140,0.12)",
     borderColor: "rgba(140,140,140,0.25)",
