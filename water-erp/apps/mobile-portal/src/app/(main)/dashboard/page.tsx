@@ -778,6 +778,9 @@ export default function DashboardPage() {
         </SectionCard>
       ) : null}
 
+      {/* 两卡间距加高（2026-11-19 用户裁定）：数据总览 mb-3 之上再垫 10px */}
+      <div className="h-2.5" aria-hidden />
+
       {/* ── 实时运行态势（2026-11-19 标段生命周期裁定：四 KPI=运行中/标前/标中/标后，
            卡片头同款双选择器；进行中开评标实名录 30s 轮询）── */}
       <SectionCard
