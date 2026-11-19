@@ -57,8 +57,19 @@ import {
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
+import { fetchProgressStats, type ProgressStats } from "@/lib/api/progress";
 import { RANGES, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
+
+/** PMI 阶段键→中文（数据分析进行中区；与进展页 STAGE_META 同 canon 词面） */
+function PMI_STAGE_LABELS_OF(key: string): string {
+  const m: Record<string, string> = {
+    PROCUREMENT_DEMAND: "采购需求", INITIATION: "采购立项", TENDER_DOCUMENT: "采购文件",
+    SUPPLIER_INVITATION: "供应商邀请", PUBLIC_ANNOUNCEMENT: "采购公告公示", EXPERT_SELECTION: "专家抽取",
+    BID_EVALUATION: "开标评标", AWARD_DECISION: "定标", CONTRACT: "合同", DIRECT_PURCHASE_FILING: "直接采购备案表",
+  };
+  return m[key] ?? key;
+}
 
 const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
   running: "运行中项目",
@@ -540,6 +551,77 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     return { W, H, padL, padR, padT, baseline, plotH, x, colW, colX, barW, amountY, maxCount, maxAmount, linePath, areaPath, ticks, series, labelStep };
   }, [data]);
 
+  /* 数据分析页（2026-11-19 重构裁定）：归档区走 dashboard 轮次、进行中区走 PMI
+   * 进展清单——开层懒取一次（会话内缓存） */
+  const [analysisPm, setAnalysisPm] = useState<ProgressStats | null>(null);
+  useEffect(() => {
+    if (analysisOpen !== "composition" || analysisPm) return;
+    let active = true;
+    fetchProgressStats()
+      .then((r) => { if (active) setAnalysisPm(r); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [analysisOpen, analysisPm]);
+
+  /* 归档区派生：各部门采购分布（按金额）/归属项目分布（按轮次）/供应商集中度（Top5 金额+CR3） */
+  const arcDeptDist = useMemo(() => {
+    const m = new Map<string, number>();
+    (data?.trendSeries ?? []).forEach((t) =>
+      (t.projects ?? []).forEach((p) => {
+        if (!p.status.includes("成交")) return;
+        const amt = parseBudgetLabel(p.awardLabel || p.budgetLabel);
+        m.set(p.department || "未归属", (m.get(p.department || "未归属") ?? 0) + amt);
+      }),
+    );
+    return [...m.entries()].map(([name, amount]) => ({ name, amount, label: amount >= 10000 ? `${(amount / 10000).toFixed(1)}万` : `${Math.round(amount)}元` })).sort((a, b) => b.amount - a.amount);
+  }, [data]);
+  const arcProjectDist = useMemo(() => {
+    const m = new Map<string, number>();
+    (data?.trendSeries ?? []).forEach((t) =>
+      (t.projects ?? []).forEach((p) => {
+        if (!p.status.includes("成交")) return;
+        m.set(p.name, (m.get(p.name) ?? 0) + 1);
+      }),
+    );
+    return [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 6);
+  }, [data]);
+  const supplierConc = useMemo(() => {
+    const rows = (data?.supplierStats ?? [])
+      .map((x) => ({ name: x.name, amount: parseBudgetLabel(x.awardAmountLabel), wins: x.winCount }))
+      .filter((x) => x.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+    const total = rows.reduce((sum, x) => sum + x.amount, 0);
+    const top5 = rows.slice(0, 5);
+    const cr3 = total > 0 ? rows.slice(0, 3).reduce((s, x) => s + x.amount, 0) / total : 0;
+    return { top5, cr3, total };
+  }, [data]);
+
+  /* 进行中区派生（PMI）：部门/阶段/方式/规模/归属项目 */
+  const pmDist = useMemo(() => {
+    const list = analysisPm?.projects ?? [];
+    const by = <T extends string>(key: (p: ProgressStats["projects"][number]) => T) => {
+      const m = new Map<T, number>();
+      list.forEach((p) => m.set(key(p), (m.get(key(p)) ?? 0) + 1));
+      return [...m.entries()].map(([name, count]) => ({ name: String(name), count })).sort((a, b) => b.count - a.count);
+    };
+    const methodRows = by((p) => p.procurementMethod);
+    const scaleBuckets = SCALE_SEGS.map((seg) => ({
+      label: seg.label,
+      range: seg.range,
+      count: list.filter((p) => { const b = Number(p.budgetAmount ?? 0); return b >= seg.min && b < seg.max; }).length,
+      color: seg.color,
+    }));
+    return {
+      dept: by((p) => p.requesterDepartment || "未归属"),
+      stage: by((p) => p.currentStage),
+      method: methodRows,
+      scale: scaleBuckets,
+      project: by((p) => p.projectName || "—").slice(0, 6),
+      totalMethod: methodRows.reduce((s, x) => s + x.count, 0),
+      total: list.length,
+    };
+  }, [analysisPm]);
+
   /* 节资趋势（2026-11-19 执行趋势优化裁定）：月度节资（AWARDED 且
    * budget>=award>0：Σ(预算-成交)）柱 + 节资率（节约/成交预算）线 */
   const savingsTrend = useMemo(() => {
@@ -950,58 +1032,42 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "composition" ? (
               <>
+            {/* ══ 数据分析（2026-11-19 重构裁定：归档数据 / 进行中数据 两区，各五图）══ */}
+            <div className="px-1 pt-1 text-[12px] font-bold tracking-[0.08em] text-[var(--foreground)]">归档数据</div>
 
-            {/* ── 采购方式分布（环形图）── */}
-            <SectionCard icon={Layers} title="采购方式分布"
-              index={3}
-            >
-              {methodDonut ? (
-                <div className="flex items-center gap-3">
-                  <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="采购方式分布环形图">
-                    {methodDonut.segs.map((seg, i) => (
-                      <path
-                        key={i}
-                        d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)}
-                        fill={seg.color}
-                        opacity={0.88}
-                        onClick={() => setActiveMethod(seg.m)}
-                        className="m-seg-in"
-                        style={{ cursor: "pointer", animationDelay: `${i * 60}ms` }}
-                      />
-                    ))}
-                    <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">
-                      {methodDonut.total}
-                    </text>
-                    <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">
-                      总项目
-                    </text>
-                  </svg>
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    {methodDonut.segs.slice(0, 6).map((seg, i) => (
-                      <button key={i} type="button" onClick={() => setActiveMethod(seg.m)} className="flex w-full items-center gap-2 text-left">
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
-                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
-                        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{seg.m.share}%</span>
-                      </button>
-                    ))}
+            {/* 供应商集中度：Top5 中标金额横条 + CR3 结论 */}
+            <SectionCard icon={Handshake} title="供应商集中度" index={0}>
+              {supplierConc.top5.length ? (
+                <div className="space-y-2">
+                  {(() => {
+                    const max = supplierConc.top5[0].amount;
+                    return supplierConc.top5.map((x, i) => (
+                      <div key={x.name} className="flex items-center gap-2">
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                        <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.name}</span>
+                        <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                          <span className="block h-full rounded-[5px] bg-[var(--gold)] opacity-80" style={{ width: `${(x.amount / max) * 100}%` }} />
+                        </span>
+                        <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{x.amount >= 10000 ? `${(x.amount / 10000).toFixed(1)}万` : `${Math.round(x.amount)}元`}</span>
+                      </div>
+                    ));
+                  })()}
+                  <div className="pt-1 text-[12px] text-[var(--muted-foreground)]">
+                    Top3 供应商占已成交总额 <b className="tabular-nums text-[var(--gold)]">{(supplierConc.cr3 * 100).toFixed(1)}%</b>
+                    {supplierConc.cr3 >= 0.5 ? "——集中度偏高，建议扩充竞争面" : ""}
                   </div>
                 </div>
               ) : (
-                <EmptyState text="暂无采购方式数据" />
+                <EmptyState text="暂无成交供应商数据" />
               )}
             </SectionCard>
 
-            {/* ── 项目规模分析 ── */}
-            <SectionCard
-              icon={BarChart3}
-              title="项目规模分析"
-              index={4}
-              right={<span className="shrink-0 text-[13px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}
-            >
+            {/* 项目规模分析（归档） */}
+            <SectionCard icon={BarChart3} title="项目规模分析" index={1} right={<span className="shrink-0 text-[13px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}>
               {scaleTotal > 0 ? (
                 <div className="space-y-1">
                   {(() => {
-                    const maxSegCount = Math.max(...scaleSegs.map((s) => s.count), 1);
+                    const maxSegCount = Math.max(...scaleSegs.map((seg) => seg.count), 1);
                     return scaleSegs.map((seg, i) => (
                       <button key={i} type="button" onClick={() => setActiveSeg(seg)} className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1.5 text-left active:scale-[0.99]">
                         <span className="w-[4.5rem] shrink-0 leading-tight">
@@ -1024,54 +1090,199 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               )}
             </SectionCard>
 
-            {/* ── 结果构成 ── */}
-            <SectionCard title="结果构成"
-              index={5}
-            >
-              {data.resultStats.length ? (
-                <div className="grid grid-cols-3 gap-1.5 min-[360px]:gap-2">
-                  {data.resultStats.map((r, i) => (
-                    <div key={i} className="rounded-[12px] m-tile px-2 py-2 text-center">
-                      <div className="text-[13px] text-[var(--muted-foreground)]">{r.label}</div>
-                      <div className="mt-1 text-[18px] font-black leading-none tabular-nums" style={{ color: r.accent }}>
-                        {r.count}
-                      </div>
-                      <div className="mt-1 truncate text-[12px] tabular-nums text-[var(--muted-foreground)]">{r.amountLabel}</div>
-                    </div>
-                  ))}
+            {/* 采购方式分布（归档，环形图） */}
+            <SectionCard icon={Layers} title="采购方式分布" index={2}>
+              {methodDonut ? (
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="采购方式分布环形图">
+                    {methodDonut.segs.map((seg, i) => (
+                      <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} onClick={() => setActiveMethod(seg.m)} className="m-seg-in" style={{ cursor: "pointer", animationDelay: `${i * 60}ms` }} />
+                    ))}
+                    <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{methodDonut.total}</text>
+                    <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">总轮次</text>
+                  </svg>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    {methodDonut.segs.slice(0, 6).map((seg, i) => (
+                      <button key={i} type="button" onClick={() => setActiveMethod(seg.m)} className="flex w-full items-center gap-2 text-left">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
+                        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{seg.m.share}%</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <EmptyState text="暂无结果数据" />
+                <EmptyState text="暂无采购方式数据" />
               )}
             </SectionCard>
 
-            {/* ── 未成交原因分析 ── */}
-            {data.nonAwardReasons.length ? (
-              <SectionCard icon={AlertCircle} title="未成交原因分析"
-              index={6}
-            >
-                <div className="space-y-2">
-                  {data.nonAwardReasons.map((r, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setActiveReason(r)}
-                      className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
-                    >
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[14px] font-black text-[var(--danger)]">
-                        {r.count}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{r.label}</span>
-                        <span className="mt-0.5 block truncate text-[14px] text-[var(--muted-foreground)]">{r.detail}</span>
-                      </span>
-                      <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
-                    </button>
-                  ))}
+            {/* 各部门采购分布（归档，按成交金额） */}
+            <SectionCard icon={Building2} title="各部门采购分布" index={3} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按成交金额</span>}>
+              {arcDeptDist.length ? (
+                <div className="space-y-1.5">
+                  {(() => {
+                    const max = arcDeptDist[0].amount;
+                    return arcDeptDist.map((d) => (
+                      <div key={d.name} className="flex items-center gap-2">
+                        <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
+                        <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                          <span className="block h-full rounded-[5px] bg-[var(--accent)] opacity-80" style={{ width: `${(d.amount / max) * 100}%` }} />
+                        </span>
+                        <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.label}</span>
+                      </div>
+                    ));
+                  })()}
                 </div>
-              </SectionCard>
-            ) : null}
+              ) : (
+                <EmptyState text="暂无成交数据" />
+              )}
+            </SectionCard>
 
+            {/* 归属项目分布（归档，按轮次 Top6） */}
+            <SectionCard icon={FolderKanban} title="归属项目分布" index={4} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按轮次</span>}>
+              {arcProjectDist.length ? (
+                <div className="space-y-1.5">
+                  {(() => {
+                    const max = arcProjectDist[0].count;
+                    return arcProjectDist.map((d) => (
+                      <div key={d.name} className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
+                        <span className="h-3.5 w-[9rem] shrink-0 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                          <span className="block h-full rounded-[5px] bg-[oklch(0.55_0.1_228)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
+                        </span>
+                        <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <EmptyState text="暂无成交数据" />
+              )}
+            </SectionCard>
+
+            <div className="my-3 h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
+            <div className="px-1 text-[12px] font-bold tracking-[0.08em] text-[var(--foreground)]">进行中数据</div>
+
+            {analysisPm ? (
+              <>
+                {/* 阶段分布（进行中） */}
+                <SectionCard icon={Gauge} title="阶段分布" index={0}>
+                  {pmDist.stage.length ? (
+                    <div className="space-y-1.5">
+                      {pmDist.stage.map((d) => {
+                        const max = pmDist.stage[0].count;
+                        return (
+                          <div key={d.name} className="flex items-center gap-2">
+                            <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{PMI_STAGE_LABELS_OF(d.name)}</span>
+                            <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] bg-[var(--accent)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
+                            </span>
+                            <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
+                </SectionCard>
+
+                {/* 采购方式分布（进行中，横条） */}
+                <SectionCard icon={Layers} title="采购方式分布" index={1}>
+                  {pmDist.method.length ? (
+                    <div className="space-y-1.5">
+                      {pmDist.method.map((d) => {
+                        const max = pmDist.method[0].count;
+                        return (
+                          <div key={d.name} className="flex items-center gap-2">
+                            <span className="w-[6rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
+                            <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] bg-[var(--warning)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
+                            </span>
+                            <span className="w-[3rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count} 项</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
+                </SectionCard>
+
+                {/* 部门分布（进行中） */}
+                <SectionCard icon={Building2} title="部门分布" index={2}>
+                  {pmDist.dept.length ? (
+                    <div className="space-y-1.5">
+                      {pmDist.dept.map((d) => {
+                        const max = pmDist.dept[0].count;
+                        return (
+                          <div key={d.name} className="flex items-center gap-2">
+                            <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
+                            <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] bg-[var(--success)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
+                            </span>
+                            <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
+                </SectionCard>
+
+                {/* 项目规模分析（进行中） */}
+                <SectionCard icon={BarChart3} title="项目规模分析" index={3}>
+                  {pmDist.scale.some((b) => b.count > 0) ? (
+                    <div className="space-y-1.5">
+                      {pmDist.scale.map((b) => {
+                        const max = Math.max(...pmDist.scale.map((x) => x.count), 1);
+                        return (
+                          <div key={b.label} className="flex items-center gap-2">
+                            <span className="w-[4.5rem] shrink-0 leading-tight">
+                              <span className="block text-[13px] font-semibold text-[var(--foreground)]">{b.label}</span>
+                              <span className="block text-[12px] text-[var(--muted-foreground)]">{b.range}</span>
+                            </span>
+                            <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(b.count / max) * 100}%`, background: b.color }} />
+                            </span>
+                            <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{b.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
+                </SectionCard>
+
+                {/* 归属项目分布（进行中） */}
+                <SectionCard icon={FolderKanban} title="归属项目分布" index={4}>
+                  {pmDist.project.length ? (
+                    <div className="space-y-1.5">
+                      {pmDist.project.map((d) => {
+                        const max = pmDist.project[0].count;
+                        return (
+                          <div key={d.name} className="flex items-center gap-2">
+                            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
+                            <span className="h-3.5 w-[9rem] shrink-0 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] bg-[oklch(0.58_0.14_285)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
+                            </span>
+                            <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
+                </SectionCard>
+              </>
+            ) : (
+              <div className="py-2">
+                <Skeleton lines={6} height={40} />
+              </div>
+            )}
               </>
             ) : null}
             {analysisOpen === "ranking" ? (
