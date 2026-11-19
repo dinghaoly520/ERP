@@ -278,8 +278,6 @@ export default function LedgerPage() {
     setPage((p) => p + 1);
   }, [loading, loadingMore, page, totalPages]);
 
-  const statusChips = useMemo(() => Object.values(RESULT_STATUS_CONFIG), []);
-
   /* 筛选变更：重置回第 1 页 + 记忆 */
   const changeFilter = (fn: () => void) => {
     fn();
