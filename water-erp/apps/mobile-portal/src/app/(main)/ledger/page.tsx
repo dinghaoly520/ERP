@@ -326,7 +326,7 @@ export default function LedgerPage() {
         <div className="neu-card-static mb-3 rounded-[18px] p-3">
           {(() => {
             const tile = (value: string, label: string, danger = false) => (
-              <div className="rounded-[12px] m-tile px-1 py-2.5 text-center">
+              <div key={label} className="rounded-[12px] m-tile px-1 py-2.5 text-center">
                 <div className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${danger ? "text-[var(--danger)]" : "text-[var(--foreground)]"}`}>{value}</div>
                 <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{label}</div>
               </div>
