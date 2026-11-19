@@ -92,15 +92,17 @@ export const ANALYSIS_TILES: Array<{
   color: string;
 }> = [
   /* 九模块全窗口化（2026-11-19 用户裁定）：点击均以窗口呈现，标题=卡片标题 */
+  /* 九卡九色（2026-11-19 用户裁定：每卡不同色）——语义色打底 + oklch 补位（与
+   * DONUT_COLORS 色族同源），图标井/页头随色联动 */
   { key: "ledger", label: "台账明细", icon: NotebookText, color: "var(--accent)" },
-  { key: "progress", label: "项目进展", icon: Milestone, color: "var(--accent)" },
-  { key: "trend", label: "执行趋势", icon: ChartNoAxesCombined, color: "var(--accent)" },
-  { key: "composition", label: "数据分析", icon: ChartPie, color: "var(--accent)" },
+  { key: "progress", label: "项目进展", icon: Milestone, color: "var(--warning)" },
+  { key: "trend", label: "执行趋势", icon: ChartNoAxesCombined, color: "oklch(0.58 0.14 285)" },
+  { key: "composition", label: "数据分析", icon: ChartPie, color: "oklch(0.6 0.12 188)" },
   { key: "ranking", label: "节资排行", icon: ListOrdered, color: "var(--gold)" },
-  { key: "company", label: "公司对比", icon: Scale, color: "var(--accent)" },
+  { key: "company", label: "公司对比", icon: Scale, color: "oklch(0.55 0.1 228)" },
   { key: "risk", label: "风险告警", icon: ShieldAlert, color: "var(--danger)" },
   { key: "supplier", label: "供应商", icon: Handshake, color: "var(--success)" },
-  { key: "experts", label: "专家库", icon: BookUser, color: "var(--gold)" },
+  { key: "experts", label: "专家库", icon: BookUser, color: "oklch(0.55 0.13 25)" },
 ];
 
 /** 元数值格式化：过万转「N.N万」，不足万直出「N元」（龙虎榜成交额，后端口径=元） */
