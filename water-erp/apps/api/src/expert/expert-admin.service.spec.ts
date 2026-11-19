@@ -208,7 +208,7 @@ describe('ExpertAdminService', () => {
   describe('统计口径收口（2026-10-28：可用=可抽取人口、停用=退库、统计闸去重）', () => {
     const ACTOR = { sub: 'u-1', role: 'leader', username: 'S-01' } as any;
 
-    it('getStatistics：availGroups 限库内 ACTIVE+账号在编；disabled=RETIRED 计数（entryStatus 为准）', async () => {
+    it('getStatistics：库况四态全库派生（2026-11-18）——available=库内 ACTIVE−在途并集（弃 availability 镜像列）；availGroups 查询仍限 ACTIVE+在编；disabled=RETIRED 计数（entryStatus 为准）', async () => {
       prisma.user.count.mockResolvedValue(10);
       prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
         by[0] === 'availability'
@@ -219,12 +219,36 @@ describe('ExpertAdminService', () => {
       const availCall = prisma.expertProfile.groupBy.mock.calls.find((c: any[]) => c[0].by?.[0] === 'availability')![0];
       expect(availCall.where.entryStatus).toBe('ACTIVE');
       expect(availCall.where.user.isActive).toBe(true);
-      expect(res.available).toBe(3);
-      expect(res.occupied).toBe(2);
+      // 镜像列「可用3/占用2」不再读：无在途 → 库内 5 人全空闲（2026-10-28 旧口径此处为 3/2）
+      expect(res.available).toBe(5);
+      expect(res.occupied).toBe(0);
+      expect(res.busy).toEqual({ idle: 5, assigned: 0, evaluating: 0, alternate: 0 });
       expect(res.disabled).toBe(1);
       expect(prisma.expertProfile.count).toHaveBeenCalledWith(expect.objectContaining({
         where: expect.objectContaining({ entryStatus: 'RETIRED' }),
       }));
+    });
+
+    it('getStatistics 四态派生（2026-11-18）：正在评标＞正选在途＞候补待命互斥去重（同人多在途行只数一次），declined 不入查询；空闲=库内 ACTIVE−在途并集', async () => {
+      prisma.user.count.mockResolvedValue(10);
+      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
+        by[0] === 'availability'
+          ? Promise.resolve([{ availability: '可用', _count: 4 }, { availability: '占用', _count: 2 }])
+          : Promise.resolve([]));
+      prisma.expertProfile.count.mockResolvedValue(0);
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },     // 正选在途
+        { userId: 'e2', expertRole: '候补', project: { stage: 'OPENING' } },    // 候补待命
+        { userId: 'e3', expertRole: '候补', project: { stage: 'EVALUATING' } }, // 同人多在途行：正在评标最高优先
+        { userId: 'e3', expertRole: '候补', project: { stage: 'SUBMIT' } },
+      ]);
+      const res = await service.getStatistics(ACTOR);
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ invitationStatus: { not: 'declined' } }),
+      }));
+      expect(res.busy).toEqual({ idle: 3, assigned: 1, evaluating: 1, alternate: 1 });
+      expect(res.available).toBe(3);
+      expect(res.occupied).toBe(3);
     });
 
     it('getStatistics：评价统计按槽位去重（2026-10-21 统计闸裁定，此前本端点为唯一漏网）', async () => {

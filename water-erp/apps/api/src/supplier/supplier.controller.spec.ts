@@ -7,12 +7,14 @@ import { SupplierController } from './supplier.controller';
  * 的 hashToken(undefined)（crypto TypeError → 500 INTERNAL_ERROR），必须在 controller 层
  * 拦成 400 MISSING_CORRECTION_PARAMS。风格对齐同文件 getRegisterStatusPublic/urgeReview。
  * 直实例化（非 Test.createTestingModule）——对齐 company.controller.spec.ts 模式。
+ * 构造器 5 参（2026-11-18 participationPdf 参标 PDF 导出新增末位）——本套只测
+ * correction/draft 守卫，末位 {} 占位即可。
  */
 
 describe('SupplierController 补正回填公开端点（correction/draft 缺参 500→400 守卫）', () => {
   function makeController() {
     const supplierService = { getCorrectionDraft: jest.fn().mockResolvedValue({}) };
-    const ctrl = new SupplierController(supplierService as never, {} as never, {} as never, {} as never);
+    const ctrl = new SupplierController(supplierService as never, {} as never, {} as never, {} as never, {} as never);
     return { ctrl, supplierService };
   }
 

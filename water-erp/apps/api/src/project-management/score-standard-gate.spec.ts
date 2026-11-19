@@ -4,7 +4,9 @@ import { ScoreStandardValidator } from '../bid/score-standard-validator.service'
 
 /** 评分标准配置闸（2026-09-24 方案 v2）：完成 03 采购文件前须完成评分标准配置。
  *  口径：办法=none 免校验（BP 缺失按 PMI 采购方式推导）；否则须有该轮 BidProject
- *  且评分标准完整（复用 ScoreStandardValidator，与发布/启动评标同口径）。 */
+ *  且评分标准完整（复用 ScoreStandardValidator，与发布/启动评标同口径）。
+ *  2026-11-18 直接采购改道：不走盖章版指针/评分标准向导——完成闸=当轮已上传 ≥1 文件
+ *  （DIRECT_TENDER_FILE_REQUIRED），validator 不参与。 */
 describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
   // 构造器 12 参：prisma, gbCode, ai, llm, documentParser, storage, archiveScope,
   // archiveFlow, stageCompliance, notificationService, scoreStandardValidator（2026-09-24 新增末位）,
@@ -75,16 +77,34 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
         update: jest.fn().mockResolvedValue({ id: 'pmi-1' }),
       },
       bidProject: { findFirst: jest.fn().mockImplementation(findFirstImpl) },
+      // 直接采购 03 完成闸（2026-11-18 用户裁定）：当轮已上传 ≥1 文件才放行——默认 1=放行；
+      // 拦截用例用 mockResolvedValueOnce(0) 覆盖
+      attachment: { count: jest.fn().mockResolvedValue(1) },
     };
   };
 
-  it('无 BP + 直接采购（推导 none）→ 放行且不触发 validator', async () => {
+  it('直接采购 + 无 BP（2026-11-18 文件闸改道）→ 当轮 ≥1 文件即放行且不触发 validator', async () => {
     const prisma = mkHappyPrisma({ procurementMethod: '直接采购', bidProject: null });
     const validator = { assertScoreStandardComplete: jest.fn() };
     const svc = mkService(prisma, validator);
     await expect(
       svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never),
     ).resolves.toMatchObject({ status: 'COMPLETED' });
+    expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
+  });
+
+  it('直接采购 03 完成闸：当轮 0 文件 → 400 DIRECT_TENDER_FILE_REQUIRED（先于评分/归档闸，validator 不触发）', async () => {
+    const prisma = mkHappyPrisma({ procurementMethod: '直接采购', bidProject: null });
+    prisma.attachment.count.mockResolvedValueOnce(0);
+    const validator = { assertScoreStandardComplete: jest.fn() };
+    const svc = mkService(prisma, validator);
+    const err: any = await svc
+      .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never)
+      .then(() => null, (e: unknown) => e);
+    expect(err?.response?.code).toBe('DIRECT_TENDER_FILE_REQUIRED');
+    expect(prisma.attachment.count).toHaveBeenCalledWith({
+      where: { projectManagementStageId: 'st-td' },
+    });
     expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
   });
 
