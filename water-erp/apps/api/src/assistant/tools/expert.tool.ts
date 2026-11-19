@@ -2,13 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
-import { deriveBusyCounts, busyStateOf, IN_FLIGHT_STAGES } from '../../expert/expert-busy-state.util';
+import { deriveBusyCounts, busyStateOf, IN_FLIGHT_STAGES, BusyStateLabel } from '../../expert/expert-busy-state.util';
 
 @Injectable()
 export class ExpertTool implements AssistantTool {
   name = 'expert';
   description =
-    '查询专家库统计/列表/专业方向分布/可用状态/条件检索专家。args: { action: "stats"|"list"|"by_specialty"|"search", specialty?, title?, employer?, keyword?, availability?, limit? }——stats=多维度结构（专业/部门或公司/职称/评审负荷四分布+总览：leader/staff 单公司视野=部门维度、admin/总数据=公司维度），「专家分布/专家库结构」类问题用 stats 并覆盖全部维度。用户用自然语言找专家（如"找3个做过水利的高工"）时，用 action:"search"，把专业填 specialty、职称填 title、单位填 employer、姓名填 keyword、可用状态填 availability。';
+    '查询专家库统计/列表/专业方向分布/库况状态/条件检索专家。args: { action: "stats"|"list"|"by_specialty"|"search", specialty?, title?, employer?, keyword?, availability?, limit? }——stats=多维度结构（专业/部门或公司/职称/评审负荷四分布+总览：leader/staff 单公司视野=部门维度、admin/总数据=公司维度），「专家分布/专家库结构」类问题用 stats 并覆盖全部维度。用户用自然语言找专家（如"找3个做过水利的高工"）时，用 action:"search"，把专业填 specialty、职称填 title、单位填 employer、姓名填 keyword、按当前库况筛人填 availability="空闲"（也可填"正在评标"/"已被抽取"/"候补待命"；"可用"视同"空闲"）——库况按在途项目实时派生，非档案登记值。';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -25,17 +25,23 @@ export class ExpertTool implements AssistantTool {
       const title = args.title as string | undefined;
       const employer = args.employer as string | undefined;
       const availability = args.availability as string | undefined;
+      // E4（2026-11-19 第一波）：availability 参数改派生语义——DB 侧不再按镜像列过滤（镜像「可用」
+      // 虚含在途专家、与同卡状态列自相矛盾）。「可用」（旧词）视同「空闲」；其余按四态标签匹配；
+      // 未知值不过滤（宁多勿漏，LLM 填错词时仍返回全量行由状态列自证）。
+      const stateFilter: BusyStateLabel | undefined =
+        availability === '可用' || availability === '空闲' ? '空闲'
+        : availability === '正在评标' || availability === '已被抽取' || availability === '候补待命' ? availability
+        : undefined;
       const where: Record<string, unknown> = {};
       if (specialty) where.specialty = { contains: specialty };
       if (title) where.title = { contains: title };
       if (employer) where.employer = { contains: employer };
-      // availability 检索=档案登记口径（镜像列）；状态展示列已改四态派生（见 rows）——两口径并存系刻意
-      if (availability) where.availability = availability;
       const userWhere: Record<string, unknown> = { ...companyWhere };
       if (kw) userWhere.displayName = { contains: kw };
       if (Object.keys(userWhere).length > 0) where.user = userWhere;
       const experts = await this.prisma.expertProfile.findMany({
-        where, take: limit, orderBy: { createdAt: 'desc' },
+        // 派生态为行级后过滤：take 放大补偿截断（过滤后仍截 limit 呈现）
+        where, take: stateFilter ? Math.min(limit * 3, 60) : limit, orderBy: { createdAt: 'desc' },
         select: {
           id: true, specialty: true, title: true,
           employer: true,
@@ -51,11 +57,13 @@ export class ExpertTool implements AssistantTool {
           },
         },
       });
+      const enriched = experts.map((e) => ({ e, state: busyStateOf(e.user?.bidExperts ?? []) }));
+      const shown = (stateFilter ? enriched.filter((x) => x.state === stateFilter) : enriched).slice(0, limit);
       return {
         success: true,
         cards: [{
           type: 'table',
-          title: `符合条件的专家（${experts.length} 名）`,
+          title: `符合条件的专家（${shown.length} 名）`,
           columns: [
             { key: 'name', label: '姓名' },
             { key: 'specialty', label: '专业' },
@@ -63,13 +71,13 @@ export class ExpertTool implements AssistantTool {
             { key: 'employer', label: '单位' },
             { key: 'state', label: '状态' },
           ],
-          rows: experts.map((e) => ({
+          rows: shown.map(({ e, state }) => ({
             name: e.user?.displayName ?? '-',
             specialty: e.specialty,
             title: e.title ?? '-',
             employer: e.employer ?? '-',
             // 状态=四态派生（2026-11-19 ⑵收口）：不再喂 availability 镜像原文（在途专家会被误标「可用」）
-            state: busyStateOf(e.user?.bidExperts ?? []),
+            state,
           })),
         }],
       };

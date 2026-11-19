@@ -4,7 +4,9 @@ import { ExpertTool } from './expert.tool';
  *  归属公司/职称/评审负荷同样是结构（admin/:3011 口径下公司维度是结构性重点）。
  *  stats 从单专业分布扩为五卡多维度；负荷=在途指派（同 expert-admin 口径）。
  *  2026-11-19 审查⑵收口：可用=库况四态派生（expert-busy-state.util 单源），
- *  死指标「占用（登记）」（镜像零写入者恒 0）已删；search/list 状态列改四态派生。 */
+ *  死指标「占用（登记）」已删；search/list 状态列改四态派生。
+ *  同日第一波 E2/E4：「占用」镜像值写入路径已封（PATCH profile 删字段）；
+ *  search 的 availability 参数改派生语义（「可用」视同「空闲」行级后过滤）。 */
 function makeTool() {
   const prisma: any = {
     expertProfile: {
@@ -139,4 +141,50 @@ it('search：状态列四态派生——档案镜像「可用」的专家若在�
   const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
   expect(rows[0]).toMatchObject({ name: '李四', state: '正在评标' });
   expect(rows[1]).toMatchObject({ name: '王五', state: '空闲' });
+});
+
+it('search：availability="空闲" → 按派生四态后过滤（DB 侧不再按镜像列过滤）——在途专家不再冒充空闲（E4 2026-11-19）', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { id: 'e1', specialty: '水文', title: '高工', employer: '设计院', user: { displayName: '李四', bidExperts: [{ expertRole: '正选', project: { stage: 'SUBMIT' } }] } },
+    { id: 'e2', specialty: '地质', title: null, employer: '局机关', user: { displayName: '王五', bidExperts: [] } },
+  ]);
+  const r = await tool.execute({ action: 'search', availability: '空闲' }, ADMIN);
+  const where = prisma.expertProfile.findMany.mock.calls[0][0].where;
+  expect(where).not.toHaveProperty('availability'); // DB 侧弃镜像过滤
+  const card = (r.cards as Array<Record<string, unknown>>)[0];
+  expect(card.title).toBe('符合条件的专家（1 名）');
+  const rows = card.rows as Array<Record<string, string>>;
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ name: '王五', state: '空闲' });
+});
+
+it('search：availability="可用"（旧词）翻译为「空闲」同义（LLM 旧习惯容错）', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { id: 'e1', specialty: '水文', title: '高工', employer: '设计院', user: { displayName: '李四', bidExperts: [{ expertRole: '正选', project: { stage: 'SUBMIT' } }] } },
+    { id: 'e2', specialty: '地质', title: null, employer: '局机关', user: { displayName: '王五', bidExperts: [] } },
+  ]);
+  const r = await tool.execute({ action: 'search', availability: '可用' }, ADMIN);
+  const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ name: '王五', state: '空闲' });
+});
+
+it('search：availability="正在评标" → 按四态标签过滤命中在途专家', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([
+    { id: 'e1', specialty: '水文', title: '高工', employer: '设计院', user: { displayName: '李四', bidExperts: [{ expertRole: '正选', project: { stage: 'SUBMIT' } }] } },
+    { id: 'e2', specialty: '地质', title: null, employer: '局机关', user: { displayName: '王五', bidExperts: [{ expertRole: '候补', project: { stage: 'EVALUATING' } }] } },
+  ]);
+  const r = await tool.execute({ action: 'search', availability: '正在评标' }, ADMIN);
+  const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ name: '王五', state: '正在评标' });
+});
+
+it('description：教 LLM 填派生语义「空闲」——不再引导查镜像「可用状态」（E4）', () => {
+  const { tool } = makeTool();
+  expect(tool.description).toContain('空闲');
+  expect(tool.description).not.toContain('可用状态填');
 });
