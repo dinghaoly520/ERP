@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { Milestone, Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp    } from "lucide-react";
+import { Milestone, FolderKanban, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
+import { fetchProgressStats, type ProgressStats, type ProjectProgress } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
-import { CompanyPicker } from "@/components/m/company-picker";
+import { InlineSelect } from "@/components/m/inline-select";
+import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
+import { fetchProcurementDimensions, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
-import { MetricCard } from "@/components/m/metric-card";
 import { ErrorBanner } from "@/components/m/error-banner";
 import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
@@ -21,6 +22,12 @@ import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 /* ── 阶段元数据（移植自 web progress-content STAGE_META——oklch 阶段色令牌）── */
 
 type StageMeta = { label: string; color: string; softColor: string };
+
+function fmtBudget(v: number): string {
+  return v >= 10000
+    ? `${(v / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 1 })} 万`
+    : `${v.toLocaleString("zh-CN")} 元`;
+}
 
 const STAGE_META: Record<string, StageMeta> = {
   PROCUREMENT_DEMAND: { label: "采购需求", color: "var(--stage-demand)", softColor: "var(--stage-demand-soft)" },
@@ -51,14 +58,6 @@ function getStageMeta(stageKey?: string | null): StageMeta {
   return STAGE_META[stageKey] ?? { ...DEFAULT_STAGE_META, label: stageKey };
 }
 
-const INSIGHT_TYPE_LABELS: Record<string, string> = {
-  risk: "风险",
-  bottleneck: "瓶颈",
-  budget: "预算",
-  completion: "完成度",
-  rhythm: "节奏",
-};
-
 const URGENCY_COLOR: Record<string, string> = {
   high: "var(--danger)",
   medium: "var(--warning)",
@@ -66,28 +65,6 @@ const URGENCY_COLOR: Record<string, string> = {
 };
 
 /* 洞察分组（与驾驶舱页 AI 卡「亮点/待关注/建议」同款三段式语言，按紧急度分层） */
-const INSIGHT_GROUPS: Array<{ key: "high" | "medium" | "low"; label: string; color: string; icon: typeof AlertCircle }> = [
-  { key: "high", label: "高优先关注", color: URGENCY_COLOR.high, icon: AlertCircle },
-  { key: "medium", label: "关注事项", color: URGENCY_COLOR.medium, icon: TrendingUp },
-  { key: "low", label: "常规提示", color: URGENCY_COLOR.low, icon: Lightbulb },
-];
-
-function fmtBudget(v: number): string {
-  return v >= 10000
-    ? `${(v / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 1 })} 万`
-    : `${v.toLocaleString("zh-CN")} 元`;
-}
-
-/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral（驾驶舱页同款本地一份） */
-function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | null): { pct: number; tone: "good" | "bad" | "neutral" } | undefined {
-  if (prev == null || prev === 0) return undefined;
-  const pct = Math.round(((cur - prev) / prev) * 100);
-  if (pct === 0) return { pct: 0, tone: "neutral" };
-  const up = pct > 0;
-  const tone = goodWhenUp == null ? "neutral" : (up === goodWhenUp ? "good" : "bad");
-  return { pct: Math.max(Math.min(pct, 999), -99), tone };
-}
-
 /* ── 紧凑阶段步进条 ── */
 
 function StageStepper({ project }: { project: ProjectProgress }) {
@@ -130,11 +107,31 @@ export default function ProgressPage() {
   );
 
   const [stats, setStats] = useState<ProgressStats | null>(null);
-  const [upcoming, setUpcoming] = useState<UpcomingResult | null>(null);
-  const [insights, setInsights] = useState<ProgressAiInsights | null>(null);
-  const [insightsError, setInsightsError] = useState(false);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
+  /* 搜索+五筛选（2026-11-19 用户裁定：与台账明细同款设计；清单为全量内存列表，
+     客户端过滤——PMI 维度：方式/立项部门（名匹配）/经办人（PMI 创建人）/立项日期窗） */
+  const [searchInput, setSearchInput] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [rangeKey, setRangeKey] = useState<RangeKey>("all");
+  const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
+  const [methodIds, setMethodIds] = useState<string[]>([]);
+  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
+  const [handlerIds, setHandlerIds] = useState<string[]>([]);
+  const [dimensions, setDimensions] = useState<ProcurementFilterDimensions | null>(null);
+  const [methods, setMethods] = useState<string[]>([]);
+  useEffect(() => {
+    const t = window.setTimeout(() => setSearchKeyword(searchInput), 350);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+  useEffect(() => {
+    let active = true;
+    fetchProcurementDimensions()
+      .then((d) => { if (active) setDimensions(d); })
+      .catch(() => undefined);
+    import("@/lib/api/procurements").then((m) =>
+      m.fetchProcurementMethods().then((list) => { if (active) setMethods(list); }).catch(() => undefined),
+    );
+    return () => { active = false; };
+  }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
@@ -172,6 +169,28 @@ export default function ProgressPage() {
   }, [role]);
 
   const filterCompanyId = companyIds.length ? companyIds.join(",") : undefined;
+  const queryRange =
+    rangeKey === "custom"
+      ? { startDate: customRange?.from, endDate: customRange?.to }
+      : { startDate: RANGES[rangeKey].start(), endDate: undefined as string | undefined };
+  const deptNameOf = (id: string) => dimensions?.departments.find((d) => d.id === id)?.name ?? id;
+  const handlerNameOf = (id: string) => dimensions?.handlers.find((h) => h.id === id)?.name ?? id;
+  const filteredProjects = useMemo(() => {
+    const kw = searchKeyword.trim();
+    return (stats?.projects ?? []).filter((p) => {
+      if (kw && !p.title.includes(kw) && !p.projectName.includes(kw)) return false;
+      if (methodIds.length && !methodIds.includes(p.procurementMethod)) return false;
+      if (departmentIds.length && !departmentIds.map(deptNameOf).includes(p.requesterDepartment)) return false;
+      if (handlerIds.length && !handlerIds.includes(p.createdById ?? "")) return false;
+      if (queryRange.startDate) {
+        const d = p.createdAt.slice(0, 10);
+        if (d < queryRange.startDate) return false;
+        if (queryRange.endDate && d > queryRange.endDate) return false;
+      }
+      return true;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats, searchKeyword, methodIds, departmentIds, handlerIds, queryRange.startDate, queryRange.endDate, dimensions]);
 
   useEffect(() => {
     let active = true;
@@ -192,48 +211,6 @@ export default function ProgressPage() {
     };
   }, [filterCompanyId, retryTick]);
 
-  /* 未来 14 天关键节点（截标/开标）：随公司口径/下拉刷新（retryTick）重取；静默失败（无节点不渲染，不占错误位） */
-  useEffect(() => {
-    let active = true;
-    fetchUpcoming(14, filterCompanyId)
-      .then((u) => {
-        if (active) setUpcoming(u);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [filterCompanyId, retryTick]);
-
-  /* 洞察手动生成（与驾驶舱页 AI 综合分析同款：点「生成分析」才请求）；
-     公司口径变化/下拉刷新使旧结果作废（置 null 后按钮态回归） */
-  async function runInsights() {
-    if (aiLoading) return;
-    setAiLoading(true);
-    setInsightsError(false);
-    try {
-      const i = await fetchProgressAiInsights(filterCompanyId);
-      setInsights(i);
-    } catch {
-      setInsights(null);
-      setInsightsError(true);
-    } finally {
-      setAiLoading(false);
-    }
-  }
-
-  const maxStageCount = Math.max(...(stats?.stageDistribution.map((d) => d.count) ?? [1]), 1);
-
-  /* 阶段分布按标准采购流程顺位排（STAGE_META 键序 = 采购需求→立项→文件→邀请→公示→专家→评标→定标→合同） */
-  const STAGE_ORDER = Object.keys(STAGE_META);
-  const sortedStageDistribution = useMemo(
-    () =>
-      [...(stats?.stageDistribution ?? [])].sort(
-        (a, b) => STAGE_ORDER.indexOf(a.stage) - STAGE_ORDER.indexOf(b.stage),
-      ),
-    [stats],
-  );
-
   const { pull, refreshing } = usePullToRefresh(
     useCallback(async () => {
       /* 下拉刷新只重取主数据——已生成的 AI 洞察保留（P2，2026-11-03：此前每次下拉
@@ -248,52 +225,121 @@ export default function ProgressPage() {
       <PullIndicator pull={pull} refreshing={refreshing} />
       {/* 页头（2026-11-19 九板块页面化）：返回驾驶舱 + 页面名称 */}
       <PageHeader title="项目进展" icon={Milestone} />
-      {role === "admin" ? (
-        <CompanyPicker
-          value={companyIds}
-          options={companies}
-          onChange={(next) => {
-            setCompanyIds(next);
-            setInsights(null); // 口径变化，旧洞察作废（展开态自动重取）
-            saveFilters("progress", { companyIds: next });
-          }}
+      {/* ── 搜索+筛选（2026-11-19 用户裁定：与台账明细同款胶囊设计）── */}
+      <div className="m-tile mb-2 flex h-10 items-center gap-2 rounded-full px-3.5">
+        <Search size={14} className="shrink-0 text-[var(--muted-foreground)]" />
+        <input
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="搜索项目名称"
+          aria-label="搜索项目名称"
+          className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
         />
-      ) : null}
+        {searchInput ? (
+          <button type="button" onClick={() => setSearchInput("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">
+            清除
+          </button>
+        ) : null}
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <InlineSelect
+          label={rangeKey === "custom" && customRange ? `${customRange.from.slice(5).replace("-", "/")}~${customRange.to.slice(5).replace("-", "/")}` : RANGES[rangeKey as PresetKey].label}
+          active={rangeKey !== "all"}
+          options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
+          selected={[rangeKey]}
+          onSelect={(next) => setRangeKey(next[0] as RangeKey)}
+          onCustomApply={(from, to) => {
+            setCustomRange({ from, to });
+            setRangeKey("custom");
+          }}
+          customValue={customRange}
+          customFirst
+          ariaLabel="按时间筛选"
+        />
+        {methods.length > 1 ? (
+          <InlineSelect
+            multiple
+            label={methodIds.length === 0 ? "全部采购方式" : methodIds.length <= 2 ? methodIds.join("、") : `${methodIds.slice(0, 2).join("、")} 等${methodIds.length}项`}
+            active={methodIds.length > 0}
+            options={[{ value: "all", label: "全部采购方式" }, ...methods.map((m) => ({ value: m, label: m }))]}
+            selected={methodIds.length === 0 ? ["all"] : methodIds}
+            onSelect={(next) => {
+              const hadAll = methodIds.length === 0;
+              if (next.includes("all") && !hadAll) setMethodIds([]);
+              else setMethodIds(next.filter((x) => x !== "all"));
+            }}
+            ariaLabel="按采购方式筛选（多选）"
+          />
+        ) : null}
+        {/* 右组：公司 → 部门 → 经办人（与台账同款居右成组） */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          {role === "admin" ? (
+            <InlineSelect
+              multiple
+              label={companyIds.length === 0 ? "全部公司" : companyIds.length <= 2 ? companyIds.map((id) => companies.find((c) => c.id === id)?.name ?? id).join("、") : `${companyIds.length}家公司`}
+              active={companyIds.length > 0}
+              options={[{ value: "all", label: "全部公司" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
+              selected={companyIds.length === 0 ? ["all"] : companyIds}
+              onSelect={(next) => {
+                const hadAll = companyIds.length === 0;
+                if (next.includes("all") && !hadAll) {
+                  setCompanyIds([]);
+                  saveFilters("progress", { companyIds: [] });
+                } else {
+                  const v = next.filter((x) => x !== "all");
+                  setCompanyIds(v);
+                  saveFilters("progress", { companyIds: v });
+                }
+              }}
+              ariaLabel="公司口径"
+            />
+          ) : null}
+          {dimensions && dimensions.departments.length > 0 ? (
+            <InlineSelect
+              multiple
+              label={
+                departmentIds.length === 0
+                  ? "部门"
+                  : departmentIds.length <= 2
+                    ? departmentIds.map(deptNameOf).join("、")
+                    : `部门 等${departmentIds.length}项`
+              }
+              active={departmentIds.length > 0}
+              options={[{ value: "all", label: "全部部门" }, ...dimensions.departments.map((d) => ({ value: d.id, label: d.name }))]}
+              selected={departmentIds.length === 0 ? ["all"] : departmentIds}
+              onSelect={(next) => {
+                const hadAll = departmentIds.length === 0;
+                if (next.includes("all") && !hadAll) setDepartmentIds([]);
+                else setDepartmentIds(next.filter((x) => x !== "all"));
+              }}
+              ariaLabel="按部门筛选"
+            />
+          ) : null}
+          {dimensions && dimensions.handlers.length > 0 ? (
+            <InlineSelect
+              multiple
+              label={
+                handlerIds.length === 0
+                  ? "经办人"
+                  : handlerIds.length <= 2
+                    ? handlerIds.map(handlerNameOf).join("、")
+                    : `经办人 等${handlerIds.length}项`
+              }
+              active={handlerIds.length > 0}
+              options={[{ value: "all", label: "全部经办人" }, ...dimensions.handlers.map((h) => ({ value: h.id, label: h.name }))]}
+              selected={handlerIds.length === 0 ? ["all"] : handlerIds}
+              onSelect={(next) => {
+                const hadAll = handlerIds.length === 0;
+                if (next.includes("all") && !hadAll) setHandlerIds([]);
+                else setHandlerIds(next.filter((x) => x !== "all"));
+              }}
+              ariaLabel="按经办人筛选"
+            />
+          ) : null}
+        </div>
+      </div>
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
-
-      {/* ── 未来 14 天关键节点（截标/开标横滑日卡；无节点不渲染）──
-          2026-11-18 排版改版：窄卡名截断+同行挤压 → 宽卡分两行（类型行在上/项目名
-          两行在下），日期带周几；横滑日历保留（内容轮播非筛选 chips） */}
-      {upcoming?.items.length ? (
-        <SectionCard icon={CalendarClock} title="未来 14 天关键节点" index={0}>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {upcoming.items.map((d) => (
-              <div key={d.date} className="w-[10.5rem] shrink-0 rounded-[12px] m-tile px-3 py-2.5">
-                <div className="text-[12px] font-bold tabular-nums text-[var(--accent)]">
-                  {d.date.slice(5)}
-                  <span className="ml-1 font-medium text-[var(--muted-foreground)]">
-                    {["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date(d.date).getDay()]}
-                  </span>
-                </div>
-                <div className="mt-1.5 space-y-2">
-                  {d.events.map((e, i) => (
-                    <div key={i}>
-                      <div className="flex items-center gap-1.5">
-                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.type === "OPENING" ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
-                        <span className={`text-[12px] font-semibold ${e.type === "OPENING" ? "text-[var(--success)]" : "text-[var(--warning)]"}`}>
-                          {e.type === "OPENING" ? "开标" : "截标"}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 line-clamp-2 pl-3 text-[13px] font-medium leading-snug text-[var(--foreground)]">{e.name}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
 
       {loading && !stats ? (
         <div className="neu-card-static rounded-[18px] p-3.5">
@@ -303,140 +349,11 @@ export default function ProgressPage() {
 
       {stats ? (
         <>
-          {/* ── 概览 ── */}
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <MetricCard label="在办项目" value={String(stats.totalActive)} tone="accent" />
-            <MetricCard label="近期活跃" value={String(stats.recentlyActive)} />
-            <MetricCard label="本月新增" value={String(stats.monthlyAdded)} sub={`上月 ${stats.lastMonthAdded}`} delta={deltaOf(stats.monthlyAdded, stats.lastMonthAdded, true)} />
-            <MetricCard label="本月完成" value={String(stats.monthlyCompleted)} tone="success" sub={`上月 ${stats.lastMonthCompleted}`} delta={deltaOf(stats.monthlyCompleted, stats.lastMonthCompleted, true)} />
-          </div>
-          <div className="mb-3 flex items-center justify-between rounded-[12px] m-tile px-3 py-2 text-[14px]">
-            <span className="text-[var(--muted-foreground)]">
-              累计完成 <span className="font-bold tabular-nums text-[var(--success)]">{stats.totalCompleted}</span> 项
-            </span>
-            <span className="text-[var(--muted-foreground)]">
-              平均阶段耗时 <span className="font-bold tabular-nums text-[var(--accent)]">{stats.avgDaysPerStage}</span> 天
-            </span>
-          </div>
-
-          {/* ── 执行态势（阶段分布，按标准采购流程顺位）── */}
-          <SectionCard icon={BarChart3} title="执行态势 · 阶段分布" index={1}>
-            {stats.stageDistribution.length ? (
-              <div className="space-y-2">
-                {sortedStageDistribution.map((d, i) => {
-                  const meta = getStageMeta(d.stage);
-                  return (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="w-[6.25rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{meta.label}</span>
-                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                        <div className="h-full rounded-full" style={{ width: `${(d.count / maxStageCount) * 100}%`, background: meta.color }} />
-                      </div>
-                      <span className="w-12 shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--foreground)]">
-                        {d.count} <span className="font-medium text-[var(--muted-foreground)]">项</span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState text="暂无在办项目" />
-            )}
-          </SectionCard>
-
-          {/* ── 进度洞察（AI，与驾驶舱页 AI 综合分析同款折叠卡；手动点「生成分析」请求）── */}
-          <SectionCard
-            icon={Sparkles}
-            index={2}
-            title="进度洞察"
-            right={
-              <button type="button" onClick={() => setAiOpen((v) => !v)} className="neu-btn-soft h-8 rounded-[9px] px-2.5 text-[14px]">
-                {aiOpen ? "收起" : "展开"}
-              </button>
-            }
-          >
-            {aiOpen ? (
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 flex-1 text-[14px] text-[var(--muted-foreground)]">
-                    {insights ? "以下为当前范围的分析结果" : "基于当前公司数据生成进度洞察"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={runInsights}
-                    disabled={aiLoading}
-                    className="neu-btn-primary h-9 shrink-0 rounded-[10px] px-3.5 text-[15px] disabled:opacity-60"
-                  >
-                    {aiLoading ? (
-                      <>
-                        <RefreshCw size={12} className="animate-spin" /> 分析中
-                      </>
-                    ) : (
-                      "生成分析"
-                    )}
-                  </button>
-                </div>
-                {aiLoading ? (
-                  <div className="flex items-center justify-center gap-2 py-5 text-[15px] text-[var(--muted-foreground)]">
-                    <Activity size={13} className="animate-pulse" /> 正在生成进度洞察...
-                  </div>
-                ) : insightsError ? (
-                  <div className="flex items-center gap-2.5 rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_8%,transparent)] px-3 py-2.5">
-                    <AlertCircle size={13} className="shrink-0 text-[var(--danger)]" />
-                    <span className="min-w-0 flex-1 text-[15px] text-[var(--danger)]">洞察生成失败，请重试</span>
-                    <button
-                      type="button"
-                      onClick={runInsights}
-                      className="neu-btn-soft is-danger h-8 shrink-0 rounded-[9px] px-2.5 text-[14px] active:scale-95"
-                    >
-                      重试
-                    </button>
-                  </div>
-                ) : insights ? (
-                  <>
-                    {insights.overview ? (
-                      <div className="m-tile rounded-[12px] px-3.5 py-3">
-                        <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em] text-[var(--accent)]">
-                          <Target size={11} /> 综合研判
-                        </div>
-                        <p className="text-[16px] font-medium leading-relaxed text-[var(--foreground)]">{insights.overview}</p>
-                      </div>
-                    ) : null}
-                    {INSIGHT_GROUPS.map((g) => {
-                      const items = insights.insights.filter((it) => it.urgency === g.key);
-                      if (!items.length) return null;
-                      return (
-                        <div key={g.key} className="m-tile rounded-[12px] px-3.5 py-3">
-                          <div className="mb-1.5 flex items-center gap-1.5 text-[14px] font-bold tracking-[0.08em]" style={{ color: g.color }}>
-                            <g.icon size={11} /> {g.label}
-                          </div>
-                          {items.map((it, i) => (
-                            <div key={i} className="flex items-start gap-2 py-0.5">
-                              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: g.color }} />
-                              <span className="text-[15px] leading-relaxed text-[var(--foreground)]">
-                                {it.message}
-                                <span className="ml-1.5 text-[13px] text-[var(--muted-foreground)]">[{INSIGHT_TYPE_LABELS[it.type] ?? it.type}]</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                    {!insights.overview && insights.insights.length === 0 ? <EmptyState text="当前无特别洞察" /> : null}
-                  </>
-                ) : (
-                  <EmptyState text="点击「生成分析」获取 AI 进度洞察" />
-                )}
-              </div>
-            ) : (
-              <p className="px-1 text-[14px] text-[var(--muted-foreground)]">展开后可基于当前数据生成综合研判与分级提示</p>
-            )}
-          </SectionCard>
-
           {/* ── 项目清单 ── */}
-          <SectionCard title="项目清单" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{stats.projects.length} 项</span>} index={3}>
-            {stats.projects.length ? (
+          <SectionCard title="项目清单" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{filteredProjects.length} 项</span>} index={0}>
+            {filteredProjects.length ? (
               <div className="space-y-2">
-                {stats.projects.map((p) => {
+                {filteredProjects.map((p) => {
                   const meta = getStageMeta(p.currentStage);
                   const { round } = currentRoundStages(p);
                   const scopedName = currentRoundStages(p).stages.find((s) => s.stageKey === p.currentStage)?.stageName;
@@ -473,7 +390,7 @@ export default function ProgressPage() {
                 })}
               </div>
             ) : (
-              <EmptyState text="暂无在办项目" />
+              <EmptyState text={searchKeyword || methodIds.length || departmentIds.length || handlerIds.length || rangeKey !== "all" ? "无符合筛选条件的项目" : "暂无在办项目"} />
             )}
           </SectionCard>
         </>
