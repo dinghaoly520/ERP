@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
+import { fetchArchiveDetail, fetchStepAnalysis, type ArchiveDetail } from "@/lib/api/project-management";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, priorWindowIso, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
-import { Loader2, NotebookText, Search } from "lucide-react";
+import { FolderKanban, Loader2, NotebookText, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchProcurementDimensions, fetchLedgerStats, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -108,6 +109,34 @@ export default function LedgerPage() {
   const [statsYoy, setStatsYoy] = useState<LedgerSummary | null>(null);
   const [statsPrev, setStatsPrev] = useState<LedgerSummary | null>(null);
   const [activeItem, setActiveItem] = useState<ProcurementRoundItem | null>(null);
+  /* 归档/终止详情（2026-11-19 对齐 :3005）：开层按轮次 id 取 archive 载荷——
+     basicInfo/extractedInfo/步骤+附件/简报；无 PMI 关联（Excel 导入）404 回退简版 */
+  const [archiveDetail, setArchiveDetail] = useState<ArchiveDetail | null>(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  useEffect(() => {
+    if (!activeItem) {
+      setArchiveDetail(null);
+      return;
+    }
+    let active = true;
+    setArchiveDetail(null);
+    setArchiveLoading(true);
+    fetchArchiveDetail(activeItem.id)
+      .then((d) => { if (active) setArchiveDetail(d); })
+      .catch(() => undefined)
+      .finally(() => { if (active) setArchiveLoading(false); });
+    return () => { active = false; };
+  }, [activeItem]);
+
+  /* 步骤分析懒生成（服务端缓存命中秒回）；stageKey → {content, loading} */
+  const [stepAnalysis, setStepAnalysis] = useState<Record<string, { content: string; empty: boolean } | "loading">>({});
+  const runStepAnalysis = (projectId: string, stageKey: string, round?: number | null) => {
+    if (stepAnalysis[stageKey]) return;
+    setStepAnalysis((m) => ({ ...m, [stageKey]: "loading" }));
+    fetchStepAnalysis(projectId, stageKey, round ?? undefined)
+      .then((r) => setStepAnalysis((m) => ({ ...m, [stageKey]: r })))
+      .catch(() => setStepAnalysis((m) => ({ ...m, [stageKey]: { content: "分析生成失败，请重试", empty: true } })));
+  };
 
   /* 搜索 400ms 防抖 */
   useEffect(() => {
@@ -149,7 +178,6 @@ export default function LedgerPage() {
   /* URL 预置筛选（:3011 两步铁律，2026-11-03）——brief jump/异常卡/风险行经
      ?abnormal=1 / ?status=<key> / ?q=<词> 直达预置；?focusPmi=<id> 直开详情弹层 */
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [urlConsumed, setUrlConsumed] = useState(false);
   const [focusPmi, setFocusPmi] = useState<string | null>(null);
   useEffect(() => {
@@ -577,7 +605,108 @@ export default function LedgerPage() {
 
       {/* ── 详情弹层 ── */}
       <BottomSheet open={!!activeItem} onClose={() => setActiveItem(null)} title={<span className="line-clamp-2">{activeItem?.projectName ?? ""}</span>}>
-        {activeItem ? (
+        {activeItem && archiveDetail ? (
+          /* ── 归档/终止详情（:3005 同源载荷，2026-11-19 对齐裁定）── */
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span
+                className="rounded-full px-2 py-0.5 text-[13px] font-bold"
+                style={{
+                  color: RESULT_STATUS_CONFIG[activeItem.resultStatus].color,
+                  background: RESULT_STATUS_CONFIG[activeItem.resultStatus].bgColor,
+                  border: `1px solid ${RESULT_STATUS_CONFIG[activeItem.resultStatus].borderColor}`,
+                }}
+              >
+                {activeItem.resultStatusLabel}
+              </span>
+              <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-[13px] font-medium text-[var(--accent)]">
+                {activeItem.procurementMethod}
+              </span>
+              <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-2 py-0.5 text-[13px] text-[var(--muted-foreground)]">
+                {archiveDetail.kind === "terminated" ? "终止" : "归档"}：{(archiveDetail.archivedAt ?? activeItem.archivedAt ?? "").slice(0, 10) || "—"}
+              </span>
+            </div>
+
+            {/* 项目步骤（全阶段+轮次+附件计数；点「分析」懒生成） */}
+            <div>
+              <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">项目步骤</div>
+              <div className="space-y-1.5 rounded-[12px] m-tile px-3 py-2.5">
+                {archiveDetail.stages.map((st) => {
+                  const done = st.status === "COMPLETED";
+                  const ana = stepAnalysis[st.stageKey];
+                  return (
+                    <div key={`${st.stageKey}-${st.round ?? 1}`}>
+                      <div className="flex items-center gap-2 py-0.5">
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${done ? "bg-[var(--success)]" : st.status === "IN_PROGRESS" || st.stageKey === activeItem.resultStatus ? "bg-[var(--accent)]" : "bg-[color-mix(in_oklch,var(--muted-foreground)_35%,transparent)]"}`}
+                        />
+                        <span className={`min-w-0 flex-1 truncate text-[14px] ${done ? "font-medium text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}`}>
+                          {st.stageName}
+                          {(st.round ?? 1) > 1 ? <span className="ml-1 text-[12px] text-[var(--warning)]">第 {st.round} 轮</span> : null}
+                        </span>
+                        {st.attachments.length ? (
+                          <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">文件 {st.attachments.length}</span>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => runStepAnalysis(archiveDetail.projectId, st.stageKey, st.round)}
+                          className="neu-btn-soft h-7 shrink-0 rounded-[8px] px-2 text-[12px] active:scale-95"
+                        >
+                          {ana && ana !== "loading" ? "查看分析" : "分析"}
+                        </button>
+                      </div>
+                      {/* 附件（文件名+大小） */}
+                      {st.attachments.map((f) => (
+                        <div key={f.id} className="ml-4 flex items-center gap-2 py-0.5 text-[13px] text-[var(--muted-foreground)]">
+                          <FolderKanban size={12} className="shrink-0" />
+                          <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                          <span className="shrink-0 tabular-nums">{f.fileSize > 1048576 ? `${(f.fileSize / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(f.fileSize / 1024))} KB`}</span>
+                        </div>
+                      ))}
+                      {ana ? (
+                        <div className="ml-4 mt-1 rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2.5 py-2 text-[13px] leading-relaxed text-[var(--foreground)]">
+                          {ana === "loading" ? "正在生成分析..." : ana.empty ? "暂无分析内容" : ana.content}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 关键指标（:3005 同五项；extractedInfo 优先，回退列表字段） */}
+            <div className="grid grid-cols-2 gap-2">
+              <MetricCard label="中标单位" value={archiveDetail.extractedInfo["中标单位"] || activeItem.awardedSupplierName || "-"} />
+              <MetricCard label="预算金额" value={fmtAmount(activeItem.budgetAmount)} />
+              <MetricCard label="合同金额" value={archiveDetail.extractedInfo["合同金额"] && archiveDetail.extractedInfo["合同金额"] !== "-" ? archiveDetail.extractedInfo["合同金额"] : fmtAmount(activeItem.contractAmount)} tone="accent" />
+              <MetricCard label="节约资金" value={archiveDetail.extractedInfo["节约资金"] ?? "-"} tone="success" />
+            </div>
+
+            {/* 基本信息（basicInfo 全量 2 列） */}
+            <div>
+              <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">基本信息</div>
+              <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[15px]">
+                {Object.entries(archiveDetail.basicInfo).map(([k, v]) => (
+                  <DetailRow key={k} label={k} value={v || "-"} />
+                ))}
+              </div>
+            </div>
+
+            {/* 项目简报 */}
+            {archiveDetail.summary ? (
+              <div>
+                <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">项目简报</div>
+                <div className={`rounded-[12px] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] ${archiveDetail.kind === "terminated" ? "border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_5%,transparent)]" : "m-tile"}`}>
+                  {archiveDetail.summary}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : activeItem && archiveLoading ? (
+          <div className="py-2">
+            <Skeleton lines={6} height={40} />
+          </div>
+        ) : activeItem ? (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-1.5">
               <span
