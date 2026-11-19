@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { fetchArchiveDetail, fetchStepAnalysis, type ArchiveDetail } from "@/lib/api/project-management";
+import { fetchArchiveDetail, type ArchiveDetail } from "@/lib/api/project-management";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, priorWindowIso, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
@@ -128,15 +128,6 @@ export default function LedgerPage() {
     return () => { active = false; };
   }, [activeItem]);
 
-  /* 步骤分析懒生成（服务端缓存命中秒回）；stageKey → {content, loading} */
-  const [stepAnalysis, setStepAnalysis] = useState<Record<string, { content: string; empty: boolean } | "loading">>({});
-  const runStepAnalysis = (projectId: string, stageKey: string, round?: number | null) => {
-    if (stepAnalysis[stageKey]) return;
-    setStepAnalysis((m) => ({ ...m, [stageKey]: "loading" }));
-    fetchStepAnalysis(projectId, stageKey, round ?? undefined)
-      .then((r) => setStepAnalysis((m) => ({ ...m, [stageKey]: r })))
-      .catch(() => setStepAnalysis((m) => ({ ...m, [stageKey]: { content: "分析生成失败，请重试", empty: true } })));
-  };
 
   /* 搜索 400ms 防抖 */
   useEffect(() => {
@@ -633,7 +624,6 @@ export default function LedgerPage() {
               <div className="space-y-1.5 rounded-[12px] m-tile px-3 py-2.5">
                 {archiveDetail.stages.map((st) => {
                   const done = st.status === "COMPLETED";
-                  const ana = stepAnalysis[st.stageKey];
                   return (
                     <div key={`${st.stageKey}-${st.round ?? 1}`}>
                       <div className="flex items-center gap-2 py-0.5">
@@ -647,27 +637,22 @@ export default function LedgerPage() {
                         {st.attachments.length ? (
                           <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">文件 {st.attachments.length}</span>
                         ) : null}
-                        <button
-                          type="button"
-                          onClick={() => runStepAnalysis(archiveDetail.projectId, st.stageKey, st.round)}
-                          className="neu-btn-soft h-7 shrink-0 rounded-[8px] px-2 text-[12px] active:scale-95"
-                        >
-                          {ana && ana !== "loading" ? "查看分析" : "分析"}
-                        </button>
                       </div>
-                      {/* 附件（文件名+大小） */}
+                      {/* 附件（文件名+大小）+ 载荷内分析直出（2026-11-19 用户裁定：撤按钮，台账内容直接加载） */}
                       {st.attachments.map((f) => (
-                        <div key={f.id} className="ml-4 flex items-center gap-2 py-0.5 text-[13px] text-[var(--muted-foreground)]">
-                          <FolderKanban size={12} className="shrink-0" />
-                          <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
-                          <span className="shrink-0 tabular-nums">{f.fileSize > 1048576 ? `${(f.fileSize / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(f.fileSize / 1024))} KB`}</span>
+                        <div key={f.id}>
+                          <div className="ml-4 flex items-center gap-2 py-0.5 text-[13px] text-[var(--muted-foreground)]">
+                            <FolderKanban size={12} className="shrink-0" />
+                            <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                            <span className="shrink-0 tabular-nums">{f.fileSize > 1048576 ? `${(f.fileSize / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(f.fileSize / 1024))} KB`}</span>
+                          </div>
+                          {f.analysis ? (
+                            <div className="ml-4 rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2.5 py-2 text-[13px] leading-relaxed text-[var(--foreground)]">
+                              {f.analysis}
+                            </div>
+                          ) : null}
                         </div>
                       ))}
-                      {ana ? (
-                        <div className="ml-4 mt-1 rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2.5 py-2 text-[13px] leading-relaxed text-[var(--foreground)]">
-                          {ana === "loading" ? "正在生成分析..." : ana.empty ? "暂无分析内容" : ana.content}
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
