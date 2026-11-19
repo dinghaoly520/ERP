@@ -17,13 +17,18 @@ import type { KnowledgeBase } from '@/lib/types/tender-review';
 
 /**
  * 知识库管理中心视图（2026-11-18）：自右栏 KbNavSidebar 二态隐藏页升格为中心视图，
- * 入口 = hero 右上「知识库」按钮。行点击=选中（联动审查执行表单），展开=维护操作
- * （共享/文件管理/规则管理/删除）。文件/规则管理为其下级上下文视图，从展开区进入。
+ * 入口 = hero 右上「知识库」按钮。行点击=选中（联动审查执行表单），展开=维护操作。
+ * 展开区按语义两组分立（2026-11-19）：左组进入类（文件/规则管理）+管理类（共享），
+ * 右组危险类（删除）弹性分隔；文件/规则管理为下级子页，进入后由 hero 第二行
+ * KbContextBar 承载返回与子页互切——展开态 expandedIds 由父级常驻组件持有，
+ * 子页往返不丢（回列表原位展开）。
  */
-export default function KbManagerPanel() {
+export default function KbManagerPanel({ expandedIds, onExpandedIdsChange }: {
+  expandedIds: Set<string>;
+  onExpandedIdsChange: (ids: Set<string>) => void;
+}) {
   const { knowledgeBases, selectedKbId, setSelectedKbId, setActiveTab, loading, currentUser } = useTenderReview();
   const { remove, create, update } = useKnowledgeBaseOps();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -57,16 +62,13 @@ export default function KbManagerPanel() {
       newSet.add(kb.id);
       setSelectedKbId(kb.id); // 展开即选中（联动审查执行表单）
     }
-    setExpandedIds(newSet);
+    onExpandedIdsChange(newSet);
   };
 
   return (
     <div className="space-y-3">
-      {/* 头部：计数 + 新建入口 */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
-          共 {knowledgeBases.length} 个知识库 · 点击行选中，展开维护
-        </div>
+      {/* 头部：新建入口 */}
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <button
           type="button"
           onClick={() => setShowCreate((v) => !v)}
@@ -165,6 +167,10 @@ export default function KbManagerPanel() {
               onDelete={() => setDeleteConfirmId(kb.id)}
               onConfirmDelete={() => {
                 void remove(kb.id).catch((err) => console.error('Delete KB error:', err));
+                // 同步清出展开态，防残留指向已删库
+                const next = new Set(expandedIds);
+                next.delete(kb.id);
+                onExpandedIdsChange(next);
                 setDeleteConfirmId(null);
               }}
               onCancelDelete={() => setDeleteConfirmId(null)}
@@ -247,20 +253,25 @@ function KbManagerItem({
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={onViewFiles} className="neu-btn-xs"><FileText className="h-3 w-3" />文件管理</button>
-                  <button type="button" onClick={onViewRules} className="neu-btn-xs"><Shield className="h-3 w-3" />规则管理</button>
-                  <button type="button" onClick={onToggleShare} className="neu-btn-xs">
-                    <Share2 className="h-3 w-3" />{kb.isShared ? '取消共享' : '设为共享'}
-                  </button>
-                  <button type="button" onClick={onDelete} className="neu-btn-xs is-danger"><Trash2 className="h-3 w-3" />删除</button>
+                /* 两组分立（2026-11-19）：左组 进入类+管理类，右组 危险类——弹性空隙视觉隔离 */
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={onViewFiles} className="neu-btn-xs"><FileText className="h-3 w-3" />文件管理</button>
+                    <button type="button" onClick={onViewRules} className="neu-btn-xs"><Shield className="h-3 w-3" />规则管理</button>
+                    <button type="button" onClick={onToggleShare} className="neu-btn-xs">
+                      <Share2 className="h-3 w-3" />{kb.isShared ? '取消共享' : '设为共享'}
+                    </button>
+                  </div>
+                  <button type="button" onClick={onDelete} className="neu-btn-xs is-danger shrink-0"><Trash2 className="h-3 w-3" />删除</button>
                 </div>
               )
             ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <button type="button" onClick={onViewFiles} className="neu-btn-xs"><FileText className="h-3 w-3" />文件管理</button>
-                <button type="button" onClick={onViewRules} className="neu-btn-xs"><Shield className="h-3 w-3" />规则管理</button>
-                <span className="text-[10px] text-[color:var(--muted-foreground)]">只读 · 他人共享的知识库</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={onViewFiles} className="neu-btn-xs"><FileText className="h-3 w-3" />文件管理</button>
+                  <button type="button" onClick={onViewRules} className="neu-btn-xs"><Shield className="h-3 w-3" />规则管理</button>
+                </div>
+                <span className="shrink-0 text-[10px] text-[color:var(--muted-foreground)]">只读 · 他人共享的知识库</span>
               </div>
             )}
           </motion.div>

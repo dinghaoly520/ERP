@@ -165,19 +165,7 @@ export default function FilesPanelCompact() {
         onChange={(e) => handleFileUpload(e.target.files)}
       />
 
-      {/* KB Info Header */}
-      <div className="neu-tile is-accent flex items-center gap-3 p-3">
-        <Database className="h-5 w-5 text-[var(--accent)]" />
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-[var(--foreground)]">{selectedKb.name}</div>
-          {selectedKb.description && (
-            <div className="text-xs text-[var(--muted-foreground)] truncate">{selectedKb.description}</div>
-          )}
-        </div>
-        <div className="text-xs text-[var(--muted-foreground)]">
-          {selectedKb._count.files} 文件
-        </div>
-      </div>
+      {/* KB 身份头已删（2026-11-19）：库名/计数移交 hero 第二行 KbContextBar，本面板纯工作区 */}
 
       {/* Actions */}
       <div className="flex gap-2">

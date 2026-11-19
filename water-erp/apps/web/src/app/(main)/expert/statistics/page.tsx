@@ -67,7 +67,7 @@ export default function ExpertStatisticsPage() {
             {[
               ['专家总数', data.totalExperts, '入库总量'],
               ['可用', data.available, `占比 ${availRate}%`],
-              ['占用中', data.occupied, '正参与评审'],
+              ['占用中', data.occupied, '在途评审任务'], // 2026-11-19 裁定⑸：occupied=正选在途(含未开评)+正在评标+候补待命并集，非「正参与评审」
               ['已停用', data.disabled, '退库/停用'],
               ['近7日分配', data.recentAssigns7d, '专家被分配至项目'],
               ['近30日抽取', data.recentExtractions30d, '专家组组建次数'],

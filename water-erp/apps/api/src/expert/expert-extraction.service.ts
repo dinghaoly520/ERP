@@ -93,8 +93,10 @@ export class ExpertExtractionService {
     )];
     const levelUnionWidened = new Set(quotaRows.map(q => q.expertLevel?.trim()).filter((v): v is string => !!v)).size > 1;
 
-    // 合规候选：bid_expert + 可用 + 未分配本项目 + 工作单位不在参与供应商中
-    // 重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录），只排除其他项目的占用
+    // 合规候选：bid_expert + 库内可抽取人口 + 未分配本项目 + 工作单位不在参与供应商中
+    // E1（2026-11-19 第一波·方案A）：人口闸改「ACTIVE+非停用」——与 deriveBusyCounts 分母
+    // 同源，弃「可用」等值镜像闸（存量「占用」脏行不再被静默踢出池）；在途冲突不在此一刀切，
+    // 由闸1/闸2 按法定冲突针对性排除。重新抽取时不排除本项目已分配的专家（确认时会先清空旧记录）。
     // 闸1（2026-09-20 spec）：排除「评标窗口未闭合」的专家（签到起→报告确认止）——
     // 同时段双活跃从源头杜绝。
     // 闸2（2026-11-16 用户裁定，推翻 2026-09-20「同日双标合法」信息级口径）：
@@ -103,7 +105,7 @@ export class ExpertExtractionService {
       role: 'bid_expert',
       isActive: true,
       expertProfile: {
-        availability: '可用',
+        availability: { not: '停用' },
         entryStatus: 'ACTIVE',
         ...(dto.employer?.trim() ? { employer: dto.employer.trim() } : {}),
         ...(regionCodes.length === 1
@@ -593,10 +595,12 @@ export class ExpertExtractionService {
       for (const e of (dto.experts ?? [])) {
         const u = users.find(x => x.id === e.userId);
         if (!u) throw new BadRequestException({ error: `专家 ${e.expertName} 不存在`, code: 'EXPERT_NOT_FOUND' });
-        // 临时需求方代表（2026-11-05）豁免 availability 闸：其档案刻意「停用」（不入抽取池/目录），
+        // 临时需求方代表（2026-11-05）豁免人口闸：其档案刻意「停用」（不入抽取池/目录），
         // 但经手动录入+确认抽取入组合法——仍要求 bid_expert 角色、启用状态与档案存在。
+        // E1（2026-11-19 方案A）：资格复查与 preview 同口径——仅拒「停用」（人口过滤语义），
+        // 「占用」存量脏行不再拦确认；在库状态（ACTIVE）仍强制。
         if (u.role !== 'bid_expert' || !u.isActive || !u.expertProfile
-          || (!u.isTempExpert && (u.expertProfile.availability !== '可用' || u.expertProfile.entryStatus !== 'ACTIVE'))) {
+          || (!u.isTempExpert && (u.expertProfile.availability === '停用' || u.expertProfile.entryStatus !== 'ACTIVE'))) {
           throw new BadRequestException({ error: `专家 ${e.expertName} 不符合抽取资格（须为在用评标专家）`, code: 'EXPERT_INELIGIBLE' });
         }
         // 公司闸（2026-10-30 用户裁定改留痕放行，推翻 2026-09-24/10-29 硬 403）：「配额不限公司

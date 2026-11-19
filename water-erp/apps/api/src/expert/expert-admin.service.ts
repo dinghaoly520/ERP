@@ -8,6 +8,7 @@ import { SASAC_UNITS, SASAC_NAME_ALIASES } from '@water-erp/shared';
 import { resolveRsvpLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
 import { auditDetailSearchClauses } from '../common/audit-search.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { deriveBusyCounts, busyStateOf } from './expert-busy-state.util';
 import { sealPii, openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { maskPhone, maskIdNumber, maskEmail, maskLicenseNo } from '../common/pii-mask';
@@ -262,7 +263,9 @@ export class ExpertAdminService {
           department: { select: { id: true, name: true } },
           expertProfile: true,
           bidExperts: {
-            select: { id: true, expertName: true, major: true, progress: true, signedIn: true, avoidanceConfirmed: true, totalScore: true, expertRole: true, project: { select: { id: true, name: true, stage: true } } },
+            // invitationStatus（E3 2026-11-19）：喂料带上婉拒标记——库页状态派生滤 declined 用；
+            // 查询侧不过滤（「受邀=分配项目总数」历史计数语义，declined 也算受邀）
+            select: { id: true, expertName: true, major: true, progress: true, signedIn: true, avoidanceConfirmed: true, totalScore: true, expertRole: true, invitationStatus: true, project: { select: { id: true, name: true, stage: true } } },
             orderBy: { createdAt: 'desc' },
           },
           _count: { select: { expertEvaluations: true } },
@@ -362,9 +365,10 @@ export class ExpertAdminService {
   async specialtyPoolCounts() {
     const groups = await this.prisma.expertProfile.groupBy({
       by: ['specialty'],
-      // 2026-10-28 口径收口：与 getDemandRepDirectory/抽取池同人口（ACTIVE+可用）——
-      // 此前裸 isActive 会把 PENDING/SUSPENDED 专家计入「N人·库内」提示，递补预检按虚增池放行
-      where: { entryStatus: 'ACTIVE', availability: '可用', user: { isActive: true, role: 'bid_expert' } },
+      // 2026-10-28 口径收口：与 getDemandRepDirectory/抽取池同人口——
+      // 此前裸 isActive 会把 PENDING/SUSPENDED 专家计入「N人·库内」提示，递补预检按虚增池放行。
+      // E1（2026-11-19 方案A）：人口=ACTIVE+非停用（与 deriveBusyCounts 分母同源，弃「可用」等值闸）
+      where: { entryStatus: 'ACTIVE', availability: { not: '停用' }, user: { isActive: true, role: 'bid_expert' } },
       _count: { _all: true },
     });
     return groups
@@ -385,7 +389,8 @@ export class ExpertAdminService {
       where: {
         role: 'bid_expert',
         isActive: true,
-        expertProfile: { entryStatus: 'ACTIVE', availability: '可用' },
+        // E1（2026-11-19 方案A）：人口=ACTIVE+非停用（与抽取池/deriveBusyCounts 分母同源）
+        expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } },
       },
       select: {
         id: true,
@@ -409,7 +414,8 @@ export class ExpertAdminService {
   }
 
   /** 配额「公司」下拉候选（2026-10-20）：仅列库内确有可抽取专家的公司——与抽取池同资格口径
-   *  （role=bid_expert + isActive + availability 可用 + entryStatus ACTIVE）。全公司口径：配额
+   *  （role=bid_expert + isActive + entryStatus ACTIVE + 非停用，E1 2026-11-19 方案A 与
+   *  deriveBusyCounts 分母同源）。全公司口径：配额
    *  声明公司=用户拍板可跨公司（与 listSpecialties 显式 companyId 分支同语义），不受登录人 scope
    *  收窄。此前前端直拉 /companies 主数据全集，0 专家的残留公司也会进下拉（走查测试集团实录）。 */
   async listPoolCompanies() {
@@ -419,7 +425,7 @@ export class ExpertAdminService {
         role: 'bid_expert' as const,
         isActive: true,
         companyId: { not: null },
-        expertProfile: { availability: '可用', entryStatus: 'ACTIVE' },
+        expertProfile: { availability: { not: '停用' }, entryStatus: 'ACTIVE' },
       },
     });
     const ids = [...new Set(groups.map((g) => g.companyId).filter((id): id is string => !!id))];
@@ -558,10 +564,19 @@ export class ExpertAdminService {
       if (company?.code) expertNo = `${company.code.toUpperCase()}-${String(rank + 1).padStart(4, '0')}`;
     }
 
+    // E2（2026-11-19 第一波）：详情页「库况状态」徽标弃 availability 镜像列——四态派生
+    // （与库页状态列/水叮当同口径，expert-busy-state.util 单源）；declined 行不算状态
+    const busyState = busyStateOf(
+      assignmentsRaw
+        .filter(a => a.invitationStatus !== 'declined')
+        .map(a => ({ expertRole: a.expertRole, project: { stage: a.project?.stage ?? '' } })),
+    );
+
     return {
       ...user,
       expertNo,
       email: maskEmail(openPiiForMask(user.email)),
+      busyState,
       expertProfile: user.expertProfile ? {
         ...user.expertProfile,
         phone: maskPhone(openPiiForMask(user.expertProfile.phone)),
@@ -1035,15 +1050,10 @@ export class ExpertAdminService {
       }
     }
 
-    // R6-7（2026-09-30 审计 B5）：已退库/暂停的专家禁止经编辑资料把 availability 改回
-    // '可用'——退库时落 availability='停用'+entryStatus=RETIRED，此入口可单方面改回可用
-    // 造矛盾档案（抽取虽按 entryStatus 拦，但统计/档案失真）
-    if (dto.availability !== undefined) {
-      const profile = await this.prisma.expertProfile.findUnique({ where: { userId }, select: { entryStatus: true } });
-      if (profile && (profile.entryStatus === 'RETIRED' || profile.entryStatus === 'SUSPENDED') && dto.availability === '可用') {
-        throw new BadRequestException({ error: '已退库/暂停的专家不能直接改为可用，请先恢复入库状态', code: 'EXPERT_STATUS_LOCKED' });
-      }
-    }
+    // E2（2026-11-19 第一波）：availability 写入口自本端点整体移除（「占用」镜像值的最后
+    // 写入者；DTO 已删字段）。启用/停用走正门 PATCH :id/availability（理由必填+审计留痕），
+    // 退库恢复/临时代表建档各有专属路径——本端点不再能写镜像列，原 R6-7「退库者改回可用」闸
+    // 随之消亡（无 availability 可写）。
 
     // 部门：按名称查找已有记录，不存在则新建
     let departmentId: string | null | undefined;
@@ -1084,12 +1094,11 @@ export class ExpertAdminService {
           ...(dto.ethnicity !== undefined && { ethnicity: dto.ethnicity }),
           ...(dto.education !== undefined && { education: dto.education }),
           ...(dto.licenseNo !== undefined && { licenseNo: sealPii(dto.licenseNo) ?? null }),
-          ...(dto.availability !== undefined && { availability: dto.availability }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
           ...(dto.regionCode !== undefined && { regionCode: dto.regionCode }),
           ...(dto.expertLevel !== undefined && { expertLevel: dto.expertLevel }),
         },
-        create: { userId, specialty: dto.specialty || '综合', title: dto.title, qualifications: dto.qualifications, employer: dto.employer, phone: sealPii(dto.phone) ?? null, idNumber: sealPii(dto.idNumber) ?? null, ethnicity: dto.ethnicity, education: dto.education, licenseNo: sealPii(dto.licenseNo) ?? null, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
+        create: { userId, specialty: dto.specialty || '综合', title: dto.title, qualifications: dto.qualifications, employer: dto.employer, phone: sealPii(dto.phone) ?? null, idNumber: sealPii(dto.idNumber) ?? null, ethnicity: dto.ethnicity, education: dto.education, licenseNo: sealPii(dto.licenseNo) ?? null, notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
       }),
     ]);
     await this.auditExpert(operatorId, 'EXPERT_UPDATE', userId, { expertName: user.displayName });
@@ -1390,11 +1399,12 @@ export class ExpertAdminService {
       if (wins.length > 0) windowExcluded.add(c.userId);
     }
 
-    // 资格复核：与 confirmExtraction 同标准，避免把抽取后被停用/退库/关联供应商的候补提为正选
+    // 资格复核：与 confirmExtraction 同标准（E1 2026-11-19 方案A：仅拒「停用」——存量「占用」
+    // 脏行候补照常递补），避免把抽取后被停用/退库/关联供应商的候补提为正选
     const eligible = candidates.filter(c => {
       if (windowExcluded.has(c.userId)) return false;
       const u = c.user;
-      if (!u.isActive || u.expertProfile?.availability !== '可用' || u.expertProfile?.entryStatus !== 'ACTIVE') return false;
+      if (!u.isActive || u.expertProfile?.availability === '停用' || u.expertProfile?.entryStatus !== 'ACTIVE') return false;
       const emp = u.expertProfile?.employer?.trim();
       if (emp) {
         for (const sn of supplierNames) {
@@ -1990,14 +2000,12 @@ export class ExpertAdminService {
   /* 大屏聚合统计（公开，无需登录） */
 
   async getBigscreenStats() {
-    const [total, availGroups, disabledRetired, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
+    const [total, busyCounts, disabledRetired, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
       this.prisma.user.count({ where: { role: 'bid_expert' } }),
-      // 2026-10-28 口径收口：可用/占用限库内 ACTIVE+账号在编（与 getStatistics/抽取池同口径）
-      this.prisma.expertProfile.groupBy({
-        by: ['availability'],
-        where: { entryStatus: 'ACTIVE', user: { role: 'bid_expert', isActive: true } },
-        _count: true,
-      }),
+      // 库况四态派生（2026-11-19 审查⑵收口）：available/occupied 弃 availability 镜像（「占用」
+      // 零写入者恒 0、「可用」虚含在途专家），改 expert-busy-state.util 单源（含裁定⑴停用组排除，
+      // 临时需求方代表不再虚增「可用」）——与 :3005 统计/水叮当同口径；返回字段名不变，大屏页零改动
+      deriveBusyCounts(this.prisma, { role: 'bid_expert', isActive: true }),
       // 已停用=退库专家（entryStatus 为准，availability 镜像可能失真）
       this.prisma.expertProfile.count({ where: { entryStatus: 'RETIRED', user: { role: 'bid_expert' } } }),
       this.prisma.expertProfile.groupBy({
@@ -2025,11 +2033,9 @@ export class ExpertAdminService {
       }),
     ]);
 
-    // 可用状态
-    const amap: Record<string, number> = {};
-    for (const g of availGroups) amap[g.availability] = g._count;
-    const avail = amap['可用'] ?? 0;
-    const occupied = amap['占用'] ?? 0;
+    // 可用状态（四态派生：空闲=库内可抽取人口−在途并集；occupied=在途并集人数）
+    const avail = busyCounts.idle;
+    const occupied = busyCounts.occupied;
     const disabled = disabledRetired;
 
     // 专业分布（最大值为 100% 基准）
@@ -2510,11 +2516,8 @@ export class ExpertAdminService {
     const cutoff30d = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const f = await this.expertScopeFilter(user, companyId); // 统计在隔离集上算，不是全量算完再减
 
-    const [totalExperts, availGroups, disabledRetired, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d, busyRows] = await Promise.all([
+    const [totalExperts, disabledRetired, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d, busyCounts] = await Promise.all([
       this.prisma.user.count({ where: { role: 'bid_expert', ...f } }),
-      // 可用/占用（2026-10-28 口径收口）：库内 ACTIVE+账号在编——「可用」与可抽取池三元组同口径
-      // （录入/导入即 PENDING+可用，裸 availability 会把待审核专家虚增进「可参与抽取」）
-      this.prisma.expertProfile.groupBy({ by: ['availability'], where: { entryStatus: 'ACTIVE', user: { role: 'bid_expert', isActive: true, ...f } }, _count: true }),
       // 已停用=退库专家：以 entryStatus 为准（availability='停用' 是 RETIRED 的镜像且历史档案可能失真）
       this.prisma.expertProfile.count({ where: { entryStatus: 'RETIRED', user: { role: 'bid_expert', ...f } } }),
       this.prisma.expertProfile.groupBy({
@@ -2533,20 +2536,10 @@ export class ExpertAdminService {
       }).then(latestExpertEvals),
       this.prisma.bidExpert.count({ where: { createdAt: { gte: cutoff7d }, user: { role: 'bid_expert', ...f } } }),
       this.prisma.auditLog.count({ where: { action: 'EXPERT_EXTRACTION_CONFIRMED', createdAt: { gte: cutoff30d }, user: f } }),
-      // 三态全库派生（2026-11-18 修正）：严格按在途项目阶段（与库页状态列 2026-11-16 裁定同口径）——
-      // availability 列是历史镜像（抽取新轨不再回写），曾致 6 名在册只显 2；候补待命单列
-      this.prisma.bidExpert.findMany({
-        where: {
-          invitationStatus: { not: 'declined' }, // 除名口径：婉拒不占状态
-          project: { stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
-          user: { role: 'bid_expert', isActive: true, ...f },
-        },
-        select: { userId: true, expertRole: true, project: { select: { stage: true } } },
-      }),
+      // 库况四态派生（2026-11-18 裁定弃镜像列 · 2026-11-19 裁定⑴停用组排除两侧同滤）：口径单源
+      // expert-busy-state.util——与大屏 getBigscreenStats/水叮当 expert.tool/AI 评价输入共享
+      deriveBusyCounts(this.prisma, { role: 'bid_expert', isActive: true, ...f }),
     ]);
-
-    const amap: Record<string, number> = {};
-    for (const g of availGroups) amap[g.availability] = g._count;
 
     const levelCounts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
     for (const e of evals) levelCounts[e.overallGrade] = (levelCounts[e.overallGrade] ?? 0) + 1;
@@ -2569,26 +2562,16 @@ export class ExpertAdminService {
       if (slot >= 0 && slot < 12) counts[slot]++;
     }
 
-    // 阶段派生四态：正在评标 ＞ 已被抽取（正选在途）＞ 候补待命（仅候补在途）；
-    // 空闲 = 库内 ACTIVE+在编 − 在途并集（不再读 availability 镜像列）
-    const inLibraryActive = availGroups.reduce((sum, g) => sum + g._count, 0);
-    const evaluatingSet = new Set<string>();
-    const assignedSet = new Set<string>();
-    const altSet = new Set<string>();
-    for (const b of busyRows) {
-      if (b.project.stage === 'EVALUATING') evaluatingSet.add(b.userId);
-      else if (b.expertRole === '正选') assignedSet.add(b.userId);
-      else altSet.add(b.userId);
-    }
-    for (const uid of evaluatingSet) { assignedSet.delete(uid); altSet.delete(uid); }
-    const busyUnion = new Set([...evaluatingSet, ...assignedSet, ...altSet]);
-    const idleCount = Math.max(0, inLibraryActive - busyUnion.size);
-
     return {
       totalExperts,
-      available: idleCount,
-      occupied: busyUnion.size,
-      busy: { idle: idleCount, assigned: assignedSet.size, evaluating: evaluatingSet.size, alternate: altSet.size },
+      available: busyCounts.idle,
+      occupied: busyCounts.occupied,
+      busy: {
+        idle: busyCounts.idle,
+        assigned: busyCounts.assigned,
+        evaluating: busyCounts.evaluating,
+        alternate: busyCounts.alternate,
+      },
       disabled: disabledRetired,
       specialtyDistribution: specGroups.map(g => ({ name: g.specialty, count: g._count })),
       titleDistribution: titleGroups.map(g => ({ name: g.title || '未填写', count: g._count })),
@@ -2659,10 +2642,11 @@ export class ExpertAdminService {
   async getLoadDistribution(user?: AuthenticatedUser, companyId?: string) {
     const f = await this.expertScopeFilter(user, companyId);
     const [totalActiveExperts, activeAssigns] = await Promise.all([
-      // 2026-10-28 口径收口：负荷分母限库内 ACTIVE（PENDING/SUSPENDED 不算「活跃专家/空闲」）
-      this.prisma.user.count({ where: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE' } } }),
+      // 2026-10-28 口径收口：负荷分母限库内 ACTIVE（PENDING/SUSPENDED 不算「活跃专家/空闲」）；
+      // 停用组排除（2026-11-19 裁定⑴同口径）：临时需求方代表等 availability='停用' 者不虚增「空闲」桶
+      this.prisma.user.count({ where: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } } }),
       this.prisma.bidExpert.findMany({
-        where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE' } } },
+        where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...f, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } } },
         select: { userId: true, user: { select: { displayName: true } } },
       }),
     ]);
@@ -3597,15 +3581,16 @@ ${combined}`,
   }
 
   /** 专业→持有公司并集映射（入参=expertProfile 含 user.companyId 的行；配额行 companyIds 附挂用）。
-   *  行带 availability/entryStatus 字段时按可抽取资格过滤（与 listPoolCompanies 同口径）——
-   *  只挂「不可用/非 ACTIVE 专家」的公司会让配额行 chip 查不到名称回落显 ID 且抽取 0 候选。 */
+   *  行带 availability/entryStatus 字段时按可抽取资格过滤（与 listPoolCompanies 同口径——
+   *  E1 2026-11-19 方案A：ACTIVE+非停用，弃「可用」等值闸）——只挂「停用/非 ACTIVE 专家」的
+   *  公司会让配额行 chip 查不到名称回落显 ID 且抽取 0 候选。 */
   private companiesBySpecOf(rows: { specialty: string | null; availability?: string | null; entryStatus?: string | null; user?: { companyId: string | null } | null }[]): Map<string, Set<string>> {
     const map = new Map<string, Set<string>>();
     for (const r of rows) {
       const cid = r.user?.companyId;
       if (!cid || !r.specialty?.trim()) continue;
       if (r.availability != null || r.entryStatus != null) {
-        if (r.availability !== '可用' || r.entryStatus !== 'ACTIVE') continue;
+        if (r.availability === '停用' || r.entryStatus !== 'ACTIVE') continue;
       }
       const set = map.get(r.specialty) ?? new Set<string>();
       set.add(cid);
@@ -3888,9 +3873,11 @@ ${combined}`,
       throw new BadRequestException({ error: '勾选中包含不存在或非专家域的账号，请刷新后重选', code: 'INVALID_TARGET' });
     }
     // 在评挡闸（收窄到勾选集，2026-11-09 勾选式改版）：勾选专家绑定开标/评标中项目 → 拒绝。
+    // E3 方案①（2026-11-19 用户裁定）：declined 绑定不挡——婉拒/超时弃权者无签到无评分，
+    // 删号级联删该行不影响在场评审，与四态 canonical/库页 live 标记同口径。
     // BidExpert.projectId 是松列无关系——先取其项目集再查活动态
     const bindings = await this.prisma.bidExpert.findMany({
-      where: { userId: { in: ids } },
+      where: { userId: { in: ids }, invitationStatus: { not: 'declined' } },
       select: { projectId: true },
     });
     const projectIds = [...new Set(bindings.map(b => b.projectId))];

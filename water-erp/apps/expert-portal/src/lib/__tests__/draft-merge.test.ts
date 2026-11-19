@@ -292,3 +292,14 @@ test('FSC-① 陈旧剔除/提交后新编辑保留/无记录保留/槽顶层回
   assert.deepEqual([...r.droppedKeys].sort(), ['noTs', 'stale']); // noTs 回退槽顶层 100<=150 陈旧
   assert.deepEqual(Object.keys(r.kept).sort(), ['fresh', 'noRec']);
 });
+
+test('B6② ②×pull 组合：服务端过滤剔除陈旧 committed 键（r 缺）→ 本地 committed 终值存活，键不因远端缺键被删', () => {
+  // 场景：提交后本地 scores 已落定终值（loadProject committed hydrate），基线仍是提交前草稿值
+  // （未随提交推进）；服务端 GET 草稿经 ② 过滤剔除了该键（savedAt <= updatedAt）→ remote 无此键
+  const local = { 's1:i1': { score: 90, reason: '提交终值', savedAt: 9 } };
+  const baseline = { 's1:i1': { score: 60, reason: '提交前草稿', savedAt: 1 } };
+  const r = threeWayMerge(local, baseline, {});
+  // r===undefined → 保留本地（删除不传播）：committed 值存活，且不产生冲突
+  assert.deepEqual(r.next['s1:i1'], { score: 90, reason: '提交终值', savedAt: 9 });
+  assert.equal(r.conflicts.length, 0);
+});

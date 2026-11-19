@@ -111,10 +111,22 @@ export class DocumentParserService {
     onProgress?: ParseProgressFn,
     options?: ParseOptions,
   ): Promise<string> {
-    // First try pdf-parse for native PDF text
-    const data = await pdfParse(new Uint8Array(buffer));
-    const text = data.text.trim();
-    const numpages = data.numpages || 1;
+    // First try pdf-parse for native PDF text.
+    // 崩溃兜底（2026-11-19 扫描件准入修复）：部分 PDF（损坏/非常规结构）pdf-parse
+    // 直接抛错，旧实现整单失败、OCR 永不被尝试——OCR 服务有独立渲染管线，大概率
+    // 仍能出文本。崩溃按「零文本=疑似扫描件」落入下方 OCR 分流；严格模式下 OCR
+    // 不可用/空结果仍由既有抛错兜住，不会以残值冒充成功
+    let text = '';
+    let numpages = 1;
+    try {
+      const data = await pdfParse(new Uint8Array(buffer));
+      text = data.text.trim();
+      numpages = data.numpages || 1;
+    } catch (err) {
+      this.logger.warn(
+        `pdf-parse failed (${err instanceof Error ? err.message : String(err)}) — falling through to OCR path`,
+      );
+    }
     const charsPerPage = text.length / numpages;
 
     this.logger.log(
@@ -284,6 +296,13 @@ export class DocumentParserService {
       );
     }
     const result = await this.ocrService.ocrImage(buffer, mimeType, fileName);
+    if (!result.text.trim()) {
+      // 图片唯一可读来源是 OCR：空结果不得以空内容冒充解析成功（同扫描件严格
+      // 语义，2026-11-19 准入修复）——READY 空文件会在下游全程静默无产出
+      throw new Error(
+        `OCR 未从图片 ${fileName} 提取到文本，请确认图片包含文字后重新上传`,
+      );
+    }
     return result.text;
   }
 }

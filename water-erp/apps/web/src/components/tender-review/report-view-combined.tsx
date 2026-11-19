@@ -14,6 +14,7 @@ import {
   Search,
 } from 'lucide-react';
 import type { ReviewTask, Issue, ReviewReport } from '@/lib/types/tender-review';
+import { REVIEW_FIELD_VOCAB } from '@water-erp/shared';
 import { SEVERITY_COLORS, SEVERITY_LABELS } from '@/lib/types/tender-review';
 import { resolveIssue } from '@/lib/api/review';
 import { useTenderReview } from './tender-review-context';
@@ -54,6 +55,50 @@ interface ReportViewCombinedProps {
   hideHeader?: boolean;
   /** 处置后任务回写（2026-11-18）：hero 上下文条据此刷新已采纳计数/导出可用态 */
   onTaskUpdate?: (task: ReviewTask) => void;
+}
+
+/** 提取字段面板（2026-11-19 透明化）：strict 模式报告展示本次审查从文档提取的
+ *  结构化字段——词表内未提取到的灰显「未提取」（这是判断扩词表需求的依据），
+ *  词表外 LLM 自由产出键原样列出供人工核对；general 模式不渲染（不提取字段）。
+ *  默认折叠，计数常显。公告类文档缺招标文件/合同字段是预期行为非故障。 */
+function ExtractedFieldsPanel({ fields }: { fields: Array<{ field: string; value: unknown }> }) {
+  const [open, setOpen] = useState(false);
+  const extractedMap = new Map(fields.map((f) => [f.field, f.value]));
+  const vocabSet = new Set(REVIEW_FIELD_VOCAB.map((d) => d.value));
+  const extras = fields.filter((f) => !vocabSet.has(f.field));
+  const fmt = (v: unknown) => (typeof v === 'boolean' ? (v ? '有' : '无') : String(v));
+  return (
+    <div className="neu-tile shrink-0 px-3 py-2">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-2 text-left">
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-[var(--muted-foreground)] transition-transform ${open ? 'rotate-0' : '-rotate-90'}`} />
+        <span className="text-xs font-semibold">提取字段</span>
+        <span className="text-[10px] text-[var(--muted-foreground)]">
+          {fields.length} 项已提取 / 词表 {REVIEW_FIELD_VOCAB.length} 项 · 审查时自动从文档提取，未提取=文档未包含该信息
+        </span>
+      </button>
+      {open && (
+        <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-4">
+          {REVIEW_FIELD_VOCAB.map((def) => {
+            const has = extractedMap.has(def.value);
+            return (
+              <div key={def.value} className="flex items-baseline gap-1.5 text-xs min-w-0">
+                <span className="shrink-0 text-[var(--muted-foreground)]">{def.label}</span>
+                <span className={`truncate font-mono ${has ? 'text-[var(--foreground)]' : 'italic text-[var(--muted-foreground)]/60'}`}>
+                  {has ? fmt(extractedMap.get(def.value)) : '未提取'}
+                </span>
+              </div>
+            );
+          })}
+          {extras.map((f) => (
+            <div key={f.field} className="flex items-baseline gap-1.5 text-xs min-w-0">
+              <span className="shrink-0 text-[var(--muted-foreground)]">{f.field}（词表外）</span>
+              <span className="truncate font-mono text-[var(--foreground)]">{fmt(f.value)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function ReportViewCombined({ task: initialTask, onBack, hideBack, hideHeader, onTaskUpdate }: ReportViewCombinedProps) {
@@ -251,6 +296,8 @@ export default function ReportViewCombined({ task: initialTask, onBack, hideBack
           </div>
         )}
       </div>
+
+      {report.extractedFields && <ExtractedFieldsPanel fields={report.extractedFields} />}
 
       {/* Main content: left navigator + right detail */}
       <div className="flex-1 flex gap-3 min-h-0">

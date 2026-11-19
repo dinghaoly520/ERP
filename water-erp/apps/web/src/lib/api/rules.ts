@@ -28,14 +28,19 @@ export async function fetchRules(
   return res.json();
 }
 
-/** Find the active (running) extraction task for a KB, returns null if none */
+/** Find the active (running) extraction task for a KB, returns null if none.
+ *  createdAt（2026-11-19 审查 #10）：接管基线种子用——「新」徽章基线=任务开始前
+ *  已存在的规则（createdAt ≤ task.createdAt），刷新接管也能正确标记新增。
+ *  契约（2026-11-19 复审 #5）：仅 200（含空 body）返回 null=「无进行中任务」；
+ *  非 2xx 抛错——旧实现一律吞成 null，403/500 被伪装成「没有任务在跑」，
+ *  409 分支据此误报「提取刚刚完成」。 */
 export async function findActiveExtraction(
   knowledgeBaseId: string,
-): Promise<{ id: string; status: string; extractedCount?: number } | null> {
+): Promise<{ id: string; status: string; extractedCount?: number; createdAt?: string } | null> {
   const res = await apiFetch(`${API_BASE}/rules/extract/active?knowledgeBaseId=${knowledgeBaseId}`, {
     credentials: 'include',
   });
-  if (!res.ok) return null;
+  if (!res.ok) throw await toApiError(res, '查询提取任务状态失败');
   // Nest 对 controller `return null` 会发 200 + 空 body（并非 JSON `null`），
   // 直接 res.json() 会抛 "Unexpected end of JSON input"。空 body 即「无活动任务」。
   const text = await res.text();

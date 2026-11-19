@@ -40,7 +40,6 @@ export interface ComplianceRule {
   source: string;
   name: string;
   ruleType: 'numeric_compare' | 'existence_check' | 'semantic';
-  checkTarget: string;
   logicExpression: Record<string, unknown>;
   severity: 'critical' | 'warning' | 'info';
   isActive: boolean;
@@ -81,6 +80,8 @@ export interface ReviewReport {
   passedChecks: RuleResult[];
   generalResults?: GeneralReviewResult[];
   llmFreeIssues?: LlmFreeIssue[];
+  /** 严格审查提取字段（2026-11-19 透明化）——general 模式恒 undefined */
+  extractedFields?: Array<{ field: string; value: unknown }>;
 }
 
 export interface DocumentLocation {

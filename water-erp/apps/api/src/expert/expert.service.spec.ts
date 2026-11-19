@@ -4567,6 +4567,131 @@ describe('ExpertService.unpair（TAB-SYNC-02 P2-2 接线）', () => {
     expect(gateway.notifyPairingRevoked).not.toHaveBeenCalled();
     expect(gateway.kickPairingSockets).not.toHaveBeenCalled();
   });
+
+  it('revoke-null 竞态（getActive 命中但 revoke 返回 null=并发已被吊销）→ 幂等 ok，不写日志不广播不踢除（B6③）', async () => {
+    pairingRegistry.getActive.mockResolvedValue({ pairingId: 'jti-9', device: null, pairedAt: 1 });
+    pairingRegistry.revoke.mockResolvedValue(null);
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be9', expertName: '测试专家' });
+    expect(await service.unpair('user-1', 'proj-1')).toEqual({ ok: true });
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    expect(gateway.notifyPairingRevoked).not.toHaveBeenCalled();
+    expect(gateway.kickPairingSockets).not.toHaveBeenCalled();
+  });
+});
+
+// ── TAB-SYNC-02 残留 B2/B6①/B6④（2026-11-19）：getScoreHistory 陈旧过滤 + getScoreDraft 接线 + getProject 全路径 ──
+
+/** 双闸 mock：roomCode 闸（stage+roomCode+roomCodeAt）与启动闸（stage）+ getProject 全量行三分支 */
+const mockGatesAndProject = (prisma: any) => {
+  prisma.bidProject.findUnique.mockImplementation(async (args: any) => {
+    if (args?.select?.roomCode) return { stage: 'EVALUATING', roomCode: null, roomCodeAt: null };
+    if (args?.select?.stage) return { stage: 'EVALUATING' };
+    return {
+      id: 'proj-1', stage: 'EVALUATING', projectCode: 'SWHI-1', name: '测试项目',
+      suppliers: [], openingSession: null, openingRecords: [], experts: [],
+      scoreItems: [], clarifications: [], supervisionLogs: [], roomCode: null,
+      evaluationMethod: 'manual', procurementMethod: '竞价采购',
+    };
+  });
+};
+
+describe('ExpertService.getScoreHistory（B2：盲 spread → mergeDraftSlots + ② 陈旧过滤）', () => {
+  beforeEach(() => { mockGatesAndProject(prisma); });
+
+  it('提交前旧草稿剔除 / 提交后新编辑（savedAt>updatedAt）存活 / 双槽逐键取新（desktop 恒赢的盲 spread 收敛）', async () => {
+    const committedAt = new Date(5); // epoch 5ms——savedAt 1/2 视提交前、9 视提交后
+    prisma.bidExpert.findFirst.mockImplementation(async (args: any) =>
+      args?.select?.roomVerifiedAt ? { roomVerifiedAt: null } : {
+        id: 'be1',
+        scoreDraft: {
+          tablet: { savedAt: 9, scores: {
+            'sup1:si1': { score: 60, reason: '平板旧值', savedAt: 1 },   // 提交前 → 剔除
+            'sup1:si2': { score: 88, reason: '平板新值', savedAt: 9 },   // 无 committed → 保留；双槽同键取新（savedAt 9>2）
+            'sup1:si3': { score: 75, reason: '提交后修正', savedAt: 9 }, // committed@5 但 savedAt 9>5 → 保留
+          } },
+          desktop: { savedAt: 2, scores: {
+            'sup1:si2': { score: 66, reason: '桌面旧值', savedAt: 2 },   // 盲 spread 旧形态此处会恒赢（66）——钉逐键取新
+          } },
+        },
+      });
+    prisma.bidScoreItem.findMany.mockResolvedValue([
+      { id: 'si1', name: '资格性审查', category: 'QUALIFICATION' },
+      { id: 'si2', name: '技术评分', category: 'TECHNICAL' },
+      { id: 'si3', name: '商务评分', category: 'BUSINESS' },
+    ]);
+    prisma.bidScoreRecord.findMany.mockResolvedValue([
+      { scoreItemId: 'si1', supplierId: 'sup1', updatedAt: committedAt, score: 90, passed: true, reason: '终值' },
+      { scoreItemId: 'si3', supplierId: 'sup1', updatedAt: committedAt, score: 70, passed: null, reason: '' },
+    ]);
+    // 主工厂未提供 bidScoreRecordHistory mock（本组专用，就地补——沿 :1076 bidScoreRecord 先例）
+    (prisma as any).bidScoreRecordHistory = { findMany: jest.fn().mockResolvedValue([]) };
+
+    const items: any[] = await service.getScoreHistory('user-1', 'proj-1', 'sup1');
+    const byId = new Map(items.map(i => [i.scoreItemId, i]));
+    expect(byId.get('si1').draft).toBe(null);                                    // 提交前旧草稿剔除
+    expect(byId.get('si1').current.score).toBe(90);                              // 已提交当前值照常
+    expect(byId.get('si2').draft).toMatchObject({ score: 88, reason: '平板新值' }); // 逐键取新（非 desktop 恒赢）
+    // 显示语义边界（本端点既有行为，B2 不改）：草稿列只标**未提交**项（step4 !current.updatedAt 门）
+    // ——已提交项（si3）的提交后修正不进草稿列，current=已提交值；「提交后新编辑存活」由
+    // getScoreDraft（B6①）在 scores 层钉
+    expect(byId.get('si3').draft).toBe(null);
+    expect(byId.get('si3').current.score).toBe(70);
+  });
+});
+
+describe('ExpertService.getScoreDraft（B6①：② 服务级过滤接线 + fail-open）', () => {
+  beforeEach(() => { mockGatesAndProject(prisma); });
+
+  it('陈旧 committed 键被服务端过滤（GET 不回显提交前旧值）；提交后新编辑保留', async () => {
+    prisma.bidExpert.findFirst.mockImplementation(async (args: any) =>
+      args?.select?.roomVerifiedAt ? { roomVerifiedAt: null } : {
+        id: 'be1',
+        scoreDraft: {
+          tablet: { savedAt: 9, scores: {
+            'sup1:si1': { score: 60, reason: '提交前旧值', savedAt: 1 },
+            'sup1:si2': { score: 88, reason: '提交后新编辑', savedAt: 9 },
+          } },
+          desktop: { savedAt: 0, scores: {} },
+        },
+      });
+    prisma.bidScoreRecord.findMany.mockResolvedValue([
+      { supplierId: 'sup1', scoreItemId: 'si1', updatedAt: new Date(5) },
+    ]);
+    const d: any = await service.getScoreDraft('user-1', 'proj-1', 'desktop');
+    expect(d.scores['sup1:si1']).toBeUndefined();
+    expect(d.scores['sup1:si2']).toMatchObject({ score: 88 });
+  });
+
+  it('fail-open：BidScoreRecord 查询失败 → 过滤跳过、合并结果原样返回（过滤是净化面不是安全面）', async () => {
+    prisma.bidExpert.findFirst.mockImplementation(async (args: any) =>
+      args?.select?.roomVerifiedAt ? { roomVerifiedAt: null } : {
+        id: 'be1',
+        scoreDraft: { tablet: { savedAt: 2, scores: { 'sup1:si1': { score: 60, reason: '旧', savedAt: 1 } } }, desktop: { savedAt: 0, scores: {} } },
+      });
+    prisma.bidScoreRecord.findMany.mockRejectedValue(new Error('P2021: table does not exist'));
+    const d: any = await service.getScoreDraft('user-1', 'proj-1', 'desktop');
+    expect(d.scores['sup1:si1']).toMatchObject({ score: 60 });
+  });
+});
+
+describe('ExpertService.getProject pairingScoped 全路径（B6④：非 restricted 壳同样暴露 pairingScoped）', () => {
+  beforeEach(() => {
+    mockGatesAndProject(prisma);
+    prisma.attachment.findMany.mockResolvedValue([]);
+    prisma.fileAsset.findMany.mockResolvedValue([]);
+    prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+  });
+
+  it('EVALUATING 全路径：scoped → restricted=false 且 pairingScoped=true；全量 → false', async () => {
+    prisma.bidExpert.findFirst.mockImplementation(async (a: any) =>
+      a?.where?.userId ? { ...mockExpert, signedIn: true, isLead: false } : null);
+    const r: any = await service.getProject('user-1', 'proj-1', { projectId: 'proj-1' });
+    expect(r.restricted).toBe(false);
+    expect(r.pairingScoped).toBe(true);
+    const r2: any = await service.getProject('user-1', 'proj-1');
+    expect(r2.restricted).toBe(false);
+    expect(r2.pairingScoped).toBe(false);
+  });
 });
 });
 

@@ -11,6 +11,7 @@ const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
 /** hero 右侧统计徽标已删（2026-11-19 用户裁定）：「进行中 N」胶囊移除——
  *  底部 TaskQueueBar 已有更齐全的进行中任务展示。 */
 import ReportContextBar from '@/components/tender-review/report-context-bar';
+import KbContextBar from '@/components/tender-review/kb-context-bar';
 
 /** hero 右区（2026-11-18）：视图按钮组——报告详情打开时保持不变，
  *  上下文条改挂 hero 第二行（HeroContextRow）。 */
@@ -22,11 +23,34 @@ function HeroRight() {
   );
 }
 
-/** hero 第二行（2026-11-18 二次裁定）：报告详情打开时，上下文条（返回+文件名+导出）
- *  落在 hairline 下——即 /tender-write「谈判采购/竞价采购/邀请招标」类型切换位；
- *  未开详情时渲染标准 page-hero__divider 收尾。 */
+/** hero 第二行（2026-11-18 二次裁定；2026-11-19 扩为统一下钻上下文位）：
+ *  报告详情 → ReportContextBar（返回+文件名+导出）；知识库下钻（文件/规则管理子页）→
+ *  KbContextBar（返回+库身份+子页互切）；均落在 hairline 下——即 /tender-write
+ *  「谈判采购/竞价采购/邀请招标」类型切换位；未下钻时渲染标准 page-hero__divider 收尾。 */
 function HeroContextRow() {
-  const { activeTab, selectedReportTask, setSelectedReportTask, refreshTasks } = useTenderReview();
+  const {
+    activeTab,
+    selectedReportTask,
+    setSelectedReportTask,
+    refreshTasks,
+    selectedKbId,
+    knowledgeBases,
+    setActiveTab,
+  } = useTenderReview();
+  // 知识库下钻子页：返回 + 库身份 + 文件/规则互切（2026-11-19）
+  const kb = knowledgeBases.find((k) => k.id === selectedKbId);
+  if ((activeTab === 'files' || activeTab === 'rules') && kb) {
+    return (
+      <div className="mt-3 pt-2" style={{ borderTop: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
+        <KbContextBar
+          kb={kb}
+          activeView={activeTab}
+          onView={setActiveTab}
+          onBack={() => setActiveTab('kb')}
+        />
+      </div>
+    );
+  }
   if (!(activeTab === 'reports' && selectedReportTask)) {
     return <div className="page-hero__divider" />;
   }

@@ -567,6 +567,22 @@ describe('BidService — stage transitions', () => {
       await service.notifyScheduleChange('p1', openTime, 'u1');
       expect(prisma.notification.create).not.toHaveBeenCalled(); // 无收件人（供应商/专家均空）——校验放行即达成
     });
+
+    it('延时通知收件面并入意向确认者（P1-3 伴生）——公开轨未投递无名册行，align 后按旧截标踩点者恰是最需通知的群体；与名册去重', async () => {
+      const openTime = '2026-10-01T10:00:00.000Z';
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'GK-1', name: 'P', openTime: new Date(openTime) });
+      prisma.bidSupplier.findMany.mockResolvedValue([{ supplier: { userId: 'u-roster' } }]);
+      prisma.bidExpert.findMany.mockResolvedValue([{ userId: 'u-expert' }]);
+      prisma.supplierBidIntent.findMany.mockResolvedValue([
+        { supplier: { userId: 'u-intent' } },
+        { supplier: { userId: 'u-roster' } }, // 与名册重合——去重后只发一条
+      ]);
+      const notification = (service as any).notificationService;
+      await service.notifyScheduleChange('p1', openTime, 'u1');
+      const recipients = notification.create.mock.calls.map((c: any[]) => c[0].userId);
+      expect(recipients).toEqual(expect.arrayContaining(['u-roster', 'u-expert', 'u-intent']));
+      expect(recipients.filter((r: string) => r === 'u-roster')).toHaveLength(1);
+    });
   });
 
   describe('updateProject — 阶段锁（P1-3，2026-09-09）', () => {
@@ -1471,8 +1487,58 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidProject.update).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED', roomCode: null, roomCodeAt: null } }), // 2026-09-20：归档清除评标室口令
       );
+
       // F5：开标归档（流标/废标）不推进 PM「开标评标」阶段
       expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalled();
+    });
+
+    // ── P1-1（2026-11-19 三门户审查）：开标前流标归档死链修复 ──────────────────────
+    it('ABORTED + 无会话无移交 → 免移交闸归档成功 + 监督日志留痕（实库 3 例死链的出口）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'ABORTED', name: '流标项目', projectManagementItemId: 'pm1', round: 1 });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(null); // 从未组建开标会话（开标前流标）
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([]) // ensureArchiveItems
+        .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]); // non-archived
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+      await expect(service.archiveAll('p1', 'u-host', 'opening')).resolves.toBeDefined();
+      expect(prisma.bidProject.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'p1' }, data: { stage: 'ARCHIVED', roomCode: null, roomCodeAt: null } }),
+      );
+      // 免移交留痕：监督日志记录流标归档未附移交包
+      const waiveLog = prisma.bidSupervisionLog.create.mock.calls
+        .map((c: any[]) => c[0].data)
+        .find((d: any) => String(d.action).includes('移交'));
+      expect(waiveLog).toBeTruthy();
+    });
+
+    it('ARCHIVED 幂等重跑（曾以流标免闸归档、无移交包）→ 仍放行不炸 409', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'ARCHIVED', name: '已归档', projectManagementItemId: 'pm1', round: 1 });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidOpeningSession.findUnique.mockResolvedValue(null);
+      prisma.bidArchiveItem.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'a1', status: 'PENDING_CONFIRM' }]);
+      prisma.bidArchiveItem.create.mockResolvedValue({});
+      prisma.bidArchiveItem.update.mockResolvedValue({ hashDigest: 'sha256:abc' });
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ARCHIVED' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      await expect(service.archiveAll('p1', undefined, 'opening')).resolves.toBeDefined();
+    });
+
+    it('P1-1 回归：OPENING 活动 + 无移交 → 仍 409 OPENING_HANDOVER_REQUIRED（活项目移交包硬闸不动）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目' });
+      prisma.bidSupplier.findMany.mockResolvedValue([]);
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: null }); // 有会话但未移交
+      await expect(service.archiveAll('p1', undefined, 'opening'))
+        .rejects.toMatchObject({ response: { code: 'OPENING_HANDOVER_REQUIRED' } });
     });
 
     it('F5 阶段联动：scope=full 归档推进 PM「开标评标」→ COMPLETED', async () => {

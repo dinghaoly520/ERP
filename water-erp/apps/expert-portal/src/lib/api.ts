@@ -59,12 +59,13 @@ async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   get: <T>(path: string) => fetchApi<T>(path),
-  post: <T>(path: string, body: unknown) => {
+  /** opts.signal（TAB-SYNC-02 B4）：可中断 POST——防抖自动保存与提交清槽的毫秒窗竞态收口 */
+  post: <T>(path: string, body: unknown, opts?: { signal?: AbortSignal }) => {
     // FormData: let the browser set multipart/form-data + boundary
     if (body instanceof FormData) {
-      return fetchApi<T>(path, { method: 'POST', body });
+      return fetchApi<T>(path, { method: 'POST', body, signal: opts?.signal });
     }
-    return fetchApi<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return fetchApi<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: opts?.signal });
   },
   /** XHR 上传（2026-11-06 上传进度条）：fetch 无上传进度事件；错误归一与上方 fetchApi 同语义 */
   upload: <T>(path: string, body: FormData, opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal }) =>

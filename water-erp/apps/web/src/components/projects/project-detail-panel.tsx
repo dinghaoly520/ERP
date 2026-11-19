@@ -2721,7 +2721,8 @@ export function ProjectDetailPanel({
                 </div>
                 <div>
                   <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">采购文件获取时间</div>
-                  <input value="/" readOnly className="workbench-input w-full text-sm opacity-70" />
+                  {/* 2026-11-19 审查⑶：展示已落真实获取时刻（上传即同步/登记提取值），空值才显示不适用"/"——与后端仅空值落"/"同口径 */}
+                  <input value={localItem.documentAcquireTime?.trim() || '/'} readOnly className="workbench-input w-full text-sm opacity-70" />
                 </div>
               </div>
             </div>

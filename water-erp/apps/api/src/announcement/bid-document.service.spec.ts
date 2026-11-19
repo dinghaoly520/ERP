@@ -181,6 +181,62 @@ describe('BidDocumentService — 下载方式治理（2026-11-05）', () => {
     }
   });
 
+  describe('downloadForSupplier — 公告轨下载落名册（三门户审查 P1-3，2026-11-19）', () => {
+    const setupDoc = (prisma: any, bidProjectId: string | null) => {
+      const prevSecret = process.env.KMS_SECRET;
+      process.env.KMS_SECRET = prevSecret ?? 'spec-kms-secret-0123456789abcdef-2026';
+      const { ciphertext, decryptKey } = encryptBuffer(Buffer.from('DOC-PLAIN'));
+      const getObjectSpy = jest.spyOn(require('../upload/minio.client').minioClient, 'getObject')
+        .mockResolvedValue(Readable.from([ciphertext]) as any);
+      prisma.bidDocument.findUnique.mockResolvedValue({
+        id: 'd1', announcementId: 'a1', accessScope: 'OPEN', requirePayment: false, bidProjectId,
+        decryptKey: wrapKey(decryptKey, process.env.KMS_SECRET),
+        fileAsset: { key: 'k', originalName: '标书.pdf', mimeType: 'application/pdf' },
+        announcement: { metadata: {} },
+      });
+      return { getObjectSpy, restore: () => { getObjectSpy.mockRestore(); if (prevSecret === undefined) delete process.env.KMS_SECRET; else process.env.KMS_SECRET = prevSecret; } };
+    };
+
+    it('doc 挂项目 → 落名册 downloadStatus=已下载（upsert 键=projectId+supplierName——澄清提问/澄清文件闸与延时开标通知收件面均读此名册）', async () => {
+      const { svc, prisma } = mk({
+        supplier: { findUnique: jest.fn().mockResolvedValue({ name: '供应商甲' }) },
+        bidSupplier: { findFirst: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
+      });
+      const { restore } = setupDoc(prisma, 'bp-1');
+      try {
+        await svc.downloadForSupplier('a1', 's-1');
+        expect(prisma.bidSupplier.upsert).toHaveBeenCalledWith(expect.objectContaining({
+          where: { projectId_supplierName: { projectId: 'bp-1', supplierName: '供应商甲' } },
+          update: expect.objectContaining({ downloadStatus: '已下载' }),
+          create: expect.objectContaining({ projectId: 'bp-1', supplierId: 's-1', supplierName: '供应商甲', downloadStatus: '已下载' }),
+        }));
+      } finally { restore(); }
+    });
+
+    it('doc 无 bidProjectId（公告未联动建项/已解关联）→ 不写名册（增量下载计数照常）', async () => {
+      const { svc, prisma } = mk({
+        supplier: { findUnique: jest.fn().mockResolvedValue({ name: '供应商甲' }) },
+        bidSupplier: { findFirst: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockResolvedValue({}) },
+      });
+      const { restore } = setupDoc(prisma, null);
+      try {
+        await svc.downloadForSupplier('a1', 's-1');
+        expect(prisma.bidSupplier.upsert).not.toHaveBeenCalled();
+      } finally { restore(); }
+    });
+
+    it('名册写失败静默（镜像谈判轨 markNegotiationDownloaded 口径——留痕失败不影响已送出的文件）', async () => {
+      const { svc, prisma } = mk({
+        supplier: { findUnique: jest.fn().mockResolvedValue({ name: '供应商甲' }) },
+        bidSupplier: { findFirst: jest.fn().mockResolvedValue(null), upsert: jest.fn().mockRejectedValue(new Error('db down')) },
+      });
+      const { restore } = setupDoc(prisma, 'bp-1');
+      try {
+        await expect(svc.downloadForSupplier('a1', 's-1')).resolves.toMatchObject({ fileName: '标书.pdf' });
+      } finally { restore(); }
+    });
+  });
+
   it('getForManagement：回显 downloadMode/downloadPassword（管理端自设需线下告知）', async () => {
     const { svc, prisma } = mk();
     prisma.bidDocument.findUnique.mockResolvedValue({

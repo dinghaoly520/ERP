@@ -43,6 +43,10 @@ describe('A-143 澄清在线答复 (e2e)', () => {
   let targetRow: BidderRow | undefined;
   let otherSupplierName: string | undefined;
   let originalSm2Pk: string | null = null;
+  // 裁定2（2026-11-19）配套：A 档澄清端点挂 AssignedHostGuard 后，staff 须为被指派主持人
+  // （staff 本就是合法主持人候选，2026-10-15 口径）——fixture 指派 + afterAll 还原
+  let originalAssignedHostId: string | null = null;
+  let hostRestoreProjectId: string | undefined;
 
   // 清理账本（失败中途也按已产生物回收）
   const createdClarificationIds: string[] = [];
@@ -71,7 +75,7 @@ describe('A-143 澄清在线答复 (e2e)', () => {
     // web 公司隔离下不可见）——若不限，updatedAt 最新的它会被选中导致步骤 1 的列表断言假红。
     const staffUser = await prisma.user.findFirst({
       where: { username: 'Swhi-CGZX-05' },
-      select: { companyId: true },
+      select: { id: true, companyId: true },
     });
     const evaluating = await prisma.bidProject.findMany({
       where: { stage: 'EVALUATING', companyId: staffUser?.companyId ?? null },
@@ -115,9 +119,30 @@ describe('A-143 澄清在线答复 (e2e)', () => {
         break outer;
       }
     }
+    // 裁定2 配套：选中项目指派给本 staff（澄清 A 档端点 AssignedHostGuard 须被指派人/admin 放行）
+    if (projectId && staffUser?.id) {
+      originalAssignedHostId = (await prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { assignedHostUserId: true },
+      }))?.assignedHostUserId ?? null;
+      await prisma.bidProject.update({
+        where: { id: projectId },
+        data: { assignedHostUserId: staffUser.id },
+      });
+      hostRestoreProjectId = projectId;
+    }
   });
 
   afterAll(async () => {
+    if (hostRestoreProjectId) {
+      // 复审加固（审查发现 13）：还原失败不再吞错——共享演示项目的主持人指派被静默篡改
+      // 比 e2e 红更难排查，失败须炸出（forceExit 下 beforeAll 与 afterAll 之间的崩溃除外，那由
+      // 仓库 fixture 自建惯例的长线改造解决）
+      await prisma.bidProject.update({
+        where: { id: hostRestoreProjectId },
+        data: { assignedHostUserId: originalAssignedHostId },
+      });
+    }
     if (createdClarificationIds.length > 0) {
       await prisma.bidClarification.deleteMany({ where: { id: { in: createdClarificationIds } } }).catch(() => {});
     }

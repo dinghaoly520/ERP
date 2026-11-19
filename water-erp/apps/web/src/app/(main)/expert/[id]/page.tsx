@@ -34,7 +34,9 @@ interface ExpertDetail {
   /** 专家编号（2026-10-22）：{归属公司编码}-{同公司入库序号}，后端计算 */
   expertNo?: string;
   department: { id: string; name: string } | null; createdAt: string; isActive: boolean;
-  expertProfile?: { specialty?: string; title?: string; qualifications?: string | null; employer?: string; phone?: string; idNumber?: string; availability?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null; aiEvaluation?: string | null; aiEvaluatedAt?: string | null };
+  /** E2（2026-11-19）：库况状态=后端 busyState 四态派生（与库页/水叮当同口径）；availability 镜像仅剩「停用」人口过滤语义（已停用/已退库优先显示） */
+  busyState?: '正在评标' | '已被抽取' | '候补待命' | '空闲';
+  expertProfile?: { specialty?: string; title?: string; qualifications?: string | null; employer?: string; phone?: string; idNumber?: string; availability?: string; entryStatus?: string; notes?: string; education?: string; ethnicity?: string; licenseNo?: string; regionCode?: string; expertLevel?: string; verifiedAt?: string | null; aiEvaluation?: string | null; aiEvaluatedAt?: string | null };
   assignments: Assignment[];
   statistics: { totalProjects: number; completedProjects: number; signedInProjects: number; evalAvg: number; evalCount: number };
   /** 邀请信用摘要（2026-10-21）：毁约记录 + 连拒段预警口径 */
@@ -44,6 +46,21 @@ interface ExpertDetail {
     breachEvents: { projectName: string; at: string; reason: string | null; actorName: string | null }[];
   };
 }
+
+/** E2（2026-11-19）：库况状态徽标单源——hero 头部与基本信息卡共用。
+ *  已退库/已停用优先（镜像列「停用」仍是人口过滤语义），否则四态派生（后端 busyState，
+ *  与库页状态列/水叮当同口径；tone 同库页：正在评标=orange、已被抽取=blue、候补待命=cyan、空闲=green）。
+ *  账号启停是另一维度，已在「身份与联系→账户状态」呈现，不冒充库况。 */
+const stateBadgeOf = (e: ExpertDetail | null): { tone: string; label: string } | null => {
+  if (!e) return null;
+  const p = e.expertProfile || {};
+  if (p.entryStatus === 'RETIRED') return { tone: 'gray', label: '已退库' };
+  if (p.availability === '停用') return { tone: 'gray', label: '已停用' };
+  const s = e.busyState;
+  if (!s) return null;
+  const tone = s === '空闲' ? 'green' : s === '正在评标' ? 'orange' : s === '已被抽取' ? 'blue' : 'cyan';
+  return { tone, label: s };
+};
 
 import { RingGauge, GRADE_SCORE, type WidgetTone } from '@/components/detail/data-widgets';
 
@@ -108,8 +125,8 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'notify', label: '通知偏好', icon: Bell },
 ];
 
-type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; availability: '可用' | '占用' | '停用'; notes: string; regionCode: string; expertLevel: string };
-const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes' | 'availability' | 'departmentName'>; label: string; placeholder: string }[] = [
+type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; notes: string; regionCode: string; expertLevel: string };
+const PROFILE_FIELDS: { key: Exclude<keyof ProfileFormState, 'notes' | 'departmentName'>; label: string; placeholder: string }[] = [
   { key: 'displayName', label: '姓名', placeholder: '专家姓名' },
   { key: 'email', label: '邮箱', placeholder: '用于登录与通知触达' },
   { key: 'employer', label: '工作单位', placeholder: '所在单位全称' },
@@ -175,7 +192,7 @@ export default function ExpertDetailPage() {
   const [vioSaving, setVioSaving] = useState(false);
   // 编辑资料弹窗
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', qualifications: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', availability: '可用', notes: '', regionCode: '', expertLevel: '' });
+  const [editForm, setEditForm] = useState<ProfileFormState>({ displayName: '', email: '', specialty: '', title: '', qualifications: '', employer: '', departmentName: '', phone: '', idNumber: '', ethnicity: '', education: '', licenseNo: '', notes: '', regionCode: '', expertLevel: '' });
   const [specialtyOptions, setSpecialtyOptions] = useState<string[]>([]);
 
   useEffect(() => {
@@ -303,7 +320,6 @@ export default function ExpertDetailPage() {
       ethnicity: p?.ethnicity || '',
       education: p?.education || '',
       licenseNo: '',
-      availability: (p?.availability as '可用' | '占用' | '停用') || '可用',
       notes: p?.notes || '',
       regionCode: p?.regionCode || '',
       expertLevel: p?.expertLevel || '',
@@ -406,7 +422,7 @@ export default function ExpertDetailPage() {
             >
               入库 {entryDate.toLocaleDateString('zh-CN')}
             </span>
-            <StatusBadge tone={expert.isActive ? 'green' : 'gray'}>{expert.isActive ? '可用' : '已停用'}</StatusBadge>
+            {(() => { const b = stateBadgeOf(expert); return b ? <StatusBadge tone={b.tone as any}>{b.label}</StatusBadge> : null; })()}
             {portrait?.isStandingExpert && <StatusBadge tone="purple">常委专家</StatusBadge>}
             <button onClick={openEditProfile} className="neu-btn-soft"><Pencil size={14} /> 编辑资料</button>
           </div>
@@ -450,7 +466,8 @@ export default function ExpertDetailPage() {
       {/* Tab content */}
       {tab === 'info' && expert && (() => {
         const p = expert.expertProfile || {};
-        const availabilityTone = p.availability === '可用' ? 'green' : p.availability === '占用' ? 'orange' : 'gray';
+        // E2（2026-11-19）：库况状态弃 availability 镜像——stateBadgeOf 单源（与 hero 徽标共用）
+        const stateBadge = stateBadgeOf(expert);
         return (
           <div className="space-y-5">
             {/* 职业信息 */}
@@ -493,7 +510,7 @@ export default function ExpertDetailPage() {
                   <InfoField label="执业资格编号" value={p.licenseNo} mono copy={{ label: '执业资格编号' }} />
                   <InfoField label="行政区域代码" value={p.regionCode} mono />
                   <InfoField label="库内等级" value={p.expertLevel ? `${p.expertLevel} 级` : undefined} />
-                  <InfoField label="可用状态" value={p.availability ? <StatusBadge tone={availabilityTone as any}>{p.availability}</StatusBadge> : null} />
+                  <InfoField label="库况状态" value={stateBadge ? <StatusBadge tone={stateBadge.tone as any}>{stateBadge.label}</StatusBadge> : null} />
                 </div>
               </div>
 
@@ -1200,14 +1217,6 @@ export default function ExpertDetailPage() {
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">所属部门</span>
                   <input value={editForm.departmentName} onChange={e => setEditForm(prev => ({ ...prev, departmentName: e.target.value }))} placeholder="如 工程勘察院" className="workbench-input" />
-                </label>
-                <label className="space-y-1 block">
-                  <span className="text-xs font-semibold text-[var(--muted-foreground)]">可用状态</span>
-                  <select value={editForm.availability} onChange={e => setEditForm(prev => ({ ...prev, availability: e.target.value as '可用' | '占用' | '停用' }))} className="workbench-input">
-                    <option value="可用">可用</option>
-                    <option value="占用">占用</option>
-                    <option value="停用">停用</option>
-                  </select>
                 </label>
               </div>
             </section>

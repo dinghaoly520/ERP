@@ -42,6 +42,9 @@ export default function ReviewWorkspaceContent() {
   const [file, setFile] = useState<File | null>(null);
   const [executing, setExecuting] = useState(false);
   const [execUpPct, setExecUpPct] = useState(0); // 审查文档上传字节进度（2026-11-06）
+  // 知识库展开态（2026-11-19 上提）：KbManagerPanel 随 tab 切换卸载，本组件常驻——
+  // 文件/规则子页往返后回列表，库行仍展开（原位续操作，免重新点开）
+  const [kbExpandedIds, setKbExpandedIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedKb = knowledgeBases.find(kb => kb.id === selectedKbId);
@@ -104,7 +107,7 @@ export default function ReviewWorkspaceContent() {
         )}
         {activeTab === 'kb' && (
           <div className="flex-1 overflow-y-auto">
-            <KbManagerPanel />
+            <KbManagerPanel expandedIds={kbExpandedIds} onExpandedIdsChange={setKbExpandedIds} />
           </div>
         )}
         {activeTab === 'files' && selectedKbId && (

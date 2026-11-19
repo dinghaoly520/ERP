@@ -90,6 +90,17 @@ describe('ExpertAdminService.clearExpertRoster', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
+  it('E3 方案①（2026-11-19 用户裁定）：declined 绑定不挡清空——挡闸与四态 canonical/库页 live 标记同口径', async () => {
+    // where 感知（模拟 DB 过滤）：挡闸查询带 invitationStatus:{not:'declined'} → declined 行查询侧即排除
+    prisma.bidExpert.findMany.mockImplementation(async (args: any) =>
+      args?.where?.invitationStatus?.not === 'declined' ? [] : [{ projectId: 'p1' }]);
+    // 若挡闸仍按全量绑定（旧口径），p1 是在评项目会 409——新口径 declined-only 绑定直接放行
+    prisma.bidProject.findMany.mockResolvedValue([{ name: '在评项目' }]);
+    const r = await service.clearExpertRoster('op1', '清空', ['e1']);
+    expect(r.clearedExperts).toBe(1);
+    expect(prisma.bidExpert.findMany.mock.calls[0][0].where.invitationStatus).toEqual({ not: 'declined' });
+  });
+
   it('正常清空勾选集：先断审计链 → 删审查任务 → 删账号，事后写审计', async () => {
     const r = await service.clearExpertRoster('op-admin', '清空', ['e1', 'e2', 'e1']); // 去重
     expect(r).toEqual({ clearedExperts: 2, auditDetached: 7, reviewTasksRemoved: 0 });

@@ -10,6 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
  *    亦保证评标室口令明文等敏感端点不因角色放宽而泄露给未指派人员。
  * 挂法：方法级 @Roles('admin','bid_host','leader','staff') + @UseGuards(AssignedHostGuard)——
  * 角色集负责放行内部四角色，本守卫负责「仅指派人/admin」的收口。
+ *
+ * 门户前提（复审注记，2026-11-19）：类级 BidCompanyScopeGuard 先于本守卫执行——跨公司被指派
+ * 主持人仅在 portal=bid 放行（bid-company-scope.guard.ts:46），其它门户会先吃 COMPANY_SCOPE_FORBIDDEN。
+ * A 档端点保持 :3007-only 时无实害；若某 A 档端点未来获得 :3005 调用者，须先复核该前置。
  */
 @Injectable()
 export class AssignedHostGuard implements CanActivate {

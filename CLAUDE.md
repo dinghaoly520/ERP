@@ -144,7 +144,7 @@ pnpm install
 pnpm infra:up        # Start PostgreSQL, Redis, MinIO
 pnpm infra:down      # Stop
 pnpm infra:logs      # View logs
-pnpm dev:kill         # 全链清理（2026-10-16 升级）：fuser 清 11 端口 + 按 /proc cwd+cmdline 清 apps/api 残树（watch 链/孤儿 dist/ai-worker；`--api` 只清 API 不动 portals、`--list` 干跑）；叠树/半死恢复一律 `pnpm dev:kill && pnpm dev`——main.ts 有 listen 预检（端口占用即 exit 1 秒退），勿再手工起并行救援 watch 树
+pnpm dev:kill         # dev 链清理（2026-11-19 分级）：默认清链（guard+10 链端口+api 残树，**不动常驻 OCR/embedding**）；`--api` 只清 API、`--services` 只清两常驻服务、`--all` 全量（服务僵死逃生门）、`--list` 干跑；叠树/半死恢复一律 `pnpm dev:kill && pnpm dev`——main.ts 有 listen 预检（端口占用即 exit 1 秒退），勿再手工起并行救援 watch 树
 
 # Build shared packages (required before first app start)
 pnpm --filter @water-erp/shared build
@@ -158,7 +158,7 @@ pnpm db:migrate      # Run migrations
 pnpm db:seed         # Seed data (idempotent + destructive — see Seed Data)
 pnpm db:studio       # Open Prisma Studio
 
-# Start all（9 门户（含 bigscreen/mobile）+ ai-bid worker + api-guard + OCR :8110 + bge-m3 :8003——链 13 成员）
+# Start all（9 门户（含 bigscreen/mobile）+ ai-bid worker + api-guard + OCR :8110 + bge-m3 :8003——链 13 成员；后两者为常驻服务，成员=「确保常驻后退出」，重启 dev 不连带，见下方常驻注记）
 pnpm dev
 
 # Start individual apps
@@ -182,9 +182,11 @@ pnpm --filter api dev:worker:ai-bid-analysis   # = nest build && node dist/ai-bi
 # pnpm dev:ukey-mw-guard    # :17999（已退役，guard 会因 systemd 不在而尝试拉起——生产不应启用）
 # （2026-10-28 已从 pnpm dev 链移除 guard——dev 不再复活 :17999）
 
-# OCR 微服务 :8110（dev-supervise 守护）
-pnpm dev:ocr
-pnpm dev:embedding   # bge-m3 embedding vLLM :8003（dev-supervise 守护；procurement PM2 停用后由本链托管）
+# OCR :8110 / bge-m3 :8003（常驻服务 2026-11-19：setsid 守护、dev 重启不连带）
+pnpm dev:ocr         # = services-up.sh ocr：确保常驻（在跑则跳过）后秒退——dev 链成员同款
+pnpm dev:embedding   # = services-up.sh embedding：同上
+pnpm services:up     # 手动确保两个常驻守护（崩溃自动重启；vLLM/OCR 命令行唯一权威在 scripts/services-up.sh）
+pnpm services:down   # 停常驻服务（= dev:kill --services）
 
 # Build
 pnpm build
@@ -195,6 +197,10 @@ pnpm lint
 pnpm --filter api lint
 pnpm --filter <app> lint
 ```
+
+> **dev 堆上限固化（2026-11-19）**：根 `package.json` 10 个 Node 进程 `dev:*` 脚本（8 门户+api+ai-worker）前置 `NODE_OPTIONS='--max-old-space-size=8192 --enable-source-maps'`——命令级赋值覆盖终端继承值（防 96G crutch 残留复发 2026-10-29/11-19 两轮「Turbopack 原生层 std::bad_alloc 静默 exit 0」死亡螺旋）；ocr/embedding/guard 为 Python/bash 不适用；**勿当冗余清理**。`dev:ai-worker` 的赋值在 `&&` 右侧 pnpm 命令上（落 sleep 上不生效）。
+
+> **常驻服务（2026-11-19 用户裁定「embedding/ocr 常驻，dev 重启不连带」）**：OCR :8110 与 embedding :8003 由 `scripts/services-up.sh` 以 setsid 脱离终端拉起 dev-supervise 守护（日志 /tmp/water-erp-service-*.log）——`pnpm dev` 的 dev:kill 默认不清 8003/8110，链成员改为「确保常驻后退出」（忘记 services:up 也会在首次 dev 自动常驻）。守护器判定=pgrep+逐 PID cmdline 复核（vLLM 模型加载窗口端口未开，只查端口会双拉抢 GPU；误报跳过=服务停机，勿简化）。服务僵死重置：`pnpm services:down && pnpm services:up`；彻底重置：`pnpm dev:kill --all`。
 
 ### Node 24 + Turbopack
 

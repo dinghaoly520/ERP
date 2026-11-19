@@ -204,12 +204,17 @@ export function buildPendingScoreDraft(
  * **纯服务端构造**。原实现 `serverMentioned[k] = next[k]`（next 从 prev 起步）会把本地
  * 未推送 score/reason/passed 与非提及点决策混入基线——对端同键并发编辑被判 local==base
  * 静默接受（缺陷①在提及键上的残留形态）。本函数与本地 scores 状态完全无关：
- * 三字段取 committedRecordFor 记录（无记录→零值兜底）、points 仅含该键的服务端点决策
- * （无服务端决策的点不出现——不回退本地、不造默认值）。
+ * 三字段取 committedRecordFor 记录（无记录→零值兜底）、points 服务端点决策优先。
+ *
+ * B5（2026-11-19 残留收口）：提及键 points 用 buildFullPoints 按 committedScore **补全
+ * 全量点映射**（镜像 isCommittedEquivalent 的归一）——基线与本地 checklist 全量映射同构，
+ * 否则本地多点位 vs 基线仅提及点被 entryEquals 判「本地已改」，checklist 假冲突率升高。
+ * 未提及点按 buildFullPoints 规则回填（PF 按 passed / 单点按提交分 / 其余未勾 0 分）——
+ * 回填的是**默认值**而非本地值，原 T2/T3「不回退本地」禁令不受影响（退化方向安全）。
  */
 export function buildServerMentionedEntries(
   myScores: CommittedScoreRecord[] | undefined | null,
-  scoreItems: Array<{ id: string; points?: Array<{ id: string }> }> | undefined | null,
+  scoreItems: Array<{ id: string; category: string; points?: BidScorePoint[] }> | undefined | null,
   pointDecisions: Array<{ pointId: string; supplierId: string; checked: boolean; awardedScore: number | string; note?: string }> | undefined | null,
 ): Record<string, ScoreEntry> {
   const pointToItem = new Map<string, string>();
@@ -234,5 +239,30 @@ export function buildServerMentionedEntries(
     }
     entry.points![pd.pointId] = { checked: pd.checked, awardedScore: Number(pd.awardedScore), note: pd.note || undefined };
   }
+  // B5：补全为全量点映射（服务端决策值优先——stored wins，缺失点按规则回填默认值）
+  for (const [k, entry] of Object.entries(mentioned)) {
+    const [sid, itemId] = k.split(':');
+    const si = (scoreItems ?? []).find(s => s.id === itemId);
+    if (!si) continue;
+    const rec = committedRecordFor(myScores, sid, itemId);
+    entry.points = buildFullPoints({ category: si.category, points: si.points }, entry, rec?.score ?? null);
+  }
   return mentioned;
+}
+
+/**
+ * TAB-SYNC-02 ② 提交后清槽载荷（B6⑤ 下放为纯函数——原 inline 于桌面 handleSubmitScores）：
+ * pending-only 草稿（等价已提交条目不入）去除 `${supplierId}:` 前缀键——该供应商键即时出槽
+ * （已提交无需草稿），其余供应商未提交分保留；对端槽由 GET 服务端陈旧过滤兜底。
+ */
+export function buildPostSubmitSlotPayload(
+  scores: Record<string, ScoreEntry>,
+  supplierId: string,
+  myScores?: CommittedScoreRecord[] | null,
+  scoreItems?: Array<{ id: string; category: string; points?: BidScorePoint[] }> | null,
+): Record<string, ScoreEntry> {
+  const pending = buildPendingScoreDraft(scores, myScores, scoreItems);
+  return Object.fromEntries(
+    Object.entries(pending).filter(([k]) => !k.startsWith(`${supplierId}:`)),
+  );
 }

@@ -15,6 +15,7 @@ import {
   BadRequestException,
   Logger,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import type { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -54,6 +55,9 @@ import { Roles } from '../common/decorators/roles.decorator';
 export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TenderReviewController.name);
   private readonly activeReviews = new Map<string, AbortController>();
+  /** 提取任务在跑登记（2026-11-19）：cleanZombies 的 30min 误杀豁免——大库提取
+   *  （数百页×多批 LLM 调用）可远超 30min，进程内确实在跑的不是僵尸 */
+  private readonly activeExtractions = new Set<string>();
   private zombieCleanupTimer: NodeJS.Timeout | null = null;
 
   async onModuleInit() {
@@ -82,31 +86,60 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
 
   private async resumeInterruptedExtractions() {
     // On startup, find any extraction tasks left in 'running' state
-    // (caused by process restart/reload) and resume them
+    // (caused by process restart/reload) and resume them.
+    // 同库收敛 + 逐任务兜底（2026-11-19 审查 #7/#8）：
+    //  - 同库多条 running（旧双跑竞态产物）只恢复最新一条，旧的落 failed——
+    //    防恢复期再次双跑交错写重复规则；
+    //  - 恢复链路任一环节失败即时把该行落 failed（不等 30min 僵尸清扫）——
+    //    「running 无活跑者」会把该库提取闸 409 锁死到清扫窗口
     const interrupted = await this.prisma.extractionTask.findMany({
       where: { status: 'running' },
+      orderBy: { createdAt: 'desc' }, // 新→旧：同库保留最新
     });
+    const resumedKb = new Set<string>();
     for (const task of interrupted) {
       const kbId = task.knowledgeBaseId;
       if (!kbId) continue;
-      const kb = await this.prisma.knowledgeBase.findUnique({
-        where: { id: kbId },
-      });
-      if (kb) {
-        this.logger.log(
-          `Resuming interrupted extraction task ${task.id} for KB "${kb.name}" (${task.extractedCount ?? 0} rules already extracted)`,
-        );
-        this.runExtraction(task.id, kbId).catch(async (err) => {
+      if (resumedKb.has(kbId)) {
+        await this.prisma.extractionTask
+          .update({
+            where: { id: task.id },
+            data: { status: 'failed', error: '服务重启后检测到重复的提取任务，此条已自动结束' },
+          })
+          .catch(() => undefined);
+        continue;
+      }
+      try {
+        const kb = await this.prisma.knowledgeBase.findUnique({
+          where: { id: kbId },
+        });
+        if (kb) {
+          resumedKb.add(kbId);
+          this.logger.log(
+            `Resuming interrupted extraction task ${task.id} for KB "${kb.name}" (${task.extractedCount ?? 0} rules already extracted)`,
+          );
+          this.runExtraction(task.id, kbId).catch(async (err) => {
+            await this.prisma.extractionTask
+              .update({
+                where: { id: task.id },
+                data: { status: 'failed', error: String(err).slice(0, 500) },
+              })
+              .catch(() => undefined);
+          });
+        } else {
           await this.prisma.extractionTask.update({
             where: { id: task.id },
-            data: { status: 'failed', error: String(err).slice(0, 500) },
+            data: { status: 'failed', error: '关联知识库已删除' },
           });
-        });
-      } else {
-        await this.prisma.extractionTask.update({
-          where: { id: task.id },
-          data: { status: 'failed', error: '关联知识库已删除' },
-        });
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to resume extraction task ${task.id}: ${err}`);
+        await this.prisma.extractionTask
+          .update({
+            where: { id: task.id },
+            data: { status: 'failed', error: `服务重启后恢复提取任务失败：${String(err).slice(0, 400)}` },
+          })
+          .catch(() => undefined);
       }
     }
     if (interrupted.length > 0) {
@@ -161,14 +194,38 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Recovered ${zombies.length} zombie review task(s)`);
     }
 
-    // Extraction task zombies — mark as failed if older than 30 min
+    // Extraction task zombies — mark as failed if older than 30 min,
+    // 除非进程内仍在跑（2026-11-19：与审查任务同款 active 豁免，长任务不再被误杀）。
+    // 6h 硬顶（审查 #8-B）：active 登记只证明「本进程启动过它」，不证明活着——
+    // DB 无语句超时，挂死 await 永不落 finally 的任务会永久豁免 + 409 锁门；
+    // 超硬顶强制落 failed 解锁（若其实仍在跑且最终完成，完成更新会写回 completed，
+    // 可接受的终态竞态）
+    const EXTRACTION_HARD_CAP_MS = 6 * 60 * 60 * 1000;
     const extractZombies = await this.prisma.extractionTask.findMany({
       where: { status: 'running', createdAt: { lt: deadline } },
     });
     for (const task of extractZombies) {
+      if (
+        this.activeExtractions.has(task.id) &&
+        task.createdAt.getTime() > Date.now() - EXTRACTION_HARD_CAP_MS
+      ) {
+        continue; // 正常在跑的长任务
+      }
+      const hardCapped = this.activeExtractions.has(task.id);
+      if (hardCapped) {
+        this.logger.error(
+          `Extraction task ${task.id} exceeded 6h hard cap while registered active — force-failing to release the KB gate`,
+        );
+      }
       await this.prisma.extractionTask.update({
         where: { id: task.id },
-        data: { status: 'failed', error: '提取任务超时（服务重启）' },
+        data: {
+          status: 'failed',
+          // 文案分流（复审）：超时结束与服务重启是两种不同情况，勿混写误导排障
+          error: hardCapped
+            ? '提取任务超过 6 小时未完成，已自动结束；若后台仍在执行，已提取的规则不受影响'
+            : '提取任务超时（服务重启）',
+        },
       });
     }
     if (extractZombies.length > 0) {
@@ -225,11 +282,25 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     await this.assertKbEditable(dto.knowledgeBaseId, user);
-    const task = await this.prisma.extractionTask.create({
-      data: {
-        knowledgeBaseId: dto.knowledgeBaseId,
-        status: 'running',
-      },
+    // 并发闸（2026-11-19 审查 #7 事务化）：check+create 同事务，并对 KB 行 FOR
+    //  UPDATE 互斥——两个并发 POST 在此排队，前者提交后后者必见 running 行 → 409，
+    //  消除 check-then-create 竞态窗口（双跑的去重键在各自启动时快照，交错写库
+    //  产生重复规则）。根治（部分唯一索引 (knowledge_base_id) WHERE
+    //  status='running'）待迁移窗口，金仓走 db execute+resolve 流程。
+    const task = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "KnowledgeBase" WHERE id = ${dto.knowledgeBaseId} FOR UPDATE`;
+      const running = await tx.extractionTask.findFirst({
+        where: { knowledgeBaseId: dto.knowledgeBaseId, status: 'running' },
+      });
+      if (running) {
+        throw new ConflictException('该知识库已有正在进行的提取任务，请等待完成');
+      }
+      return tx.extractionTask.create({
+        data: {
+          knowledgeBaseId: dto.knowledgeBaseId,
+          status: 'running',
+        },
+      });
     });
 
     this.runExtraction(task.id, dto.knowledgeBaseId).catch(async (err) => {
@@ -272,7 +343,11 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     await this.assertKbEditable(dto.knowledgeBaseId, user);
-    return this.prisma.complianceRule.create({ data: dto as any });
+    return this.prisma.complianceRule.create({
+      // checkTarget 已砍（2026-11-19 用户裁定，登记性元数据零消费）；列 NOT NULL
+      // 无默认（删列待安全 schema 窗口）——创建路径落库兜底，更新路径不动存量值
+      data: { ...this.coerceRuleSeverity(dto), checkTarget: '全部' } as any,
+    });
   }
 
   @Get('rules')
@@ -322,8 +397,22 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     if (existing) await this.assertKbEditable(existing.knowledgeBaseId, user);
     return this.prisma.complianceRule.update({
       where: { id },
-      data: dto as any,
+      data: this.coerceRuleSeverity(dto) as any,
     });
+  }
+
+  /** severity 宽进严出（2026-11-19 复审 #1）：DTO @IsIn 把存量漂移值（旧提取
+   *  落库、无校验时期产物）的编辑保存整单 400——前端「漂移值追加为选项原样
+   *  保留」的设计在保存路径走不通。与 normalizeRule 同口径：非法一律落
+   *  'warning'（漂移值本就无法正确渲染/执行，归一即修复）。 */
+  private coerceRuleSeverity<T extends { severity?: string }>(dto: T): T {
+    if (
+      dto.severity !== undefined &&
+      !['critical', 'warning', 'info'].includes(dto.severity)
+    ) {
+      (dto as { severity?: string }).severity = 'warning';
+    }
+    return dto;
   }
 
   @Delete('rules/:id')
@@ -959,48 +1048,64 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     taskId: string,
     knowledgeBaseId: string,
   ): Promise<void> {
-    // Load task to get processedFiles from previous run (for resume)
-    const task = await this.prisma.extractionTask.findUnique({
-      where: { id: taskId },
-    });
-    const skipFiles: string[] = Array.isArray((task as any)?.processedFiles)
-      ? ((task as any).processedFiles as string[])
-      : [];
-    const processedFiles: string[] = [...skipFiles];
+    // 在跑登记（同步先行，2026-11-19）：zombie 豁免从调用即刻生效，
+    // 避免启动恢复窗口内的首轮清扫误杀；结束（含异常）注销
+    this.activeExtractions.add(taskId);
+    try {
+      // Load task to get processedFiles from previous run (for resume)
+      const task = await this.prisma.extractionTask.findUnique({
+        where: { id: taskId },
+      });
+      const skipFiles: string[] = Array.isArray((task as any).processedFiles)
+        ? ((task as any).processedFiles as string[])
+        : [];
+      const processedFiles: string[] = [...skipFiles];
+      // 累计语义（2026-11-19 审查 #10）：断点续跑的本进程增量叠加恢复时已有计数——
+      // 旧实现整字段覆写，前端进度条可见「10→1」倒退、完成 toast 少计
+      const baseCount: number = (task as any)?.extractedCount ?? 0;
 
-    let lastProgressUpdate = Date.now();
-    const PROGRESS_UPDATE_INTERVAL = 5000;
+      let lastProgressUpdate = Date.now();
+      const PROGRESS_UPDATE_INTERVAL = 5000;
 
-    const count =
-      await this.ruleExtractor.extractFromKnowledgeBase(
-        knowledgeBaseId,
-        {
-          onProgress: async (extractedCount, fileName) => {
-            const now = Date.now();
-            if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
-              lastProgressUpdate = now;
-              if (!processedFiles.includes(fileName)) {
-                processedFiles.push(fileName);
+      const count =
+        await this.ruleExtractor.extractFromKnowledgeBase(
+          knowledgeBaseId,
+          {
+            onProgress: async (extractedCount, fileName) => {
+              const now = Date.now();
+              if (now - lastProgressUpdate >= PROGRESS_UPDATE_INTERVAL) {
+                lastProgressUpdate = now;
+                if (!processedFiles.includes(fileName)) {
+                  processedFiles.push(fileName);
+                }
+                try {
+                  // status:'running' 守卫（终态写回防复活，见下方完成写说明）
+                  await this.prisma.extractionTask.updateMany({
+                    where: { id: taskId, status: 'running' },
+                    data: {
+                      extractedCount: baseCount + extractedCount,
+                      processedFiles,
+                    } as any,
+                  });
+                } catch {
+                  // Progress update is best-effort
+                }
               }
-              try {
-                await this.prisma.extractionTask.update({
-                  where: { id: taskId },
-                  data: { extractedCount, processedFiles } as any,
-                });
-              } catch {
-                // Progress update is best-effort
-              }
-            }
+            },
           },
-        },
-        skipFiles,
-      );
-    await this.prisma.extractionTask.update({
-      where: { id: taskId },
-      data: { status: 'completed', extractedCount: count },
-    });
+          skipFiles,
+        );
+      // 完成写回带 status:'running' 守卫（updateMany 条件写，2026-11-19 复审）：
+      // 6h 硬顶/僵尸清扫已把本行落 failed、闸门重开后，迟到的完成写不得把
+      // failed 复活成 completed（复活会误导留档，且掩盖「已放行新任务」事实）
+      await this.prisma.extractionTask.updateMany({
+        where: { id: taskId, status: 'running' },
+        data: { status: 'completed', extractedCount: baseCount + count },
+      });
+    } finally {
+      this.activeExtractions.delete(taskId);
+    }
   }
-
   // Internal Review Logic
 
   private async runReview(
@@ -1091,7 +1196,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       ...existenceResults,
       ...semanticResults,
     ];
-    return this.reportGenerator.generateFromRuleResults(allResults);
+    // 提取字段随报告落库（2026-11-19 透明化）：供报告页/docx 展示，缺什么一目了然
+    return this.reportGenerator.generateFromRuleResults(allResults, fields);
   }
 
   private async runGeneralReview(

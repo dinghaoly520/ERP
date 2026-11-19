@@ -32,7 +32,7 @@ export interface ExpertListItem {
   company?: string | null;
   department: { id: string; name: string } | null;
   expertProfile: ExpertProfile | null;
-  bidExperts: { id: string; major: string; progress: number; signedIn: boolean; expertRole: string; project: { id: string; name: string; stage: string } }[];
+  bidExperts: { id: string; major: string; progress: number; signedIn: boolean; expertRole: string; invitationStatus: string; project: { id: string; name: string; stage: string } }[];
   _count: { expertEvaluations: number };
   latestEval?: { level: string } | null;
   avgGrade?: string | null;

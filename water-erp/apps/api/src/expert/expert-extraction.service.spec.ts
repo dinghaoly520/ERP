@@ -514,5 +514,49 @@ describe('同日冲突硬排除（2026-11-16 用户裁定：同日已有评标�
     expect(prisma.bidExpert.upsert).not.toHaveBeenCalled();
     expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
+
+  describe('E1（2026-11-19 第一波·方案A）：抽取池人口口径对齐派生分母（弃「可用」等值闸）', () => {
+    const setupPool = () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        id: 'p1', name: '测试项目', procurementMethod: '公开招标',
+        scope: '水利枢纽施工', qualification: '', qualityRequirement: '', riskNote: '', budget: null,
+        suppliers: [],
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', displayName: '甲', isActive: true, expertProfile: { specialty: '造价咨询', availability: '占用', entryStatus: 'ACTIVE', title: '高工', employer: 'A院' }, bidExperts: [], _count: { bidExperts: 0 } },
+      ]);
+      prisma.expertEvaluation.groupBy.mockResolvedValue([]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      extractionAi.analyzeAndScore.mockResolvedValue({ analysis: 'ok', requiredSpecialties: [], scoredExperts: [] });
+    };
+
+    it('preview：候选池 where=ACTIVE+非停用（存量「占用」脏行不再被等值闸踢出池——在途冲突由闸1/闸2把关）', async () => {
+      setupPool();
+      await service.previewExtraction('p1', { mode: 'manual', manualQuotas: [{ specialty: '造价咨询', count: 3 }] } as any);
+      const where = prisma.user.findMany.mock.calls[0][0].where;
+      expect(where.expertProfile.entryStatus).toBe('ACTIVE');
+      expect(where.expertProfile.availability).toEqual({ not: '停用' });
+    });
+
+    it('confirm：存量「占用」专家资格过（不再 EXPERT_INELIGIBLE——镜像脏行不再拦确认）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '占用', entryStatus: 'ACTIVE' }, bidExperts: [] },
+      ]);
+      const res = await service.confirmExtraction('p1', { projectId: 'p1', experts: [{ userId: 'u1', expertName: '甲', major: '造价', isLead: true }], candidates: [] } as any, 'op1');
+      expect(res.success).toBe(true);
+    });
+
+    it('confirm：「停用」专家（账号启用）仍拒 EXPERT_INELIGIBLE（人口过滤语义保留——临时代表/退库不入池）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: '项目', suppliers: [] });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', role: 'bid_expert', isActive: true, expertProfile: { availability: '停用', entryStatus: 'ACTIVE' }, bidExperts: [] },
+      ]);
+      await expect(service.confirmExtraction('p1', { projectId: 'p1', experts: [{ userId: 'u1', expertName: '甲', major: '造价' }], candidates: [] } as any, 'op1')).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
 });
 });

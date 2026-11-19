@@ -186,7 +186,7 @@ describe('ExpertAdminService', () => {
   });
 
   describe('specialtyPoolCounts（全库各专业人数）', () => {
-    it('一次 groupBy 返回 specialty/count（按人数降序），限定可抽取人口（2026-10-28 口径收口：ACTIVE+可用，与 getDemandRepDirectory 同口径）', async () => {
+    it('一次 groupBy 返回 specialty/count（按人数降序），限定可抽取人口（2026-10-28 收口→E1 2026-11-19 方案A：ACTIVE+非停用，与 deriveBusyCounts 分母同口径）', async () => {
       prisma.expertProfile.groupBy.mockResolvedValue([
         { specialty: '水利工程', _count: { _all: 3 } },
         { specialty: '测绘工程', _count: { _all: 5 } },
@@ -195,7 +195,7 @@ describe('ExpertAdminService', () => {
       const res = await service.specialtyPoolCounts();
       expect(prisma.expertProfile.groupBy).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { entryStatus: 'ACTIVE', availability: '可用', user: { isActive: true, role: 'bid_expert' } },
+          where: { entryStatus: 'ACTIVE', availability: { not: '停用' }, user: { isActive: true, role: 'bid_expert' } },
         }),
       );
       expect(res).toEqual([
@@ -208,23 +208,111 @@ describe('ExpertAdminService', () => {
   describe('统计口径收口（2026-10-28：可用=可抽取人口、停用=退库、统计闸去重）', () => {
     const ACTOR = { sub: 'u-1', role: 'leader', username: 'S-01' } as any;
 
-    it('getStatistics：availGroups 限库内 ACTIVE+账号在编；disabled=RETIRED 计数（entryStatus 为准）', async () => {
+    it('getStatistics：库况四态全库派生（2026-11-18）——available=库内可抽取人口−在途并集（弃镜像列）；「停用」组排除分母（2026-11-19 裁定⑴：临时需求方代表/手动停用不虚增空闲）；disabled=RETIRED 计数（entryStatus 为准）', async () => {
       prisma.user.count.mockResolvedValue(10);
-      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
-        by[0] === 'availability'
-          ? Promise.resolve([{ availability: '可用', _count: 3 }, { availability: '占用', _count: 2 }])
-          : Promise.resolve([]));
+      prisma.expertProfile.groupBy.mockImplementation(({ by, where }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        const all = [
+          { availability: '可用', _count: 3 },
+          { availability: '占用', _count: 2 },
+          { availability: '停用', _count: 2 }, // 临时需求方代表等——where 排除后 DB 不返回（mock 模拟真实过滤）
+        ];
+        return Promise.resolve(where?.availability?.not === '停用' ? all.filter(g => g.availability !== '停用') : all);
+      });
       prisma.expertProfile.count.mockResolvedValue(1);
       const res = await service.getStatistics(ACTOR);
       const availCall = prisma.expertProfile.groupBy.mock.calls.find((c: any[]) => c[0].by?.[0] === 'availability')![0];
       expect(availCall.where.entryStatus).toBe('ACTIVE');
       expect(availCall.where.user.isActive).toBe(true);
-      expect(res.available).toBe(3);
-      expect(res.occupied).toBe(2);
+      expect(availCall.where.availability).toEqual({ not: '停用' }); // 裁定⑴：查询侧即排除停用组
+      // 镜像列「可用3/占用2」不再读、停用2 不进分母：无在途 → 可抽取人口 5 人全空闲（旧口径此处为 3/2）
+      expect(res.available).toBe(5);
+      expect(res.occupied).toBe(0);
+      expect(res.busy).toEqual({ idle: 5, assigned: 0, evaluating: 0, alternate: 0 });
       expect(res.disabled).toBe(1);
       expect(prisma.expertProfile.count).toHaveBeenCalledWith(expect.objectContaining({
         where: expect.objectContaining({ entryStatus: 'RETIRED' }),
       }));
+    });
+
+    it('getStatistics 四态派生（2026-11-18）：优先级链 正在评标＞正选在途＞候补待命 同人只计高位（多在途行去重），declined 不入查询、在途限库内 ACTIVE；空闲=库内 ACTIVE−在途并集', async () => {
+      prisma.user.count.mockResolvedValue(10);
+      prisma.expertProfile.groupBy.mockImplementation(({ by, where }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        const all = [
+          { availability: '可用', _count: 4 },
+          { availability: '占用', _count: 2 },
+          { availability: '停用', _count: 3 }, // 查询排除后不返回（mock 模拟 DB 过滤）
+        ];
+        return Promise.resolve(where?.availability?.not === '停用' ? all.filter(g => g.availability !== '停用') : all);
+      });
+      prisma.expertProfile.count.mockResolvedValue(0);
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },     // 正选在途
+        { userId: 'e2', expertRole: '候补', project: { stage: 'OPENING' } },    // 候补待命
+        { userId: 'e3', expertRole: '候补', project: { stage: 'EVALUATING' } }, // 同人多在途行：正在评标最高优先
+        { userId: 'e3', expertRole: '候补', project: { stage: 'SUBMIT' } },
+        { userId: 'e4', expertRole: '正选', project: { stage: 'SUBMIT' } },     // 同人正选+候补双身份：只计正选
+        { userId: 'e4', expertRole: '候补', project: { stage: 'OPENING' } },
+      ]);
+      const res = await service.getStatistics(ACTOR);
+      expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({
+          invitationStatus: { not: 'declined' },
+          project: { stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
+          // 在途与分母同人口（裁定⑴两侧同滤）：临时需求方代表（停用）经 BidExpert 绑定项目也不占占用
+          user: expect.objectContaining({ expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } }),
+        }),
+        select: expect.objectContaining({
+          userId: true, expertRole: true,
+          project: expect.objectContaining({ select: { stage: true } }),
+        }),
+      }));
+      // 可抽取人口 6（4 可用+2 占用，停用3 不进分母）− 在途 4 人（e1 正选/e2 候补/e3 评标/e4 正选）= 空闲 2
+      expect(res.busy).toEqual({ idle: 2, assigned: 2, evaluating: 1, alternate: 1 });
+      expect(res.available).toBe(2);
+      expect(res.occupied).toBe(4);
+    });
+
+    it('getStatistics 四态派生：在途人数超库内基数 → idle 钳 0 不出负（Math.max 防线）', async () => {
+      prisma.user.count.mockResolvedValue(2);
+      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
+        by[0] === 'availability'
+          ? Promise.resolve([{ availability: '可用', _count: 1 }])
+          : Promise.resolve([]));
+      prisma.expertProfile.count.mockResolvedValue(0);
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },
+        { userId: 'e2', expertRole: '候补', project: { stage: 'OPENING' } },
+      ]);
+      const res = await service.getStatistics(ACTOR);
+      expect(res.busy).toEqual({ idle: 0, assigned: 1, evaluating: 0, alternate: 1 });
+      expect(res.available).toBe(0);
+      expect(res.occupied).toBe(2);
+    });
+
+    it('getBigscreenStats：库况四态派生（2026-11-19 ⑵收口）——available/occupied 来自在途派生而非 availability 镜像（「占用」零写入者恒 0 的病根），停用组不入分母', async () => {
+      // 本端点此前零 spec 覆盖（正是镜像漂移无告警的根源）；bidScoreRecord 主工厂未提供，本地补
+      (prisma as any).bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.user.count.mockResolvedValue(8);
+      prisma.expertProfile.count.mockResolvedValue(1);
+      prisma.expertProfile.groupBy.mockImplementation(({ by, where }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        const all = [
+          { availability: '可用', _count: 5 },
+          { availability: '占用', _count: 0 },
+          { availability: '停用', _count: 2 },
+        ];
+        return Promise.resolve(where?.availability?.not === '停用' ? all.filter((g: any) => g.availability !== '停用') : all);
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },
+        { userId: 'e2', expertRole: '候补', project: { stage: 'EVALUATING' } },
+      ]);
+      const res = await service.getBigscreenStats();
+      expect(res.availability.available).toBe(3); // 可抽取 5 − 在途 2（≠镜像「可用」5）
+      expect(res.availability.occupied).toBe(2); // 在途并集（≠镜像「占用」0）
+      expect(res.availability.disabled).toBe(1);
     });
 
     it('getStatistics：评价统计按槽位去重（2026-10-21 统计闸裁定，此前本端点为唯一漏网）', async () => {
@@ -242,14 +330,14 @@ describe('ExpertAdminService', () => {
       expect(res.evaluationStats.levelCounts.B).toBe(1);
     });
 
-    it('getLoadDistribution：活跃专家/分配均限库内 ACTIVE（PENDING/SUSPENDED 不入负荷分母）', async () => {
+    it('getLoadDistribution：活跃专家/分配均限库内 ACTIVE+非停用（PENDING/SUSPENDED 不入负荷分母；停用组排除同裁定⑴——临时需求方代表不虚增空闲桶）', async () => {
       prisma.user.count.mockResolvedValue(4);
       prisma.bidExpert.findMany.mockResolvedValue([]);
       const res = await service.getLoadDistribution(ACTOR);
       const countWhere = prisma.user.count.mock.calls[0][0].where;
-      expect(countWhere.expertProfile).toEqual({ entryStatus: 'ACTIVE' });
+      expect(countWhere.expertProfile).toEqual({ entryStatus: 'ACTIVE', availability: { not: '停用' } });
       const assignWhere = prisma.bidExpert.findMany.mock.calls[0][0].where;
-      expect(assignWhere.user.expertProfile).toEqual({ entryStatus: 'ACTIVE' });
+      expect(assignWhere.user.expertProfile).toEqual({ entryStatus: 'ACTIVE', availability: { not: '停用' } });
       expect(res.totalActiveExperts).toBe(4);
       expect(res.loadDistribution['空闲']).toBe(4);
     });
@@ -388,14 +476,14 @@ describe('ExpertAdminService', () => {
         { id: 'co-b', name: '四川水发能源开发有限公司', shortName: '能源' },
       ]);
       const res = await service.listPoolCompanies();
-      // 资格口径与 previewExtraction 候选池一致：在库 ACTIVE + 可用 + 账号激活 + 已归属公司
+      // 资格口径与 previewExtraction 候选池一致：在库 ACTIVE + 非停用（E1 2026-11-19 方案A）+ 账号激活 + 已归属公司
       expect(prisma.user.groupBy).toHaveBeenCalledWith(expect.objectContaining({
         by: ['companyId'],
         where: {
           role: 'bid_expert',
           isActive: true,
           companyId: { not: null },
-          expertProfile: { availability: '可用', entryStatus: 'ACTIVE' },
+          expertProfile: { availability: { not: '停用' }, entryStatus: 'ACTIVE' },
         },
       }));
       // null 归属（未归属专家）不产生下拉项
@@ -1183,6 +1271,105 @@ describe('ExpertAdminService', () => {
       } as any)).rejects.toMatchObject({ response: { code: 'EMAIL_INVALID' } });
     });
   });
+
+  describe('E2（2026-11-19 第一波·四态收口）：详情页 availability 写入口封死 + busyState 派生', () => {
+    it('updateProfile：payload 带 availability 也不写镜像列（DTO 已删字段、服务端不读——「占用」写入口封死；启用/停用走正门 PATCH :id/availability）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王', role: 'bid_expert' });
+      await service.updateProfile('u1', { specialty: '水文', availability: '占用' } as any, 'op1');
+      const upsertArgs = prisma.expertProfile.upsert.mock.calls[0][0];
+      expect(upsertArgs.update).not.toHaveProperty('availability');
+      expect(upsertArgs.create).not.toHaveProperty('availability');
+    });
+
+    it('getExpert：返回 busyState 四态派生（declined 不算、终局阶段不算——与库页/水叮当同口径，expert-busy-state.util 单源）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王建国', username: 'wangjg', role: 'bid_expert' });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { progress: 100, signedIn: true, invitationStatus: 'confirmed', expertRole: '正选', project: { name: '项目A', stage: 'EVALUATING' }, scoreRecords: [] },
+        // declined 行不算状态（婉拒不占库况）；SUBMIT 若非 declined 才算已被抽取
+        { progress: 50, signedIn: false, invitationStatus: 'declined', expertRole: '候补', project: { name: '项目B', stage: 'SUBMIT' }, scoreRecords: [] },
+      ]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
+      const result = await service.getExpert('u1');
+      expect(result.busyState).toBe('正在评标');
+    });
+
+    it('getExpert：无在途行 → 空闲（镜像列「占用」不再参与判定）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王建国', username: 'wangjg', role: 'bid_expert', expertProfile: { availability: '占用' } });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
+      const result = await service.getExpert('u1');
+      expect(result.busyState).toBe('空闲');
+    });
+  });
+
+
+  describe('E1（2026-11-19 第一波·方案A）：池伴随端点人口口径对齐（ACTIVE+非停用）', () => {
+    it('getDemandRepDirectory / listPoolCompanies：与抽取池同人口（存量「占用」行入池——弃「可用」等值闸）', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.getDemandRepDirectory();
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } }),
+      }));
+      prisma.user.groupBy.mockResolvedValue([]);
+      await service.listPoolCompanies();
+      expect(prisma.user.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertProfile: { availability: { not: '停用' }, entryStatus: 'ACTIVE' } }),
+      }));
+    });
+  });
+
+
+  describe('E1 残留收口（2026-11-19 评审 Important×2）：`!== 可用` 代码形态同口径', () => {
+    it('autoPromoteCandidate：存量「占用」候补可递补——资格复核与 confirmExtraction 同标准（仅拒停用）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ name: '测试项目', suppliers: [] });
+      prisma.bidExpert.findFirst.mockResolvedValue(null); // 无组长残留
+      prisma.bidExpert.findMany.mockImplementation((args: any) =>
+        args?.where?.signedIn === true
+          ? Promise.resolve([]) // findOpenEvaluationWindows：无跨项目开窗
+          : Promise.resolve([{
+              id: 'be1', userId: 'u1', expertName: '王占', major: '水文', expertRole: '候补',
+              invitationStatus: 'confirmed', isPurchaserRepresentative: false, progress: 0,
+              user: {
+                id: 'u1', isActive: true,
+                expertProfile: { specialty: '水文', title: '高工', availability: '占用', entryStatus: 'ACTIVE' },
+                _count: { bidExperts: 0 }, expertEvaluations: [], bidExperts: [],
+              },
+            }]));
+      prisma.bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+      prisma.bidExpert.findUnique.mockResolvedValue({ expertRole: '候补', invitationStatus: 'confirmed' }); // 锁内重断言
+      prisma.bidExpert.update.mockResolvedValue({ id: 'be1', expertRole: '正选' });
+      const res = await service.autoPromoteCandidate('p1');
+      // 旧「可用」等值闸下 eligible 空 → return null；新口径仅拒停用，占用候补照常递补
+      expect(res?.userId).toBe('u1');
+      expect(prisma.bidExpert.update).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 'be1' },
+        data: expect.objectContaining({ expertRole: '正选', invitationStatus: 'confirmed' }),
+      }));
+    });
+
+    it('companiesBySpecOf：配额行附挂公司的资格口径=ACTIVE+非停用——「占用」持有者公司进 companyIds、停用仍排除', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({
+        name: '人事档案数字化服务', procurementMethod: '竞价采购',
+        scope: '档案数字化加工、扫描图像处理与数据挂接', projectManagementItem: null,
+      });
+      prisma.expertProfile.findMany.mockResolvedValue([
+        { specialty: '信息技术应用与管理、保险', availability: '占用', entryStatus: 'ACTIVE', user: { companyId: 'co-jt' } }, // 存量占用——旧闸排除
+        { specialty: '法律', availability: '停用', entryStatus: 'ACTIVE', user: { companyId: 'co-js' } }, // 临时代表等——仍排除
+      ]);
+      llm.chat.mockResolvedValue(JSON.stringify({
+        requiredSpecialties: [
+          { specialty: '信息技术应用与管理、保险', specialties: ['信息技术应用与管理、保险'], count: 2, reason: '档案数字化需信息技术评审' },
+          { specialty: '法律', specialties: ['法律'], count: 1, reason: '合同合规' },
+        ],
+        totalExperts: 2, analysis: '档案数字化以信息技术为核心',
+      }));
+      const res = await service.analyzeProjectSpecialties('p1');
+      expect(res.requiredSpecialties[0].companyIds).toEqual(['co-jt']); // 占用持有者公司进跨公司白名单
+      expect(res.requiredSpecialties[1].companyIds).toEqual([]); // 停用持有者仍排除
+    });
+  });
+
 });
 
 
