@@ -444,8 +444,9 @@ export default function DashboardPage() {
 
 
       {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
-           上移至实时态势上方、套同款 SectionCard 格式。首排=PMI 状态盘点（当前状态快照，
-           不随本年窗口）；次排=本年轮次金额四数；可点的两步到对应明细/分析）── */}
+           上移至实时态势上方、套同款 SectionCard 格式。首排=项目盘点（总数/归档=台账
+           全量/进行中/异常=终止，当前状态快照不随本年窗口）；次排=本年轮次金额四数；
+           可点的两步到对应明细/分析）── */}
       {data && summary ? (
         <SectionCard
           icon={Gauge}
@@ -455,10 +456,11 @@ export default function DashboardPage() {
         >
           <div className="grid grid-cols-4 gap-1.5">
             {[
-              /* 首排=PMI 状态盘点（2026-11-19 用户裁定：异常项目=终止项目；当前状态快照
-                 口径，不随本年窗口）；项目总数=三态之和收口。异常点跳台账终止轮次留痕 */
+              /* 首排=项目盘点（2026-11-19 用户裁定）：项目总数=PMI 三态之和；归档项目=
+                 台账中的项目（全时段轮次行数，点跳台账）；进行中=PMI ACTIVE；异常项目=
+                 终止的项目（点跳台账终止留痕）。除归档外均为当前状态快照，不随本年窗口 */
               { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—" },
-              { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—" },
+              { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—", onTap: () => router.push("/ledger") },
               { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => router.push("/progress") },
               { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => router.push("/ledger?status=CANCELLED") },
               { label: "成交预算", value: summary.awardedBudgetLabel },

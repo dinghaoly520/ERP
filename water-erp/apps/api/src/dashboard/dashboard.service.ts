@@ -1165,20 +1165,25 @@ export class DashboardService {
     };
   }
 
-  /** :3011 数据总览首排——PMI 状态盘点（2026-11-19 用户裁定：异常项目=终止项目）。
-   *  当前状态快照口径（存量计数，非本年事件窗）：进行中=ACTIVE、归档=ARCHIVED、
-   *  异常=TERMINATED、总数=三态之和；回收站（RECYCLED）不计入。 */
+  /** :3011 数据总览首排——项目盘点（2026-11-19 用户裁定）。归档项目=台账中的项目
+   *  （ProcurementRound 全时段行数：仅排回收站，终止留痕在内——与台账列表默认视图同口径）；
+   *  进行中=PMI ACTIVE、异常=PMI TERMINATED（用户定义：异常项目就是终止的项目）、
+   *  总数=PMI 三态之和（回收站不计）。除归档外均为当前状态快照（非本年事件窗）。 */
   async getProjectStatusCounts(companyFilter?: CompanyWhere) {
-    const rows = await this.prisma.projectManagementItem.groupBy({
-      by: ['status'],
-      _count: { _all: true },
-      where: { ...companyFilter, status: { not: 'RECYCLED' } },
-    });
+    const [rows, archived] = await Promise.all([
+      this.prisma.projectManagementItem.groupBy({
+        by: ['status'],
+        _count: { _all: true },
+        where: { ...companyFilter, status: { not: 'RECYCLED' } },
+      }),
+      this.prisma.procurementRound.count({
+        where: { ...companyFilter, isRecycled: false },
+      }),
+    ]);
     const by = new Map(rows.map((r) => [r.status, r._count._all]));
-    const archived = by.get('ARCHIVED') ?? 0;
     const active = by.get('ACTIVE') ?? 0;
     const terminated = by.get('TERMINATED') ?? 0;
-    return { archived, active, terminated, total: archived + active + terminated };
+    return { archived, active, terminated, total: active + terminated + (by.get('ARCHIVED') ?? 0) };
   }
 
   /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：

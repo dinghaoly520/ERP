@@ -15,8 +15,8 @@ export async function fetchDashboardBadges(companyId?: string): Promise<Dashboar
   return api.get<DashboardBadges>(`/dashboard/badges${q}`);
 }
 
-/* 项目状态盘点（2026-11-19 用户裁定：数据总览首排）——PMI 当前状态快照：
-   异常项目=终止项目；总数=归档+进行中+异常；回收站不计 */
+/* 项目盘点（2026-11-19 用户裁定：数据总览首排）——归档=台账中的项目（全时段轮次行数，
+   终止留痕在内）；进行中/异常(=终止)/总数为 PMI 当前状态快照，回收站不计 */
 export type ProjectStatusCounts = { archived: number; active: number; terminated: number; total: number };
 export async function fetchProjectStatusCounts(): Promise<ProjectStatusCounts> {
   return api.get<ProjectStatusCounts>('/dashboard/project-status');
