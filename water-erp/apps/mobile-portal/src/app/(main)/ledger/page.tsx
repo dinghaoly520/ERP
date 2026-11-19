@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { AlertTriangle, Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
+import { Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -312,31 +312,9 @@ export default function LedgerPage() {
         ) : null}
       </div>
 
-      {/* ── 筛选行（2026-11-17 改版：状态/方式 chips 长条 → 下拉按钮+弹层，同 RangePicker 语言）── */}
+      {/* ── 筛选行（2026-11-17 改版：状态/方式 chips 长条 → 下拉按钮+弹层，同 RangePicker 语言）──
+          异常快捷筛选已撤（2026-11-19 用户裁定）；URL ?abnormal=1 预置仍兼容解析 */}
       <div className="mb-2 flex gap-2">
-        <button
-          type="button"
-          aria-pressed={abnormalFilter}
-          onClick={() =>
-            changeFilter(() => {
-              const next = !abnormalFilter;
-              setAbnormalFilter(next);
-              /* 互斥（评审 F6）：服务端 abnormalOnly 覆盖 resultStatus——开启异常时清
-                 状态筛选，避免「已成交」生效而数据是异常四态 */
-              if (next) {
-                setStatusFilter(null);
-                persistLedger({ statusFilter: null });
-              }
-            })
-          }
-          className={`m-input flex w-[5.5rem] shrink-0 items-center gap-1.5 font-medium active:scale-[0.98] ${
-            abnormalFilter ? "text-[var(--danger)]" : "text-[var(--foreground)]"
-          }`}
-          style={abnormalFilter ? { background: "color-mix(in oklch, var(--danger) 8%, oklch(0.985 0.005 258))" } : undefined}
-        >
-          <AlertTriangle size={15} className={`shrink-0 ${abnormalFilter ? "text-[var(--danger)]" : "text-[var(--muted-foreground)]"}`} />
-          异常
-        </button>
         <SelectPicker
           className="mb-0 flex-1"
           title="按状态筛选"
