@@ -585,16 +585,6 @@ export default function LedgerPage() {
       <BottomSheet open={!!activeItem} onClose={() => setActiveItem(null)} title={<span className="line-clamp-2">{activeItem?.projectName ?? ""}</span>}>
         {activeItem ? (
           <div className="space-y-3">
-            {activeItem.projectManagementId ? (
-              /* 台账↔进展互跳桥（2026-11-03）：直达该项目阶段时间线（projectManagementId 桥） */
-              <button
-                type="button"
-                onClick={() => router.push(`/progress?focusPmi=${activeItem.projectManagementId}`)}
-                className="neu-btn-soft h-9 w-full rounded-[10px] px-3 text-[14px] active:scale-95"
-              >
-                <TrendingUp size={13} /> 查看进展
-              </button>
-            ) : null}
             <div className="flex flex-wrap items-center gap-1.5">
               <span
                 className="rounded-full px-2 py-0.5 text-[13px] font-bold"
@@ -616,6 +606,7 @@ export default function LedgerPage() {
               ) : null}
             </div>
 
+            {/* ── 金额（2×2 指标卡）── */}
             <div className="grid grid-cols-2 gap-2">
               <MetricCard label="预算金额" value={fmtAmount(activeItem.budgetAmount)} />
               <MetricCard label="中标金额" value={activeItem.awardAmount != null && activeItem.awardAmount !== "" ? fmtAmount(activeItem.awardAmount) : "—"} tone="success" />
@@ -623,24 +614,48 @@ export default function LedgerPage() {
               {activeItem.contractAmount != null ? <MetricCard label="合同金额" value={fmtAmount(activeItem.contractAmount)} tone="accent" /> : null}
             </div>
 
-            <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[15px]">
-              <DetailRow label="项目编号" value={activeItem.projectCode} />
-              <DetailRow label="采购轮次" value={`第 ${activeItem.roundNo} 轮`} />
-              {activeItem.purchaserName ? <DetailRow label="采购单位" value={activeItem.purchaserName} /> : null}
-              <DetailRow label="采购部门" value={activeItem.departmentName} />
-              <DetailRow label="采购日期" value={activeItem.procurementDate ?? "—"} />
-              {activeItem.initiationDate ? <DetailRow label="立项日期" value={activeItem.initiationDate} /> : null}
-              {activeItem.awardedSupplierName ? <DetailRow label="中标供应商" value={activeItem.awardedSupplierName} tone="accent" /> : null}
-              {activeItem.expertInfo ? <DetailRow label="评审专家" value={activeItem.expertInfo} /> : null}
-              {activeItem.biddingUnits ? <DetailRow label="投标单位" value={activeItem.biddingUnits} /> : null}
-              {activeItem.contractNumber ? <DetailRow label="合同编号" value={activeItem.contractNumber} /> : null}
-              {activeItem.archivedAt ? <DetailRow label="归档时间" value={activeItem.archivedAt.slice(0, 10)} /> : null}
-              {activeItem.terminationReason ? <DetailRow label="终止原因" value={activeItem.terminationReason} tone="danger" /> : null}
-              <DetailRow label="数据来源" value={SOURCE_LABELS[activeItem.sourceType] ?? activeItem.sourceType} />
-              {/* 采购人=PMI 需求提出人、经办人=轮次创建人（2026-11-19 九板块页面化裁定字段） */}
-              {activeItem.requesterName ? <DetailRow label="采购人" value={activeItem.requesterName} /> : null}
-              {activeItem.createdByName ? <DetailRow label="经办人" value={activeItem.createdByName} /> : null}
-            </div>
+            {/* ── 台账详情分组（2026-11-19 用户裁定：参考 :3005 重组，撤 15 行平铺）── */}
+            {(() => {
+              const group = (caption: string, rows: React.ReactNode[]) =>
+                rows.length ? (
+                  <div>
+                    <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">{caption}</div>
+                    <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[15px]">{rows}</div>
+                  </div>
+                ) : null;
+              return (
+                <>
+                  {group("基本信息", [
+                    <DetailRow key="c" label="项目编号" value={activeItem.projectCode} />,
+                    <DetailRow key="r" label="采购轮次" value={`第 ${activeItem.roundNo} 轮`} />,
+                    activeItem.purchaserName ? <DetailRow key="u" label="采购单位" value={activeItem.purchaserName} /> : null,
+                    <DetailRow key="d" label="采购部门" value={activeItem.departmentName} />,
+                    <DetailRow key="pd" label="采购日期" value={activeItem.procurementDate ?? "—"} />,
+                    activeItem.initiationDate ? <DetailRow key="id" label="立项日期" value={activeItem.initiationDate} /> : null,
+                  ])}
+                  {group(activeItem.resultStatus === "AWARDED" ? "成交与签约" : "评审信息", [
+                    activeItem.awardedSupplierName ? <DetailRow key="s" label="中标供应商" value={activeItem.awardedSupplierName} tone="accent" /> : null,
+                    activeItem.expertInfo ? <DetailRow key="e" label="评审专家" value={activeItem.expertInfo} /> : null,
+                    activeItem.biddingUnits ? <DetailRow key="b" label="投标单位" value={activeItem.biddingUnits} /> : null,
+                    activeItem.contractNumber ? <DetailRow key="n" label="合同编号" value={activeItem.contractNumber} /> : null,
+                    activeItem.archivedAt ? <DetailRow key="a" label="归档时间" value={activeItem.archivedAt.slice(0, 10)} /> : null,
+                  ])}
+                  {group("经办信息", [
+                    activeItem.requesterName ? <DetailRow key="rq" label="采购人" value={activeItem.requesterName} /> : null,
+                    activeItem.createdByName ? <DetailRow key="cb" label="经办人" value={activeItem.createdByName} /> : null,
+                    <DetailRow key="src" label="数据来源" value={SOURCE_LABELS[activeItem.sourceType] ?? activeItem.sourceType} />,
+                  ])}
+                  {activeItem.terminationReason ? (
+                    <div>
+                      <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">终止信息</div>
+                      <div className="rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_5%,transparent)] px-3 py-2.5 text-[15px] text-[var(--foreground)]">
+                        {activeItem.terminationReason}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
 
             {activeItem.supplierNames.length ? (
               <div>
@@ -653,6 +668,17 @@ export default function LedgerPage() {
                   ))}
                 </div>
               </div>
+            ) : null}
+
+            {/* 台账↔进展互跳桥（2026-11-03）：底部主操作位 */}
+            {activeItem.projectManagementId ? (
+              <button
+                type="button"
+                onClick={() => router.push(`/progress?focusPmi=${activeItem.projectManagementId}`)}
+                className="neu-btn-primary h-11 w-full rounded-[12px] text-[15px] active:scale-[0.99]"
+              >
+                <TrendingUp size={14} /> 查看进展
+              </button>
             ) : null}
           </div>
         ) : null}
