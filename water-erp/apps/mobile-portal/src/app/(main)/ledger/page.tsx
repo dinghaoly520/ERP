@@ -399,19 +399,21 @@ export default function LedgerPage() {
                   {item.resultStatusLabel}
                 </span>
               </div>
-              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-[var(--muted-foreground)]">
-                <span className="tabular-nums">{item.projectCode || "—"}</span>
-                <span className="min-w-0 truncate">{item.purchaserName || "—"} · {item.departmentName || "—"}</span>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px]">
+                <span className="font-semibold tabular-nums text-[var(--accent)]">{item.projectCode || "—"}</span>
+                <span className="min-w-0 truncate text-[var(--muted-foreground)]">{item.purchaserName || "—"} · {item.departmentName || "—"}</span>
               </div>
+              {/* 字段配色（2026-11-19 用户裁定：鲜艳且搭配均匀）——方式=金、预算=墨、
+                  成交=绿、节资率=红（与驾驶舱裁定一致）；缺值恒灰 */}
               <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-t border-[color-mix(in_oklch,var(--border)_45%,transparent)] pt-2 text-[14px] text-[var(--muted-foreground)]">
-                <span>{item.procurementMethod}</span>
+                <span className="font-semibold text-[var(--gold)]">{item.procurementMethod}</span>
                 <span className="tabular-nums">预算 <b className="font-semibold text-[var(--foreground)]">{fmtAmount(item.budgetAmount)}</b></span>
-                <span className="tabular-nums">成交 <b className="font-semibold text-[var(--foreground)]">{award > 0 ? fmtAmount(item.awardAmount) : "—"}</b></span>
-                <span className="tabular-nums">节资率 <b className="font-semibold text-[var(--foreground)]">{rate}</b></span>
+                <span className="tabular-nums">成交 <b className={`font-semibold tabular-nums ${award > 0 ? "text-[var(--success)]" : ""}`}>{award > 0 ? fmtAmount(item.awardAmount) : "—"}</b></span>
+                <span className="tabular-nums">节资率 <b className={`font-semibold tabular-nums ${rate !== "—" ? "text-[var(--danger)]" : ""}`}>{rate}</b></span>
               </div>
               <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-[var(--muted-foreground)]">
-                <span>采购人 {item.requesterName ?? "—"}</span>
-                <span>经办人 {item.createdByName ?? "—"}</span>
+                <span>采购人 <span className="font-medium text-[var(--foreground)]">{item.requesterName ?? "—"}</span></span>
+                <span>经办人 <span className="font-medium text-[var(--foreground)]">{item.createdByName ?? "—"}</span></span>
               </div>
             </button>
           );
