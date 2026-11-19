@@ -85,9 +85,12 @@ const ANALYSIS_TILES: Array<{
 ];
 
 /* 数据总览口径档（2026-11-19 用户裁定：卡片头「本年 · 全部公司」改下拉选择器）：
- * 默认本年·全部公司；「全部」=不限时段。首排项目盘点是当前状态快照，仅随公司口径。 */
-type RangeKey = "month" | "quarter" | "year" | "all";
-const RANGES: Record<RangeKey, { label: string; start: () => string | undefined }> = {
+ * 默认本年·全部公司；「全部」=不限时段；「自定义」=用户起止日期。首排项目盘点是
+ * 当前状态快照，仅随公司口径。 */
+type PresetKey = "day" | "month" | "quarter" | "year" | "all";
+type RangeKey = PresetKey | "custom";
+const RANGES: Record<PresetKey, { label: string; start: () => string | undefined }> = {
+  day: { label: "本日", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; } },
   month: { label: "本月", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`; } },
   quarter: { label: "本季", start: () => { const d = new Date(); return `${d.getFullYear()}-${String(Math.floor(d.getMonth() / 3) * 3 + 1).padStart(2, "0")}-01`; } },
   year: { label: "本年", start: () => `${new Date().getFullYear()}-01-01` },
@@ -260,6 +263,7 @@ export default function DashboardPage() {
      不合并不弹层）：公司选择 admin 专属（:3011 leader/staff 恒总数据无效不展示），
      名单进页即取 */
   const [rangeKey, setRangeKey] = useState<RangeKey>("year");
+  const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
   const [companyIds, setCompanyIds] = useState<string[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[] | null>(null);
   useEffect(() => {
@@ -341,8 +345,11 @@ export default function DashboardPage() {
   }
 
   const queryRange = useMemo<{ startDate?: string; endDate?: string }>(
-    () => ({ startDate: RANGES[rangeKey].start() }),
-    [rangeKey],
+    () =>
+      rangeKey === "custom"
+        ? { startDate: customRange?.from, endDate: customRange?.to }
+        : { startDate: RANGES[rangeKey].start() },
+    [rangeKey, customRange],
   );
 
   // 今日关注条（一行事实句，随口径选择器/重试变化重取——区间对齐 2026-11-03：
@@ -355,8 +362,8 @@ export default function DashboardPage() {
     fetchMobileBrief(companyIds.length ? companyIds.join(",") : undefined, {
       startDate: queryRange.startDate,
       endDate: queryRange.endDate,
-      /* 快捷档显式携带语义（「全部」档不传——评审 F10） */
-      rangeKey: rangeKey === "all" ? undefined : rangeKey,
+      /* 快捷档显式携带语义（「本日/全部」不在 F10 契约三档内，不传 rangeKey 只传日期） */
+      rangeKey: rangeKey === "month" || rangeKey === "quarter" || rangeKey === "year" ? rangeKey : undefined,
     })
       .then((b) => { if (active) setBrief(b); })
       .catch(() => { if (active) setBrief({ available: false }); });
@@ -494,12 +501,17 @@ export default function DashboardPage() {
           right={
             <>
               <InlineSelect
-                label={RANGES[rangeKey].label}
+                label={rangeKey === "custom" && customRange ? `${customRange.from.slice(5).replace("-", "/")}~${customRange.to.slice(5).replace("-", "/")}` : RANGES[rangeKey as PresetKey].label}
                 active={rangeKey !== "year"}
-                options={(Object.keys(RANGES) as RangeKey[]).map((k) => ({ value: k, label: RANGES[k].label }))}
+                options={(Object.keys(RANGES) as PresetKey[]).map((k) => ({ value: k, label: RANGES[k].label }))}
                 selected={[rangeKey]}
                 onSelect={(next) => setRangeKey(next[0] as RangeKey)}
-                ariaLabel={`数据区间：${RANGES[rangeKey].label}`}
+                onCustomApply={(from, to) => {
+                  setCustomRange({ from, to });
+                  setRangeKey("custom");
+                }}
+                customValue={customRange}
+                ariaLabel="数据区间"
               />
               {role === "admin" ? (
                 <InlineSelect
