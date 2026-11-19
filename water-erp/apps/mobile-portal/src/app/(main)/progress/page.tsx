@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp  } from "lucide-react";
+import { PageHeader } from "@/components/m/page-header";
+import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp   } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -246,23 +247,7 @@ export default function ProgressPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
       {/* 页头（2026-11-19 九板块页面化）：返回驾驶舱 + 页面名称 */}
-      <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
-        <button
-          type="button"
-          onClick={() => router.push("/dashboard")}
-          aria-label="返回驾驶舱"
-          className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
-        >
-          <ArrowLeft size={15} />
-        </button>
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
-          style={{ background: "color-mix(in oklch, var(--accent) 12%, transparent)", color: "var(--accent)" }}
-        >
-          <TrendingUp size={16} strokeWidth={1.5} />
-        </span>
-        <span className="text-[17px] font-bold tracking-[-0.02em] text-[var(--foreground)]">项目进展</span>
-      </div>
+      <PageHeader title="项目进展" icon={TrendingUp} />
       {role === "admin" ? (
         <CompanyPicker
           value={companyIds}

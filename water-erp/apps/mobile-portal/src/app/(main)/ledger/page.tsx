@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, AlertTriangle, ClipboardList, Loader2, Search, TrendingUp  } from "lucide-react";
+import { PageHeader } from "@/components/m/page-header";
+import { AlertTriangle, ClipboardList, Loader2, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -252,24 +253,7 @@ export default function LedgerPage() {
   return (
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
-      {/* 页头（2026-11-19 九板块页面化）：返回驾驶舱 + 页面名称 */}
-      <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
-        <button
-          type="button"
-          onClick={() => router.push("/dashboard")}
-          aria-label="返回驾驶舱"
-          className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
-        >
-          <ArrowLeft size={15} />
-        </button>
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
-          style={{ background: "color-mix(in oklch, var(--accent) 12%, transparent)", color: "var(--accent)" }}
-        >
-          <ClipboardList size={16} strokeWidth={1.5} />
-        </span>
-        <span className="text-[17px] font-bold tracking-[-0.02em] text-[var(--foreground)]">台账明细</span>
-      </div>
+      <PageHeader title="台账明细" icon={ClipboardList} />
       {/* ── 汇总条 ── */}
       {stats ? (
         <div className="neu-card-static mb-3 rounded-[16px] p-3">
