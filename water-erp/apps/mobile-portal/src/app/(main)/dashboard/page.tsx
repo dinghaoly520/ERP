@@ -783,19 +783,6 @@ export default function DashboardPage() {
           {bidRows && bidRows.length === 0 ? (
             <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">该阶段暂无项目</div>
           ) : null}
-          {/* 告警计数（2026-11-19 v3 全景裁定并入）：风险项目随区间筛选，资质临期/专家过载不随 */}
-          <div className="mt-2 flex items-center justify-between gap-2 border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-2 text-[13px]">
-            {[
-              { label: "风险项目", n: data?.riskProjects?.length ?? null },
-              { label: "资质临期", n: alerts?.expiringQualifications ?? null },
-              { label: "专家过载", n: alerts?.overloadedExperts ?? null },
-            ].map((a) => (
-              <span key={a.label} className="min-w-0 truncate text-[var(--muted-foreground)]">
-                {a.label}{" "}
-                <b className={`tabular-nums ${a.n ? "text-[var(--warning)]" : "text-[var(--foreground)]"}`}>{a.n ?? "—"}</b>
-              </span>
-            ))}
-          </div>
         </div>
       </SectionCard>
 
