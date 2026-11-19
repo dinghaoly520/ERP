@@ -1,19 +1,20 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { useTenderReview } from './tender-review-context';
 import { useReviewOps } from './use-tender-review';
 import RulesPanelCompact from './rules-panel-compact';
 import ReportsPanelCompact from './reports-panel-compact';
 import FilesPanelCompact from './files-panel-compact';
 import KbManagerPanel from './kb-manager-panel';
-import { SearchSelect } from '@/components/workbench/search-select';
 import {
   FileText,
   Upload,
   Loader2,
   Play,
   Shield,
+  Database,
 } from 'lucide-react';
 import type { ReviewMode, KnowledgeBase } from '@/lib/types/tender-review';
 
@@ -24,8 +25,8 @@ const MODE_LABELS: Record<ReviewMode, string> = {
   general: '通用审查',
 };
 const MODE_DESCRIPTIONS: Record<ReviewMode, string> = {
-  strict: '逐条比对知识库中的合规规则，输出逐项合规结论——适合制度性硬约束核查。',
-  general: '语义检索结合大模型整体研判，无需预置规则——适合规则尚未成库的文档审查。',
+  strict: '逐条比对知识库中的合规规则，输出逐项合规结论，适合制度性硬约束核查',
+  general: '语义检索定位相关内容，大模型整体研判，适合整份文档的快速审查',
 };
 
 function fmtFileSize(bytes: number): string {
@@ -81,7 +82,7 @@ export default function ReviewWorkspaceContent() {
   return (
     <div className="wb-panel rounded-[24px] tender-section-enter h-full flex flex-col overflow-hidden">
       {/* Content area */}
-      <div className="flex-1 flex flex-col min-h-0 p-3">
+      <div className="flex-1 flex flex-col min-h-0 p-4">
         {activeTab === 'review' && (
           <div className="flex-1 overflow-y-auto">
             <ReviewTab
@@ -164,12 +165,7 @@ function StepHead({ num, title, done, chip }: { num: string; title: string; done
 
 function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, executing, execUpPct, handleExecute, fileInputRef }: ReviewTabProps) {
   const { knowledgeBases, setSelectedKbId } = useTenderReview();
-
-  const kbOptions = knowledgeBases.map((kb) => ({
-    value: kb.id,
-    label: kb.name,
-    meta: `${kb._count.files} 文件 · ${kb._count.rules} 规则`,
-  }));
+  const [showKbDropdown, setShowKbDropdown] = useState(false);
 
   const modeSegDisabled = !selectedKbId;
   const summaryParts = [
@@ -187,55 +183,110 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
   ];
 
   return (
-    <div className="py-1">
-      {/* 三步流程分栏（2026-11-18 用户裁定方案 A）：01/02/03 步骤 + hairline 三列，
-          宽屏全宽铺开；<lg 退化为纵向堆叠（横 hairline 分隔） */}
-      <div className="flex flex-col gap-5 lg:flex-row lg:gap-0">
+    <div className="py-3">
+      {/* 三步流程上下叠（2026-11-18 用户裁定：纵向三行，弃横向三列）：
+          步骤头一行 + 控件行，步骤间 hairline 分隔；控件宽度约束——
+          选择器 520 / segment 300 / 拖放区全宽 */}
+      <div className="flex flex-col gap-6">
         {/* 步骤 01 选择知识库 */}
-        <div className="flex flex-1 flex-col gap-3 lg:pr-6">
+        <div className="flex flex-col gap-3">
           <StepHead num="01" title="选择知识库" done={!!selectedKb} chip={selectedKb ? '✓ 已选' : '待选择'} />
-          <SearchSelect
-            options={kbOptions}
-            value={selectedKbId ?? ''}
-            onPick={(o) => setSelectedKbId(o.value)}
-            placeholder="选择知识库"
-            emptyText="暂无知识库，可在右侧新建"
-          />
-          {selectedKb && (
-            <div className="pl-0.5 text-[11px] tabular-nums tracking-[0.02em] text-[color:var(--muted-foreground)]">
-              {selectedKb._count.files} 文件 · {selectedKb._count.rules} 规则
+          <div className="mx-auto flex w-full max-w-[380px] flex-col gap-2.5">
+            {/* 知识库选择器——2026-11-18 用户裁定恢复改造前原组件形态
+                （neu-tile 触发器 + neu-pop 下拉；计数内嵌触发器）。
+                gap 比步骤02大 4px：补偿 neu-tile 下缘软投影对视觉间距的压缩 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowKbDropdown(!showKbDropdown)}
+                className="neu-tile is-interactive w-full flex items-center justify-center gap-3 p-3 min-h-[60px] transition-[transform,box-shadow] disabled:pointer-events-none"
+              >
+                <Database className="h-5 w-5 text-[var(--accent)]" />
+                {selectedKb ? (
+                  <div className="text-left">
+                    <div className="text-sm font-medium text-[var(--foreground)]">{selectedKb.name}</div>
+                    <div className="text-[11px] tabular-nums tracking-[0.02em] text-[var(--muted-foreground)]">
+                      {selectedKb._count.files} 文件 · {selectedKb._count.rules} 规则
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-sm text-[var(--muted-foreground)]">点击选择知识库</span>
+                )}
+              </button>
+
+              {showKbDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="neu-pop absolute top-full left-0 right-0 mt-1.5 z-10 rounded-[14px] overflow-hidden"
+                >
+                  {knowledgeBases.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-[var(--muted-foreground)]">
+                      暂无知识库，可在右上「知识库」新建
+                    </div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto">
+                      {knowledgeBases.map((kb) => (
+                        <button
+                          key={kb.id}
+                          onClick={() => {
+                            setSelectedKbId(kb.id);
+                            setShowKbDropdown(false);
+                          }}
+                          className={`w-full flex items-center gap-3 p-3 text-left transition-colors ${
+                            selectedKbId === kb.id
+                              ? 'bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]'
+                              : 'hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]'
+                          }`}
+                        >
+                          <Database className={`h-4 w-4 ${selectedKbId === kb.id ? 'text-[var(--accent)]' : 'text-[var(--muted-foreground)]'}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className={`text-sm truncate ${selectedKbId === kb.id ? 'text-[var(--accent)] font-medium' : 'text-[var(--foreground)]'}`}>
+                              {kb.name}
+                            </div>
+                            <div className="text-[11px] tabular-nums tracking-[0.02em] text-[var(--muted-foreground)]">
+                              {kb._count.files} 文件 · {kb._count.rules} 规则
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
             </div>
-          )}
-          <p className="text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-            审查将比对所选知识库中的制度文件与合规规则
-          </p>
+            <span className="text-center text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+              审查将比对所选知识库中的制度文件与合规规则
+            </span>
+          </div>
         </div>
 
         {/* 步骤 02 审查模式 */}
-        <div className="flex flex-1 flex-col gap-3 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:px-6" style={{ borderColor: HAIRLINE }}>
-          <StepHead num="02" title="审查模式" done chip={`✓ ${MODE_LABELS[mode]}`} />
-          <div
-            className={`neu-segment ${modeSegDisabled ? 'pointer-events-none opacity-40' : ''}`}
-            role="group"
-            aria-label="审查模式"
-            data-index={mode === 'strict' ? '0' : '1'}
-            style={{ '--segs': 2 } as React.CSSProperties}
-          >
-            <span className="neu-segment-thumb" aria-hidden="true" />
-            <button type="button" className="neu-segment-btn" aria-pressed={mode === 'strict'} onClick={() => setMode('strict')}>
-              严格审查
-            </button>
-            <button type="button" className="neu-segment-btn" aria-pressed={mode === 'general'} onClick={() => setMode('general')}>
-              通用审查
-            </button>
+        <div className="flex flex-col gap-3 border-t pt-5" style={{ borderColor: HAIRLINE }}>
+          <StepHead num="02" title="设置审查模式" done={!!selectedKbId} chip={selectedKbId ? `✓ ${MODE_LABELS[mode]}` : '待选择'} />
+          <div className="mx-auto flex w-full max-w-[380px] flex-col gap-1.5">
+            <div
+              className={`neu-segment h-[60px] w-full ${modeSegDisabled ? 'pointer-events-none opacity-40' : ''}`}
+              role="group"
+              aria-label="审查模式"
+              data-index={mode === 'strict' ? '1' : '0'}
+              style={{ '--segs': 2 } as React.CSSProperties}
+            >
+              <span className="neu-segment-thumb" aria-hidden="true" />
+              <button type="button" className="neu-segment-btn" aria-pressed={mode === 'general'} onClick={() => setMode('general')}>
+                通用审查
+              </button>
+              <button type="button" className="neu-segment-btn" aria-pressed={mode === 'strict'} onClick={() => setMode('strict')}>
+                严格审查
+              </button>
+            </div>
+            <span className="text-center text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
+              {MODE_DESCRIPTIONS[mode]}
+            </span>
           </div>
-          <p className="text-[11px] leading-relaxed text-[color:var(--muted-foreground)]">
-            {MODE_DESCRIPTIONS[mode]}
-          </p>
         </div>
 
         {/* 步骤 03 上传待审文件 */}
-        <div className="flex flex-1 flex-col gap-3 border-t pt-4 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6" style={{ borderColor: HAIRLINE }}>
+        <div className="flex flex-col gap-3 border-t pt-5" style={{ borderColor: HAIRLINE }}>
           <StepHead num="03" title="上传待审文件" done={!!file} chip={file ? '✓ 已上传' : '待上传'} />
           <input
             ref={fileInputRef}
@@ -272,7 +323,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
                 if (f) setFile(f);
               }}
               disabled={!selectedKbId}
-              className="neu-drop-zone min-h-[118px] w-full gap-1.5 disabled:pointer-events-none disabled:opacity-40"
+              className="neu-drop-zone min-h-[96px] w-full gap-1.5 disabled:pointer-events-none disabled:opacity-40"
             >
               <Upload className="h-[18px] w-[18px] text-[color:var(--accent)]" strokeWidth={1.7} />
               <span className="text-[13px] font-semibold text-[color:var(--foreground)]">点击或拖拽上传待审文件</span>
@@ -283,7 +334,7 @@ function ReviewTab({ selectedKb, selectedKbId, mode, setMode, file, setFile, exe
       </div>
 
       {/* 底部执行条：hairline 之隔，左摘要右按钮（tender-write 编辑器头部同款语法） */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3.5" style={{ borderColor: HAIRLINE }}>
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t pt-4" style={{ borderColor: HAIRLINE }}>
         <div className="text-xs leading-relaxed text-[color:var(--muted-foreground)]">
           {summaryParts.map((part, i) => (
             <span key={i}>

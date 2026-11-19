@@ -1,31 +1,22 @@
 'use client';
 
 import { motion, useReducedMotion } from 'framer-motion';
-import { FileSearch, FileText, Database, Loader2 } from 'lucide-react';
+import { FileSearch, FileText, Database } from 'lucide-react';
 import { TenderReviewProvider } from '@/components/tender-review/tender-review-provider';
 import { useTenderReview } from '@/components/tender-review/use-tender-review';
 import TenderReviewWorkspace from '@/components/tender-review/tender-review-workspace';
 
 const easeOutQuint: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-/** hero 右侧统计徽标（需在 Provider 内取 context，故拆为子组件） */
-import { StatusBadge } from '@/components/workbench';
+/** hero 右侧统计徽标已删（2026-11-19 用户裁定）：「进行中 N」胶囊移除——
+ *  底部 TaskQueueBar 已有更齐全的进行中任务展示。 */
 import ReportContextBar from '@/components/tender-review/report-context-bar';
 
-function HeroStats() {
-  const { runningTasks } = useTenderReview();
-  if (runningTasks.length === 0) return null;
-  return (
-    <StatusBadge tone="blue"><Loader2 size={11} className="animate-spin" />进行中 {runningTasks.length}</StatusBadge>
-  );
-}
-
-/** hero 右区（2026-11-18）：进行中徽标 + 视图按钮组——报告详情打开时保持不变，
+/** hero 右区（2026-11-18）：视图按钮组——报告详情打开时保持不变，
  *  上下文条改挂 hero 第二行（HeroContextRow）。 */
 function HeroRight() {
   return (
     <div className="page-hero__right">
-      <HeroStats />
       <HeroTabButtons />
     </div>
   );
@@ -91,7 +82,7 @@ export default function TenderReviewPage() {
   return (
     <TenderReviewProvider>
       <motion.div {...fadeIn(0)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="page-hero mb-4 !rounded-[16px] shrink-0">
+        <div className="page-hero mb-5 !rounded-[16px] shrink-0">
           <div className="page-hero__row">
             <div className="page-hero__left">
               <div className="page-hero__icon">
