@@ -153,7 +153,8 @@ it('search：availability="空闲" → 按派生四态后过滤（DB 侧不再�
   const where = prisma.expertProfile.findMany.mock.calls[0][0].where;
   expect(where).not.toHaveProperty('availability'); // DB 侧弃镜像过滤
   const card = (r.cards as Array<Record<string, unknown>>)[0];
-  expect(card.title).toBe('符合条件的专家（1 名）');
+  // b 修复：带状态过滤的标题明示「前 N 名」（放大窗内幸存数，非全库匹配总数）
+  expect(card.title).toBe('符合条件且当前空闲的专家（前 1 名）');
   const rows = card.rows as Array<Record<string, string>>;
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ name: '王五', state: '空闲' });
@@ -187,4 +188,11 @@ it('description：教 LLM 填派生语义「空闲」——不再引导查镜像
   const { tool } = makeTool();
   expect(tool.description).toContain('空闲');
   expect(tool.description).not.toContain('可用状态填');
+});
+
+it('search：limit>60 带状态过滤 → take 不被 60 硬顶（a 修复：min(limit*3, max(60,limit))——旧行为给不满要求数）', async () => {
+  const { prisma, tool } = makeTool();
+  prisma.expertProfile.findMany.mockResolvedValue([]);
+  await tool.execute({ action: 'search', availability: '空闲', limit: 80 }, ADMIN);
+  expect(prisma.expertProfile.findMany.mock.calls[0][0].take).toBe(80);
 });

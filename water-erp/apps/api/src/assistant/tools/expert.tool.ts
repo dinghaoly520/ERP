@@ -40,8 +40,9 @@ export class ExpertTool implements AssistantTool {
       if (kw) userWhere.displayName = { contains: kw };
       if (Object.keys(userWhere).length > 0) where.user = userWhere;
       const experts = await this.prisma.expertProfile.findMany({
-        // 派生态为行级后过滤：take 放大补偿截断（过滤后仍截 limit 呈现）
-        where, take: stateFilter ? Math.min(limit * 3, 60) : limit, orderBy: { createdAt: 'desc' },
+        // 派生态为行级后过滤：take 放大补偿截断（过滤后仍截 limit 呈现）——下限 max(60,limit)
+        // 保证 LLM 要 limit>60 时给得满（a 修复：旧 min(...,60) 硬顶给不满）
+        where, take: stateFilter ? Math.min(limit * 3, Math.max(60, limit)) : limit, orderBy: { createdAt: 'desc' },
         select: {
           id: true, specialty: true, title: true,
           employer: true,
@@ -59,11 +60,16 @@ export class ExpertTool implements AssistantTool {
       });
       const enriched = experts.map((e) => ({ e, state: busyStateOf(e.user?.bidExperts ?? []) }));
       const shown = (stateFilter ? enriched.filter((x) => x.state === stateFilter) : enriched).slice(0, limit);
+      // b 修复：带状态过滤时 N 是放大 take 窗内幸存数、非全库匹配总数——标题明示「前 N 名」，
+      // 防 LLM 据此断言「全库只有 N 名空闲」
+      const cardTitle = stateFilter
+        ? `符合条件且当前${stateFilter}的专家（前 ${shown.length} 名）`
+        : `符合条件的专家（${shown.length} 名）`;
       return {
         success: true,
         cards: [{
           type: 'table',
-          title: `符合条件的专家（${shown.length} 名）`,
+          title: cardTitle,
           columns: [
             { key: 'name', label: '姓名' },
             { key: 'specialty', label: '专业' },
