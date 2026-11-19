@@ -659,20 +659,48 @@ export default function LedgerPage() {
               </div>
             </div>
 
-            {/* 关键指标（:3005 同五项；extractedInfo 优先，回退列表字段） */}
+            {/* 关键指标（:3005 同序五行：中标单位/预算/合同/节约/节资率） */}
             <div className="grid grid-cols-2 gap-2">
               <MetricCard label="中标单位" value={archiveDetail.extractedInfo["中标单位"] || activeItem.awardedSupplierName || "-"} />
               <MetricCard label="预算金额" value={fmtAmount(activeItem.budgetAmount)} />
               <MetricCard label="合同金额" value={archiveDetail.extractedInfo["合同金额"] && archiveDetail.extractedInfo["合同金额"] !== "-" ? archiveDetail.extractedInfo["合同金额"] : fmtAmount(activeItem.contractAmount)} tone="accent" />
-              <MetricCard label="节约资金" value={archiveDetail.extractedInfo["节约资金"] ?? "-"} tone="success" />
+              <MetricCard label="节约资金" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? fmtAmount(b - a) : "-"; })()} tone="success" />
+              <MetricCard label="节资率" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? `${(((b - a) / b) * 100).toFixed(1)}%` : "-"; })()} tone="success" />
             </div>
 
-            {/* 基本信息（basicInfo 全量 2 列） */}
+            {/* 基本信息（:3005 同序固定清单，basicInfo ∪ extractedInfo 双源取值——
+                无内容恒显 "-"，2026-11-19 用户裁定：内容与台账高度一致） */}
             <div>
               <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">基本信息</div>
               <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[15px]">
-                {Object.entries(archiveDetail.basicInfo).map(([k, v]) => (
-                  <DetailRow key={k} label={k} value={v || "-"} />
+                {[
+                  "申请人",
+                  "申请部门",
+                  "采购方式",
+                  "采购类别",
+                  "所属项目",
+                  "项目编号",
+                  "合同编号",
+                  ...(archiveDetail.kind === "terminated"
+                    ? ["终止日期", "终止时所在阶段", "终止人"]
+                    : ["立项时间", "部门编号"]),
+                  "专家信息",
+                  "投标单位",
+                  "中标单位",
+                  "合同金额",
+                  "经办人",
+                  "申请立项事由",
+                  "对供方主要要求",
+                ].map((k) => (
+                  <DetailRow
+                    key={k}
+                    label={k}
+                    value={
+                      (k === "申请立项事由" || k === "对供方主要要求"
+                        ? archiveDetail.basicInfo[k] || archiveDetail.extractedInfo[k] || ""
+                        : archiveDetail.basicInfo[k] || archiveDetail.extractedInfo[k] || "") || "-"
+                    }
+                  />
                 ))}
               </div>
             </div>
