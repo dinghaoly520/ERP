@@ -4339,16 +4339,33 @@ export class BidService {
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
-      // 开标归档必须已完成移交（生成开标文件包），否则归档材料不完整
+      // 开标归档必须已完成移交（生成开标文件包），否则归档材料不完整。
+      // P1-1 例外（2026-11-19 三门户审查）：ABORTED（流标收尾）免移交闸——开标前流标项目
+      // 从未组建会话、completeOpening 又仅限 OPENING 态，移交包无生成路径 → 恒 409 死链
+      // （实库 3 例：DMGY-YQ-2026103007 / DMGY-TP-2026103003 / DMGY-TP-2026103004，
+      // :3005 AbortDialog 第二步必炸）。ARCHIVED 同免（曾以流标免闸归档的幂等重跑）。
       if (scope === 'opening') {
-        const session = await tx.bidOpeningSession.findUnique({
-          where: { projectId: id }, select: { handoverAssetId: true },
-        });
-        if (!session?.handoverAssetId) {
+        const [session, fresh] = await Promise.all([
+          tx.bidOpeningSession.findUnique({
+            where: { projectId: id }, select: { handoverAssetId: true },
+          }),
+          tx.bidProject.findUnique({ where: { id }, select: { stage: true, name: true } }),
+        ]);
+        const waiveHandover = !session?.handoverAssetId && (fresh?.stage === 'ABORTED' || fresh?.stage === 'ARCHIVED');
+        if (!session?.handoverAssetId && !waiveHandover) {
           throw new ConflictException({
             error: '请先执行「完成开标·资料移交」后再归档',
             code: 'OPENING_HANDOVER_REQUIRED',
           });
+        }
+        if (waiveHandover) {
+          await tx.bidSupervisionLog.create({
+            data: {
+              projectId: id, time: new Date(), role: '系统', target: fresh?.name ?? id,
+              action: '流标归档免移交', result: `项目阶段 ${fresh?.stage}，未生成开标文件包（开标前流标无会话/未完成移交）——按 P1-1 口径免闸归档`,
+              riskFlag: '中',
+            },
+          }).catch(() => undefined); // 留痕失败不阻断归档
         }
       }
       // 防止”跳过评标”归档：存在已确认的可评供应商但未生成评标结果时阻断
