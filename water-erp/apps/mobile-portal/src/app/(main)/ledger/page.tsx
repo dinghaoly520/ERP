@@ -68,7 +68,8 @@ export default function LedgerPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState<ResultStatusKey | null>(saved.statusFilter ?? null);
-  const [methodIds, setMethodIds] = useState<string[]>(saved.methodFilter ? [saved.methodFilter] : []);
+  /* 方式筛选不回放（2026-11-19 用户裁定：进入默认全部采购方式），仅会话内生效 */
+  const [methodIds, setMethodIds] = useState<string[]>([]);
   /* 时间档/部门/经办人筛选（2026-11-19 用户裁定：状态胶囊换时间，增部门+经办人，公司居右） */
   const [rangeKey, setRangeKey] = useState<RangeKey>("all");
   const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
@@ -287,7 +288,7 @@ export default function LedgerPage() {
 
   const persistLedger = useCallback(
     (patch: Partial<LedgerSavedFilters>) => {
-      saveFilters("ledger", { statusFilter, methodFilter: methodIds.join(",") || null, companyIds, ...patch });
+      saveFilters("ledger", { statusFilter, methodFilter: null, companyIds, ...patch });
     },
     [statusFilter, methodIds, companyIds],
   );
