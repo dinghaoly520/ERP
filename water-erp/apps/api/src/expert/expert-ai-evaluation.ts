@@ -122,7 +122,9 @@ export function buildEvaluationPrompt(f: ExpertEvaluationFacts): { system: strin
   // 呈现态括注（E5）：四态附枚举说明；池外态附语义框定（防 LLM 编造「待复用」之类）
   const stateNote: Record<string, string> = {
     已退库: '（已退出专家库，仅历史档案可陈述）',
-    已停用: '（不参与抽取，如临时需求方代表）',
+    // 不带举例（E5 评审低置信#1）：已停用人口混两路（临时代表建档+setAvailability 手工
+    // 停用如健康原因），举例会让 LLM 对手工停用者错向归因成「临时需求方代表」
+    已停用: '（不参与抽取）',
   };
   const stateSuffix = stateNote[f.lifecycleState] ?? '（四态：正在评标/已被抽取/候补待命/空闲）';
   lines.push(`【专家档案】${f.name}｜专业：${f.specialty}｜职称：${f.title ?? '未填'}｜学历：${f.education ?? '未填'}｜库内等级：${f.expertLevel ?? '未定'}｜当前状态：${f.lifecycleState}${stateSuffix}`);
