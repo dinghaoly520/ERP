@@ -520,7 +520,9 @@ export default function LedgerPage() {
               {activeItem.archivedAt ? <DetailRow label="归档时间" value={activeItem.archivedAt.slice(0, 10)} /> : null}
               {activeItem.terminationReason ? <DetailRow label="终止原因" value={activeItem.terminationReason} tone="danger" /> : null}
               <DetailRow label="数据来源" value={SOURCE_LABELS[activeItem.sourceType] ?? activeItem.sourceType} />
-              {activeItem.createdByName ? <DetailRow label="录入人" value={activeItem.createdByName} /> : null}
+              {/* 采购人=PMI 需求提出人、经办人=轮次创建人（2026-11-19 九板块页面化裁定字段） */}
+              {activeItem.requesterName ? <DetailRow label="采购人" value={activeItem.requesterName} /> : null}
+              {activeItem.createdByName ? <DetailRow label="经办人" value={activeItem.createdByName} /> : null}
             </div>
 
             {activeItem.supplierNames.length ? (

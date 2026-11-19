@@ -51,9 +51,6 @@ import {
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { fetchProcurements } from "@/lib/api/procurements";
-import type { ProcurementRoundItem } from "@/lib/types/procurement";
-import { fetchProgressStats, type ProgressStats } from "@/lib/api/progress";
 import { InlineSelect } from "@/components/m/inline-select";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -72,8 +69,8 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 /* 全部数据入口宫格（2026-11-19 v3 全景裁定）：导航双入口（台账/进展直跳路由）+
  * 七组分析弹层——用户自己决定看什么，不做策展取舍 */
-type AnalysisTileKey = "ledger" | "progress" | "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "experts";
-const ANALYSIS_TILES: Array<{
+export type AnalysisTileKey = "ledger" | "progress" | "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "experts";
+export const ANALYSIS_TILES: Array<{
   key: AnalysisTileKey;
   label: string;
   icon: typeof PieChart;
@@ -264,59 +261,10 @@ function ProjectRow({
   );
 }
 
-/* PMI 九阶段标签（进展窗口；与后端 progress.service STAGE_LABELS 同 canon） */
-const PMI_STAGE_LABEL: Record<string, string> = {
-  PROCUREMENT_DEMAND: "采购需求",
-  INITIATION: "采购立项",
-  TENDER_DOCUMENT: "采购文件",
-  SUPPLIER_INVITATION: "供应商邀请",
-  PUBLIC_ANNOUNCEMENT: "采购公告公示",
-  EXPERT_SELECTION: "专家抽取",
-  BID_EVALUATION: "开标评标",
-  AWARD_DECISION: "定标",
-  CONTRACT: "合同",
-  DIRECT_PURCHASE_FILING: "直接采购备案表",
-};
+/* ── 驾驶舱主组件（2026-11-19 九板块页面化）：双模式——无 panel=首页全景；
+ *  有 panel=单板块页面体（/analysis/[key] 页面套壳复用本组件）── */
 
-/** 元→万 短格式（台账窗口卡） */
-const wanOf = (v: number) => (v > 0 ? (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : `${v.toFixed(0)}元`) : "—");
-
-/** 台账明细窗口卡（2026-11-19 九模块窗口裁定）：项目名称/编号、公司·部门、方式、
- *  预算·成交·节资率、采购人（PMI 需求提出人）、经办人（轮次创建人） */
-function LedgerWindowCard({ r }: { r: ProcurementRoundItem }) {
-  const budget = Number(r.budgetAmount ?? 0);
-  const award = Number(r.awardAmount ?? 0);
-  const rate = budget > 0 && award > 0 && budget >= award ? `${(((budget - award) / budget) * 100).toFixed(1)}%` : "—";
-  return (
-    <div className="rounded-[12px] m-tile px-3 py-2.5">
-      <div className="flex items-start gap-2">
-        <span className="shrink-0 pt-0.5 text-[12px] tabular-nums text-[var(--muted-foreground)]">
-          {(r.procurementDate ?? r.createdAt.slice(0, 10))?.slice(5)}
-        </span>
-        <span className="min-w-0 flex-1 line-clamp-2 text-[15px] font-semibold leading-snug text-[var(--foreground)]">{r.projectName}</span>
-        <span className={`shrink-0 pt-0.5 text-[12px] ${statusColor(r.resultStatusLabel)}`}>{r.resultStatusLabel}</span>
-      </div>
-      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-[var(--muted-foreground)]">
-        <span className="tabular-nums">{r.projectCode}</span>
-        <span className="min-w-0 truncate">{r.purchaserName || "—"} · {r.departmentName || "—"}</span>
-      </div>
-      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[13px] text-[var(--muted-foreground)]">
-        <span>{r.procurementMethod}</span>
-        <span className="tabular-nums">预算 <b className="text-[var(--foreground)]">{wanOf(budget)}</b></span>
-        <span className="tabular-nums">成交 <b className="text-[var(--foreground)]">{wanOf(award)}</b></span>
-        <span className="tabular-nums">节资率 <b className="text-[var(--foreground)]">{rate}</b></span>
-      </div>
-      <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-[var(--muted-foreground)]">
-        <span>采购人 {r.requesterName ?? "—"}</span>
-        <span>经办人 {r.createdByName ?? "—"}</span>
-      </div>
-    </div>
-  );
-}
-
-/* ── 主页面 ── */
-
-export default function DashboardPage() {
+export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   const { user } = useAuth();
   const router = useRouter();
   const role = user?.role ?? null;
@@ -328,8 +276,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
-  /* 分析中心开层目标（null=关） */
-  const [analysisOpen, setAnalysisOpen] = useState<AnalysisTileKey | null>(null);
+  /* 分析中心开层目标（null=关）；页面模式（panel）恒定为目标板块 */
+  const [manualOpen, setManualOpen] = useState<AnalysisTileKey | null>(null);
+  const analysisOpen: AnalysisTileKey | null = panel ?? manualOpen;
 
   // 各下钻弹层
   const [activeTrend, setActiveTrend] = useState<DashboardData["trendSeries"][number] | null>(null);
@@ -371,39 +320,6 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [role]);
 
-  /* 台账明细窗口（2026-11-19 九模块窗口裁定）：全量台账按时间分页罗列，开层懒取 */
-  const [ledgerWinItems, setLedgerWinItems] = useState<ProcurementRoundItem[] | null>(null);
-  const [ledgerWinPage, setLedgerWinPage] = useState(1);
-  const [ledgerWinTotal, setLedgerWinTotal] = useState(0);
-  const [ledgerWinLoading, setLedgerWinLoading] = useState(false);
-  const [ledgerWinErr, setLedgerWinErr] = useState(false);
-  useEffect(() => {
-    if (analysisOpen !== "ledger") return;
-    let active = true;
-    setLedgerWinLoading(true);
-    setLedgerWinErr(false);
-    fetchProcurements({ page: ledgerWinPage, pageSize: 15 })
-      .then((r) => {
-        if (!active) return;
-        setLedgerWinTotal(r.pagination.total);
-        setLedgerWinItems((prev) => (ledgerWinPage === 1 ? r.data : [...(prev ?? []), ...r.data]));
-      })
-      .catch(() => { if (active) setLedgerWinErr(true); })
-      .finally(() => { if (active) setLedgerWinLoading(false); });
-    return () => { active = false; };
-  }, [analysisOpen, ledgerWinPage, retryTick]);
-
-  /* 项目进展窗口（同裁定）：进行中 PMI 盘点——阶段分布+项目行，开层懒取会话内缓存 */
-  const [progressWin, setProgressWin] = useState<ProgressStats | null>(null);
-  useEffect(() => {
-    if (analysisOpen !== "progress" || progressWin) return;
-    let active = true;
-    fetchProgressStats()
-      .then((r) => { if (active) setProgressWin(r); })
-      .catch(() => undefined);
-    return () => { active = false; };
-  }, [analysisOpen, progressWin]);
-
   // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
   /* 龙虎榜失败≠空数据（P2，2026-11-03）：失败保留旧数据 + 显式重试入口，不再伪装成空态 */
@@ -422,6 +338,7 @@ export default function DashboardPage() {
       if (l) setLive(l);
     }, []),
     30_000,
+    !panel,
   );
   const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
   const evaluatingNow = live?.projects.filter((p) => p.stage === "EVALUATING") ?? [];
@@ -671,45 +588,8 @@ export default function DashboardPage() {
 
   const savingsTop = (data?.savingsRanking ?? []).slice(0, 5);
 
-  return (
-    <div>
-      <PullIndicator pull={pull} refreshing={refreshing} />
-
-      {/* ── 今日关注条（2026-11-18 用户裁定「AI 感太重」：三句小作文收为一行事实句——
-          只报风险/拥堵事项；无事 focus:null、失败 available:false 均不渲染，无骨架态）── */}
-      {brief?.available && brief.focus ? (
-        <button
-          type="button"
-          onClick={() => router.push(brief.focus!.jump)}
-          className="mb-3 flex w-full items-center gap-2 rounded-[14px] px-3.5 py-2.5 text-left active:scale-[0.99]"
-          style={{ background: "color-mix(in oklch, var(--warning) 7%, oklch(0.99 0.005 258))" }}
-        >
-          <AlertTriangle size={15} className="shrink-0 text-[var(--warning)]" />
-          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{brief.focus.text}</span>
-          <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
-        </button>
-      ) : null}
-
-      {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
-
-      {loading && !data ? (
-        <div className="neu-card-static rounded-[18px] p-3.5">
-          <Skeleton lines={4} height={52} />
-        </div>
-      ) : null}
-
-
-      {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
-           上移至实时态势上方、套同款 SectionCard 格式；卡片头右侧两个原地选择器（区间
-           档+公司多选各自独立、锚定原地展开，默认全部·全部公司，「全部」档无区间不显同比/环比子行）。首排=项目盘点（总数/
-           归档=台账全量/进行中/异常=终止，当前状态快照仅随公司口径）；次排=区间轮次
-           金额四数；可点的两步到对应明细/分析）── */}
-      {data && summary ? (
-        <SectionCard
-          icon={Gauge}
-          title="数据总览"
-          index={0}
-          right={
+  /* 口径选择器（首页挂总览卡头；页面模式挂顶行） */
+  const scopeSelectors = (
             <>
               <InlineSelect
                 label={rangeKey === "custom" && customRange ? `${customRange.from.slice(5).replace("-", "/")}~${customRange.to.slice(5).replace("-", "/")}` : RANGES[rangeKey as PresetKey].label}
@@ -744,273 +624,13 @@ export default function DashboardPage() {
                 />
               ) : null}
             </>
-          }
-        >
-          <div className="grid grid-cols-4 gap-2.5">
-            {overviewTiles.map((m) => {
-              const inner = (
-                <>
-                  <div
-                    className={`max-w-full truncate text-center text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
-                  >
-                    {m.value}
-                  </div>
-                  {queryRange.startDate ? (
-                    <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
-                      <span className={ratioCls(m.yoy)}>同比 {ratioTxt(m.yoy)}</span>
-                      <span className={ratioCls(m.hb)}>环比 {ratioTxt(m.hb)}</span>
-                    </div>
-                  ) : null}
-                  <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
-                </>
-              );
-              return m.onTap ? (
-                <button key={m.label} type="button" onClick={m.onTap} className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]">
-                  {inner}
-                </button>
-              ) : (
-                <div key={m.label} className="rounded-[12px] m-tile px-1 py-2 text-center">
-                  {inner}
-                </div>
-              );
-            })}
-          </div>
-        </SectionCard>
-      ) : null}
+  );
 
-      {/* ── 实时运行态势（2026-11-19 标段生命周期裁定：四 KPI=运行中/标前/标中/标后，
-           卡片头同款双选择器；进行中开评标实名录 30s 轮询）── */}
-      <SectionCard
-        icon={Radio}
-        title="实时运行态势"
-        index={0.5}
-        right={
-          <>
-            <InlineSelect
-              label={bidRangeKey === "custom" && bidCustomRange ? `${bidCustomRange.from.slice(5).replace("-", "/")}~${bidCustomRange.to.slice(5).replace("-", "/")}` : RANGES[bidRangeKey as PresetKey].label}
-              active={bidRangeKey !== "all"}
-              options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
-              selected={[bidRangeKey]}
-              onSelect={(next) => setBidRangeKey(next[0] as RangeKey)}
-              onCustomApply={(from, to) => {
-                setBidCustomRange({ from, to });
-                setBidRangeKey("custom");
-              }}
-              customValue={bidCustomRange}
-              customFirst
-              ariaLabel="态势数据区间"
-            />
-            {role === "admin" ? (
-              <InlineSelect
-                multiple
-                label={bidCompanyLabel}
-                active={bidCompanyIds.length > 0}
-                options={[
-                  { value: "all", label: "全部公司" },
-                  ...(companies ?? []).map((c) => ({ value: c.id, label: c.name })),
-                ]}
-                selected={bidCompanyIds.length === 0 ? ["all"] : bidCompanyIds}
-                onSelect={(next) => {
-                  const hadAll = bidCompanyIds.length === 0;
-                  if (next.includes("all") && !hadAll) setBidCompanyIds([]);
-                  else setBidCompanyIds(next.filter((v) => v !== "all"));
-                }}
-                ariaLabel={`态势公司口径：${bidCompanyLabel}`}
-              />
-            ) : null}
-            {openingNow.length + evaluatingNow.length > 0 ? (
-              <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
-              </span>
-            ) : null}
-          </>
-        }
-      >
-        <div className="grid grid-cols-4 gap-2.5">
-          {(() => {
-            /* 标段四 KPI（2026-11-19 用户裁定）：运行中=标前+标中、标前=确认开标前
-               （DOWNLOAD/SUBMIT）、标中=已确认开标未完成开评标（OPENING/EVALUATING）、
-               标后=完成开评标（ARCHIVED）；「全部」档隐藏同比/环比子行（同总览裁定） */
-            const bf = bidStage?.flow ?? null;
-            const bstat = (k: "running" | "pre" | "in" | "post") => ({
-              yoy: bf ? deltaOf(bf.cur[k], bf.yoy[k], null) : undefined,
-              hb: bf ? deltaOf(bf.cur[k], bf.prev[k], null) : undefined,
-            });
-            return [
-              { k: "running" as BidStageBucket, label: "运行中项目", n: bidStage?.running, ...bstat("running") },
-              { k: "pre" as BidStageBucket, label: "标前项目", n: bidStage?.pre, ...bstat("pre") },
-              { k: "in" as BidStageBucket, label: "标中项目", n: bidStage?.in, ...bstat("in") },
-              { k: "post" as BidStageBucket, label: "标后项目", n: bidStage?.post, ...bstat("post") },
-            ].map((c) => (
-              <button
-                key={c.k}
-                type="button"
-                onClick={() => setBidBucket(c.k)}
-                aria-pressed={bidBucket === c.k}
-                className={`rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98] ${bidBucket === c.k ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]" : ""}`}
-                aria-label={`${c.label} ${c.n ?? "—"} 项，点看最新项目`}
-              >
-                <div className={`text-[15px] font-black leading-none tabular-nums ${c.n ? (bidBucket === c.k ? "text-[var(--accent)]" : "") : "text-[var(--muted-foreground)]"}`}>
-                  {c.n ?? "—"}
-                </div>
-                {queryBidRange.startDate ? (
-                  <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
-                    <span className={ratioCls(c.yoy)}>同比 {ratioTxt(c.yoy)}</span>
-                    <span className={ratioCls(c.hb)}>环比 {ratioTxt(c.hb)}</span>
-                  </div>
-                ) : null}
-                <div className={`mt-1 text-[12px] ${bidBucket === c.k ? "font-semibold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{c.label}</div>
-              </button>
-            ));
-          })()}
-        </div>
-        <div className="mt-3 space-y-1.5">
-          {/* 桶内最新 5 项（2026-11-19 用户裁定）：状态行规则后端解析——
-              标后=中标单位·当前步骤；标前=当前步骤/已投·专家；标中=开标时间·等待开标/开标中/归档中 */}
-          {(bidRows ?? []).slice(0, 5).map((r) => (
-            <div key={r.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
-              <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ background: bidBucket === "in" ? "var(--warning)" : bidBucket === "post" ? "var(--success)" : "var(--accent)" }}
-              />
-              <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{r.name}</span>
-              <span className="max-w-[55%] shrink-0 truncate tabular-nums">{r.status}</span>
-            </div>
-          ))}
-          {bidRows && bidRows.length === 0 ? (
-            <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">该阶段暂无项目</div>
-          ) : null}
-        </div>
-      </SectionCard>
-
-      {data && summary ? (
-        <>
-          {/* ── 分析中心（一屏总览：其余分析卡分五组收进弹层，2026-11-17 spec）── */}
-          <div className="mb-3 grid grid-cols-3 gap-2">
-            {ANALYSIS_TILES.map((t, i) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setAnalysisOpen(t.key)}
-                className="neu-card-static m-rise flex flex-col items-center gap-2 rounded-[16px] px-2 py-3.5 active:scale-[0.98]"
-                style={{ animationDelay: `${i * 50}ms` }}
-              >
-                <span
-                  className="flex h-11 w-11 items-center justify-center rounded-[13px]"
-                  style={{ background: `color-mix(in oklch, ${t.color} 12%, transparent)`, color: t.color }}
-                >
-                  <t.icon size={20} strokeWidth={1.5} />
-                </span>
-                <span className="text-[14px] font-semibold text-[var(--foreground)]">{t.label}</span>
-              </button>
-            ))}
-          </div>
-
-        </>
-      ) : null}
-
-
-      {/* ══ 分析中心分组弹层（宫格入口；卡片原样搬入——本层挂在下钻弹层之前，同 z-50 时后开下钻层居上）══ */}
-      <BottomSheet
-        open={!!analysisOpen}
-        onClose={() => setAnalysisOpen(null)}
-        title={
-          <span className="flex items-center gap-2">
-            {(() => {
-              const t = ANALYSIS_TILES.find((x) => x.key === analysisOpen);
-              return t ? <t.icon size={16} style={{ color: t.color }} /> : null;
-            })()}
-            {ANALYSIS_TILES.find((x) => x.key === analysisOpen)?.label ?? ""}
-          </span>
-        }
-      >
+  /* 七板块内容（首页=弹层呈现；页面模式=平铺） */
+  const analysisGroups = (
+    <>
         {analysisOpen && data ? (
           <>
-            {analysisOpen === "ledger" ? (
-              <>
-                {/* 台账明细窗口（2026-11-19）：按时间罗列全量台账，分页展开 */}
-                {ledgerWinLoading && !ledgerWinItems ? (
-                  <Skeleton lines={6} height={56} />
-                ) : ledgerWinErr && !ledgerWinItems ? (
-                  <button
-                    type="button"
-                    onClick={() => setRetryTick((t) => t + 1)}
-                    className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]"
-                  >
-                    台账加载失败，点击重试
-                  </button>
-                ) : ledgerWinItems && ledgerWinItems.length === 0 ? (
-                  <EmptyState text="暂无台账数据" />
-                ) : (
-                  <div className="space-y-2">
-                    {(ledgerWinItems ?? []).map((r) => (
-                      <LedgerWindowCard key={r.id} r={r} />
-                    ))}
-                    {ledgerWinItems && ledgerWinItems.length < ledgerWinTotal ? (
-                      <button
-                        type="button"
-                        disabled={ledgerWinLoading}
-                        onClick={() => setLedgerWinPage((p) => p + 1)}
-                        className="neu-btn-soft h-10 w-full rounded-[12px] text-[14px] active:scale-[0.99] disabled:opacity-60"
-                      >
-                        {ledgerWinLoading ? "加载中..." : `展开更多（已显 ${ledgerWinItems.length} / 共 ${ledgerWinTotal} 条）`}
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-              </>
-            ) : null}
-            {analysisOpen === "progress" ? (
-              <>
-                {/* 项目进展窗口（2026-11-19）：进行中 PMI 盘点——阶段分布 + 项目行 */}
-                {progressWin ? (
-                  <div className="space-y-3">
-                    <div className="flex items-baseline justify-between px-1">
-                      <span className="text-[14px] font-bold text-[var(--foreground)]">进行中项目</span>
-                      <span className="text-[13px] tabular-nums text-[var(--muted-foreground)]">共 {progressWin.totalActive} 项 · 累计完成 {progressWin.totalCompleted}</span>
-                    </div>
-                    {progressWin.stageDistribution.length ? (
-                      <div className="space-y-1.5">
-                        {progressWin.stageDistribution.map((d) => {
-                          const max = Math.max(...progressWin.stageDistribution.map((x) => x.count), 1);
-                          return (
-                            <div key={d.stage} className="flex items-center gap-2">
-                              <span className="w-[7.5rem] shrink-0 truncate text-[13px] text-[var(--foreground)]">{PMI_STAGE_LABEL[d.stage] ?? d.stage}</span>
-                              <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                                <span className="block h-full rounded-[5px] bg-[var(--accent)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
-                              </span>
-                              <span className="w-[1.75rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中的项目" />
-                    )}
-                    <div className="space-y-1.5">
-                      {progressWin.projects.slice(0, 15).map((p) => {
-                        const done = p.stages.filter((x) => x.status === "COMPLETED").length;
-                        return (
-                          <div key={p.id} className="rounded-[10px] m-tile px-3 py-2">
-                            <div className="flex items-center gap-2">
-                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{p.title}</span>
-                              <span className="shrink-0 text-[12px] text-[var(--muted-foreground)] tabular-nums">阶段 {done}/{p.stages.length}</span>
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
-                              <span className="truncate">{p.requesterDepartment} · {p.procurementMethod}</span>
-                              <span className="ml-auto shrink-0 font-medium text-[var(--accent)]">{PMI_STAGE_LABEL[p.currentStage] ?? p.currentStage}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <Skeleton lines={6} height={40} />
-                )}
-              </>
-            ) : null}
             {analysisOpen === "trend" ? (
               <>
 
@@ -1609,8 +1229,12 @@ export default function DashboardPage() {
             ) : null}
           </>
         ) : null}
-      </BottomSheet>
+    </>
+  );
 
+  /* 下钻弹层（两模式共用） */
+  const drillSheets = (
+    <>
       {/* ══ 下钻弹层 ══ */}
 
       <BottomSheet
@@ -1876,6 +1500,251 @@ export default function DashboardPage() {
           </div>
         ) : null}
       </BottomSheet>
+    </>
+  );
+
+  /* 页面模式（/analysis/[key] 页面套壳）：口径选择器 + 板块内容 + 下钻弹层 */
+  if (panel) {
+    return (
+      <div>
+        <div className="mb-3 flex items-center justify-end gap-2">{scopeSelectors}</div>
+        {analysisGroups}
+        {drillSheets}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <PullIndicator pull={pull} refreshing={refreshing} />
+
+      {/* ── 今日关注条（2026-11-18 用户裁定「AI 感太重」：三句小作文收为一行事实句——
+          只报风险/拥堵事项；无事 focus:null、失败 available:false 均不渲染，无骨架态）── */}
+      {brief?.available && brief.focus ? (
+        <button
+          type="button"
+          onClick={() => router.push(brief.focus!.jump)}
+          className="mb-3 flex w-full items-center gap-2 rounded-[14px] px-3.5 py-2.5 text-left active:scale-[0.99]"
+          style={{ background: "color-mix(in oklch, var(--warning) 7%, oklch(0.99 0.005 258))" }}
+        >
+          <AlertTriangle size={15} className="shrink-0 text-[var(--warning)]" />
+          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{brief.focus.text}</span>
+          <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+        </button>
+      ) : null}
+
+      {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
+
+      {loading && !data ? (
+        <div className="neu-card-static rounded-[18px] p-3.5">
+          <Skeleton lines={4} height={52} />
+        </div>
+      ) : null}
+
+
+      {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
+           上移至实时态势上方、套同款 SectionCard 格式；卡片头右侧两个原地选择器（区间
+           档+公司多选各自独立、锚定原地展开，默认全部·全部公司，「全部」档无区间不显同比/环比子行）。首排=项目盘点（总数/
+           归档=台账全量/进行中/异常=终止，当前状态快照仅随公司口径）；次排=区间轮次
+           金额四数；可点的两步到对应明细/分析）── */}
+      {data && summary ? (
+        <SectionCard
+          icon={Gauge}
+          title="数据总览"
+          index={0}
+          right={scopeSelectors}
+        >
+          <div className="grid grid-cols-4 gap-2.5">
+            {overviewTiles.map((m) => {
+              const inner = (
+                <>
+                  <div
+                    className={`max-w-full truncate text-center text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                  >
+                    {m.value}
+                  </div>
+                  {queryRange.startDate ? (
+                    <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                      <span className={ratioCls(m.yoy)}>同比 {ratioTxt(m.yoy)}</span>
+                      <span className={ratioCls(m.hb)}>环比 {ratioTxt(m.hb)}</span>
+                    </div>
+                  ) : null}
+                  <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
+                </>
+              );
+              return m.onTap ? (
+                <button key={m.label} type="button" onClick={m.onTap} className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]">
+                  {inner}
+                </button>
+              ) : (
+                <div key={m.label} className="rounded-[12px] m-tile px-1 py-2 text-center">
+                  {inner}
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {/* ── 实时运行态势（2026-11-19 标段生命周期裁定：四 KPI=运行中/标前/标中/标后，
+           卡片头同款双选择器；进行中开评标实名录 30s 轮询）── */}
+      <SectionCard
+        icon={Radio}
+        title="实时运行态势"
+        index={0.5}
+        right={
+          <>
+            <InlineSelect
+              label={bidRangeKey === "custom" && bidCustomRange ? `${bidCustomRange.from.slice(5).replace("-", "/")}~${bidCustomRange.to.slice(5).replace("-", "/")}` : RANGES[bidRangeKey as PresetKey].label}
+              active={bidRangeKey !== "all"}
+              options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
+              selected={[bidRangeKey]}
+              onSelect={(next) => setBidRangeKey(next[0] as RangeKey)}
+              onCustomApply={(from, to) => {
+                setBidCustomRange({ from, to });
+                setBidRangeKey("custom");
+              }}
+              customValue={bidCustomRange}
+              customFirst
+              ariaLabel="态势数据区间"
+            />
+            {role === "admin" ? (
+              <InlineSelect
+                multiple
+                label={bidCompanyLabel}
+                active={bidCompanyIds.length > 0}
+                options={[
+                  { value: "all", label: "全部公司" },
+                  ...(companies ?? []).map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                selected={bidCompanyIds.length === 0 ? ["all"] : bidCompanyIds}
+                onSelect={(next) => {
+                  const hadAll = bidCompanyIds.length === 0;
+                  if (next.includes("all") && !hadAll) setBidCompanyIds([]);
+                  else setBidCompanyIds(next.filter((v) => v !== "all"));
+                }}
+                ariaLabel={`态势公司口径：${bidCompanyLabel}`}
+              />
+            ) : null}
+            {openingNow.length + evaluatingNow.length > 0 ? (
+              <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
+              </span>
+            ) : null}
+          </>
+        }
+      >
+        <div className="grid grid-cols-4 gap-2.5">
+          {(() => {
+            /* 标段四 KPI（2026-11-19 用户裁定）：运行中=标前+标中、标前=确认开标前
+               （DOWNLOAD/SUBMIT）、标中=已确认开标未完成开评标（OPENING/EVALUATING）、
+               标后=完成开评标（ARCHIVED）；「全部」档隐藏同比/环比子行（同总览裁定） */
+            const bf = bidStage?.flow ?? null;
+            const bstat = (k: "running" | "pre" | "in" | "post") => ({
+              yoy: bf ? deltaOf(bf.cur[k], bf.yoy[k], null) : undefined,
+              hb: bf ? deltaOf(bf.cur[k], bf.prev[k], null) : undefined,
+            });
+            return [
+              { k: "running" as BidStageBucket, label: "运行中项目", n: bidStage?.running, ...bstat("running") },
+              { k: "pre" as BidStageBucket, label: "标前项目", n: bidStage?.pre, ...bstat("pre") },
+              { k: "in" as BidStageBucket, label: "标中项目", n: bidStage?.in, ...bstat("in") },
+              { k: "post" as BidStageBucket, label: "标后项目", n: bidStage?.post, ...bstat("post") },
+            ].map((c) => (
+              <button
+                key={c.k}
+                type="button"
+                onClick={() => setBidBucket(c.k)}
+                aria-pressed={bidBucket === c.k}
+                className={`rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98] ${bidBucket === c.k ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]" : ""}`}
+                aria-label={`${c.label} ${c.n ?? "—"} 项，点看最新项目`}
+              >
+                <div className={`text-[15px] font-black leading-none tabular-nums ${c.n ? (bidBucket === c.k ? "text-[var(--accent)]" : "") : "text-[var(--muted-foreground)]"}`}>
+                  {c.n ?? "—"}
+                </div>
+                {queryBidRange.startDate ? (
+                  <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                    <span className={ratioCls(c.yoy)}>同比 {ratioTxt(c.yoy)}</span>
+                    <span className={ratioCls(c.hb)}>环比 {ratioTxt(c.hb)}</span>
+                  </div>
+                ) : null}
+                <div className={`mt-1 text-[12px] ${bidBucket === c.k ? "font-semibold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{c.label}</div>
+              </button>
+            ));
+          })()}
+        </div>
+        <div className="mt-3 space-y-1.5">
+          {/* 桶内最新 5 项（2026-11-19 用户裁定）：状态行规则后端解析——
+              标后=中标单位·当前步骤；标前=当前步骤/已投·专家；标中=开标时间·等待开标/开标中/归档中 */}
+          {(bidRows ?? []).slice(0, 5).map((r) => (
+            <div key={r.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ background: bidBucket === "in" ? "var(--warning)" : bidBucket === "post" ? "var(--success)" : "var(--accent)" }}
+              />
+              <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{r.name}</span>
+              <span className="max-w-[55%] shrink-0 truncate tabular-nums">{r.status}</span>
+            </div>
+          ))}
+          {bidRows && bidRows.length === 0 ? (
+            <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">该阶段暂无项目</div>
+          ) : null}
+        </div>
+      </SectionCard>
+
+      {data && summary ? (
+        <>
+          {/* ── 分析中心（一屏总览：其余分析卡分五组收进弹层，2026-11-17 spec）── */}
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            {ANALYSIS_TILES.map((t, i) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => {
+                  if (t.key === "ledger") router.push("/ledger");
+                  else if (t.key === "progress") router.push("/progress");
+                  else router.push(`/analysis/${t.key}`);
+                }}
+                className="neu-card-static m-rise flex flex-col items-center gap-2 rounded-[16px] px-2 py-3.5 active:scale-[0.98]"
+                style={{ animationDelay: `${i * 50}ms` }}
+              >
+                <span
+                  className="flex h-11 w-11 items-center justify-center rounded-[13px]"
+                  style={{ background: `color-mix(in oklch, ${t.color} 12%, transparent)`, color: t.color }}
+                >
+                  <t.icon size={20} strokeWidth={1.5} />
+                </span>
+                <span className="text-[14px] font-semibold text-[var(--foreground)]">{t.label}</span>
+              </button>
+            ))}
+          </div>
+
+        </>
+      ) : null}
+
+
+      {/* ══ 分析中心分组弹层（宫格入口；卡片原样搬入——本层挂在下钻弹层之前，同 z-50 时后开下钻层居上）══ */}
+      <BottomSheet
+        open={!!manualOpen}
+        onClose={() => setManualOpen(null)}
+        title={
+          <span className="flex items-center gap-2">
+            {(() => {
+              const t = ANALYSIS_TILES.find((x) => x.key === analysisOpen);
+              return t ? <t.icon size={16} style={{ color: t.color }} /> : null;
+            })()}
+            {ANALYSIS_TILES.find((x) => x.key === analysisOpen)?.label ?? ""}
+          </span>
+        }
+      >
+        {analysisGroups}
+            </BottomSheet>
+
+        {drillSheets}
     </div>
   );
+}
+
+export default function DashboardPage() {
+  return <DashboardHome />;
 }
