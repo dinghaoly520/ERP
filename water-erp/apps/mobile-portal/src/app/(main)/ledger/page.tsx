@@ -439,7 +439,21 @@ export default function LedgerPage() {
       {stats ? (
         <div className="neu-card-static mb-3 rounded-[18px] p-3">
           {(() => {
+            /* 组标=当前全部生效筛选项（2026-11-19 用户裁定）：时间档 + 方式/部门/经办人/公司，
+               无筛选时仅显时间档「全部」 */
             const rangeLabel = rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label;
+            const parts: string[] = [queryRange.startDate ? rangeLabel : "全部"];
+            if (methodIds.length) parts.push(methodIds.length <= 2 ? methodIds.join("、") : `${methodIds.length}种方式`);
+            if (departmentIds.length) {
+              const names = departmentIds.map((id) => dimensions?.departments.find((d) => d.id === id)?.name ?? id);
+              parts.push(names.length <= 2 ? names.join("、") : `${names.length}个部门`);
+            }
+            if (handlerIds.length) {
+              const names = handlerIds.map((id) => dimensions?.handlers.find((h) => h.id === id)?.name ?? id);
+              parts.push(names.length <= 2 ? names.join("、") : `${names.length}位经办人`);
+            }
+            if (companyIds.length) parts.push(companyLabel);
+            const scopeText = parts.join(" · ");
             const showRatio = Boolean(queryRange.startDate);
             const tile = (value: string, label: string, opts?: { danger?: boolean; success?: boolean; yoy?: DeltaR; hb?: DeltaR }) => (
               <div key={label} className="rounded-[12px] m-tile px-1 py-2.5 text-center">
@@ -464,14 +478,14 @@ export default function LedgerPage() {
             const rateNow = stats.awardedBudget > 0 ? stats.totalSavings / stats.awardedBudget : undefined;
             return (
               <div className="space-y-3">
-                {group(`项目盘点 · ${rangeLabel}`, [
+                {group(`项目盘点 · ${scopeText}`, [
                   tile(String(stats.awardedCount + stats.pendingCount), "项目总数", { yoy: deltaOf(totalOf(stats), totalOf(statsYoy), null), hb: deltaOf(totalOf(stats), totalOf(statsPrev), null) }),
                   tile(String(stats.awardedCount), "归档项目", { yoy: deltaOf(stats.awardedCount, statsYoy?.awardedCount, null), hb: deltaOf(stats.awardedCount, statsPrev?.awardedCount, null) }),
                   tile(String(stats.pendingCount), "进行中项目", { yoy: deltaOf(stats.pendingCount, statsYoy?.pendingCount, null), hb: deltaOf(stats.pendingCount, statsPrev?.pendingCount, null) }),
                   tile(String(stats.abnormalCount), "异常项目", { danger: stats.abnormalCount > 0, yoy: deltaOf(stats.abnormalCount, statsYoy?.abnormalCount, false), hb: deltaOf(stats.abnormalCount, statsPrev?.abnormalCount, false) }),
                 ])}
                 <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
-                {group(`金额 · ${rangeLabel}`, [
+                {group(`金额 · ${scopeText}`, [
                   tile(stats.awardedBudgetLabel, "成交预算", { yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
                   tile(stats.totalAwardLabel, "成交额", { yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
                   tile(stats.totalSavingsLabel, "节约资金", { success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
