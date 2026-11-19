@@ -239,6 +239,10 @@ export class DashboardService {
         amount: number;
         initiated: number;
         archived: number;
+        /** 节资率基数（2026-11-19 趋势图节资率图形）：仅口径内 AWARDED 轮参与——
+         *  budget>0、award>0、budget>=award（同 getStats/dashboard 节资收口口径） */
+        savingsBudget: number;
+        savingsAward: number;
         projects: Array<{
           name: string;
           date: string;
@@ -361,6 +365,8 @@ export class DashboardService {
           amount: 0,
           initiated: 0,
           archived: 0,
+          savingsBudget: 0,
+          savingsAward: 0,
           projects: [],
         };
         trendMap.set(dateKey, item);
@@ -395,6 +401,13 @@ export class DashboardService {
       // Only count award amount for awarded projects
       if (round.resultStatus === ResultStatus.AWARDED) {
         trendItem.amount += decimalToNumber(round.awardAmount);
+        // 节资率基数：仅口径内轮次（同 getStats 收口口径），分母=这些轮的预算合计
+        const svB = decimalToNumber(round.budgetAmount ?? 0);
+        const svA = decimalToNumber(round.awardAmount);
+        if (svB > 0 && svA > 0 && svB >= svA) {
+          trendItem.savingsBudget += svB;
+          trendItem.savingsAward += svA;
+        }
       }
       trendItem.projects.push({
         name: round.project.name,
@@ -759,6 +772,11 @@ export class DashboardService {
           initiated: item.initiated,
           archived: item.archived,
           active: activeRun,
+          /** 桶内节资率（%）：口径内无成交轮（或预算全 0）为 null，前端断线不内插 */
+          savingsRate:
+            item.savingsBudget > 0
+              ? Math.round(((item.savingsBudget - item.savingsAward) / item.savingsBudget) * 1000) / 10
+              : null,
           projects: item.projects,
         };
       });

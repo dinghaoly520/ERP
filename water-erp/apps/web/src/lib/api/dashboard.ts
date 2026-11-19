@@ -33,6 +33,8 @@ export type DashboardData = {
     archived: number;
     /** 在执行净值（累计立项 − 累计归档） */
     active: number;
+    /** 桶内节资率（%，2026-11-19 趋势图新增）：仅口径内 AWARDED 轮；无口径内成交轮为 null（断线不内插） */
+    savingsRate: number | null;
     projects: Array<{
       name: string;
       date: string;
