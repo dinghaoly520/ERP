@@ -20,7 +20,8 @@ import { BidController } from './bid.controller';
 describe('BidController — AssignedHostGuard 覆盖锁（裁定2 分档口径）', () => {
   const hasAssignedHostGuard = (fn: object): boolean => {
     const guards: unknown[] = Reflect.getMetadata(GUARDS_METADATA, fn) ?? [];
-    return guards.some((g) => g === AssignedHostGuard || (g as { constructor?: unknown })?.constructor === AssignedHostGuard);
+    // Nest 存类引用本身（无实例形态），单臂比较即可；旧第二臂 (g?.constructor === X) 恒假已删
+    return guards.some((g) => g === AssignedHostGuard);
   };
 
   const method = (name: keyof BidController): object =>
@@ -40,19 +41,38 @@ describe('BidController — AssignedHostGuard 覆盖锁（裁定2 分档口径�
     'sealRound',              // 截止报价(密封)
     'publishRound',           // 公布报价(开标)
     'closeRound',             // 结束轮次
+    // 复审追加（2026-11-19 代码审查发现 4——同族端点漏登记）：
+    'manualMarkInvalidBid',   // 手动标记废标（围标/串标/资质造假——最重主持动作；无前端调用者=API 应急通道）
+    'verifyClarificationReply', // 核验澄清答复签名（仅 :3007 clarifications-block 调用）
+    'summarizeClarification', // AI 澄清摘要（仅 :3007 调用）
+    'extendEvaluation',       // 评标延期（仅 :3007 evaluation-view 调用）
   ];
 
-  const TIER_B: (keyof BidController)[] = ['abortBidProject', 'startOpening', 'openSubmission'];
+  const TIER_B: (keyof BidController)[] = [
+    'abortBidProject',        // :3005 开标前流标 AbortDialog + :3007 评标中流标
+    'startOpening',           // :3005「按时开标」共用
+    'openSubmission',         // 项目级编排动作，非主持现场执行权
+    // 复审追加：
+    'swapExpert',             // :3005 开标确认面板专家替换有调用者（web bid.ts:677）
+    'rejectExpertVerification',   // 监督登记豁免：leader/staff 监督身份纯留痕低风险（端点 summary 自述）
+    'retractExpertVerification',  // 同上（R5 闭环修复——误报更正）
+  ];
 
   it.each(TIER_A)('A 档（纯 :3007 现场动作）%s → 已挂 AssignedHostGuard', (name) => {
     expect(hasAssignedHostGuard(method(name))).toBe(true);
   });
 
-  it.each(TIER_B)('B 档（双端复用豁免）%s → 不挂闸（口径注释声明于本文件头）', (name) => {
+  it.each(TIER_B)('B 档（双端复用/监督豁免）%s → 不挂闸（口径注释声明于本文件头）', (name) => {
     expect(hasAssignedHostGuard(method(name))).toBe(false);
   });
 
-  it('A 档清单规模锚定（13 端点——缩容须同步修订裁定注记）', () => {
-    expect(TIER_A).toHaveLength(13);
+  it('类级无 AssignedHostGuard 提升（防 B 档三端点被类级守卫误伤 :3005 正门流程）', () => {
+    // 复审加固（审查发现 12）：本锁只读方法级元数据时，未来把守卫提升到类级
+    // （与 BidCompanyScopeGuard 并排）会让 B 档 :3005 共用端点全部 403 而锁仍绿。
+    expect(hasAssignedHostGuard(BidController)).toBe(false);
+  });
+
+  it('A 档清单规模锚定（17 端点——缩容须同步修订裁定注记）', () => {
+    expect(TIER_A).toHaveLength(17);
   });
 });

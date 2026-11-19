@@ -135,10 +135,13 @@ describe('A-143 澄清在线答复 (e2e)', () => {
 
   afterAll(async () => {
     if (hostRestoreProjectId) {
+      // 复审加固（审查发现 13）：还原失败不再吞错——共享演示项目的主持人指派被静默篡改
+      // 比 e2e 红更难排查，失败须炸出（forceExit 下 beforeAll 与 afterAll 之间的崩溃除外，那由
+      // 仓库 fixture 自建惯例的长线改造解决）
       await prisma.bidProject.update({
         where: { id: hostRestoreProjectId },
         data: { assignedHostUserId: originalAssignedHostId },
-      }).catch(() => {});
+      });
     }
     if (createdClarificationIds.length > 0) {
       await prisma.bidClarification.deleteMany({ where: { id: { in: createdClarificationIds } } }).catch(() => {});

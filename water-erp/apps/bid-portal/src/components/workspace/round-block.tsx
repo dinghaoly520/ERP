@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Gavel, Plus, Lock, Eye, CheckCircle2, Loader2, Clock, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useBidUser } from '@/hooks/use-bid-user';
 import {
   createRound, closeRound, listRounds, publishRound, sealRound,
 } from '@/lib/api/bid';
@@ -36,6 +37,11 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [showSupplierDialog, setShowSupplierDialog] = useState(false);
   const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>([]);
+
+  // 裁定2（2026-11-19）前端镜像：报价轮四端点已挂 AssignedHostGuard——操作钮按 canHost 收口
+  // （与 opening-hall 同口径：可见即点、点了 403 的防线前移；useBidUser 模块级缓存零额外请求）
+  const me = useBidUser();
+  const canHost = me?.role === 'admin' || (!!me?.id && detail?.assignedHostUser?.id === me.id);
 
   const roundMode = detail?.roundMode as string | undefined;
   const stage = detail?.stage as string | undefined;
@@ -114,7 +120,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
             </span>
           </h3>
         </div>
-        {showCreateEntry ? (
+        {canHost && showCreateEntry ? (
           <button onClick={openCreateDialog} disabled={busy} className="neu-btn-primary is-water !h-[32px] !text-xs">
             <Plus size={13} /> {rounds.length === 0 ? '创建首轮报价' : '创建下一轮'}
           </button>
@@ -151,19 +157,19 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  {isLast && r.status === 'open' && (
+                  {isLast && r.status === 'open' && canHost && (
                     <button onClick={() => withBusy(async () => { await sealRound(bidProjectId, r.id); })}
                       disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
                       <Lock size={12} /> 截止报价
                     </button>
                   )}
-                  {isLast && r.status === 'sealed' && (
+                  {isLast && r.status === 'sealed' && canHost && (
                     <button onClick={() => withBusy(async () => { await publishRound(bidProjectId, r.id); })}
                       disabled={busy} className="neu-btn-soft !h-[30px] !text-xs">
                       <Eye size={12} /> 公布报价
                     </button>
                   )}
-                  {isLast && r.status === 'published' && (
+                  {isLast && r.status === 'published' && canHost && (
                     <>
                       <button onClick={() => withBusy(async () => {
                         // M3: closeRound + createRound 非原子——分步执行+错误恢复

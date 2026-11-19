@@ -775,7 +775,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           )}
         </div>
       )}
-      {openingDone && project.stage === 'OPENING' && !session?.handoverAt && (
+      {canHost && openingDone && project.stage === 'OPENING' && !session?.handoverAt && (
         <div className="flex items-center gap-4 rounded-2xl bg-[oklch(0.71_0.11_164_/_0.12)] p-5">
           <CheckCircle size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--success)]" />
           <div className="flex-1">
@@ -1109,7 +1109,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             <Loader size={12} strokeWidth={1.5} /> 待供应商解密
                           </span>
                         )}
-                        {isSuccess && project.stage === 'OPENING' && (
+                        {canHost && isSuccess && project.stage === 'OPENING' && (
                           !record ? (
                             <button type="button" onClick={() => openRecordEntry(s)} disabled={recordEntryLoading && recordEntry?.bidSupplierId === s.id}
                               className="flex items-center gap-1 text-[11px] font-semibold tracking-tight text-[var(--accent-strong)] transition-colors hover:text-[var(--accent)] disabled:opacity-50">
@@ -1192,8 +1192,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                             <RotateCcw size={12} strokeWidth={1.5} /> 重置解密机会
                           </button>
                         )}
-                        {/* 接受解密失败（accept-danger 全角色可办；legacy 代解密剪除后仅新轨 DANGER 处置） */}
-                        {isDanger && project.stage === 'OPENING' && !isDual && (
+                        {/* 接受解密失败（裁定2 A 档：后端 accept-danger 已挂 AssignedHostGuard，前端按 canHost 收口同口径；legacy 代解密剪除后仅新轨 DANGER 处置） */}
+                        {canHost && isDanger && project.stage === 'OPENING' && !isDual && (
                           <>
                             <button type="button"
                               onClick={() => setReasonDialog({
@@ -1404,7 +1404,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tracking-wide ${sm.cls}`}>{sm.label}</span>
                       </td>
                       <td className="px-5 py-3">
-                        {isDisputed && project.stage === 'OPENING' && (
+                        {canHost && isDisputed && project.stage === 'OPENING' && (
                           <button type="button" onClick={() => { setInlineDispute(disputeOpen ? null : r.id); setDisputeHandleResult(''); setDisputeHandleConfirm(null); }}
                             className={`flex items-center gap-1 text-[11px] font-semibold tracking-tight transition-colors ${
                               disputeOpen ? 'text-[color:var(--muted-foreground)]' : 'text-[var(--accent-strong)] hover:text-[var(--accent)]'

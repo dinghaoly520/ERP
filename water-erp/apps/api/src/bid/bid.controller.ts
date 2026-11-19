@@ -513,6 +513,7 @@ export class BidController {
 
   @Post('projects/:id/invalidate-bid/:supplierId')
   @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档（复审追加）：最重主持动作，无前端调用者=API 应急通道同须指派
   @ApiOperation({ summary: 'B1: 手动标记废标(围标/串标/资质造假)' })
   manualMarkInvalidBid(@Param('id') id: string, @Param('supplierId') supplierId: string, @Body() dto: { reason: string }, @CurrentUser('sub') userId?: string) {
     return this.bidService.manualMarkInvalidBid(id, supplierId, dto.reason, userId);
@@ -995,6 +996,7 @@ export class BidController {
   }
 
   @Post('projects/:id/clarifications/:cid/verify-reply')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档（复审追加）：仅 :3007 clarifications-block 调用
   @ApiOperation({ summary: 'A-143：核验供应商在线答复签名（重算 canonical + SM2 验签）' })
   verifyClarificationReply(@Param('id') id: string, @Param('cid') cid: string) {
     return this.bidService.verifyClarificationReply(id, cid);
@@ -1008,6 +1010,7 @@ export class BidController {
   // 澄清问题手动发起；回复内容可调用下方接口生成摘要。
 
   @Post('projects/:id/clarifications/:cid/summarize')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档（复审追加）：仅 :3007 调用
   @ApiOperation({ summary: 'P1-F：AI 提炼回复要点 → aiSummary' })
   summarizeClarification(@Param('id') id: string, @Param('cid') cid: string) {
     return this.bidService.summarizeClarification(id, cid);
@@ -1116,6 +1119,7 @@ export class BidController {
 
   @Post('projects/:id/extend-evaluation')
   @Roles('leader', 'admin', 'bid_host')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档（复审追加）：唯一调用面=:3007 evaluation-view（仅被指派者/admin 可达）；未来 :3005 审批面出现须重审分档（覆盖锁会拦）
   @ApiOperation({ summary: '审批延期评标（延长 evaluationDeadline）' })
   extendEvaluation(
     @Param('id') id: string,
