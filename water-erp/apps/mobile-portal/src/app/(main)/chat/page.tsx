@@ -11,6 +11,7 @@ import { readSavedFilters } from "@/lib/filter-store";
 import { ChatCardView } from "@/components/m/chat-card";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
+import { ApiError } from "@water-erp/client";
 
 const CONV_KEY = "m-shuidingdang-conversation";
 const QUICK_QUESTIONS = ["本月成交总额多少", "当前最大风险是什么", "节资排名前三", "哪个阶段最堵"];
@@ -34,6 +35,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   /* 四件套（2026-11-19 问答改造）状态：停止（AbortController）、复制反馈、点赞点踩回显 */
   const abortRef = useRef<AbortController | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<Record<string, "UP" | "DOWN">>({});
 
@@ -165,8 +167,11 @@ export default function ChatPage() {
 
   async function ask(text: string) {
     const q = text.trim();
-    if (!q || sending) return;
+    if (!q) return; // 在途不拦——新提问自动中止旧请求（:3005 借鉴），见 doAsk
     setInput("");
+    /* 程序清空不触发 onInput——自增高 textarea 手动复位单行高（.m-input 定高 44
+     * 被内联高度覆盖后，键盘清空有 input 事件、此处发送清空没有） */
+    if (taRef.current) taRef.current.style.height = "auto";
     setMessages((prev) => [...prev, { role: "user", content: q }]);
     await doAsk(q);
   }
@@ -184,12 +189,21 @@ export default function ChatPage() {
   }, [searchParams]);
 
   /* 发送核心（ask 与失败重试/重新生成共用——重试不重复追加用户气泡，R1-2）。
-   * 停止生成（2026-11-19 四件套）：AbortSignal 透传到 fetch；主动取消不落错误气泡
-   * （服务端可能已把回答落库——重新打开会话可见，属可接受语义）。 */
+   * 稳健三件（2026-11-19 借鉴 :3005/:3008）：① 新提问自动中止在途请求（不卡等停止钮）；
+   * ② 90s 超时兜底（两轮 LLM+工具可至 60s+，:3008 同值）——超时与用户停止分流文案；
+   * ③ 服务端错误消息透出（ApiError.message 是后端归一中文文案，如「会话不存在，
+   * 请刷新页面重试」），仅网络级错误才用兜底话术。主动取消不落错误气泡（服务端
+   * 可能已把回答落库——重新打开会话可见，属可接受语义）。 */
   async function doAsk(q: string) {
+    if (abortRef.current) {
+      abortRef.current.abort(); // 在途请求被新提问取代——静默中止
+      abortRef.current = null;
+    }
     setSending(true);
     const controller = new AbortController();
     abortRef.current = controller;
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => { timedOut = true; controller.abort(); }, 90_000);
     // 发送时读公司口径（fresh 值，不用挂载期闭包）——驾驶舱选择器已撤，正常恒为空=全部公司
     const adminCompanyIds = isAdmin
       ? (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? [])
@@ -199,9 +213,14 @@ export default function ChatPage() {
       if (r.conversationId) { setConversationId(r.conversationId); localStorage.setItem(CONV_KEY, r.conversationId); }
       setMessages((prev) => [...prev, { role: "assistant", content: r.answer, cards: r.cards ?? [], id: r.messageId }]);
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return; // 用户主动停止——静默收场
-      setMessages((prev) => [...prev, { role: "assistant", content: "网络开小差，这条没发出去", failedQ: q }]);
+      if (err instanceof DOMException && err.name === "AbortError" && !timedOut) return; // 用户停止/被新问取代
+      const hint =
+        timedOut ? "请求超时，请重试"
+        : err instanceof ApiError && err.code !== "NETWORK_ERROR" ? err.message
+        : "网络开小差，这条没发出去";
+      setMessages((prev) => [...prev, { role: "assistant", content: hint, failedQ: q }]);
     } finally {
+      window.clearTimeout(timeoutId);
       abortRef.current = null;
       setSending(false);
     }
@@ -394,18 +413,29 @@ export default function ChatPage() {
         onSubmit={(e) => { e.preventDefault(); ask(input); }}
         className="m-chat-dock flex items-center gap-2 pt-1"
       >
-        <input
+        {/* 自增高输入框（:3005 chat-input 借鉴）：单行 input 长问题可视截断；
+            手机键盘 Enter=换行，发送只走按钮（桌面 Enter 直发不适用移动端） */}
+        <textarea
+          ref={taRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="问点什么…"
-          className="m-input h-11 min-w-0 flex-1 rounded-[14px]"
+          rows={1}
+          aria-label="提问输入框"
+          className="m-input min-h-[44px] max-h-[96px] w-full flex-1 resize-none rounded-[14px] py-2.5 leading-snug"
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+          }}
           /* 键盘开启隐藏 tabbar（用户裁定 2026-10-26）：body 挂类驱动 CSS（globals.css
            * body.m-kb-open），失焦/卸载即恢复——不依赖键盘 API，两类 webview 行为均成立 */
           onFocus={() => document.body.classList.add("m-kb-open")}
           onBlur={() => document.body.classList.remove("m-kb-open")}
         />
-        {sending ? (
-          /* 停止生成（2026-11-19 四件套）：发送中发送键变停止钮 */
+        {sending && !input.trim() ? (
+          /* 停止生成（2026-11-19 四件套）：发送中且未输入新内容 → 停止钮；
+              有新内容则显示发送钮（发送即中止旧问——:3005 借鉴） */
           <button type="button" aria-label="停止生成" onClick={stopSending}
             className="neu-btn-soft h-11 w-11 shrink-0 rounded-[14px] p-0 active:scale-95">
             <Square size={13} className="fill-[var(--foreground)]" />
