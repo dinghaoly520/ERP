@@ -455,7 +455,7 @@ export default function DashboardPage() {
               { label: "待处理", value: String(data.resultStats.find((r) => r.label.includes("待处理"))?.count ?? 0), onTap: () => router.push("/ledger?status=PENDING") },
               { label: "异常", value: String(summary.abnormalCount), danger: summary.abnormalCount > 0, delta: deltaOf(summary.abnormalCount, cmp?.abnormalCount, false), onTap: () => router.push("/ledger?abnormal=1") },
               { label: "成交预算", value: summary.awardedBudgetLabel },
-              { label: "成交额", value: summary.totalAwardLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
+              { label: "成交额", value: summary.totalAwardLabel, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
               { label: "节约资金", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
               /* 节资率=节约资金/成交预算（2026-11-19 用户裁定：第二排改四数+节资率，红显） */
               { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true },
