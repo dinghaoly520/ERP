@@ -1266,6 +1266,17 @@ body.m-kb-open .m-chat-shell {
   text-align: center;
 }
 
+/* ── 引导提示条（proxy 闸踢回非 admin 会话时；info 语气，区别于 error 红） ── */
+.login-notice {
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+  color: var(--accent-strong);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 0.65rem 0.9rem;
+  text-align: center;
+}
+
 /* ── 入场错落上滑（替代 framer-motion initial/animate，delay 阶梯对齐 web 节奏） ── */
 .login-rise {
   animation: login-rise 0.66s var(--ease-out-quint) both;

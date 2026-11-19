@@ -4,6 +4,28 @@ import { apiLoopbackOrigin } from '@water-erp/config';
 
 const AUTH_COOKIE_NAME = 'token_web';
 
+/** :3011 专用演示门户（2026-11-19 用户裁定）：仅放行 admin 账号（admin/admin123）。
+ *  会话仍复用 token_web 命名空间——在 :3005 登录的其他账号拿到的是有效 token_web，
+ *  须在门户闸识别身份并拒入（后端零改动，见 spec 2026-10-13-mobile-portal-3011）。 */
+const MOBILE_ALLOWED_USERNAME = 'admin';
+
+/** 解 JWT payload 取 username claim（不验签——仅作路由决策；API 侧每请求仍验签，
+ *  伪造签名的假 token 最多骗过本闸进入页面壳，所有数据面 401）。
+ *  解不出（格式坏/无 claim）按无会话处理。 */
+function tokenUsername(token: string | undefined): string | null {
+  if (!token) return null;
+  const part = token.split('.')[1];
+  if (!part) return null;
+  try {
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const payload = JSON.parse(new TextDecoder().decode(bytes)) as { username?: unknown };
+    return typeof payload.username === 'string' ? payload.username : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function proxy(request: NextRequest) {
   // ★ API proxy: forward /api/* to NestJS with full cookie passthrough
   if (request.nextUrl.pathname.startsWith('/api/')) {
@@ -54,12 +76,21 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ★ Auth gate: non-API routes check token_web
+  // ★ Auth gate: non-API routes check token_web + 门户账号白名单（仅 admin）
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  if (!token) {
+  const username = tokenUsername(token);
+  if (!token || !username) {
     const loginUrl = new URL('/login', request.url);
     // 带上 search（登录后回跳原样 push）——深链 query 不丢：?category= 筛选直达、
     // /archive?pmi= 重定向后的 ?archivePmi= 归档卷直达（此前只保 pathname，query 全丢）
+    loginUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search);
+    return NextResponse.redirect(loginUrl);
+  }
+  if (username !== MOBILE_ALLOWED_USERNAME) {
+    // 有效会话但非 admin 账号（多来自 :3005 登录复用 cookie）——denied 标记供登录页
+    // 展示引导提示；redirect 链保留，admin 登录后仍落原目标页
+    const loginUrl = new URL('/login', request.url);
+    loginUrl.searchParams.set('denied', '1');
     loginUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }

@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { ChevronRight, Eye, EyeOff, KeyRound, Loader2, UserRound } from "lucide-react";
 import SplashCursor from "@/components/m/splash-cursor";
 import { TrueFocus } from "@/components/m/true-focus";
 import { login } from "@/lib/api/auth";
+import { clearWebToken } from "@/lib/session-store";
 
 /**
  * 登录页（2026-11-19 重制，spec 2026-11-19-mobile-3011-login-3005-style）：
@@ -44,18 +45,35 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /* proxy 闸踢回的非 admin 会话（?denied=1）——挂载后读取，避免 SSR/hydration 不一致 */
+  const [denied, setDenied] = useState(false);
+  useEffect(() => {
+    setDenied(new URLSearchParams(window.location.search).get("denied") === "1");
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
-    if (!username.trim() || !password) {
-      setError("请输入账号与密码");
+    /* 门户账号白名单（2026-11-19 用户裁定）：:3011 仅放行 admin 账号——提交前拦，
+       不发登录请求（proxy 闸兜 :3005 侧登录复用 cookie 的旁路） */
+    if (username.trim() !== "admin") {
+      setError("移动驾驶舱仅限管理员账号（admin）登录");
+      return;
+    }
+    if (!password) {
+      setError("请输入密码");
       return;
     }
     setError(null);
     setLoading(true);
     try {
-      await login(username.trim(), password);
+      const result = await login(username.trim(), password);
+      if (result.role !== "admin") {
+        /* 兜底：admin 账号被改角色的极端情形——清会话留提示，不进门户 */
+        clearWebToken();
+        setError("该账号无权访问移动驾驶舱");
+        return;
+      }
       // proxy 鉴权闸带来的回跳参数（深链 query 不丢，同 web 口径）
       const redirect = new URLSearchParams(window.location.search).get("redirect");
       router.replace(redirect && redirect.startsWith("/") ? redirect : "/dashboard");
@@ -109,6 +127,9 @@ export default function LoginPage() {
           </h1>
           <p className="login-slogan mt-5 text-[0.82rem] tracking-[0.28em]">坚持原则，坚定立场，坚决执行</p>
         </div>
+
+        {/* proxy 闸踢回的非 admin 会话——引导改用 admin 账号（有表单错误时让位给 error） */}
+        {denied && !error ? <p className="login-notice mt-6 w-full">当前账号无权访问移动驾驶舱，请使用 admin 账号登录</p> : null}
 
         <form onSubmit={handleSubmit} className="mx-auto mt-8 flex w-full flex-col items-center gap-[1.05rem]" noValidate>
           <div className="login-rise--2 w-full">
