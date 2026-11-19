@@ -457,10 +457,10 @@ export default function DashboardPage() {
             {[
               /* 首排=PMI 状态盘点（2026-11-19 用户裁定：异常项目=终止项目；当前状态快照
                  口径，不随本年窗口）；项目总数=三态之和收口。异常点跳台账终止轮次留痕 */
+              { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—" },
               { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—" },
               { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => router.push("/progress") },
               { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => router.push("/ledger?status=CANCELLED") },
-              { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—" },
               { label: "成交预算", value: summary.awardedBudgetLabel },
               { label: "成交额", value: summary.totalAwardLabel, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
               { label: "节约资金", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
