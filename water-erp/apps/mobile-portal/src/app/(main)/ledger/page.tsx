@@ -401,6 +401,11 @@ export default function LedgerPage() {
       <div className="space-y-2.5">
         {items.slice(0, visibleCount).map((item) => {
           const cfg = RESULT_STATUS_CONFIG[item.resultStatus];
+          /* 台账卡字段（2026-11-19 九板块页面化用户裁定）：项目名称/编号、公司·部门、
+           * 采购方式、预算·成交·节资率（现算）、采购人（PMI 需求提出人）、经办人（轮次创建人） */
+          const budget = Number(item.budgetAmount ?? 0);
+          const award = Number(item.awardAmount ?? 0);
+          const rate = budget > 0 && award > 0 && budget >= award ? `${(((budget - award) / budget) * 100).toFixed(1)}%` : "—";
           return (
             <button
               key={item.id}
@@ -409,6 +414,7 @@ export default function LedgerPage() {
               className="neu-card-static w-full rounded-[16px] p-3.5 text-left active:scale-[0.99]"
             >
               <div className="flex items-start gap-2">
+                <span className="shrink-0 pt-0.5 text-[13px] tabular-nums text-[var(--muted-foreground)]">{item.procurementDate || "—"}</span>
                 <span className="min-w-0 flex-1 line-clamp-2 text-[16px] font-semibold leading-snug text-[var(--foreground)]">{item.projectName}</span>
                 <span
                   className="shrink-0 rounded-full px-2 py-0.5 text-[13px] font-bold"
@@ -417,26 +423,19 @@ export default function LedgerPage() {
                   {item.resultStatusLabel}
                 </span>
               </div>
-              <div className="mt-1.5 flex items-center gap-1.5 text-[14px] text-[var(--muted-foreground)]">
-                <span className="shrink-0 tabular-nums">{item.procurementDate || "—"}</span>
-                <span>·</span>
-                <span className="min-w-0 flex-1 truncate">{item.procurementMethod}</span>
-                {item.departmentName ? (
-                  <>
-                    <span>·</span>
-                    <span className="max-w-[8rem] shrink-0 truncate">{item.departmentName}</span>
-                  </>
-                ) : null}
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-[var(--muted-foreground)]">
+                <span className="tabular-nums">{item.projectCode || "—"}</span>
+                <span className="min-w-0 truncate">{item.purchaserName || "—"} · {item.departmentName || "—"}</span>
               </div>
-              <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-[color-mix(in_oklch,var(--border)_45%,transparent)] pt-2">
-                <span className="text-[14px] text-[var(--muted-foreground)]">
-                  预算 <span className="font-semibold tabular-nums text-[var(--foreground)]">{fmtAmount(item.budgetAmount)}</span>
-                </span>
-                {item.awardAmount !== null && item.awardAmount !== undefined && item.awardAmount !== "" ? (
-                  <span className="text-[14px] text-[var(--muted-foreground)]">
-                    中标 <span className="font-bold tabular-nums text-[var(--success)]">{fmtAmount(item.awardAmount)}</span>
-                  </span>
-                ) : null}
+              <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-t border-[color-mix(in_oklch,var(--border)_45%,transparent)] pt-2 text-[14px] text-[var(--muted-foreground)]">
+                <span>{item.procurementMethod}</span>
+                <span className="tabular-nums">预算 <b className="font-semibold text-[var(--foreground)]">{fmtAmount(item.budgetAmount)}</b></span>
+                <span className="tabular-nums">成交 <b className="font-semibold text-[var(--foreground)]">{award > 0 ? fmtAmount(item.awardAmount) : "—"}</b></span>
+                <span className="tabular-nums">节资率 <b className="font-semibold text-[var(--foreground)]">{rate}</b></span>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-[var(--muted-foreground)]">
+                <span>采购人 {item.requesterName ?? "—"}</span>
+                <span>经办人 {item.createdByName ?? "—"}</span>
               </div>
             </button>
           );
