@@ -523,8 +523,10 @@ select.m-input { appearance: auto; }
   background: color-mix(in oklch, var(--muted-foreground) 18%, transparent);
 }
 .m-step[data-state="current"] {
-  background: var(--warning);
-  box-shadow: 0 0 0 2px color-mix(in oklch, var(--warning) 28%, transparent);
+  /* 2026-11-19 用户裁定：当前步用本阶段色（与统计图/胶囊同令牌），不再恒警示金
+     ——跨项目两当前步曾同色（开标评标=公告公示均金） */
+  background: var(--step-color, var(--warning));
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--step-color, var(--warning)) 30%, transparent);
 }
 
 /* 底部弹层面板：圆角把手 + 上滑入场 + 安全区（无边框，方向性上浮影） */
