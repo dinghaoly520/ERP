@@ -438,12 +438,67 @@ export default function DashboardPage() {
       ) : null}
 
 
+      {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
+           上移至实时态势上方、套与实时态势同款 SectionCard 格式；可点的两步到对应明细/
+           分析，环比箭头以小字随值呈现）── */}
+      {data && summary ? (
+        <SectionCard
+          icon={Gauge}
+          title="数据总览"
+          index={0}
+          right={<span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">本年 · 全部公司</span>}
+        >
+          <div className="grid grid-cols-4 gap-1.5">
+            {[
+              { label: "总轮次", value: String(summary.totalCount), delta: deltaOf(summary.totalCount, cmp?.totalCount, null), onTap: () => router.push("/ledger") },
+              { label: "已成交", value: String(summary.completedCount), onTap: () => router.push("/ledger?status=AWARDED") },
+              { label: "待处理", value: String(data.resultStats.find((r) => r.label.includes("待处理"))?.count ?? 0), onTap: () => router.push("/ledger?status=PENDING") },
+              { label: "异常", value: String(summary.abnormalCount), danger: summary.abnormalCount > 0, delta: deltaOf(summary.abnormalCount, cmp?.abnormalCount, false), onTap: () => router.push("/ledger?abnormal=1") },
+              { label: "成交总额", value: summary.totalAwardLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
+              { label: "累计节资", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
+              { label: "总预算", value: summary.totalBudgetLabel },
+              { label: "已成交预算", value: summary.awardedBudgetLabel },
+            ].map((m) => {
+              const inner = (
+                <>
+                  <div className="flex items-baseline justify-center gap-0.5">
+                    <span
+                      className={`max-w-full truncate text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                    >
+                      {m.value}
+                    </span>
+                    {m.delta ? (
+                      <span
+                        className={`shrink-0 text-[10px] font-bold tabular-nums ${m.delta.tone === "good" ? "text-[var(--success)]" : m.delta.tone === "bad" ? "text-[var(--danger)]" : "text-[var(--muted-foreground)]"}`}
+                      >
+                        {m.delta.pct > 0 ? "↑" : m.delta.pct < 0 ? "↓" : ""}
+                        {Math.abs(m.delta.pct)}%
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
+                </>
+              );
+              return m.onTap ? (
+                <button key={m.label} type="button" onClick={m.onTap} className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]">
+                  {inner}
+                </button>
+              ) : (
+                <div key={m.label} className="rounded-[12px] m-tile px-1 py-2 text-center">
+                  {inner}
+                </div>
+              );
+            })}
+          </div>
+        </SectionCard>
+      ) : null}
+
       {/* ── 实时运行态势（2026-11-18 指挥台改版：从进展页上移——首页即指挥台；
            30s 轮询 bid live + badges + upcoming 计数；不随区间/公司筛选）── */}
       <SectionCard
         icon={Radio}
         title="实时运行态势"
-        index={0}
+        index={0.5}
         right={
           <>
             <span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">不随筛选</span>
@@ -509,53 +564,6 @@ export default function DashboardPage() {
 
       {data && summary ? (
         <>
-          {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；
-               可点的两步到对应明细/分析，环比箭头以小字随值呈现）── */}
-          <div className="neu-card-static mb-3 rounded-[18px] p-3">
-            <div className="grid grid-cols-4 gap-1.5">
-              {[
-                { label: "总轮次", value: String(summary.totalCount), delta: deltaOf(summary.totalCount, cmp?.totalCount, null), onTap: () => router.push("/ledger") },
-                { label: "已成交", value: String(summary.completedCount), onTap: () => router.push("/ledger?status=AWARDED") },
-                { label: "待处理", value: String(data.resultStats.find((r) => r.label.includes("待处理"))?.count ?? 0), onTap: () => router.push("/ledger?status=PENDING") },
-                { label: "异常", value: String(summary.abnormalCount), danger: summary.abnormalCount > 0, delta: deltaOf(summary.abnormalCount, cmp?.abnormalCount, false), onTap: () => router.push("/ledger?abnormal=1") },
-                { label: "成交总额", value: summary.totalAwardLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
-                { label: "累计节资", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
-                { label: "总预算", value: summary.totalBudgetLabel },
-                { label: "已成交预算", value: summary.awardedBudgetLabel },
-              ].map((m) => {
-                const inner = (
-                  <>
-                    <div className="flex items-baseline justify-center gap-0.5">
-                      <span
-                        className={`max-w-full truncate text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
-                      >
-                        {m.value}
-                      </span>
-                      {m.delta ? (
-                        <span
-                          className={`shrink-0 text-[10px] font-bold tabular-nums ${m.delta.tone === "good" ? "text-[var(--success)]" : m.delta.tone === "bad" ? "text-[var(--danger)]" : "text-[var(--muted-foreground)]"}`}
-                        >
-                          {m.delta.pct > 0 ? "↑" : m.delta.pct < 0 ? "↓" : ""}
-                          {Math.abs(m.delta.pct)}%
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 truncate text-center text-[11px] text-[var(--muted-foreground)]">{m.label}</div>
-                  </>
-                );
-                return m.onTap ? (
-                  <button key={m.label} type="button" onClick={m.onTap} className="rounded-[10px] m-tile px-1 py-2.5 text-center active:scale-[0.98]">
-                    {inner}
-                  </button>
-                ) : (
-                  <div key={m.label} className="rounded-[10px] m-tile px-1 py-2.5 text-center">
-                    {inner}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           {/* ── 分析中心（一屏总览：其余分析卡分五组收进弹层，2026-11-17 spec）── */}
           <div className="mb-3 grid grid-cols-3 gap-2">
             {ANALYSIS_TILES.map((t, i) => (
