@@ -691,6 +691,8 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     prisma = {
       announcement: { findUnique: jest.fn(), update: jest.fn(), count: jest.fn(), findMany: jest.fn() },
       announcementHistory: { create: jest.fn().mockResolvedValue({}) },
+      bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -757,6 +759,53 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'OFFLINE', metadata: { recycle: { from: 'PUBLISHED', action: 'OFFLINE', at: 'x' } } });
     await expect(service.restore('a1', op)).rejects.toMatchObject({ response: { code: 'OFFLINE_NOT_RESTORABLE' } });
     expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  // ── 裁定1（2026-11-19 三门户审查）：回收站与删除闸同口径 + restore 终止复查 ──────
+  it('hide：BID_NOTICE+PUBLISHED 且项目投标进行中（SUBMIT）→ 409 BID_IN_PROGRESS，零写入', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: 'SWHI-XB-1', metadata: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
+    await expect(service.hide('a1', op)).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('offline：BID_NOTICE+PUBLISHED 且项目 EVALUATING → 409 BID_IN_PROGRESS（下架为终态，同拦）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: 'SWHI-XB-1', metadata: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    await expect(service.offline('a1', op)).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('hide：BID_NOTICE+PUBLISHED 但项目仅 DOWNLOAD → 放行（非投标进行中，v2 语义保留）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: 'SWHI-XB-1', metadata: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'DOWNLOAD' });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', status: 'HIDDEN' });
+    await expect(service.hide('a1', op)).resolves.toMatchObject({ status: 'HIDDEN' });
+  });
+
+  it('hide：非 BID_NOTICE（POLICY）PUBLISHED → 不查项目直接放行（闸只护采购公告）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'PUBLISHED', relatedProjectCode: 'x', metadata: null });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', status: 'HIDDEN' });
+    await expect(service.hide('a1', op)).resolves.toMatchObject({ status: 'HIDDEN' });
+    expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('restore：from=PUBLISHED 但关联 PMI 已终止 → 静默降级还原为 DRAFT + 无条件拆弹定时发布（2026-11-16 终止闸不被回收站击穿）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'HIDDEN', relatedProjectCode: 'SWHI-TP-1', metadata: { recycle: { from: 'PUBLISHED', action: 'HIDDEN', at: 'x' }, scheduledPublishDate: new Date(Date.now() + 86400000).toISOString() } });
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ status: 'TERMINATED' });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', status: 'DRAFT' });
+    await expect(service.restore('a1', op)).resolves.toMatchObject({ status: 'DRAFT' });
+    const arg = prisma.announcement.update.mock.calls[0][0];
+    expect(arg.data.status).toBe('DRAFT');
+    // 终止降级下定时键即使未到期也拆（终止项目公告不得自动补发——超出常规「未到期保留」语义）
+    expect(arg.data.metadata.scheduledPublishDate).toBeUndefined();
+  });
+
+  it('restore：from=PUBLISHED 且关联项目未终止 → 照常回 PUBLISHED（回归保护）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'HIDDEN', relatedProjectCode: 'SWHI-TP-2', metadata: { recycle: { from: 'PUBLISHED', action: 'HIDDEN', at: 'x' } } });
+    prisma.bidProject.findUnique.mockResolvedValue(null);
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', status: 'PUBLISHED' });
+    await expect(service.restore('a1', op)).resolves.toMatchObject({ status: 'PUBLISHED' });
   });
 
   it('publicList：已下线（公示期满/ARCHIVED）出标题壳——剥正文/摘要 + titleOnly 标记；无公示期永不过期', async () => {
