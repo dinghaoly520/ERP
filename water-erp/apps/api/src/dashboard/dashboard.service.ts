@@ -3,6 +3,7 @@ import { AttachmentType, BidStage, ResultStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CompanyWhere } from '../company/company-scope';
 import { STAGE_LABELS } from '../progress/progress.service';
+import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 
 /** PMI 九阶段序（态势状态行判定「已进入开标评标阶段」用；键集同 STAGE_LABELS） */
 const PMI_STAGE_ORDER: Record<string, number> = {
@@ -91,6 +92,12 @@ function shiftYearIsoB(iso: string): string {
   return t.toISOString().slice(0, 10);
 }
 
+/** 窗口参卫兵：仅收 YYYY-MM-DD 且可析；非法按缺省处理（防 Invalid Date 穿 Prisma 抛 500） */
+export function validIsoDate(v?: string): string | undefined {
+  if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
+  return Number.isNaN(new Date(`${v}T00:00:00+08:00`).getTime()) ? undefined : v;
+}
+
 /** 服务器本地日历日 ISO（同比窗终点兜底） */
 function nowIsoB(): string {
   const n = new Date();
@@ -137,6 +144,8 @@ export class DashboardService {
     companyFilter?: CompanyWhere,
     compare = false,
   ) {
+    startDate = validIsoDate(startDate);
+    endDate = validIsoDate(endDate);
     // 公司隔离：where 注入 companyId，轮次主查询与附件统计（经 procurementRound 关联）同时生效
     const where = {
       ...companyFilter,
@@ -1222,6 +1231,8 @@ export class DashboardService {
   }
 
   async getProjectStatusCounts(companyFilter?: CompanyWhere, startDate?: string, endDate?: string) {
+    startDate = validIsoDate(startDate);
+    endDate = validIsoDate(endDate);
     const base = await this.projectFlowOf(companyFilter);
     if (!startDate) return { ...base, flow: null };
     /* 同比窗=整窗前移一年（无终点补今天后同样前移一年——否则同比窗跨进本年自身）；
@@ -1258,6 +1269,8 @@ export class DashboardService {
   }
 
   async getBidStageStatus(companyFilter?: CompanyWhere, startDate?: string, endDate?: string) {
+    startDate = validIsoDate(startDate);
+    endDate = validIsoDate(endDate);
     const base = await this.bidStageCountsOf(companyFilter);
     if (!startDate) return { ...base, flow: null };
     const [cur, yoy] = await Promise.all([
@@ -1314,7 +1327,8 @@ export class DashboardService {
       bucket,
       projects: projects.map((p) => ({
         id: p.id,
-        name: p.name,
+        /* 项目名规范（2026-11-19 用户裁定）：剥公告标题类型前缀——存量名曾带前缀入库 */
+        name: stripAnnouncementTitlePrefix(p.name),
         status: this.bidStageRowStatus(p, subOf.get(p.id) ?? 0, expOf.get(p.id) ?? 0, now),
       })),
     };

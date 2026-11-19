@@ -96,6 +96,17 @@ describe('DashboardService.getProjectStatusCounts', () => {
     expect(yoyKeys).toContain(`${iso('2025-11-01')}~${isoE(yoyToday)}`);
   });
 
+  it('垃圾日期参按缺省处理（卫兵防 Invalid Date 穿 Prisma 500）', async () => {
+    const prisma = makePrisma(
+      { base: 166 },
+      { base: [{ status: 'ACTIVE', _count: { _all: 2 } }] },
+    );
+    const svc = new (DashboardService as any)(prisma);
+    const r = await svc.getProjectStatusCounts(undefined, 'garbage', '2026-13-99');
+    expect(r.flow).toBeNull(); // 非法窗=无窗
+    expect(calls).toHaveLength(2); // 只发 base 两查
+  });
+
   it('空库全 0（缺态不 NaN）', async () => {
     const prisma = makePrisma({}, {});
     const svc = new (DashboardService as any)(prisma);

@@ -55,11 +55,13 @@ describe('DashboardService.getBidStageProjects', () => {
   it('标前：PMI 未到开标评标=当前步骤；已到开标评标=已投/专家计数', async () => {
     const prisma = makePrisma([
       mk({ id: 'a', projectManagementItem: { currentStage: 'TENDER_DOCUMENT', awardedSupplier: null } }),
-      mk({ id: 'b', projectManagementItem: { currentStage: 'BID_EVALUATION', awardedSupplier: null } }),
+      mk({ id: 'b', name: '谈判文件公告 — 便携式全液压岩心钻机（800型）采购', projectManagementItem: { currentStage: 'BID_EVALUATION', awardedSupplier: null } }),
     ]);
     const svc = new (DashboardService as any)(prisma);
     const r = await svc.getBidStageProjects(undefined, 'pre');
     expect(r.projects.map((x: { status: string }) => x.status)).toEqual(['采购文件', '已投 3/5 · 专家 4']);
+    // 项目名剥公告类型前缀（2026-11-19 用户裁定：存量名带前缀入库，读端兜底）
+    expect(r.projects.map((x: { name: string }) => x.name)).toEqual(['钻机采购', '便携式全液压岩心钻机（800型）采购']);
   });
 
   it('标中：未到时间=等待开标；已到未移交=开标中；已移交未归档=归档中', async () => {
