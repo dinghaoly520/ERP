@@ -3,14 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
+import { InlineSelect } from "@/components/m/inline-select";
 import { fetchDashboardData, fetchProjectStatusCounts, type DashboardData, type ProjectStatusCounts } from "@/lib/api/dashboard";
 import { Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
-import { CompanyPicker } from "@/components/m/company-picker";
-import { SelectPicker } from "@/components/m/select-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { MetricCard } from "@/components/m/metric-card";
 import { ErrorBanner } from "@/components/m/error-banner";
@@ -218,6 +217,15 @@ export default function LedgerPage() {
     return () => { active = false; };
   }, [retryTick]);
 
+  /* 公司口径标签（全称短拼，2026-11-19 胶囊筛选） */
+  const companyLabel =
+    companyIds.length === 0
+      ? "全部公司"
+      : (() => {
+          const names = companyIds.map((id) => companies.find((c) => c.id === id)?.name ?? id);
+          return names.length <= 2 ? names.join("、") : `${names.slice(0, 2).join("、")} 等 ${names.length} 家`;
+        })();
+
   const loadMore = useCallback(() => {
     if (loading || loadingMore || page >= totalPages) return;
     setPage((p) => p + 1);
@@ -250,76 +258,95 @@ export default function LedgerPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
       <PageHeader title="台账明细" icon={NotebookText} />
-      {/* ── 搜索 ── */}
-      <div className="relative mb-2.5">
-        <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+      {/* ── 搜索（胶囊版式，2026-11-19 与下拉触发器同语言）── */}
+      <div className="m-tile mb-2 flex h-10 items-center gap-2 rounded-full px-3.5">
+        <Search size={14} className="shrink-0 text-[var(--muted-foreground)]" />
         <input
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="搜索项目名称 / 编号"
-          className="m-input h-11 w-full pl-10"
+          aria-label="搜索项目名称或编号"
+          className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
         />
         {searchInput ? (
           <button
             type="button"
             onClick={() => setSearchInput("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[14px] font-semibold text-[var(--accent)] active:scale-95"
+            className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95"
           >
             清除
           </button>
         ) : null}
       </div>
 
-      {/* ── 筛选行（2026-11-17 改版：状态/方式 chips 长条 → 下拉按钮+弹层，同 RangePicker 语言）──
+      {/* ── 筛选胶囊（2026-11-19 与驾驶舱下拉同语言：胶囊触发器+瓷面锚定菜单）──
           异常快捷筛选已撤（2026-11-19 用户裁定）；URL ?abnormal=1 预置仍兼容解析 */}
-      <div className="mb-2 flex gap-2">
-        <SelectPicker
-          className="mb-0 flex-1"
-          title="按状态筛选"
-          allLabel="全部状态"
-          options={statusChips.map((c) => ({ value: c.key, label: c.label }))}
-          value={statusFilter}
-          onChange={(next) =>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <InlineSelect
+          label={statusFilter ? (statusChips.find((c) => c.key === statusFilter)?.label ?? "全部状态") : "全部状态"}
+          active={!!statusFilter}
+          options={[{ value: "all", label: "全部状态" }, ...statusChips.map((c) => ({ value: c.key as string, label: c.label }))]}
+          selected={statusFilter ? [statusFilter as string] : ["all"]}
+          onSelect={(next) =>
             changeFilter(() => {
-              /* SelectPicker 出参 string——窄化回 RESULT_STATUS_CONFIG 键集（选项即由其派生） */
-              const key = next as ResultStatusKey | null;
-              setStatusFilter(key);
-              persistLedger({ statusFilter: key });
-              /* 互斥另一侧：显式选状态即退出异常视图 */
-              if (key) setAbnormalFilter(false);
+              const v = next[0];
+              if (!v || v === "all") {
+                setStatusFilter(null);
+                persistLedger({ statusFilter: null });
+              } else {
+                setStatusFilter(v as ResultStatusKey);
+                persistLedger({ statusFilter: v as ResultStatusKey });
+                setAbnormalFilter(false); // 互斥另一侧：显式选状态即退出异常视图
+              }
             })
           }
+          ariaLabel="按状态筛选"
         />
         {methods.length > 1 ? (
-          <SelectPicker
-            className="mb-0 flex-1"
-            title="按方式筛选"
-            allLabel="全部方式"
-            options={methods.map((m) => ({ value: m, label: m }))}
-            value={methodFilter}
-            onChange={(next) =>
+          <InlineSelect
+            label={methodFilter ?? "全部方式"}
+            active={!!methodFilter}
+            options={[{ value: "all", label: "全部方式" }, ...methods.map((m) => ({ value: m, label: m }))]}
+            selected={methodFilter ? [methodFilter] : ["all"]}
+            onSelect={(next) =>
               changeFilter(() => {
-                setMethodFilter(next);
-                persistLedger({ methodFilter: next });
+                const v = next[0];
+                if (!v || v === "all") {
+                  setMethodFilter(null);
+                  persistLedger({ methodFilter: null });
+                } else {
+                  setMethodFilter(v);
+                  persistLedger({ methodFilter: v });
+                }
               })
             }
+            ariaLabel="按方式筛选"
+          />
+        ) : null}
+        {role === "admin" ? (
+          <InlineSelect
+            multiple
+            label={companyLabel}
+            active={companyIds.length > 0}
+            options={[{ value: "all", label: "全部公司" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
+            selected={companyIds.length === 0 ? ["all"] : companyIds}
+            onSelect={(next) =>
+              changeFilter(() => {
+                const hadAll = companyIds.length === 0;
+                if (next.includes("all") && !hadAll) {
+                  setCompanyIds([]);
+                  persistLedger({ companyIds: [] });
+                } else {
+                  const v = next.filter((x) => x !== "all");
+                  setCompanyIds(v);
+                  persistLedger({ companyIds: v });
+                }
+              })
+            }
+            ariaLabel={`公司口径：${companyLabel}`}
           />
         ) : null}
       </div>
-      {role === "admin" ? (
-        <CompanyPicker
-          value={companyIds}
-          options={companies}
-          onChange={(next) =>
-            changeFilter(() => {
-              setCompanyIds(next);
-              persistLedger({ companyIds: next });
-            })
-          }
-        />
-      ) : (
-        <div className="mb-3" />
-      )}
 
       {/* ── 总览八项（2026-11-19 用户裁定：置于筛选项下方，与驾驶舱数据总览同内容同版式）── */}
       {overview && projectStatus ? (

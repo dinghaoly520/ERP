@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 
 /**
  * 原地下拉选择（2026-11-19 用户裁定：口径选择不走弹层——锚定触发器展开菜单）。
@@ -45,6 +45,7 @@ export function InlineSelect({
   const [editorOpen, setEditorOpen] = useState(false);
   const [draftFrom, setDraftFrom] = useState("");
   const [draftTo, setDraftTo] = useState("");
+  const [keyword, setKeyword] = useState("");
   /** 触发器实测坐标（开菜单时测量；fixed 菜单锚定用） */
   const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -77,6 +78,7 @@ export function InlineSelect({
     setEditorOpen(selected.includes("custom"));
     setDraftFrom(customValue?.from ?? "");
     setDraftTo(customValue?.to ?? "");
+    setKeyword("");
     const r = triggerRef.current?.getBoundingClientRect();
     if (r) setPos({ top: r.bottom + 6, right: r.right });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,12 +178,29 @@ export function InlineSelect({
               ref={menuRef}
               role="listbox"
               aria-multiselectable={multiple || undefined}
-              className="m-menu fixed z-[60] min-w-[13rem] overflow-y-auto overscroll-contain p-1.5"
+              className="m-menu fixed z-[60] min-w-[13rem] p-1.5"
               /* 动态锚定坐标必须内联（类名无法承载测量值）：右缘对齐触发器右缘 */
               style={{ top: pos.top, left: pos.right, transform: "translateX(-100%)", maxHeight: maxMenuH }}
             >
+              {/* 选项>12 自动出菜单内搜索（2026-11-19：台账公司筛选 66 家长名单） */}
+              {options.length > 12 ? (
+                <div className="relative mb-1.5">
+                  <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                  <input
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="搜索选项"
+                    aria-label="搜索选项"
+                    autoFocus
+                    className="m-input h-9 w-full rounded-[10px] pl-8 pr-2 text-[13px]"
+                  />
+                </div>
+              ) : null}
               {customFirst ? customBlock : null}
-              {options.map((o) => {
+              <div className="overflow-y-auto overscroll-contain" style={{ maxHeight: maxMenuH - (options.length > 12 ? 46 : 0) }}>
+              {options
+                .filter((o) => !keyword.trim() || o.label.includes(keyword.trim()))
+                .map((o) => {
                 const on = selected.includes(o.value);
                 return (
                   <button
@@ -199,7 +218,11 @@ export function InlineSelect({
                   </button>
                 );
               })}
+              {options.length > 0 && options.every((o) => keyword.trim() && !o.label.includes(keyword.trim())) ? (
+                <p className="py-4 text-center text-[13px] text-[var(--muted-foreground)]">无匹配「{keyword.trim()}」</p>
+              ) : null}
               {!customFirst ? customBlock : null}
+              </div>
             </div>,
             document.body,
           )
