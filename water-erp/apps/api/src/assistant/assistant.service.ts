@@ -15,6 +15,7 @@ import { ExpertTool } from './tools/expert.tool';
 import { AnnouncementTool, PUBLIC_WHERE, isPubliclyVisible as isAnnouncementPubliclyVisible } from './tools/announcement.tool';
 import { NotificationTool } from './tools/notification.tool';
 import { CockpitTool } from './tools/cockpit.tool';
+import { deriveBusyCounts } from '../expert/expert-busy-state.util';
 import { SYSTEM_KNOWLEDGE } from './knowledge/system-knowledge';
 import { AssistantRagService } from './knowledge/rag-retrieval.service';
 import { ChatMessage } from './model/assistant-model-provider';
@@ -876,7 +877,10 @@ ${toolList}
       this.prisma.supplier.count({ where: { ...companyWhere, status: 'PENDING' } }),
       this.prisma.supplier.count({ where: { ...companyWhere, status: { in: ['DISABLED', 'BLACKLIST'] } } }),
       this.prisma.expertProfile.count({ where: { user: { ...companyWhere } } }),
-      this.prisma.expertProfile.count({ where: { user: { ...companyWhere }, availability: '可用' } }),
+      // E6（2026-11-19 第一波）：可用=四态派生空闲（库内 ACTIVE+非停用分母−在途并集）——
+      // 与 expert.tool stats 卡/:3005 统计同口径（人口同水叮当 stats：bid_expert+启用+视野），
+      // 弃镜像列计数（「首页磁贴 vs stats 卡两个可用数」病根）
+      deriveBusyCounts(this.prisma, { role: 'bid_expert', isActive: true, ...companyWhere }).then((c) => c.idle),
       this.prisma.notification.count({ where: { userId: ownerUserId, isRead: false } }),
     ]);
 

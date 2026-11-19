@@ -54,7 +54,8 @@ describe('AssistantService', () => {
       projectManagementItem: { count: jest.fn() },
       bidProject: { count: jest.fn() },
       supplier: { count: jest.fn() },
-      expertProfile: { count: jest.fn() },
+      expertProfile: { count: jest.fn(), groupBy: jest.fn().mockResolvedValue([]) }, // groupBy=E6 四态派生分母查询
+      bidExpert: { findMany: jest.fn().mockResolvedValue([]) }, // E6 四态派生在途并集查询
       notification: { count: jest.fn() },
       // chat() 解析工具上下文用（AssistantToolCtx 基建，2026-10-22）
       user: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -505,6 +506,36 @@ describe('AssistantService', () => {
       expect(prisma.notification.count).toHaveBeenCalledWith({ where: { userId: 'leader-1', isRead: false } });
     });
   });
+
+  describe('getQuickStats（E6：2026-11-19 第一波 quickStats 可用数改四态派生）', () => {
+    it('expert.available=派生空闲（库内 ACTIVE+非停用分母−在途并集）——弃镜像列计数，与 expert.tool stats 卡/:3005 统计同口径', async () => {
+      prisma.user.findUnique.mockResolvedValue({ role: 'leader', companyId: 'c1' });
+      prisma.projectManagementItem.count.mockResolvedValue(0);
+      prisma.procurementProject.count.mockResolvedValue(0);
+      prisma.bidProject.count.mockResolvedValue(0);
+      prisma.supplier.count.mockResolvedValue(0);
+      prisma.notification.count.mockResolvedValue(0);
+      prisma.expertProfile.count.mockResolvedValue(6); // expertTotal=全量档案（含停用组）
+      prisma.expertProfile.groupBy = jest.fn().mockImplementation(({ by, where }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        const all = [
+          { availability: '可用', _count: 5 },
+          { availability: '停用', _count: 1 }, // 临时需求方代表——不入分母（mock 模拟真实过滤）
+        ];
+        return Promise.resolve(where?.availability?.not === '停用' ? all.filter((g: any) => g.availability !== '停用') : all);
+      });
+      prisma.bidExpert = {
+        findMany: jest.fn().mockImplementation((args: any) =>
+          args?.select?.project
+            ? Promise.resolve([{ userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } }])
+            : Promise.resolve([])),
+      };
+      const res = await service.getQuickStats('u-1');
+      expect(res.expert.total).toBe(6);
+      expect(res.expert.available).toBe(4); // 分母5−在途1；镜像口径会答 5——「两个可用数」病根
+    });
+  });
+
 });
 
 // 商城下线（2026-10-28）：知识库/兜底文案不得再向用户或 LLM 宣传已删除的商城线
