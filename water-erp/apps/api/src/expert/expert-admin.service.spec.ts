@@ -186,7 +186,7 @@ describe('ExpertAdminService', () => {
   });
 
   describe('specialtyPoolCounts（全库各专业人数）', () => {
-    it('一次 groupBy 返回 specialty/count（按人数降序），限定可抽取人口（2026-10-28 口径收口：ACTIVE+可用，与 getDemandRepDirectory 同口径）', async () => {
+    it('一次 groupBy 返回 specialty/count（按人数降序），限定可抽取人口（2026-10-28 收口→E1 2026-11-19 方案A：ACTIVE+非停用，与 deriveBusyCounts 分母同口径）', async () => {
       prisma.expertProfile.groupBy.mockResolvedValue([
         { specialty: '水利工程', _count: { _all: 3 } },
         { specialty: '测绘工程', _count: { _all: 5 } },
@@ -195,7 +195,7 @@ describe('ExpertAdminService', () => {
       const res = await service.specialtyPoolCounts();
       expect(prisma.expertProfile.groupBy).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { entryStatus: 'ACTIVE', availability: '可用', user: { isActive: true, role: 'bid_expert' } },
+          where: { entryStatus: 'ACTIVE', availability: { not: '停用' }, user: { isActive: true, role: 'bid_expert' } },
         }),
       );
       expect(res).toEqual([
@@ -476,14 +476,14 @@ describe('ExpertAdminService', () => {
         { id: 'co-b', name: '四川水发能源开发有限公司', shortName: '能源' },
       ]);
       const res = await service.listPoolCompanies();
-      // 资格口径与 previewExtraction 候选池一致：在库 ACTIVE + 可用 + 账号激活 + 已归属公司
+      // 资格口径与 previewExtraction 候选池一致：在库 ACTIVE + 非停用（E1 2026-11-19 方案A）+ 账号激活 + 已归属公司
       expect(prisma.user.groupBy).toHaveBeenCalledWith(expect.objectContaining({
         by: ['companyId'],
         where: {
           role: 'bid_expert',
           isActive: true,
           companyId: { not: null },
-          expertProfile: { availability: '可用', entryStatus: 'ACTIVE' },
+          expertProfile: { availability: { not: '停用' }, entryStatus: 'ACTIVE' },
         },
       }));
       // null 归属（未归属专家）不产生下拉项
@@ -1299,6 +1299,22 @@ describe('ExpertAdminService', () => {
       prisma.expertEvaluation.findMany.mockResolvedValue([]);
       const result = await service.getExpert('u1');
       expect(result.busyState).toBe('空闲');
+    });
+  });
+
+
+  describe('E1（2026-11-19 第一波·方案A）：池伴随端点人口口径对齐（ACTIVE+非停用）', () => {
+    it('getDemandRepDirectory / listPoolCompanies：与抽取池同人口（存量「占用」行入池——弃「可用」等值闸）', async () => {
+      prisma.user.findMany.mockResolvedValue([]);
+      await service.getDemandRepDirectory();
+      expect(prisma.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } }),
+      }));
+      prisma.user.groupBy.mockResolvedValue([]);
+      await service.listPoolCompanies();
+      expect(prisma.user.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ expertProfile: { availability: { not: '停用' }, entryStatus: 'ACTIVE' } }),
+      }));
     });
   });
 

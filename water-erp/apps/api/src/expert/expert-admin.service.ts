@@ -363,9 +363,10 @@ export class ExpertAdminService {
   async specialtyPoolCounts() {
     const groups = await this.prisma.expertProfile.groupBy({
       by: ['specialty'],
-      // 2026-10-28 口径收口：与 getDemandRepDirectory/抽取池同人口（ACTIVE+可用）——
-      // 此前裸 isActive 会把 PENDING/SUSPENDED 专家计入「N人·库内」提示，递补预检按虚增池放行
-      where: { entryStatus: 'ACTIVE', availability: '可用', user: { isActive: true, role: 'bid_expert' } },
+      // 2026-10-28 口径收口：与 getDemandRepDirectory/抽取池同人口——
+      // 此前裸 isActive 会把 PENDING/SUSPENDED 专家计入「N人·库内」提示，递补预检按虚增池放行。
+      // E1（2026-11-19 方案A）：人口=ACTIVE+非停用（与 deriveBusyCounts 分母同源，弃「可用」等值闸）
+      where: { entryStatus: 'ACTIVE', availability: { not: '停用' }, user: { isActive: true, role: 'bid_expert' } },
       _count: { _all: true },
     });
     return groups
@@ -386,7 +387,8 @@ export class ExpertAdminService {
       where: {
         role: 'bid_expert',
         isActive: true,
-        expertProfile: { entryStatus: 'ACTIVE', availability: '可用' },
+        // E1（2026-11-19 方案A）：人口=ACTIVE+非停用（与抽取池/deriveBusyCounts 分母同源）
+        expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } },
       },
       select: {
         id: true,
@@ -410,7 +412,8 @@ export class ExpertAdminService {
   }
 
   /** 配额「公司」下拉候选（2026-10-20）：仅列库内确有可抽取专家的公司——与抽取池同资格口径
-   *  （role=bid_expert + isActive + availability 可用 + entryStatus ACTIVE）。全公司口径：配额
+   *  （role=bid_expert + isActive + entryStatus ACTIVE + 非停用，E1 2026-11-19 方案A 与
+   *  deriveBusyCounts 分母同源）。全公司口径：配额
    *  声明公司=用户拍板可跨公司（与 listSpecialties 显式 companyId 分支同语义），不受登录人 scope
    *  收窄。此前前端直拉 /companies 主数据全集，0 专家的残留公司也会进下拉（走查测试集团实录）。 */
   async listPoolCompanies() {
@@ -420,7 +423,7 @@ export class ExpertAdminService {
         role: 'bid_expert' as const,
         isActive: true,
         companyId: { not: null },
-        expertProfile: { availability: '可用', entryStatus: 'ACTIVE' },
+        expertProfile: { availability: { not: '停用' }, entryStatus: 'ACTIVE' },
       },
     });
     const ids = [...new Set(groups.map((g) => g.companyId).filter((id): id is string => !!id))];
