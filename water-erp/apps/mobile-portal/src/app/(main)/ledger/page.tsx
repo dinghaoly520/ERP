@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, Loader2, Search, TrendingUp } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Loader2, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -252,6 +252,18 @@ export default function LedgerPage() {
   return (
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
+      {/* 页头（2026-11-19 九板块页面化）：返回驾驶舱 + 页面名称 */}
+      <div className="mb-3 flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => router.push("/dashboard")}
+          aria-label="返回驾驶舱"
+          className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
+        >
+          <ArrowLeft size={15} />
+        </button>
+        <span className="text-[18px] font-bold tracking-[-0.02em] text-[var(--foreground)]">台账明细</span>
+      </div>
       {/* ── 汇总条 ── */}
       {stats ? (
         <div className="neu-card-static mb-3 rounded-[16px] p-3">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
+import { ArrowLeft, Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -245,6 +245,18 @@ export default function ProgressPage() {
   return (
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
+      {/* 页头（2026-11-19 九板块页面化）：返回驾驶舱 + 页面名称 */}
+      <div className="mb-3 flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={() => router.push("/dashboard")}
+          aria-label="返回驾驶舱"
+          className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
+        >
+          <ArrowLeft size={15} />
+        </button>
+        <span className="text-[18px] font-bold tracking-[-0.02em] text-[var(--foreground)]">项目进展</span>
+      </div>
       {role === "admin" ? (
         <CompanyPicker
           value={companyIds}
