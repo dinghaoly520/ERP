@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/m/page-header";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, priorWindowIso, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
-import { Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
+import { Loader2, NotebookText, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchProcurementDimensions, fetchLedgerStats, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -643,7 +643,6 @@ export default function LedgerPage() {
                   {group("经办信息", [
                     activeItem.requesterName ? <DetailRow key="rq" label="采购人" value={activeItem.requesterName} /> : null,
                     activeItem.createdByName ? <DetailRow key="cb" label="经办人" value={activeItem.createdByName} /> : null,
-                    <DetailRow key="src" label="数据来源" value={SOURCE_LABELS[activeItem.sourceType] ?? activeItem.sourceType} />,
                   ])}
                   {activeItem.terminationReason ? (
                     <div>
@@ -670,16 +669,6 @@ export default function LedgerPage() {
               </div>
             ) : null}
 
-            {/* 台账↔进展互跳桥（2026-11-03）：底部主操作位 */}
-            {activeItem.projectManagementId ? (
-              <button
-                type="button"
-                onClick={() => router.push(`/progress?focusPmi=${activeItem.projectManagementId}`)}
-                className="neu-btn-primary h-11 w-full rounded-[12px] text-[15px] active:scale-[0.99]"
-              >
-                <TrendingUp size={14} /> 查看进展
-              </button>
-            ) : null}
           </div>
         ) : null}
       </BottomSheet>
