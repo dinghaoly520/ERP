@@ -24,10 +24,13 @@ import {
   Users,
 } from "lucide-react";
 import {
+  fetchBidStageProjects,
   fetchBidStageStatus,
   fetchCompanyRanking,
   fetchDashboardData,
   fetchProjectStatusCounts,
+  type BidStageBucket,
+  type BidStageProjectRow,
   type BidStageStatus,
   type CompanyRankingRange,
   type CompanyRankingView,
@@ -336,7 +339,6 @@ export default function DashboardPage() {
   );
   const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
   const evaluatingNow = live?.projects.filter((p) => p.stage === "EVALUATING") ?? [];
-  const submittingNow = live?.projects.filter((p) => p.stage === "SUBMIT") ?? [];
   /* 态势卡口径（2026-11-19 用户裁定：与数据总览同款双选择器，独立口径） */
   const [bidRangeKey, setBidRangeKey] = useState<RangeKey>("all");
   const [bidCustomRange, setBidCustomRange] = useState<{ from: string; to: string } | null>(null);
@@ -356,6 +358,16 @@ export default function DashboardPage() {
       .catch(() => undefined);
     return () => { active = false; };
   }, [retryTick, bidCompanyIds, queryBidRange.startDate, queryBidRange.endDate]);
+  /* KPI 下方项目列表（2026-11-19 用户裁定）：点 KPI 卡切桶，桶内最新 5 项+复合状态行 */
+  const [bidBucket, setBidBucket] = useState<BidStageBucket>("running");
+  const [bidRows, setBidRows] = useState<BidStageProjectRow[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchBidStageProjects(bidBucket, bidCompanyIds.length ? bidCompanyIds.join(",") : undefined)
+      .then((r) => { if (active) setBidRows(r.projects); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [bidBucket, bidCompanyIds, retryTick]);
   const [rankingRange, setRankingRange] = useState<CompanyRankingRange>("year");
   useEffect(() => {
     let active = true;
@@ -728,19 +740,20 @@ export default function DashboardPage() {
               hb: bf ? deltaOf(bf.cur[k], bf.prev[k], null) : undefined,
             });
             return [
-              { label: "运行中项目", n: bidStage?.running, ...bstat("running") },
-              { label: "标前项目", n: bidStage?.pre, ...bstat("pre") },
-              { label: "标中项目", n: bidStage?.in, ...bstat("in") },
-              { label: "标后项目", n: bidStage?.post, ...bstat("post") },
+              { k: "running" as BidStageBucket, label: "运行中项目", n: bidStage?.running, ...bstat("running") },
+              { k: "pre" as BidStageBucket, label: "标前项目", n: bidStage?.pre, ...bstat("pre") },
+              { k: "in" as BidStageBucket, label: "标中项目", n: bidStage?.in, ...bstat("in") },
+              { k: "post" as BidStageBucket, label: "标后项目", n: bidStage?.post, ...bstat("post") },
             ].map((c) => (
               <button
-                key={c.label}
+                key={c.k}
                 type="button"
-                onClick={() => router.push("/progress")}
-                className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]"
-                aria-label={`${c.label} ${c.n ?? "—"} 项，查看进展`}
+                onClick={() => setBidBucket(c.k)}
+                aria-pressed={bidBucket === c.k}
+                className={`rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98] ${bidBucket === c.k ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]" : ""}`}
+                aria-label={`${c.label} ${c.n ?? "—"} 项，点看最新项目`}
               >
-                <div className={`text-[15px] font-black leading-none tabular-nums ${c.n ? "" : "text-[var(--muted-foreground)]"}`}>
+                <div className={`text-[15px] font-black leading-none tabular-nums ${c.n ? (bidBucket === c.k ? "text-[var(--accent)]" : "") : "text-[var(--muted-foreground)]"}`}>
                   {c.n ?? "—"}
                 </div>
                 {queryBidRange.startDate ? (
@@ -749,24 +762,26 @@ export default function DashboardPage() {
                     <span className={ratioCls(c.hb)}>环比 {ratioTxt(c.hb)}</span>
                   </div>
                 ) : null}
-                <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">{c.label}</div>
+                <div className={`mt-1 text-[12px] ${bidBucket === c.k ? "font-semibold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{c.label}</div>
               </button>
             ));
           })()}
         </div>
         <div className="mt-2 space-y-1.5">
-          {[...openingNow, ...evaluatingNow, ...submittingNow].slice(0, 4).map((p) => (
-            <div key={p.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
+          {/* 桶内最新 5 项（2026-11-19 用户裁定）：状态行规则后端解析——
+              标后=中标单位·当前步骤；标前=当前步骤/已投·专家；标中=开标时间·等待开标/开标中/归档中 */}
+          {(bidRows ?? []).slice(0, 5).map((r) => (
+            <div key={r.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
               <span
                 className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ background: p.stage === "OPENING" ? "var(--danger)" : p.stage === "EVALUATING" ? "var(--warning)" : "var(--accent)" }}
+                style={{ background: bidBucket === "in" ? "var(--warning)" : bidBucket === "post" ? "var(--success)" : "var(--accent)" }}
               />
-              <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{p.name}</span>
-              <span className="shrink-0 tabular-nums">已投 {p.supplierSubmitted}/{p.supplierCount} · 专家 {p.expertCount}</span>
+              <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{r.name}</span>
+              <span className="max-w-[55%] shrink-0 truncate tabular-nums">{r.status}</span>
             </div>
           ))}
-          {openingNow.length + evaluatingNow.length + submittingNow.length === 0 ? (
-            <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">当前无进行中的开评标</div>
+          {bidRows && bidRows.length === 0 ? (
+            <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">该阶段暂无项目</div>
           ) : null}
           {/* 告警计数（2026-11-19 v3 全景裁定并入）：风险项目随区间筛选，资质临期/专家过载不随 */}
           <div className="mt-2 flex items-center justify-between gap-2 border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-2 text-[13px]">

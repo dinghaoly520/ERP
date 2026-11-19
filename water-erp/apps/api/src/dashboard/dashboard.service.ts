@@ -1,7 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { AttachmentType, ResultStatus } from '@prisma/client';
+import { AttachmentType, BidStage, ResultStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CompanyWhere } from '../company/company-scope';
+import { STAGE_LABELS } from '../progress/progress.service';
+
+/** PMI 九阶段序（态势状态行判定「已进入开标评标阶段」用；键集同 STAGE_LABELS） */
+const PMI_STAGE_ORDER: Record<string, number> = {
+  PROCUREMENT_DEMAND: 1,
+  INITIATION: 2,
+  TENDER_DOCUMENT: 3,
+  SUPPLIER_INVITATION: 4,
+  PUBLIC_ANNOUNCEMENT: 5,
+  EXPERT_SELECTION: 6,
+  BID_EVALUATION: 7,
+  AWARD_DECISION: 8,
+  CONTRACT: 9,
+  DIRECT_PURCHASE_FILING: 10,
+};
 
 function decimalToNumber(value: unknown) {
   if (value == null) {
@@ -1252,6 +1267,88 @@ export class DashboardService {
     const prevW = priorWindow(startDate, endDate);
     const prev = prevW ? await this.bidStageCountsOf(companyFilter, prevW.startDate, prevW.endDate) : { running: 0, pre: 0, in: 0, post: 0 };
     return { ...base, flow: { cur, yoy, prev } };
+  }
+
+  /** :3011 实时态势 KPI 下方项目列表（2026-11-19 用户裁定）：桶内最新 N 项 + 复合状态行。
+   *  规则：标后=中标单位·当前步骤；标前且 PMI 未到开标评标=当前步骤；标前且已到开标评标
+   *  =已投 X/Y·专家 N；标中未到开标时间=时间·等待开标；已到时间未移交=时间·开标中；
+   *  已移交（session 开标完成）未归档=时间·归档中。 */
+  async getBidStageProjects(companyFilter: CompanyWhere | undefined, bucket: string = 'running', limit = 5) {
+    const stageIn: BidStage[] =
+      bucket === 'pre' ? ['DOWNLOAD', 'SUBMIT']
+      : bucket === 'in' ? ['OPENING', 'EVALUATING']
+      : bucket === 'post' ? ['ARCHIVED']
+      : ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'];
+    const projects = await this.prisma.bidProject.findMany({
+      where: { ...companyFilter, stage: { in: stageIn }, isExtractionOnly: false },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        projectManagementItem: { select: { currentStage: true, awardedSupplier: true } },
+        openingSession: { select: { status: true } },
+        _count: { select: { suppliers: true } },
+      },
+    });
+    const ids = projects.map((p) => p.id);
+    type CountRow = { projectId: string; _count: { projectId: number } };
+    const [subRows, expertRows] = (await Promise.all([
+      ids.length
+        ? this.prisma.supplierBidSubmission.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: ids }, status: 'submitted' },
+            _count: { projectId: true },
+          })
+        : [],
+      ids.length
+        ? this.prisma.bidExpert.groupBy({
+            by: ['projectId'],
+            where: { projectId: { in: ids }, expertRole: '正选', invitationStatus: { not: 'declined' } },
+            _count: { projectId: true },
+          })
+        : [],
+    ])) as [CountRow[], CountRow[]];
+    const subOf = new Map(subRows.map((r) => [r.projectId, r._count.projectId]));
+    const expOf = new Map(expertRows.map((r) => [r.projectId, r._count.projectId]));
+    const now = new Date();
+    return {
+      bucket,
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: this.bidStageRowStatus(p, subOf.get(p.id) ?? 0, expOf.get(p.id) ?? 0, now),
+      })),
+    };
+  }
+
+  /** 状态行解析（规则见 getBidStageProjects 注释）；openTime 显示 MM-DD HH:mm（本地时区） */
+  private bidStageRowStatus(
+    p: {
+      stage: string;
+      openTime: Date;
+      projectManagementItem: { currentStage: string; awardedSupplier: string | null } | null;
+      openingSession: { status: string } | null;
+      _count: { suppliers: number };
+    },
+    submitted: number,
+    experts: number,
+    now: Date,
+  ): string {
+    const pmi = p.projectManagementItem;
+    if (p.stage === 'ARCHIVED') {
+      return `${pmi?.awardedSupplier || '—'} · ${STAGE_LABELS[pmi?.currentStage ?? ''] || '已归档'}`;
+    }
+    if (p.stage === 'DOWNLOAD' || p.stage === 'SUBMIT') {
+      // 标前（确认开标未点击）：PMI 未推进到开标评标=当前步骤；已到开标评标=投递/专家计数
+      const ord = PMI_STAGE_ORDER[pmi?.currentStage ?? ''] ?? 0;
+      if (ord < PMI_STAGE_ORDER.BID_EVALUATION) {
+        return STAGE_LABELS[pmi?.currentStage ?? ''] || pmi?.currentStage || '标前';
+      }
+      return `已投 ${submitted}/${p._count.suppliers} · 专家 ${experts}`;
+    }
+    // 标中（已点击确认开标）：未到时间=等待开标；已到未移交=开标中；已移交未归档=归档中
+    const t = `${String(p.openTime.getMonth() + 1).padStart(2, '0')}-${String(p.openTime.getDate()).padStart(2, '0')} ${String(p.openTime.getHours()).padStart(2, '0')}:${String(p.openTime.getMinutes()).padStart(2, '0')}`;
+    if (now < p.openTime) return `${t} · 等待开标`;
+    return p.openingSession?.status === '开标完成' ? `${t} · 归档中` : `${t} · 开标中`;
   }
 
   /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：

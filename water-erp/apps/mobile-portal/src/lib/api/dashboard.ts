@@ -49,6 +49,17 @@ export async function fetchBidStageStatus(companyId?: string, startDate?: string
   return api.get<BidStageStatus>(`/dashboard/bid-stage-status${q ? `?${q}` : ''}`);
 }
 
+/* 实时态势 KPI 下方项目列表（2026-11-19 用户裁定）：桶内最新 5 项 + 复合状态行
+   （标后=中标单位·当前步骤；标前=当前步骤或已投/专家；标中=开标时间·等待开标/开标中/归档中） */
+export type BidStageBucket = 'running' | 'pre' | 'in' | 'post';
+export type BidStageProjectRow = { id: string; name: string; status: string };
+export async function fetchBidStageProjects(bucket: BidStageBucket, companyId?: string): Promise<{ bucket: string; projects: BidStageProjectRow[] }> {
+  const params = new URLSearchParams();
+  params.set('bucket', bucket);
+  if (companyId) params.set('companyId', companyId);
+  return api.get<{ bucket: string; projects: BidStageProjectRow[] }>(`/dashboard/bid-stage-projects?${params.toString()}`);
+}
+
 /* ── 公司龙虎榜（:3011，跨公司榜单——admin 全榜 / leader 本公司排位+集团均值）── */
 
 export type CompanyRankingRange = "month" | "year";
