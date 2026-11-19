@@ -157,9 +157,12 @@ function parseBudgetLabel(bs: string): number {
   return 0;
 }
 
-/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral */
-function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | null): { pct: number; tone: "good" | "bad" | "neutral" } | undefined {
-  if (prev == null || prev === 0) return undefined;
+/** 涨跌比（同比/环比子行共用形态） */
+type DeltaR = { pct: number; tone: "good" | "bad" | "neutral" };
+
+/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral；cur/prev 缺位不显 */
+function deltaOf(cur: number | undefined, prev: number | undefined, goodWhenUp: boolean | null): DeltaR | undefined {
+  if (cur == null || prev == null || prev === 0) return undefined;
   const pct = Math.round(((cur - prev) / prev) * 100);
   if (pct === 0) return { pct: 0, tone: "neutral" };
   const up = pct > 0;
@@ -169,6 +172,27 @@ function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | nu
 
 /** 元数值格式化：过万转「N.N万」，不足万直出「N元」（龙虎榜成交额，后端口径=元） */
 const fmtWan = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : `${v.toFixed(0)}元`);
+
+/** 同比/环比子行（2026-11-19 用户裁定：值下方一行「同比x 环比x」，无数据显 -；
+ *  同日二次裁定：涨=红、跌=绿——方向色统一，替换好坏语义着色） */
+function ratioTxt(d?: DeltaR): string {
+  return d ? `${d.pct > 0 ? "↑" : d.pct < 0 ? "↓" : ""}${Math.abs(d.pct)}%` : "-";
+}
+function ratioCls(d?: DeltaR): string {
+  if (!d) return "text-[var(--muted-foreground)]";
+  return d.pct > 0 ? "text-[var(--danger)]" : d.pct < 0 ? "text-[var(--success)]" : "text-[var(--muted-foreground)]";
+}
+
+/** 数据总览 8 格单元（值 + 同比/环比子行 + 标签；可选强调色/点击跳转） */
+type OverviewTile = {
+  label: string;
+  value: string;
+  danger?: boolean;
+  success?: boolean;
+  onTap?: () => void;
+  yoy?: DeltaR;
+  hb?: DeltaR;
+};
 
 function computeSegments(data: DashboardData | null): ScaleSegment[] {
   const segs: ScaleSegment[] = SCALE_SEGS.map((s) => ({ ...s, count: 0, amount: 0, amountLabel: "", share: 0 }));
@@ -277,7 +301,7 @@ export default function DashboardPage() {
   /* 数据口径（2026-11-19 用户裁定：卡片头两个原地选择器——区间档 + 公司多选各自独立，
      不合并不弹层）：公司选择 admin 专属（:3011 leader/staff 恒总数据无效不展示），
      名单进页即取 */
-  const [rangeKey, setRangeKey] = useState<RangeKey>("year");
+  const [rangeKey, setRangeKey] = useState<RangeKey>("all"); // 默认全部（2026-11-19 用户裁定）
   const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
   const [companyIds, setCompanyIds] = useState<string[]>([]);
   const [companies, setCompanies] = useState<CompanyOption[] | null>(null);
@@ -327,17 +351,26 @@ export default function DashboardPage() {
     return () => { active = false; };
   }, [rankingRange, retryTick]);
 
+  /* 口径窗（置于消费方 effect 之前——依赖数组渲染期取值不可前向引用） */
+  const queryRange = useMemo<{ startDate?: string; endDate?: string }>(
+    () =>
+      rangeKey === "custom"
+        ? { startDate: customRange?.from, endDate: customRange?.to }
+        : { startDate: RANGES[rangeKey].start() },
+    [rangeKey, customRange],
+  );
+
   // 资源告警 + 项目质效 + 项目状态盘点：失败保留旧数据（告警）/静默隐藏（质效），随重试重取；
-  // 项目盘点仅随公司口径（当前状态快照，不受区间档影响）
+  // 项目盘点 headline 仅随公司口径（当前状态快照），flow 三窗随区间档（同比/环比子行）
   useEffect(() => {
     let active = true;
     fetchAlertsOverview().then((a) => { if (active) setAlerts(a); }).catch(() => undefined);
     fetchPerformanceMetrics().then((p) => { if (active) setPerf(p); }).catch(() => undefined);
-    fetchProjectStatusCounts(companyIds.length ? companyIds.join(",") : undefined)
+    fetchProjectStatusCounts(companyIds.length ? companyIds.join(",") : undefined, queryRange.startDate, queryRange.endDate)
       .then((s) => { if (active) setProjectStatus(s); })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [retryTick, companyIds]);
+  }, [retryTick, companyIds, queryRange.startDate, queryRange.endDate]);
 
   /* 风险项目一键转发（2026-11-03 用户裁定：允许转发类——领导看得见也能推动）；
      share 优先、AbortError 静默、剪贴板降级（要报转发随三句卡撤销，2026-11-18） */
@@ -358,14 +391,6 @@ export default function DashboardPage() {
     setRiskShared(ok ? "ok" : "fail");
     window.setTimeout(() => setRiskShared("idle"), 2000);
   }
-
-  const queryRange = useMemo<{ startDate?: string; endDate?: string }>(
-    () =>
-      rangeKey === "custom"
-        ? { startDate: customRange?.from, endDate: customRange?.to }
-        : { startDate: RANGES[rangeKey].start() },
-    [rangeKey, customRange],
-  );
 
   // 今日关注条（一行事实句，随口径选择器/重试变化重取——区间对齐 2026-11-03：
   // brief 与总览指标同区间，消灭「本月 0 万 vs 本年数百万」同屏打架；effect 置于
@@ -389,9 +414,10 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     const cid = companyIds.length ? companyIds.join(",") : undefined;
-    const mainP = fetchDashboardData(queryRange.startDate, queryRange.endDate, cid, false);
+    const mainP = fetchDashboardData(queryRange.startDate, queryRange.endDate, cid, true);
     /* 同比窗=整窗前移一年（本月↔去年同月/本季↔去年同季/本年↔去年/自定义同移）；
-       「全部」档无起点不做同比（null→不显箭头）。主请求失败显横幅，同比失败静默降级 */
+       环比=主请求 compare 邻窗（紧邻等长前移）。「全部」档无起点不做同比（-）。
+       主请求失败显横幅，同比失败静默降级（子行退 -） */
     const yoyP = queryRange.startDate
       ? fetchDashboardData(shiftYearIso(queryRange.startDate), shiftYearIso(queryRange.endDate ?? TODAY_ISO()), cid, false).catch(() => null)
       : Promise.resolve(null);
@@ -423,6 +449,22 @@ export default function DashboardPage() {
   );
 
   const summary = data?.summary;
+  const cmp = data?.compare?.summary; // 环比邻窗汇总（compare=true 附带）
+  /* 同比/环比子行数据源：金额=区间全量对比（同比窗 yoy / 环比邻窗 cmp）；
+     首排=窗内新增流量（后端 flow 三窗；headline 是存量、子行是流量口径） */
+  const f = projectStatus?.flow ?? null;
+  const fstat = (k: "archived" | "active" | "terminated" | "total", good: boolean | null) => ({
+    yoy: f ? deltaOf(f.cur[k], f.yoy[k], good) : undefined,
+    hb: f ? deltaOf(f.cur[k], f.prev[k], good) : undefined,
+  });
+  const amtR = (labelVal: string, yoyV: number | undefined, hbV: number | undefined) => ({
+    yoy: deltaOf(parseBudgetLabel(labelVal), yoyV, true),
+    hb: deltaOf(parseBudgetLabel(labelVal), hbV, true),
+  });
+  /* 节资率本身也可同比/环比：率 vs 去年同窗率 / 邻窗率 */
+  const rateOf = (s?: { totalSavings: number; awardedBudget: number }) =>
+    s && s.awardedBudget > 0 ? s.totalSavings / s.awardedBudget : undefined;
+  const rateNow = summary && summary.awardedBudget > 0 ? summary.totalSavings / summary.awardedBudget : undefined;
   /* 公司口径标签（全称——2026-11-19 用户裁定） */
   const companyLabel = companyIds.length === 0
     ? "全部公司"
@@ -431,6 +473,26 @@ export default function DashboardPage() {
         const names = companyIds.map(nameOf);
         return names.length <= 2 ? names.join("、") : `${names.slice(0, 2).join("、")} 等 ${names.length} 家`;
       })();
+
+  /* 数据总览 8 格（显式类型——异构字面量数组直接 .map 会丢可选属性类型）；
+     仅 data 就绪后构建（挂载期 data=null 时空数组，勿无条件解构 summary） */
+  const overviewTiles: OverviewTile[] = data && summary ? [
+    /* 首排=项目盘点（2026-11-19 用户裁定）：项目总数=归档+进行中（不含异常项目）；归档项目=
+       台账中的项目（全时段轮次行数，点跳台账）；进行中=PMI ACTIVE；异常项目=
+       终止的项目（点跳台账终止留痕）。headline 为存量，同比/环比子行走窗内流量
+       （归档=窗内轮次、进行中/异常=窗内立项） */
+    { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—", ...fstat("total", null) },
+    { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—", onTap: () => router.push("/ledger"), ...fstat("archived", null) },
+    { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => router.push("/progress"), ...fstat("active", null) },
+    { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => router.push("/ledger?status=CANCELLED"), ...fstat("terminated", false) },
+    /* 次排金额（2026-11-19 用户裁定）：同比=整窗前移一年（本月↔去年同月/本季↔去年
+       同季/本年↔去年），环比=紧邻等长前窗；值下方子行「同比x 环比x」，无数据 - */
+    { label: "成交预算", value: summary.awardedBudgetLabel, ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
+    { label: "成交额", value: summary.totalAwardLabel, onTap: () => router.push("/ledger"), ...amtR(summary.totalAwardLabel, yoy?.totalAward, cmp?.totalAward) },
+    { label: "节约资金", value: summary.totalSavingsLabel, success: true, onTap: () => setAnalysisOpen("ranking"), ...amtR(summary.totalSavingsLabel, yoy?.totalSavings, cmp?.totalSavings) },
+    /* 节资率=节约资金/成交预算（红显）；率本身的同比/环比=率 vs 去年同窗率/邻窗率 */
+    { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true, yoy: deltaOf(rateNow, rateOf(yoy ?? undefined), true), hb: deltaOf(rateNow, rateOf(cmp ?? undefined), true) },
+  ] : [];
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
   const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
 
@@ -512,7 +574,7 @@ export default function DashboardPage() {
 
       {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；同日用户裁定
            上移至实时态势上方、套同款 SectionCard 格式；卡片头右侧两个原地选择器（区间
-           档+公司多选各自独立、锚定原地展开，默认本年·全部公司）。首排=项目盘点（总数/
+           档+公司多选各自独立、锚定原地展开，默认全部·全部公司，「全部」档无区间不显同比/环比子行）。首排=项目盘点（总数/
            归档=台账全量/进行中/异常=终止，当前状态快照仅随公司口径）；次排=区间轮次
            金额四数；可点的两步到对应明细/分析）── */}
       {data && summary ? (
@@ -524,7 +586,7 @@ export default function DashboardPage() {
             <>
               <InlineSelect
                 label={rangeKey === "custom" && customRange ? `${customRange.from.slice(5).replace("-", "/")}~${customRange.to.slice(5).replace("-", "/")}` : RANGES[rangeKey as PresetKey].label}
-                active={rangeKey !== "year"}
+                active={rangeKey !== "all"}
                 options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
                 selected={[rangeKey]}
                 onSelect={(next) => setRangeKey(next[0] as RangeKey)}
@@ -558,39 +620,20 @@ export default function DashboardPage() {
           }
         >
           <div className="grid grid-cols-4 gap-1.5">
-            {[
-              /* 首排=项目盘点（2026-11-19 用户裁定）：项目总数=归档+进行中（不含异常项目）；归档项目=
-                 台账中的项目（全时段轮次行数，点跳台账）；进行中=PMI ACTIVE；异常项目=
-                 终止的项目（点跳台账终止留痕）。除归档外均为当前状态快照，不随本年窗口 */
-              { label: "项目总数", value: projectStatus ? String(projectStatus.total) : "—" },
-              { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—", onTap: () => router.push("/ledger") },
-              { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => router.push("/progress") },
-              { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => router.push("/ledger?status=CANCELLED") },
-              /* 金额三格同比涨跌（2026-11-19 用户裁定）：所选档整窗前移一年对比
-                 （本月↔去年同月、本季↔去年同季、本年↔去年）；无去年数据不显箭头 */
-              { label: "成交预算", value: summary.awardedBudgetLabel, delta: deltaOf(parseBudgetLabel(summary.awardedBudgetLabel), yoy?.awardedBudget, true) },
-              { label: "成交额", value: summary.totalAwardLabel, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), yoy?.totalAward, true), onTap: () => router.push("/ledger") },
-              { label: "节约资金", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), yoy?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
-              /* 节资率=节约资金/成交预算（2026-11-19 用户裁定：第二排改四数+节资率，红显） */
-              { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true },
-            ].map((m) => {
+            {overviewTiles.map((m) => {
               const inner = (
                 <>
-                  <div className="flex items-baseline justify-center gap-0.5">
-                    <span
-                      className={`max-w-full truncate text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
-                    >
-                      {m.value}
-                    </span>
-                    {m.delta ? (
-                      <span
-                        className={`shrink-0 text-[10px] font-bold tabular-nums ${m.delta.tone === "good" ? "text-[var(--success)]" : m.delta.tone === "bad" ? "text-[var(--danger)]" : "text-[var(--muted-foreground)]"}`}
-                      >
-                        {m.delta.pct > 0 ? "↑" : m.delta.pct < 0 ? "↓" : ""}
-                        {Math.abs(m.delta.pct)}%
-                      </span>
-                    ) : null}
+                  <div
+                    className={`max-w-full truncate text-center text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                  >
+                    {m.value}
                   </div>
+                  {queryRange.startDate ? (
+                    <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                      <span className={ratioCls(m.yoy)}>同比 {ratioTxt(m.yoy)}</span>
+                      <span className={ratioCls(m.hb)}>环比 {ratioTxt(m.hb)}</span>
+                    </div>
+                  ) : null}
                   <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
                 </>
               );

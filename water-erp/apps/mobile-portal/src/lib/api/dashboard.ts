@@ -15,12 +15,21 @@ export async function fetchDashboardBadges(companyId?: string): Promise<Dashboar
   return api.get<DashboardBadges>(`/dashboard/badges${q}`);
 }
 
-/* 项目盘点（2026-11-19 用户裁定：数据总览首排）——归档=台账中的项目（全时段轮次行数，
-   终止留痕在内）；进行中/异常(=终止)为 PMI 当前状态快照，回收站不计；总数=归档+进行中（不含异常） */
-export type ProjectStatusCounts = { archived: number; active: number; terminated: number; total: number };
-export async function fetchProjectStatusCounts(companyId?: string): Promise<ProjectStatusCounts> {
-  const q = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
-  return api.get<ProjectStatusCounts>(`/dashboard/project-status${q}`);
+/* 项目盘点（2026-11-19 用户裁定：数据总览首排）——headline 归档=台账中的项目（全时段
+   轮次行数，终止留痕在内）；进行中/异常(=终止)为 PMI 当前状态快照，回收站不计；总数=
+   归档+进行中（不含异常）。flow=所选窗三份流量（同比/环比子行：归档=窗内轮次，
+   进行中/异常=窗内立项 PMI）；「全部」档无起点为 null */
+export type ProjectFlowCounts = { archived: number; active: number; terminated: number; total: number };
+export type ProjectStatusCounts = ProjectFlowCounts & {
+  flow: { cur: ProjectFlowCounts; yoy: ProjectFlowCounts; prev: ProjectFlowCounts } | null;
+};
+export async function fetchProjectStatusCounts(companyId?: string, startDate?: string, endDate?: string): Promise<ProjectStatusCounts> {
+  const params = new URLSearchParams();
+  if (companyId) params.set('companyId', companyId);
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const q = params.toString();
+  return api.get<ProjectStatusCounts>(`/dashboard/project-status${q ? `?${q}` : ''}`);
 }
 
 /* ── 公司龙虎榜（:3011，跨公司榜单——admin 全榜 / leader 本公司排位+集团均值）── */

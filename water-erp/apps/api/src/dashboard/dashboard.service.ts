@@ -68,6 +68,20 @@ function diffDays(from: Date, to: Date) {
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
+/** ISO 日期整移一年（02-29 闰年回夹平年 02-28）——同比窗计算（:3011 项目盘点/金额同比） */
+function shiftYearIsoB(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  let t = new Date(Date.UTC(y - 1, m - 1, d));
+  if (t.getUTCMonth() !== m - 1) t = new Date(Date.UTC(y - 1, m, 0)); // 溢出=平年二月，取月末
+  return t.toISOString().slice(0, 10);
+}
+
+/** 服务器本地日历日 ISO（同比窗终点兜底） */
+function nowIsoB(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
 /** 环比上期窗口：一律「紧邻等长前移」——上期 = [起始-L 天, 起始前一日]，L=当前区间天数。
  *  双边界（自定义区间）L=end-start+1；仅起始日（本月/季/年至今口径）L=起始..今天（服务器日期），
  *  上期终点恒为起始前一日、起点随今日推进逐日回退——与自定义区间同语义（R2-1，2026-10-27：
@@ -1165,25 +1179,45 @@ export class DashboardService {
     };
   }
 
-  /** :3011 数据总览首排——项目盘点（2026-11-19 用户裁定）。归档项目=台账中的项目
-   *  （ProcurementRound 全时段行数：仅排回收站，终止留痕在内——与台账列表默认视图同口径）；
-   *  进行中=PMI ACTIVE、异常=PMI TERMINATED（用户定义：异常项目就是终止的项目）、
-   *  总数=归档+进行中（不含异常项目）。除归档外均为当前状态快照（非本年事件窗）。 */
-  async getProjectStatusCounts(companyFilter?: CompanyWhere) {
-    const [rows, archived] = await Promise.all([
+  /** :3011 数据总览首排——项目盘点（2026-11-19 用户裁定）。headline 归档项目=台账中的
+   *  项目（全时段行数，终止留痕在内）；进行中=PMI ACTIVE、异常=PMI TERMINATED（用户
+   *  定义：异常项目就是终止的项目）、总数=归档+进行中（不含异常项目）。
+   *  带 startDate 时另附 flow 三窗流量（同比/环比子行）：归档=窗内 procurementDate
+   *  轮次；进行中/异常=窗内 createdAt PMI——headline 是存量、flow 是窗内新增口径。 */
+  private async projectFlowOf(companyFilter: CompanyWhere | undefined, startDate?: string, endDate?: string) {
+    const range = startDate || endDate
+      ? {
+          ...(startDate ? { gte: startOfDay(startDate) } : {}),
+          ...(endDate ? { lte: endOfDay(endDate) } : {}),
+        }
+      : undefined;
+    const [archived, groups] = await Promise.all([
+      this.prisma.procurementRound.count({
+        where: { ...companyFilter, isRecycled: false, ...(range ? { procurementDate: range } : {}) },
+      }),
       this.prisma.projectManagementItem.groupBy({
         by: ['status'],
         _count: { _all: true },
-        where: { ...companyFilter, status: { not: 'RECYCLED' } },
-      }),
-      this.prisma.procurementRound.count({
-        where: { ...companyFilter, isRecycled: false },
+        where: { ...companyFilter, status: { not: 'RECYCLED' }, ...(range ? { createdAt: range } : {}) },
       }),
     ]);
-    const by = new Map(rows.map((r) => [r.status, r._count._all]));
+    const by = new Map(groups.map((g) => [g.status, g._count._all]));
     const active = by.get('ACTIVE') ?? 0;
-    const terminated = by.get('TERMINATED') ?? 0;
-    return { archived, active, terminated, total: archived + active };
+    return { archived, active, terminated: by.get('TERMINATED') ?? 0, total: archived + active };
+  }
+
+  async getProjectStatusCounts(companyFilter?: CompanyWhere, startDate?: string, endDate?: string) {
+    const base = await this.projectFlowOf(companyFilter);
+    if (!startDate) return { ...base, flow: null };
+    /* 同比窗=整窗前移一年（无终点补今天后同样前移一年——否则同比窗跨进本年自身）；
+     *  环比窗=priorWindow 紧邻等长前移（无上期为全 0） */
+    const [cur, yoy] = await Promise.all([
+      this.projectFlowOf(companyFilter, startDate, endDate),
+      this.projectFlowOf(companyFilter, shiftYearIsoB(startDate), shiftYearIsoB(endDate ?? nowIsoB())),
+    ]);
+    const prevW = priorWindow(startDate, endDate);
+    const prev = prevW ? await this.projectFlowOf(companyFilter, prevW.startDate, prevW.endDate) : { archived: 0, active: 0, terminated: 0, total: 0 };
+    return { ...base, flow: { cur, yoy, prev } };
   }
 
   /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：
