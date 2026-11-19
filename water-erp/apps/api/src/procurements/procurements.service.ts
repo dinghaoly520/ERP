@@ -509,6 +509,7 @@ export class ProcurementsService {
           archivedProcurementRoundId: true,
           terminatedProcurementRoundId: true,
           initiationDate: true,
+          requesterName: true, // 采购人（:3011 台账窗口卡字段，2026-11-19）
           evaluationMethod: true,
           biddingUnits: true,
           awardedSupplier: true,
@@ -939,6 +940,8 @@ export class ProcurementsService {
       updatedAt: round.updatedAt.toISOString(),
       isRecycled: Boolean(round.isRecycled),
       // Project management extracted info
+      // 采购人=PMI 需求提出人（:3011 台账窗口卡字段）；经办人=createdByName（轮次创建人）
+      requesterName: pmInfo?.requesterName ?? null,
       initiationDate: pmInfo?.initiationDate?.toISOString().split('T')[0] || null,
       evaluationMethod: pmInfo?.evaluationMethod || null,
       biddingUnits: pmInfo?.biddingUnits || null,

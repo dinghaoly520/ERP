@@ -51,6 +51,9 @@ import {
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
+import { fetchProcurements } from "@/lib/api/procurements";
+import type { ProcurementRoundItem } from "@/lib/types/procurement";
+import { fetchProgressStats, type ProgressStats } from "@/lib/api/progress";
 import { InlineSelect } from "@/components/m/inline-select";
 import { useAuth } from "@/components/m/auth-context";
 import { BottomSheet } from "@/components/m/bottom-sheet";
@@ -69,16 +72,16 @@ import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 /* 全部数据入口宫格（2026-11-19 v3 全景裁定）：导航双入口（台账/进展直跳路由）+
  * 七组分析弹层——用户自己决定看什么，不做策展取舍 */
-type AnalysisTileKey = "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "experts";
+type AnalysisTileKey = "ledger" | "progress" | "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "experts";
 const ANALYSIS_TILES: Array<{
-  key: AnalysisTileKey | "ledger" | "progress";
+  key: AnalysisTileKey;
   label: string;
   icon: typeof PieChart;
   color: string;
-  jump?: string;
 }> = [
-  { key: "ledger", label: "台账明细", icon: ClipboardList, color: "var(--accent)", jump: "/ledger" },
-  { key: "progress", label: "项目进展", icon: TrendingUp, color: "var(--accent)", jump: "/progress" },
+  /* 九模块全窗口化（2026-11-19 用户裁定）：点击均以窗口呈现，标题=卡片标题 */
+  { key: "ledger", label: "台账明细", icon: ClipboardList, color: "var(--accent)" },
+  { key: "progress", label: "项目进展", icon: TrendingUp, color: "var(--accent)" },
   { key: "trend", label: "执行趋势", icon: Activity, color: "var(--accent)" },
   { key: "ranking", label: "排行", icon: Trophy, color: "var(--gold)" },
   { key: "composition", label: "构成分析", icon: PieChart, color: "var(--accent)" },
@@ -261,6 +264,56 @@ function ProjectRow({
   );
 }
 
+/* PMI 九阶段标签（进展窗口；与后端 progress.service STAGE_LABELS 同 canon） */
+const PMI_STAGE_LABEL: Record<string, string> = {
+  PROCUREMENT_DEMAND: "采购需求",
+  INITIATION: "采购立项",
+  TENDER_DOCUMENT: "采购文件",
+  SUPPLIER_INVITATION: "供应商邀请",
+  PUBLIC_ANNOUNCEMENT: "采购公告公示",
+  EXPERT_SELECTION: "专家抽取",
+  BID_EVALUATION: "开标评标",
+  AWARD_DECISION: "定标",
+  CONTRACT: "合同",
+  DIRECT_PURCHASE_FILING: "直接采购备案表",
+};
+
+/** 元→万 短格式（台账窗口卡） */
+const wanOf = (v: number) => (v > 0 ? (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : `${v.toFixed(0)}元`) : "—");
+
+/** 台账明细窗口卡（2026-11-19 九模块窗口裁定）：项目名称/编号、公司·部门、方式、
+ *  预算·成交·节资率、采购人（PMI 需求提出人）、经办人（轮次创建人） */
+function LedgerWindowCard({ r }: { r: ProcurementRoundItem }) {
+  const budget = Number(r.budgetAmount ?? 0);
+  const award = Number(r.awardAmount ?? 0);
+  const rate = budget > 0 && award > 0 && budget >= award ? `${(((budget - award) / budget) * 100).toFixed(1)}%` : "—";
+  return (
+    <div className="rounded-[12px] m-tile px-3 py-2.5">
+      <div className="flex items-start gap-2">
+        <span className="shrink-0 pt-0.5 text-[12px] tabular-nums text-[var(--muted-foreground)]">
+          {(r.procurementDate ?? r.createdAt.slice(0, 10))?.slice(5)}
+        </span>
+        <span className="min-w-0 flex-1 line-clamp-2 text-[15px] font-semibold leading-snug text-[var(--foreground)]">{r.projectName}</span>
+        <span className={`shrink-0 pt-0.5 text-[12px] ${statusColor(r.resultStatusLabel)}`}>{r.resultStatusLabel}</span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-[var(--muted-foreground)]">
+        <span className="tabular-nums">{r.projectCode}</span>
+        <span className="min-w-0 truncate">{r.purchaserName || "—"} · {r.departmentName || "—"}</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[13px] text-[var(--muted-foreground)]">
+        <span>{r.procurementMethod}</span>
+        <span className="tabular-nums">预算 <b className="text-[var(--foreground)]">{wanOf(budget)}</b></span>
+        <span className="tabular-nums">成交 <b className="text-[var(--foreground)]">{wanOf(award)}</b></span>
+        <span className="tabular-nums">节资率 <b className="text-[var(--foreground)]">{rate}</b></span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-[var(--muted-foreground)]">
+        <span>采购人 {r.requesterName ?? "—"}</span>
+        <span>经办人 {r.createdByName ?? "—"}</span>
+      </div>
+    </div>
+  );
+}
+
 /* ── 主页面 ── */
 
 export default function DashboardPage() {
@@ -317,6 +370,39 @@ export default function DashboardPage() {
       .catch(() => { if (active) setCompanies([]); });
     return () => { active = false; };
   }, [role]);
+
+  /* 台账明细窗口（2026-11-19 九模块窗口裁定）：全量台账按时间分页罗列，开层懒取 */
+  const [ledgerWinItems, setLedgerWinItems] = useState<ProcurementRoundItem[] | null>(null);
+  const [ledgerWinPage, setLedgerWinPage] = useState(1);
+  const [ledgerWinTotal, setLedgerWinTotal] = useState(0);
+  const [ledgerWinLoading, setLedgerWinLoading] = useState(false);
+  const [ledgerWinErr, setLedgerWinErr] = useState(false);
+  useEffect(() => {
+    if (analysisOpen !== "ledger") return;
+    let active = true;
+    setLedgerWinLoading(true);
+    setLedgerWinErr(false);
+    fetchProcurements({ page: ledgerWinPage, pageSize: 15 })
+      .then((r) => {
+        if (!active) return;
+        setLedgerWinTotal(r.pagination.total);
+        setLedgerWinItems((prev) => (ledgerWinPage === 1 ? r.data : [...(prev ?? []), ...r.data]));
+      })
+      .catch(() => { if (active) setLedgerWinErr(true); })
+      .finally(() => { if (active) setLedgerWinLoading(false); });
+    return () => { active = false; };
+  }, [analysisOpen, ledgerWinPage, retryTick]);
+
+  /* 项目进展窗口（同裁定）：进行中 PMI 盘点——阶段分布+项目行，开层懒取会话内缓存 */
+  const [progressWin, setProgressWin] = useState<ProgressStats | null>(null);
+  useEffect(() => {
+    if (analysisOpen !== "progress" || progressWin) return;
+    let active = true;
+    fetchProgressStats()
+      .then((r) => { if (active) setProgressWin(r); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [analysisOpen, progressWin]);
 
   // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
   const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
@@ -806,7 +892,7 @@ export default function DashboardPage() {
               <button
                 key={t.key}
                 type="button"
-                onClick={() => (t.jump ? router.push(t.jump) : setAnalysisOpen(t.key as AnalysisTileKey))}
+                onClick={() => setAnalysisOpen(t.key)}
                 className="neu-card-static m-rise flex flex-col items-center gap-2 rounded-[16px] px-2 py-3.5 active:scale-[0.98]"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
@@ -835,12 +921,96 @@ export default function DashboardPage() {
               const t = ANALYSIS_TILES.find((x) => x.key === analysisOpen);
               return t ? <t.icon size={16} style={{ color: t.color }} /> : null;
             })()}
-            分析中心 · {ANALYSIS_TILES.find((x) => x.key === analysisOpen)?.label ?? ""}
+            {ANALYSIS_TILES.find((x) => x.key === analysisOpen)?.label ?? ""}
           </span>
         }
       >
         {analysisOpen && data ? (
           <>
+            {analysisOpen === "ledger" ? (
+              <>
+                {/* 台账明细窗口（2026-11-19）：按时间罗列全量台账，分页展开 */}
+                {ledgerWinLoading && !ledgerWinItems ? (
+                  <Skeleton lines={6} height={56} />
+                ) : ledgerWinErr && !ledgerWinItems ? (
+                  <button
+                    type="button"
+                    onClick={() => setRetryTick((t) => t + 1)}
+                    className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]"
+                  >
+                    台账加载失败，点击重试
+                  </button>
+                ) : ledgerWinItems && ledgerWinItems.length === 0 ? (
+                  <EmptyState text="暂无台账数据" />
+                ) : (
+                  <div className="space-y-2">
+                    {(ledgerWinItems ?? []).map((r) => (
+                      <LedgerWindowCard key={r.id} r={r} />
+                    ))}
+                    {ledgerWinItems && ledgerWinItems.length < ledgerWinTotal ? (
+                      <button
+                        type="button"
+                        disabled={ledgerWinLoading}
+                        onClick={() => setLedgerWinPage((p) => p + 1)}
+                        className="neu-btn-soft h-10 w-full rounded-[12px] text-[14px] active:scale-[0.99] disabled:opacity-60"
+                      >
+                        {ledgerWinLoading ? "加载中..." : `展开更多（已显 ${ledgerWinItems.length} / 共 ${ledgerWinTotal} 条）`}
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </>
+            ) : null}
+            {analysisOpen === "progress" ? (
+              <>
+                {/* 项目进展窗口（2026-11-19）：进行中 PMI 盘点——阶段分布 + 项目行 */}
+                {progressWin ? (
+                  <div className="space-y-3">
+                    <div className="flex items-baseline justify-between px-1">
+                      <span className="text-[14px] font-bold text-[var(--foreground)]">进行中项目</span>
+                      <span className="text-[13px] tabular-nums text-[var(--muted-foreground)]">共 {progressWin.totalActive} 项 · 累计完成 {progressWin.totalCompleted}</span>
+                    </div>
+                    {progressWin.stageDistribution.length ? (
+                      <div className="space-y-1.5">
+                        {progressWin.stageDistribution.map((d) => {
+                          const max = Math.max(...progressWin.stageDistribution.map((x) => x.count), 1);
+                          return (
+                            <div key={d.stage} className="flex items-center gap-2">
+                              <span className="w-[7.5rem] shrink-0 truncate text-[13px] text-[var(--foreground)]">{PMI_STAGE_LABEL[d.stage] ?? d.stage}</span>
+                              <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                                <span className="block h-full rounded-[5px] bg-[var(--accent)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
+                              </span>
+                              <span className="w-[1.75rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <EmptyState text="暂无进行中的项目" />
+                    )}
+                    <div className="space-y-1.5">
+                      {progressWin.projects.slice(0, 15).map((p) => {
+                        const done = p.stages.filter((x) => x.status === "COMPLETED").length;
+                        return (
+                          <div key={p.id} className="rounded-[10px] m-tile px-3 py-2">
+                            <div className="flex items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{p.title}</span>
+                              <span className="shrink-0 text-[12px] text-[var(--muted-foreground)] tabular-nums">阶段 {done}/{p.stages.length}</span>
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
+                              <span className="truncate">{p.requesterDepartment} · {p.procurementMethod}</span>
+                              <span className="ml-auto shrink-0 font-medium text-[var(--accent)]">{PMI_STAGE_LABEL[p.currentStage] ?? p.currentStage}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <Skeleton lines={6} height={40} />
+                )}
+              </>
+            ) : null}
             {analysisOpen === "trend" ? (
               <>
 

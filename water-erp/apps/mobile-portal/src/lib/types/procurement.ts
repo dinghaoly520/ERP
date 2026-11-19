@@ -40,6 +40,8 @@ export type ProcurementRoundItem = {
   updatedAt: string;
   isRecycled: boolean;
   // Project management extracted info
+  /** 采购人=PMI 需求提出人（:3011 台账窗口卡字段，2026-11-19）；无 PMI 关联为 null */
+  requesterName: string | null;
   initiationDate: string | null;
   expertInfo: string | null;
   biddingUnits: string | null;

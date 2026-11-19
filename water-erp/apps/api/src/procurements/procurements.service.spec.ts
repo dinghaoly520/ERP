@@ -155,3 +155,15 @@ describe('台账 abnormalOnly 口径（:3011 两步铁律，2026-11-03）', () =
     expect(call.where.resultStatus).toBeUndefined();
   });
 });
+
+describe('formatRound 台账卡字段（:3011 九模块窗口，2026-11-19）', () => {
+  it('requesterName=PMI 需求提出人（采购人）；无 PMI 关联为 null', () => {
+    const svc = new (ProcurementsService as any)({});
+    const round = { id: 'r1', projectId: 'p1', project: { name: '钻机采购', projectCode: 'SWHI-01' }, roundNo: 1, procurementDate: null, procurementMethod: '竞价采购', departmentId: null, department: null, participants: [], budgetAmount: 100, controlAmount: null, awardedSupplierId: null, awardedSupplier: null, awardAmount: 90, resultStatus: 'AWARDED', resultText: null, terminationReason: null, sourceType: 'EXCEL_IMPORT', createdById: null, createdBy: { displayName: '张三', company: '四川水发勘测设计研究有限公司' }, companyName: null, createdAt: new Date(), updatedAt: new Date(), isRecycled: false };
+    const withPm = svc.formatRound(round, { requesterName: '李需求' });
+    expect(withPm.requesterName).toBe('李需求');
+    expect(withPm.createdByName).toBe('张三'); // 经办人=轮次创建人
+    const noPm = svc.formatRound(round, undefined);
+    expect(noPm.requesterName).toBeNull();
+  });
+});

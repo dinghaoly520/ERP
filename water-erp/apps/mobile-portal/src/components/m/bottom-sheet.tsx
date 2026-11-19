@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 
 /**
  * 移动端底部弹层：m-sheet 入场/退场动画 + 280ms 兜底定时器（reduced-motion 无动画事件也能卸载）。
@@ -77,9 +77,20 @@ export function BottomSheet({
       />
       <div className="m-sheet-panel" data-closing={closing ? "true" : "false"} onAnimationEnd={handleAnimationEnd}>
         <div aria-hidden className="mx-auto mb-2.5 h-1 w-10 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_28%,transparent)]" />
-        {/* 标题行带 border-b hairline（2026-11-11 用户裁定：标题/内容隔离线），与面板内容同宽 */}
+        {/* 标题行带 border-b hairline（2026-11-11 用户裁定：标题/内容隔离线），与面板内容同宽。
+            左上角返回按钮（2026-11-19 用户裁定：九模块窗口形态——返回=关闭本层） */}
         <div className="mb-3 flex items-start justify-between gap-3 border-b border-[oklch(0.6_0.04_258_/_0.16)] pb-2.5">
-          <div className="min-w-0 flex-1 text-[18px] font-bold leading-snug tracking-[-0.02em] text-[var(--foreground)]">{title}</div>
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setClosing(true)}
+              aria-label="返回"
+              className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
+            >
+              <ArrowLeft size={15} />
+            </button>
+            <div className="min-w-0 flex-1 text-[18px] font-bold leading-snug tracking-[-0.02em] text-[var(--foreground)]">{title}</div>
+          </div>
           <button
             type="button"
             onClick={() => setClosing(true)}
