@@ -81,7 +81,13 @@ export default function LedgerPage() {
       .then((d) => { if (active) setDimensions(d); })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [retryTick]);
+  }, []);
+
+  /* 时间档窗（列表取数用） */
+  const queryRange =
+    rangeKey === "custom"
+      ? { startDate: customRange?.from, endDate: customRange?.to }
+      : { startDate: RANGES[rangeKey].start(), endDate: undefined as string | undefined };
   /* 异常四态快捷筛选（:3011 两步铁律，2026-11-03）——「异常 N」头条数字的一键明细 */
   const [abnormalFilter, setAbnormalFilter] = useState(false);
   const [methods, setMethods] = useState<string[]>([]);
@@ -198,6 +204,10 @@ export default function LedgerPage() {
       procurementMethod: methodFilter ?? undefined,
       abnormalOnly: abnormalFilter || undefined,
       companyId: filterCompanyId,
+      startDate: queryRange.startDate,
+      endDate: queryRange.endDate,
+      departmentId: departmentFilter ?? undefined,
+      createdById: handlerFilter ?? undefined,
     })
       .then((res) => {
         if (!active) return;
@@ -217,7 +227,7 @@ export default function LedgerPage() {
     return () => {
       active = false;
     };
-  }, [page, searchKeyword, statusFilter, methodFilter, abnormalFilter, filterCompanyId, retryTick]);
+  }, [page, searchKeyword, statusFilter, methodFilter, abnormalFilter, filterCompanyId, retryTick, queryRange.startDate, queryRange.endDate, departmentFilter, handlerFilter]);
 
   /* 总览八项：全时段双取（失败静默——块不渲染） */
   useEffect(() => {
@@ -231,11 +241,6 @@ export default function LedgerPage() {
     return () => { active = false; };
   }, [retryTick]);
 
-  /* 时间档窗（列表取数用） */
-  const queryRange =
-    rangeKey === "custom"
-      ? { startDate: customRange?.from, endDate: customRange?.to }
-      : { startDate: RANGES[rangeKey].start(), endDate: undefined as string | undefined };
 
   /* 公司口径标签（全称短拼，2026-11-19 胶囊筛选） */
   const companyLabel =
@@ -299,34 +304,25 @@ export default function LedgerPage() {
         ) : null}
       </div>
 
-      {/* ── 筛选胶囊（2026-11-19 与驾驶舱下拉同语言：胶囊触发器+瓷面锚定菜单）──
-          异常快捷筛选已撤（2026-11-19 用户裁定）；URL ?abnormal=1 预置仍兼容解析 */}
-      <div className="mb-3 flex flex-wrap gap-2">
+      {/* ── 筛选胶囊（2026-11-19：时间/采购方式/部门/经办人 + 公司居右；与驾驶舱下拉同语言）──
+          状态胶囊已换时间（用户裁定）；?status= 预置仍兼容解析 */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <InlineSelect
-          label={statusFilter ? (statusChips.find((c) => c.key === statusFilter)?.label ?? "全部状态") : "全部状态"}
-          active={!!statusFilter}
-          options={[{ value: "all", label: "全部状态" }, ...statusChips.map((c) => ({ value: c.key as string, label: c.label }))]}
-          selected={statusFilter ? [statusFilter as string] : ["all"]}
-          onSelect={(next) =>
-            changeFilter(() => {
-              const v = next[0];
-              if (!v || v === "all") {
-                setStatusFilter(null);
-                persistLedger({ statusFilter: null });
-              } else {
-                setStatusFilter(v as ResultStatusKey);
-                persistLedger({ statusFilter: v as ResultStatusKey });
-                setAbnormalFilter(false); // 互斥另一侧：显式选状态即退出异常视图
-              }
-            })
-          }
-          ariaLabel="按状态筛选"
+          label={rangeKey === "custom" && customRange ? `${customRange.from.slice(5).replace("-", "/")}~${customRange.to.slice(5).replace("-", "/")}` : RANGES[rangeKey as PresetKey].label}
+          active={rangeKey !== "all"}
+          options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
+          selected={[rangeKey]}
+          onSelect={(next) => changeFilter(() => setRangeKey(next[0] as RangeKey))}
+          onCustomApply={(from, to) => changeFilter(() => { setCustomRange({ from, to }); setRangeKey("custom"); })}
+          customValue={customRange}
+          customFirst
+          ariaLabel="按时间筛选"
         />
         {methods.length > 1 ? (
           <InlineSelect
-            label={methodFilter ?? "全部方式"}
+            label={methodFilter ?? "采购方式"}
             active={!!methodFilter}
-            options={[{ value: "all", label: "全部方式" }, ...methods.map((m) => ({ value: m, label: m }))]}
+            options={[{ value: "all", label: "全部采购方式" }, ...methods.map((m) => ({ value: m, label: m }))]}
             selected={methodFilter ? [methodFilter] : ["all"]}
             onSelect={(next) =>
               changeFilter(() => {
@@ -340,31 +336,63 @@ export default function LedgerPage() {
                 }
               })
             }
-            ariaLabel="按方式筛选"
+            ariaLabel="按采购方式筛选"
+          />
+        ) : null}
+        {dimensions && dimensions.departments.length > 0 ? (
+          <InlineSelect
+            label={dimensions.departments.find((d) => d.id === departmentFilter)?.name ?? "部门"}
+            active={!!departmentFilter}
+            options={[{ value: "all", label: "全部部门" }, ...dimensions.departments.map((d) => ({ value: d.id, label: d.name }))]}
+            selected={departmentFilter ? [departmentFilter] : ["all"]}
+            onSelect={(next) =>
+              changeFilter(() => {
+                const v = next[0];
+                setDepartmentFilter(!v || v === "all" ? null : v);
+              })
+            }
+            ariaLabel="按部门筛选"
+          />
+        ) : null}
+        {dimensions && dimensions.handlers.length > 0 ? (
+          <InlineSelect
+            label={dimensions.handlers.find((h) => h.id === handlerFilter)?.name ?? "经办人"}
+            active={!!handlerFilter}
+            options={[{ value: "all", label: "全部经办人" }, ...dimensions.handlers.map((h) => ({ value: h.id, label: h.name }))]}
+            selected={handlerFilter ? [handlerFilter] : ["all"]}
+            onSelect={(next) =>
+              changeFilter(() => {
+                const v = next[0];
+                setHandlerFilter(!v || v === "all" ? null : v);
+              })
+            }
+            ariaLabel="按经办人筛选"
           />
         ) : null}
         {role === "admin" ? (
-          <InlineSelect
-            multiple
-            label={companyLabel}
-            active={companyIds.length > 0}
-            options={[{ value: "all", label: "全部公司" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
-            selected={companyIds.length === 0 ? ["all"] : companyIds}
-            onSelect={(next) =>
-              changeFilter(() => {
-                const hadAll = companyIds.length === 0;
-                if (next.includes("all") && !hadAll) {
-                  setCompanyIds([]);
-                  persistLedger({ companyIds: [] });
-                } else {
-                  const v = next.filter((x) => x !== "all");
-                  setCompanyIds(v);
-                  persistLedger({ companyIds: v });
-                }
-              })
-            }
-            ariaLabel={`公司口径：${companyLabel}`}
-          />
+          <div className="ml-auto">
+            <InlineSelect
+              multiple
+              label={companyLabel}
+              active={companyIds.length > 0}
+              options={[{ value: "all", label: "全部公司" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
+              selected={companyIds.length === 0 ? ["all"] : companyIds}
+              onSelect={(next) =>
+                changeFilter(() => {
+                  const hadAll = companyIds.length === 0;
+                  if (next.includes("all") && !hadAll) {
+                    setCompanyIds([]);
+                    persistLedger({ companyIds: [] });
+                  } else {
+                    const v = next.filter((x) => x !== "all");
+                    setCompanyIds(v);
+                    persistLedger({ companyIds: v });
+                  }
+                })
+              }
+              ariaLabel={`公司口径：${companyLabel}`}
+            />
+          </div>
         ) : null}
       </div>
 
