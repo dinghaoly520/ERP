@@ -343,7 +343,7 @@ export default function LedgerPage() {
         {methods.length > 1 ? (
           <InlineSelect
             multiple
-            label={methodIds.length === 0 ? "采购方式" : methodIds.length <= 2 ? methodIds.join("、") : `${methodIds.slice(0, 2).join("、")} 等${methodIds.length}项`}
+            label={methodIds.length === 0 ? "全部采购方式" : methodIds.length <= 2 ? methodIds.join("、") : `${methodIds.slice(0, 2).join("、")} 等${methodIds.length}项`}
             active={methodIds.length > 0}
             options={[{ value: "all", label: "全部采购方式" }, ...methods.map((m) => ({ value: m, label: m }))]}
             selected={methodIds.length === 0 ? ["all"] : methodIds}
