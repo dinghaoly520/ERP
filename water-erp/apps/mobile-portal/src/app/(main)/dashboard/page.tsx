@@ -96,7 +96,7 @@ export const ANALYSIS_TILES: Array<{
   { key: "progress", label: "项目进展", icon: Milestone, color: "var(--accent)" },
   { key: "trend", label: "执行趋势", icon: ChartNoAxesCombined, color: "var(--accent)" },
   { key: "ranking", label: "节资排行", icon: ListOrdered, color: "var(--gold)" },
-  { key: "composition", label: "构成分析", icon: ChartPie, color: "var(--accent)" },
+  { key: "composition", label: "数据分析", icon: ChartPie, color: "var(--accent)" },
   { key: "company", label: "公司对比", icon: Scale, color: "var(--accent)" },
   { key: "risk", label: "风险告警", icon: ShieldAlert, color: "var(--danger)" },
   { key: "supplier", label: "供应商", icon: Handshake, color: "var(--success)" },
