@@ -1271,6 +1271,37 @@ describe('ExpertAdminService', () => {
       } as any)).rejects.toMatchObject({ response: { code: 'EMAIL_INVALID' } });
     });
   });
+
+  describe('E2（2026-11-19 第一波·四态收口）：详情页 availability 写入口封死 + busyState 派生', () => {
+    it('updateProfile：payload 带 availability 也不写镜像列（DTO 已删字段、服务端不读——「占用」写入口封死；启用/停用走正门 PATCH :id/availability）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王', role: 'bid_expert' });
+      await service.updateProfile('u1', { specialty: '水文', availability: '占用' } as any, 'op1');
+      const upsertArgs = prisma.expertProfile.upsert.mock.calls[0][0];
+      expect(upsertArgs.update).not.toHaveProperty('availability');
+      expect(upsertArgs.create).not.toHaveProperty('availability');
+    });
+
+    it('getExpert：返回 busyState 四态派生（declined 不算、终局阶段不算——与库页/水叮当同口径，expert-busy-state.util 单源）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王建国', username: 'wangjg', role: 'bid_expert' });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { progress: 100, signedIn: true, invitationStatus: 'confirmed', expertRole: '正选', project: { name: '项目A', stage: 'EVALUATING' }, scoreRecords: [] },
+        // declined 行不算状态（婉拒不占库况）；SUBMIT 若非 declined 才算已被抽取
+        { progress: 50, signedIn: false, invitationStatus: 'declined', expertRole: '候补', project: { name: '项目B', stage: 'SUBMIT' }, scoreRecords: [] },
+      ]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
+      const result = await service.getExpert('u1');
+      expect(result.busyState).toBe('正在评标');
+    });
+
+    it('getExpert：无在途行 → 空闲（镜像列「占用」不再参与判定）', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', displayName: '王建国', username: 'wangjg', role: 'bid_expert', expertProfile: { availability: '占用' } });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.expertEvaluation.findMany.mockResolvedValue([]);
+      const result = await service.getExpert('u1');
+      expect(result.busyState).toBe('空闲');
+    });
+  });
+
 });
 
 

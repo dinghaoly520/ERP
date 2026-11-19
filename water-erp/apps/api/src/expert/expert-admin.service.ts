@@ -8,7 +8,7 @@ import { SASAC_UNITS, SASAC_NAME_ALIASES } from '@water-erp/shared';
 import { resolveRsvpLinkOrigin, type PortalLinkHeaders } from '../common/portal-link-origin';
 import { auditDetailSearchClauses } from '../common/audit-search.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { deriveBusyCounts } from './expert-busy-state.util';
+import { deriveBusyCounts, busyStateOf } from './expert-busy-state.util';
 import { sealPii, openPii, openPiiForMask } from '../common/crypto/sm-field-crypto';
 import { logSensitiveAccess } from '../common/sensitive-access.util';
 import { maskPhone, maskIdNumber, maskEmail, maskLicenseNo } from '../common/pii-mask';
@@ -559,10 +559,19 @@ export class ExpertAdminService {
       if (company?.code) expertNo = `${company.code.toUpperCase()}-${String(rank + 1).padStart(4, '0')}`;
     }
 
+    // E2（2026-11-19 第一波）：详情页「库况状态」徽标弃 availability 镜像列——四态派生
+    // （与库页状态列/水叮当同口径，expert-busy-state.util 单源）；declined 行不算状态
+    const busyState = busyStateOf(
+      assignmentsRaw
+        .filter(a => a.invitationStatus !== 'declined')
+        .map(a => ({ expertRole: a.expertRole, project: { stage: a.project?.stage ?? '' } })),
+    );
+
     return {
       ...user,
       expertNo,
       email: maskEmail(openPiiForMask(user.email)),
+      busyState,
       expertProfile: user.expertProfile ? {
         ...user.expertProfile,
         phone: maskPhone(openPiiForMask(user.expertProfile.phone)),
@@ -1036,15 +1045,10 @@ export class ExpertAdminService {
       }
     }
 
-    // R6-7（2026-09-30 审计 B5）：已退库/暂停的专家禁止经编辑资料把 availability 改回
-    // '可用'——退库时落 availability='停用'+entryStatus=RETIRED，此入口可单方面改回可用
-    // 造矛盾档案（抽取虽按 entryStatus 拦，但统计/档案失真）
-    if (dto.availability !== undefined) {
-      const profile = await this.prisma.expertProfile.findUnique({ where: { userId }, select: { entryStatus: true } });
-      if (profile && (profile.entryStatus === 'RETIRED' || profile.entryStatus === 'SUSPENDED') && dto.availability === '可用') {
-        throw new BadRequestException({ error: '已退库/暂停的专家不能直接改为可用，请先恢复入库状态', code: 'EXPERT_STATUS_LOCKED' });
-      }
-    }
+    // E2（2026-11-19 第一波）：availability 写入口自本端点整体移除（「占用」镜像值的最后
+    // 写入者；DTO 已删字段）。启用/停用走正门 PATCH :id/availability（理由必填+审计留痕），
+    // 退库恢复/临时代表建档各有专属路径——本端点不再能写镜像列，原 R6-7「退库者改回可用」闸
+    // 随之消亡（无 availability 可写）。
 
     // 部门：按名称查找已有记录，不存在则新建
     let departmentId: string | null | undefined;
@@ -1085,12 +1089,11 @@ export class ExpertAdminService {
           ...(dto.ethnicity !== undefined && { ethnicity: dto.ethnicity }),
           ...(dto.education !== undefined && { education: dto.education }),
           ...(dto.licenseNo !== undefined && { licenseNo: sealPii(dto.licenseNo) ?? null }),
-          ...(dto.availability !== undefined && { availability: dto.availability }),
           ...(dto.notes !== undefined && { notes: dto.notes }),
           ...(dto.regionCode !== undefined && { regionCode: dto.regionCode }),
           ...(dto.expertLevel !== undefined && { expertLevel: dto.expertLevel }),
         },
-        create: { userId, specialty: dto.specialty || '综合', title: dto.title, qualifications: dto.qualifications, employer: dto.employer, phone: sealPii(dto.phone) ?? null, idNumber: sealPii(dto.idNumber) ?? null, ethnicity: dto.ethnicity, education: dto.education, licenseNo: sealPii(dto.licenseNo) ?? null, availability: dto.availability ?? '可用', notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
+        create: { userId, specialty: dto.specialty || '综合', title: dto.title, qualifications: dto.qualifications, employer: dto.employer, phone: sealPii(dto.phone) ?? null, idNumber: sealPii(dto.idNumber) ?? null, ethnicity: dto.ethnicity, education: dto.education, licenseNo: sealPii(dto.licenseNo) ?? null, notes: dto.notes, regionCode: dto.regionCode, expertLevel: dto.expertLevel },
       }),
     ]);
     await this.auditExpert(operatorId, 'EXPERT_UPDATE', userId, { expertName: user.displayName });

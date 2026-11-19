@@ -35,7 +35,9 @@ export class UpdateExpertProfileDto {
   @IsOptional() @IsString() ethnicity?: string;
   @IsOptional() @IsString() education?: string;
   @IsOptional() @IsString() licenseNo?: string;
-  @IsOptional() @IsIn(['可用', '占用', '停用']) availability?: '可用' | '占用' | '停用';
+  // E2（2026-11-19）：availability 字段自编辑资料端点整体移除——「占用」镜像值的最后写入者
+  // 封死（四态派生后库况不再由人手登记）；启用/停用走 PATCH :id/availability（理由必填+留痕）。
+  // whitelist pipe 会剥掉旧客户端偷带的 availability 键，静默忽略即预期行为。
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() notes?: string;
   /** A-129 行政区域代码（GB/T 2260 六位，抽取配额过滤维度）；null=清除（显式置空），undefined=不动 */
