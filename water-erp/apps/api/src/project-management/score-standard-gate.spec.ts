@@ -37,6 +37,8 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
     stageRound?: number;
     bidProject?: { id: string; evaluationMethod: string } | null;
     withBidProjectRound1?: boolean;
+    /** 直接采购完成闸「/」仅空值落（审查⑶）：现值注入——null/缺省=空 → 完成落"/" */
+    directAcquireTime?: string | null;
   }) => {
     const findFirstImpl = (args: any) => {
       // round 感知断言点：按调用 where.round 返回
@@ -72,7 +74,9 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
           status: 'ACTIVE', // PMI 可变闸（2026-10-19）
           title: '测试项目',
           currentStage: 'TENDER_DOCUMENT',
+          currentRound: 1,
           procurementMethod: opts.procurementMethod,
+          documentAcquireTime: opts.directAcquireTime ?? null, // 审查⑶：现值
           stages: [], // refreshProjectAnalysis 空摘要路径
         }),
         update: jest.fn().mockResolvedValue({ id: 'pmi-1' }),
@@ -98,6 +102,43 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
     // 分析缓存回填路径真执行（非 catch 吞 TypeError）：无缓存行 → 查询发生但不写回
     expect(prisma.systemConfig.findUnique).toHaveBeenCalled();
     expect(prisma.systemConfig.update).not.toHaveBeenCalled();
+    // 审查⑶：现值为空 → 完成落不适用标记"/"
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ documentAcquireTime: '/' }) }),
+    );
+  });
+
+  it('直接采购 03 完成【不覆写】真实获取时间（审查⑶）：已有 documentAcquireTime → 任何 PMI 写均不带 "/"', async () => {
+    const prisma = mkHappyPrisma({
+      procurementMethod: '直接采购',
+      bidProject: null,
+      directAcquireTime: '2026年11月20日09:00至2026年11月20日17:00',
+    });
+    const svc = mkService(prisma);
+    await expect(
+      svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never),
+    ).resolves.toMatchObject({ status: 'COMPLETED' });
+    for (const call of (prisma.projectManagementItem.update as jest.Mock).mock.calls) {
+      expect(call[0].data).not.toHaveProperty('documentAcquireTime');
+    }
+  });
+
+  it('直接采购 + 该轮有 BP（办法 none）→ 文件闸放行、盖章版/评分闸均不触发且不落章（2026-11-18 方法域豁免锚定 + 审查⑷）', async () => {
+    const prisma = mkHappyPrisma({
+      procurementMethod: '直接采购',
+      bidProject: { id: 'bp-direct', evaluationMethod: 'none' },
+    });
+    const validator = { assertScoreStandardComplete: jest.fn() };
+    const svc = mkService(prisma, validator);
+    await expect(
+      svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never),
+    ).resolves.toMatchObject({ status: 'COMPLETED' });
+    expect(prisma.attachment.count).toHaveBeenCalledWith({ where: { projectManagementStageId: 'st-td' } });
+    // 评分闸不触发（方法域豁免：直接采购不走评分标准向导，G9 none-eval 兜底同口径）
+    expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
+    // 不落章（审查⑷：向导流程专属留痕，直接采购指针恒 null——落章会在步骤分析伪造「（原附件已删除）」）
+    const updateArg = (prisma.projectManagementStage.update as jest.Mock).mock.calls[0][0];
+    expect(updateArg.data.officialTenderConfirmedAt).toBe(null);
   });
 
   it('直接采购 03 完成闸：当轮 0 文件 → 400 DIRECT_TENDER_FILE_REQUIRED（先于归档闸——缺件并行时文件闸先抛且 checkStageGate 未消耗），validator 不触发', async () => {
@@ -289,8 +330,8 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
     expect(err?.response?.code).toBe('OFFICIAL_TENDER_REQUIRED');
   });
 
-  it('03 完成落章：officialTenderConfirmedAt 随 COMPLETED 写入（update data 含确认时间）', async () => {
-    const prisma = mkHappyPrisma({ procurementMethod: '直接采购', bidProject: null });
+  it('03 完成落章（向导流程）：officialTenderConfirmedAt 随 COMPLETED 写入（update data 含确认时间）——fixture 用非直接采购（落章绑「选正式文件→确认评分标准」向导，直接采购不走向导不落章，见审查⑷）', async () => {
+    const prisma = mkHappyPrisma({ procurementMethod: '邀请招标', bidProject: null });
     const svc = mkService(prisma);
     await svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never);
     const updateArg = (prisma.projectManagementStage.update as jest.Mock).mock.calls[0][0];

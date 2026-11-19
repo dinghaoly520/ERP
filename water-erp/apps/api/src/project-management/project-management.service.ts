@@ -3605,7 +3605,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { currentStage: true, currentRound: true, procurementMethod: true },
+      // documentAcquireTime：直接采购完成闸「/」仅空值落（2026-11-19 审查⑶）需读现值
+      select: { currentStage: true, currentRound: true, procurementMethod: true, documentAcquireTime: true },
     });
 
     if (!project) {
@@ -3700,12 +3701,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
               code: 'DIRECT_TENDER_FILE_REQUIRED',
             });
           }
-          // 确认值随完成落库：采购文件获取时间固定"/"；概况/开标时间非空才写。
+          // 确认值随完成落库：概况/开标时间非空才写；采购文件获取时间"/"=不适用标记**仅空值落**
+          // （2026-11-19 审查⑶）——上传即同步/AI 提取/登记提取值已落真实获取时刻，无条件覆写会把
+          // 真实时刻抹成"/"，且供应商端 resolveDisplayCode 对直接采购以此字段为唯一权威来源、
+          // formatAcquireWindow 解析失败会裸显"/"（对齐 :1795 礼貌回填惯例）。
           // 开标时间唯一权威口径：写入后同步当前轮开标前 BidProject（无 BP 自然 no-op）。
-          const directInfo: Record<string, string> = { documentAcquireTime: '/' };
+          const directInfo: Record<string, string> = {};
+          if (!project.documentAcquireTime?.trim()) directInfo.documentAcquireTime = '/';
           if (dto.directOverview?.trim()) directInfo.projectOverview = dto.directOverview.trim();
           if (dto.directOpeningTime?.trim()) directInfo.bidOpeningTime = dto.directOpeningTime.trim();
-          await this.prisma.projectManagementItem.update({ where: { id: projectId }, data: directInfo });
+          if (Object.keys(directInfo).length > 0) {
+            await this.prisma.projectManagementItem.update({ where: { id: projectId }, data: directInfo });
+          }
           if (directInfo.bidOpeningTime) {
             await this.syncBidProjectOpeningFromPmi(projectId, directInfo.bidOpeningTime);
           }
@@ -3800,10 +3807,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
         completedAt:
           dto.status === PROJECT_STAGE_STATUS.COMPLETED ? new Date() : null,
         // 03 完成 = 走完「选正式文件 → 对照确认评分标准」向导，落确认时间留痕；
-        // 回退为未完成（重开路径）则同步清空，重走向导时重新落
+        // 回退为未完成（重开路径）则同步清空，重走向导时重新落。
+        // 直接采购不走向导（2026-11-18 裁定，指针恒 null）：完成不落章（确认时刻与 completedAt
+        // 同刻冗余，且步骤分析留痕会渲染「（原附件已删除）（确认于…）」伪造叙事——2026-11-19
+        // 审查⑷）；重开仍清空（存量误落章可除）
         ...(stageKey === 'TENDER_DOCUMENT' && {
           officialTenderConfirmedAt:
-            dto.status === PROJECT_STAGE_STATUS.COMPLETED ? new Date() : null,
+            dto.status === PROJECT_STAGE_STATUS.COMPLETED && project.procurementMethod !== '直接采购'
+              ? new Date()
+              : null,
         }),
       },
     });
