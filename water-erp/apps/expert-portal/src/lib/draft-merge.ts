@@ -17,10 +17,10 @@
  * 因此天然无害。next 与 baseline 为两份独立浅拷贝（points 子对象仍共享引用——页面按
  * 不可变更新使用，勿原地改 points）。
  *
- * 深比较用 JSON.stringify 比较内容（条目字段顺序由打点处构造保证），savedAt 不参与
- * 相等——它是编辑时刻元数据而非内容：本机重刷时间戳不算改、双端改成同值（各自打点）
- * 不算冲突；savedAt 的新旧裁决归服务端 Task 1 双槽合并。可选字段显式 undefined 与
- * 缺省视为相等（JSON 序列化天然丢弃 undefined）。
+ * 深比较为字段级 entryEquals（键序无关——T4 回修审查 Important#1：stringify 对键序敏感，
+ * r-vs-b 回声比较跨 jsonb 键序边界假冲突可达），savedAt 不参与相等——它是编辑时刻元数据
+ * 而非内容：本机重刷时间戳不算改、双端改成同值（各自打点）不算冲突；savedAt 的新旧裁决
+ * 归服务端双槽合并。可选字段显式 undefined 与缺省视为相等（null≡缺省，field-wise 语义）。
  */
 
 export interface ScoreEntry {

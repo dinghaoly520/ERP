@@ -350,7 +350,10 @@ export default function ExpertEvaluatePage() {
   // P3（2026-09-21 审查）：提取 my-scores 拉取——条款核对 setVerdict 成功后经
   // onReviewChanged 复用此函数即时刷新 disputeCategoriesBySupplier（此前仅挂载时拉取，
   // 标注后切打分 tab 徽标/软闸门数据滞后，须刷新页面才同步）。
-  const loadMyScores = useCallback(async (pid: string, scoreItems: Array<{ id: string; points?: Array<{ id: string }> }>) => {
+  // 终审 F1 回修：myScores 经参数传入（镜像 scoreItems 模式）——此前读闭包 project（[]-deps
+  // 冻结为 null），buildServerMentionedEntries 恒拿 undefined → 零值兜底覆写已提交基线，
+  // 提交后拉取退化假冲突弹窗（BSM-① 语义在桌面侧从未真正执行）
+  const loadMyScores = useCallback(async (pid: string, scoreItems: Array<{ id: string; points?: Array<{ id: string }> }>, myScores?: Array<{ supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string | null }>) => {
     try {
       const d = await api.get<{
         records: unknown[];
@@ -379,7 +382,7 @@ export default function ExpertEvaluatePage() {
         }
         // TAB-SYNC-02 ①（T2/T3 审查 Important#1 回修）：基线条目纯服务端构造——不得经
         // next[k]（=本地∪服务端混合）落基线，否则本地未推送值烧入基线吞并发对端编辑
-        advanceBaselineAfterServerData(buildServerMentionedEntries(project?.myScores, scoreItems, d.pointDecisions ?? []));
+        advanceBaselineAfterServerData(buildServerMentionedEntries(myScores, scoreItems, d.pointDecisions ?? []));
         return next;
       });
     } catch { /* my-scores optional — ignore */ }
@@ -447,7 +450,7 @@ export default function ExpertEvaluatePage() {
         if (p.myExpertRecord?.disciplineAgreed) setDisciplineAgreed(true);
         // my-scores 拉 disputeCategories/disputes/pointDecisions（打分步「📎插入异议」/得分点 hydrate 联动数据）；
         // P3-4（2026-09-21）：未签到跳过——服务端 403 只是控制台噪音（评分区本就锁定），闸门保留作纵深防御。
-        if (p.myExpertRecord?.signedIn) void loadMyScores(projectId, p.scoreItems ?? []);
+        if (p.myExpertRecord?.signedIn) void loadMyScores(projectId, p.scoreItems ?? [], p.myScores);
       })
       .catch((e: any) => setLoadError(e?.message || '加载项目失败')) // P1-16：记录错误态供重试
       .finally(() => setLoading(false));
@@ -1984,7 +1987,7 @@ export default function ExpertEvaluatePage() {
                 pointMemoCounts={pointMemoCounts}
                 selectedPointId={activePointId}
                 onPointClick={handlePointClickDesk}
-                onReviewChanged={() => { if (project) void loadMyScores(projectId, project.scoreItems ?? []); }}
+                onReviewChanged={() => { if (project) void loadMyScores(projectId, project.scoreItems ?? [], project.myScores); }}
                 />
               )}
             </div>

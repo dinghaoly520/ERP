@@ -291,7 +291,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
    *  回配对页；桌面同房刷新配对徽章）。客户端合作踢出足够：写路径 AuthGuard 恒有 Redis
    *  存活校验兜底（401 PAIRING_REVOKED），忽略事件的客户端拿不到任何写面。 */
   notifyPairingRevoked(projectId: string, expertId: string): void {
-    this.server?.to(`project:${projectId}`).emit('pairing:revoked', { projectId, expertId });
+    // 终审 F2：投 experts 房（bid_expert join 双房之一；桌面+平板都在）——project 房有投标
+    // 供应商，专家设备在场信号按 §4.3 约定供应商不可见（draft:saved/聚合进度同款路由）
+    this.server?.to(`experts:${projectId}`).emit('pairing:revoked', { projectId, expertId });
   }
 
   /** TAB-SYNC-02 P2-2：踢除该专家名下的配对（scoped）socket——仅 pairingPid 有值的连接
@@ -341,7 +343,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private emitPairingPresence(projectId: string, expertId: string, online: boolean): void {
-    this.server?.to(`project:${projectId}`).emit('pairing:presence', { projectId, expertId, online });
+    // 终审 F2：同 notifyPairingRevoked——experts 房（供应商不可见）
+    this.server?.to(`experts:${projectId}`).emit('pairing:presence', { projectId, expertId, online });
   }
 
   handleDisconnect(socket: Socket) {

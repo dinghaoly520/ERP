@@ -714,7 +714,8 @@ describe('BidGateway 吊销即时断连（TAB-SYNC-02 P2-2）', () => {
     const emitted: Array<{ room: string; event: string; payload: any }> = [];
     gw.server = { to: (room: string) => ({ emit: (event: string, payload: any) => emitted.push({ room, event, payload }) }) } as any;
     gw.notifyPairingRevoked('p1', 'be1');
-    expect(emitted).toEqual([{ room: 'project:p1', event: 'pairing:revoked', payload: { projectId: 'p1', expertId: 'be1' } }]);
+    // 终审 F2：改投 experts 房（§4.3 供应商不可见——project 房有投标供应商）
+    expect(emitted).toEqual([{ room: 'experts:p1', event: 'pairing:revoked', payload: { projectId: 'p1', expertId: 'be1' } }]);
   });
 
   it('kickPairingSockets → 仅踢 pairingPid 有值的 scoped 连接，全量连接不动', () => {
@@ -765,11 +766,11 @@ describe('BidGateway 配对在线跟踪（TAB-SYNC-02 P2-3）', () => {
     await gw.handleConnection(sock);
     expect(gw.isPairingOnline('be1')).toBe(true);
     // 0→1 翻转广播 pairing:presence online=true 至项目房
-    expect(emitted).toContainEqual({ room: 'project:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: true } });
+    expect(emitted).toContainEqual({ room: 'experts:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: true } });
 
     gw.handleDisconnect(sock);
     expect(gw.isPairingOnline('be1')).toBe(false);
-    expect(emitted).toContainEqual({ room: 'project:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: false } });
+    expect(emitted).toContainEqual({ room: 'experts:p1', event: 'pairing:presence', payload: { projectId: 'p1', expertId: 'be1', online: false } });
   });
 
   it('同专家多 scoped 连接：任一在线即 online=true，末连接断开才翻 false（不抖动）', async () => {
