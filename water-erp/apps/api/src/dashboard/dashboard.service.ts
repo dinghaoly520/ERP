@@ -1168,7 +1168,7 @@ export class DashboardService {
   /** :3011 数据总览首排——项目盘点（2026-11-19 用户裁定）。归档项目=台账中的项目
    *  （ProcurementRound 全时段行数：仅排回收站，终止留痕在内——与台账列表默认视图同口径）；
    *  进行中=PMI ACTIVE、异常=PMI TERMINATED（用户定义：异常项目就是终止的项目）、
-   *  总数=另外三项之和（归档+进行中+异常）。除归档外均为当前状态快照（非本年事件窗）。 */
+   *  总数=归档+进行中（不含异常项目）。除归档外均为当前状态快照（非本年事件窗）。 */
   async getProjectStatusCounts(companyFilter?: CompanyWhere) {
     const [rows, archived] = await Promise.all([
       this.prisma.projectManagementItem.groupBy({
@@ -1183,7 +1183,7 @@ export class DashboardService {
     const by = new Map(rows.map((r) => [r.status, r._count._all]));
     const active = by.get('ACTIVE') ?? 0;
     const terminated = by.get('TERMINATED') ?? 0;
-    return { archived, active, terminated, total: archived + active + terminated };
+    return { archived, active, terminated, total: archived + active };
   }
 
   /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：
