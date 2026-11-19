@@ -1383,8 +1383,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             <div className="grid grid-cols-2 gap-2">
               <MetricCard label="采购" value={`${activeTrend.count} 项`} tone="accent" />
               <MetricCard label="成交额" value={`${activeTrend.amount.toFixed(1)} 万`} tone="success" />
-              <MetricCard label="立项" value={`${activeTrend.initiated ?? 0} 项`} />
-              <MetricCard label="归档" value={`${activeTrend.archived ?? 0} 项`} />
             </div>
             <div>
               <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">当日项目</div>
