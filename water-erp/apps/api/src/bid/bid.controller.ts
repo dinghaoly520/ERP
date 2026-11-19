@@ -57,6 +57,11 @@ import { SupplierBondReturnDto } from './dto/supplier-bond-return.dto';
 @Controller('bid')
 @Roles('admin', 'bid_host', 'leader', 'staff')
 @UseGuards(BidCompanyScopeGuard) // 公司隔离：projects/:id/* 端点跨公司内部角色 403（admin/:3007 被指派人除外）
+// 裁定2（2026-11-19 三门户审查，用户认可）：主持执行权分档——A 档纯 :3007 现场动作挂
+// AssignedHostGuard（清单锁见 bid.controller.assigned-host-coverage.spec.ts）；B 档双端复用明文豁免：
+// abortBidProject（:3005 开标前流标 AbortDialog + :3007 评标中流标，阶段语义分流+书面理由+审计兜底）、
+// startOpening（:3005「按时开标」共用）、openSubmission（项目级编排动作，非主持现场执行权）。
+// 新增主持类端点须在覆盖锁 spec 登记分档，防「改造只覆盖旧面」复发（c3af126b8 教训）。
 export class BidController {
   constructor(
     private readonly bidService: BidService,
@@ -431,6 +436,7 @@ export class BidController {
 
   @Post('projects/:id/rounds')
   @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档：报价轮管理纯 :3007 现场动作
   @ApiOperation({ summary: '创建报价轮次' })
   createRound(@Param('id') id: string, @Body() dto: { roundType: string; deadline?: string; supplierIds?: string[] }, @CurrentUser('sub') userId?: string) {
     return this.bidService.createRound(id, dto.roundType, dto.deadline, userId, dto.supplierIds);
@@ -438,6 +444,7 @@ export class BidController {
 
   @Post('projects/:id/rounds/:roundId/seal')
   @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档
   @ApiOperation({ summary: '截止报价(密封)' })
   sealRound(@Param('id') id: string, @Param('roundId') roundId: string, @CurrentUser('sub') userId?: string) {
     return this.bidService.sealRound(id, roundId, userId);
@@ -445,6 +452,7 @@ export class BidController {
 
   @Post('projects/:id/rounds/:roundId/publish')
   @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档
   @ApiOperation({ summary: '公布报价(开标)' })
   publishRound(@Param('id') id: string, @Param('roundId') roundId: string, @CurrentUser('sub') userId?: string) {
     return this.bidService.publishRound(id, roundId, userId);
@@ -452,6 +460,7 @@ export class BidController {
 
   @Post('projects/:id/rounds/:roundId/close')
   @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档
   @ApiOperation({ summary: '结束轮次(进入下一轮或评标)' })
   closeRound(@Param('id') id: string, @Param('roundId') roundId: string, @Body() dto: { proceedToEvaluation?: boolean }, @CurrentUser('sub') userId?: string) {
     return this.bidService.closeRound(id, roundId, dto.proceedToEvaluation ?? false, userId);
@@ -496,6 +505,7 @@ export class BidController {
 
   @Post('projects/:id/disputes/:disputeId/resolve')
   @Roles('admin', 'bid_host', 'leader', 'staff')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档：异议裁决纯 :3007 现场动作
   @ApiOperation({ summary: 'D2: 采购端裁决专家异议工单' })
   resolveExpertDispute(@Param('id') id: string, @Param('disputeId') disputeId: string, @Body() dto: ResolveExpertDisputeDto, @CurrentUser('sub') userId?: string) {
     return this.bidService.resolveExpertDispute(id, disputeId, dto, userId);
@@ -526,6 +536,7 @@ export class BidController {
   resumeOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) { return this.bidService.resumeOpening(id, userId); }
 
   @Post('projects/:id/start-evaluation')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档：启动评标纯 :3007 现场动作（角色集走类级 @Roles）
   @ApiOperation({ summary: '启动评标 (OPENING→EVALUATING)；可选 evaluationHours 自定义评标时长（缺省 72h）' })
   startEvaluation(
     @Param('id') id: string,
@@ -534,6 +545,7 @@ export class BidController {
   ) { return this.bidService.startEvaluation(id, userId, dto?.evaluationHours); }
 
   @Post('projects/:id/complete-opening')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档
   @ApiOperation({ summary: '完成开标·资料移交（生成开标文件包回传 :3005；幂等，不改 stage）' })
   completeOpening(@Param('id') id: string, @CurrentUser('sub') userId?: string) {
     return this.bidService.completeOpening(id, userId);
@@ -709,6 +721,7 @@ export class BidController {
   }
 
   @Post('projects/:id/opening-records')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档：唱标录入纯 :3007 现场动作
   @ApiOperation({ summary: '录入唱标信息（建/更新开标记录）' })
   enterOpeningRecord(@Param('id') id: string, @Body() dto: CreateOpeningRecordDto) {
     return this.openingRecord.enterOpeningRecord(id, dto);
@@ -721,6 +734,7 @@ export class BidController {
   }
 
   @Post('projects/:id/opening-records/:recordId/resolve-dispute')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档
   @ApiOperation({ summary: '处理开标异议' })
   resolveOpeningDispute(
     @Param('id') id: string,
@@ -740,6 +754,7 @@ export class BidController {
   ) { return this.openingRecord.overrideDispute(id, supplierId, dto.reason, userId, dto.target); }
 
   @Post('projects/:id/suppliers/:supplierId/accept-danger')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档
   @ApiOperation({ summary: '主持人确认接受供应商解密失败（不可恢复）' })
   acceptSupplierDanger(
     @Param('id') id: string,
@@ -767,6 +782,7 @@ export class BidController {
   getLiveOfficialScores(@Param('id') id: string) { return this.bidService.getLiveOfficialScores(id); }
 
   @Post('projects/:id/evaluation-results/generate')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档：生成结果纯 :3007 现场动作
   @ApiOperation({ summary: '生成评标结果与候选人（成功后自动生成评标签字包）' })
   async generateEvaluationResults(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     const result = await this.evalResults.generateEvaluationResults(id, userId);
@@ -972,6 +988,7 @@ export class BidController {
   listClarifications(@Param('id') id: string) { return this.bidService.listClarifications(id); }
 
   @Patch('projects/:id/clarifications/:cid/reply')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档
   @ApiOperation({ summary: '回复澄清（type=question 答疑原样；type=clarification 仅离线答复登记）' })
   replyClarification(@Param('id') id: string, @Param('cid') cid: string, @Body() dto: ReplyClarificationDto, @Request() req: any) {
     return this.bidService.replyClarification(id, cid, req.user?.name ?? req.user?.username ?? '主持人', dto);
@@ -984,6 +1001,7 @@ export class BidController {
   }
 
   @Post('projects/:id/clarifications')
+  @UseGuards(AssignedHostGuard) // 裁定2 A 档：澄清发起纯 :3007 现场动作
   @ApiOperation({ summary: '发起澄清' })
   createClarification(@Param('id') id: string, @Body() dto: CreateClarificationDto, @CurrentUser('sub') userId?: string) { return this.bidService.createClarification(id, dto, userId); }
 
