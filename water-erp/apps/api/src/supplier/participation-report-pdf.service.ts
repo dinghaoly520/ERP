@@ -71,7 +71,7 @@ export class ParticipationReportPdfService {
     });
     if (!bp) throw new NotFoundException('项目不存在');
     let projectCode = bp.projectCode;
-    let pmiId = bp.projectManagementItemId ?? null;
+    const pmiId = bp.projectManagementItemId ?? null;
     if (pmiId) {
       const pm = await this.prisma.projectManagementItem.findUnique({ where: { id: pmiId }, select: { projectCode: true } });
       if (pm?.projectCode) projectCode = pm.projectCode;

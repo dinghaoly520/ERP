@@ -549,6 +549,12 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     return { W, H, padL, padR, padT, baseline, plotH, x, colW, colX, barW, amountY, maxCount, maxAmount, linePath, areaPath, ticks, series, labelStep };
   }, [data]);
 
+  /* 公司对比页（2026-11-19 设计落地）：维度切换 + 双企 PK 选择——数据复用
+   * 公司龙虎榜 ranking（admin 全榜）；leader 无榜时退单企卡 */
+  const [cmpDim, setCmpDim] = useState<"amount" | "rounds" | "savings" | "rate" | "abnormal">("amount");
+  const [cmpA, setCmpA] = useState<string | null>(null);
+  const [cmpB, setCmpB] = useState<string | null>(null);
+
   /* 数据分析页（2026-11-19 重构裁定）：归档区走 dashboard 轮次、进行中区走 PMI
    * 进展清单——开层懒取一次（会话内缓存） */
   const [analysisPm, setAnalysisPm] = useState<ProgressStats | null>(null);
@@ -832,59 +838,155 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "company" ? (
               <>
-
-            {/* ── 各公司采购分布（2026-10-23：部门归属数据近乎全空，分布维度改用公司；非 admin 公司单一不展示） ── */}
-            {role === "admin" ? (
-            <SectionCard icon={Building2} title="各公司采购分布"
-              index={2}
-            >
-              {data.companyStats.length ? (
-                <div className="space-y-2">
-                  {data.companyStats.map((d, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setActiveDept(d)}
-                      className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
-                    >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[var(--foreground)]">{d.name}</span>
-                        <span className="shrink-0 text-[15px] font-bold tabular-nums text-[var(--accent)]">{d.amountLabel}</span>
+            {/* ══ 公司对比（2026-11-19 设计落地：排行 → 五维对比图 → 双企 PK）══ */}
+            {ranking?.rows?.length ? (
+              <>
+                {/* 公司排行（月/年切换，全维度数列） */}
+                <SectionCard
+                  icon={ListOrdered}
+                  title="公司排行"
+                  index={0}
+                  right={
+                    <div className="flex gap-1.5">
+                      {(["month", "year"] as const).map((k) => (
+                        <Chip key={k} active={rankingRange === k} onClick={() => setRankingRange(k)}>
+                          {k === "month" ? "本月" : "本年"}
+                        </Chip>
+                      ))}
+                    </div>
+                  }
+                >
+                  <div className="space-y-1.5">
+                    {ranking.rows.slice(0, 8).map((r, i) => (
+                      <div key={r.companyId} className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2">
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
+                        <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{fmtWan(r.awardAmount)}</span>
+                        <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{r.totalCount} 轮</span>
+                        {r.abnormalCount > 0 ? <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-[var(--danger)]">异 {r.abnormalCount}</span> : null}
                       </div>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
-                          <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(d.completedRate, 100)}%` }} />
+                    ))}
+                  </div>
+                </SectionCard>
+
+                {/* 五维对比图（维度切换横条，全公司） */}
+                <SectionCard icon={BarChart3} title="维度对比" index={1}>
+                  <div className="mb-2.5 flex flex-wrap gap-1.5">
+                    {([
+                      ["amount", "成交额"],
+                      ["rounds", "轮次"],
+                      ["savings", "节资"],
+                      ["rate", "节资率"],
+                      ["abnormal", "异常"],
+                    ] as const).map(([k, label]) => (
+                      <Chip key={k} active={cmpDim === k} onClick={() => setCmpDim(k)}>{label}</Chip>
+                    ))}
+                  </div>
+                  {(() => {
+                    const rows = ranking.rows.map((r) => ({
+                      name: r.companyName,
+                      amount: r.awardAmount,
+                      rounds: r.totalCount,
+                      savings: r.savings,
+                      rate: r.awardAmount > 0 ? (r.savings / r.awardAmount) * 100 : 0,
+                      abnormal: r.abnormalCount,
+                    }));
+                    const key = cmpDim;
+                    const max = Math.max(...rows.map((x) => x[key]), 1);
+                    const color = key === "abnormal" ? "var(--danger)" : key === "rate" ? "var(--gold)" : key === "savings" ? "var(--success)" : key === "rounds" ? "var(--warning)" : "var(--accent)";
+                    const fmt = (v: number) =>
+                      key === "amount" || key === "savings" ? fmtWan(v)
+                      : key === "rate" ? `${v.toFixed(1)}%`
+                      : String(Math.round(v));
+                    const total = rows.reduce((sum, x) => sum + x[key], 0);
+                    return (
+                      <div className="space-y-1.5">
+                        {rows.map((x) => (
+                          <div key={x.name} className="flex items-center gap-2">
+                            <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.name}</span>
+                            <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] opacity-80 m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: color }} />
+                            </span>
+                            <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
+                          </div>
+                        ))}
+                        {key !== "rate" ? (
+                          <div className="pt-1 text-[12px] text-[var(--muted-foreground)]">八家合计 {fmt(total)}{key === "abnormal" ? " 项" : ""}</div>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
+                </SectionCard>
+
+                {/* 双企 PK：任选两家逐项对比，优胜方加粗着色 */}
+                <SectionCard icon={Scale} title="双企对比" index={2}>
+                  {(() => {
+                    const rows = ranking.rows;
+                    const a = rows.find((r) => r.companyId === cmpA) ?? rows[0];
+                    const b = rows.find((r) => r.companyId === cmpB) ?? rows[1] ?? rows[0];
+                    const opts = rows.map((r) => ({ value: r.companyId, label: r.companyName }));
+                    const rateOf = (r: typeof a) => (r.awardAmount > 0 ? (r.savings / r.awardAmount) * 100 : 0);
+                    const metrics: Array<{ label: string; va: string; vb: string; aWin: boolean | null }> = [
+                      { label: "轮次", va: `${a.totalCount}`, vb: `${b.totalCount}`, aWin: a.totalCount !== b.totalCount ? a.totalCount > b.totalCount : null },
+                      { label: "已成交", va: `${a.awardedCount}`, vb: `${b.awardedCount}`, aWin: a.awardedCount !== b.awardedCount ? a.awardedCount > b.awardedCount : null },
+                      { label: "成交额", va: fmtWan(a.awardAmount), vb: fmtWan(b.awardAmount), aWin: a.awardAmount !== b.awardAmount ? a.awardAmount > b.awardAmount : null },
+                      { label: "节资", va: fmtWan(a.savings), vb: fmtWan(b.savings), aWin: a.savings !== b.savings ? a.savings > b.savings : null },
+                      { label: "节资率", va: `${rateOf(a).toFixed(1)}%`, vb: `${rateOf(b).toFixed(1)}%`, aWin: rateOf(a) !== rateOf(b) ? rateOf(a) > rateOf(b) : null },
+                      { label: "异常", va: `${a.abnormalCount}`, vb: `${b.abnormalCount}`, aWin: a.abnormalCount !== b.abnormalCount ? a.abnormalCount < b.abnormalCount : null },
+                    ];
+                    return (
+                      <div className="space-y-2.5">
+                        <div className="flex items-center gap-2">
+                          <InlineSelect
+                            label={a.companyName}
+                            active={!!cmpA}
+                            options={opts}
+                            selected={[a.companyId]}
+                            onSelect={(next) => setCmpA(next[0] ?? null)}
+                            ariaLabel="对比方 A"
+                          />
+                          <span className="shrink-0 text-[12px] font-bold text-[var(--muted-foreground)]">VS</span>
+                          <InlineSelect
+                            label={b.companyName}
+                            active={!!cmpB}
+                            options={opts}
+                            selected={[b.companyId]}
+                            onSelect={(next) => setCmpB(next[0] ?? null)}
+                            ariaLabel="对比方 B"
+                          />
                         </div>
-                        <span className="shrink-0 text-[13px] font-semibold tabular-nums text-[var(--muted-foreground)]">完成率 {d.completedRate}%</span>
+                        <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2 text-[14px]">
+                          {metrics.map((m) => (
+                            <div key={m.label} className="flex items-center gap-2 py-0.5">
+                              <span className={`min-w-0 flex-1 truncate text-right tabular-nums ${m.aWin === true ? "font-black text-[var(--accent)]" : "text-[var(--foreground)]"}`}>{m.va}</span>
+                              <span className="w-[3.5rem] shrink-0 text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</span>
+                              <span className={`min-w-0 flex-1 truncate tabular-nums ${m.aWin === false ? "font-black text-[var(--accent)]" : "text-[var(--foreground)]"}`}>{m.vb}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="px-1 text-[12px] text-[var(--muted-foreground)]">优胜项加粗高亮（异常以少为优）</p>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <EmptyState text="暂无公司数据" />
-              )}
-            </SectionCard>
-            ) : null}
-
-            {/* ── 项目质效（近一年，/performance/metrics——与 :3005 质效评分卡同源口径）── */}
-            {perf ? (
-              <SectionCard
-                icon={Gauge}
-                title="项目质效"
-                index={0.5}
-                right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">近一年 · 集团口径</span>}
-              >
-                <div className="grid grid-cols-2 gap-2">
-                  <MetricCard label="项目数" value={String(perf.projectCount)} tone="accent" />
-                  <MetricCard label="平均周期" value={perf.avgCycleDays != null ? `${perf.avgCycleDays} 天` : "—"} />
-                  <MetricCard label="节资率" value={perf.savingsRate != null ? `${perf.savingsRate}%` : "—"} tone="success" />
-                  <MetricCard label="竞争度" value={perf.competitionAvg != null ? `${perf.competitionAvg} 家/项` : "—"} />
-                  <MetricCard label="异议率" value={perf.objectionRate != null ? `${perf.objectionRate}%` : "—"} tone={perf.objectionRate && perf.objectionRate > 0 ? "warning" : "default"} />
-                  <MetricCard label="验收率" value={perf.acceptanceRate != null ? `${perf.acceptanceRate}%` : "—"} tone="success" />
+                    );
+                  })()}
+                </SectionCard>
+              </>
+            ) : ranking?.self ? (
+              /* leader 单企视角：本公司 vs 集团均值 */
+              <SectionCard icon={Scale} title="本公司 · 集团对比" index={0}>
+                <div className="rounded-[12px] m-tile px-3.5 py-3">
+                  <div className="text-[14px] font-bold text-[var(--foreground)]">{ranking.self.companyName} · 集团第 {ranking.self.rank} 位</div>
+                  <div className="mt-1 text-[13px] text-[var(--muted-foreground)]">
+                    本公司成交 {fmtWan(ranking.self.awardAmount)} · 集团均值 {fmtWan(ranking.groupAvg?.awardAmount ?? 0)}
+                  </div>
                 </div>
               </SectionCard>
-            ) : null}
-
+            ) : rankingError ? (
+              <button type="button" onClick={() => setRetryTick((t) => t + 1)} className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]">
+                排行数据加载失败，点击重试
+              </button>
+            ) : (
+              <EmptyState text="暂无可对比的公司数据" />
+            )}
               </>
             ) : null}
             {analysisOpen === "composition" ? (
