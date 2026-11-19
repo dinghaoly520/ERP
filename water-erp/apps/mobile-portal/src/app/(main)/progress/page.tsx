@@ -366,7 +366,6 @@ export default function ProgressPage() {
             icon={BarChart3}
             title="采购阶段分布"
             index={0}
-            right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{filteredProjects.length} 项在办</span>}
           >
             {stageDist.length ? (
               <div className="space-y-2">
