@@ -24,9 +24,11 @@ import {
   Users,
 } from "lucide-react";
 import {
+  fetchBidStageStatus,
   fetchCompanyRanking,
   fetchDashboardData,
   fetchProjectStatusCounts,
+  type BidStageStatus,
   type CompanyRankingRange,
   type CompanyRankingView,
   type DashboardData,
@@ -45,7 +47,6 @@ import {
   type ExpertLibraryStats,
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
-import { fetchUpcoming, type UpcomingResult } from "@/lib/api/progress";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { InlineSelect } from "@/components/m/inline-select";
 import { useAuth } from "@/components/m/auth-context";
@@ -323,25 +324,38 @@ export default function DashboardPage() {
   const [perf, setPerf] = useState<PerformanceMetrics | null>(null);
   /* 项目状态盘点（2026-11-19 用户裁定：数据总览首排）——PMI 当前状态快照，随重试重取 */
   const [projectStatus, setProjectStatus] = useState<ProjectStatusCounts | null>(null);
-  /* 实时运行态势（2026-11-18 指挥台改版，自进展页上移）：30s 轮询 bid live +
-   * upcoming（即将截标计数）。失败保旧数据。异常数不另取——指标卡「异常项目」紧邻其下。 */
+  /* 实时运行态势（2026-11-18 指挥台改版）：30s 轮询 bid live——进行中开评标实名录。
+   * 四 KPI（2026-11-19 标段生命周期裁定）走 bid-stage-status，随本卡口径选择器重取 */
   const [live, setLive] = useState<{ projects: BidLiveProject[] } | null>(null);
-  const [upcoming, setUpcoming] = useState<UpcomingResult | null>(null);
   usePolling(
     useCallback(async () => {
-      const [l, u] = await Promise.all([
-        fetchBidLiveProjects().catch(() => null),
-        fetchUpcoming(14).catch(() => null),
-      ]);
+      const l = await fetchBidLiveProjects().catch(() => null);
       if (l) setLive(l);
-      if (u) setUpcoming(u);
     }, []),
     30_000,
   );
   const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
   const evaluatingNow = live?.projects.filter((p) => p.stage === "EVALUATING") ?? [];
   const submittingNow = live?.projects.filter((p) => p.stage === "SUBMIT") ?? [];
-  const upcomingDeadlineCount = upcoming?.items.reduce((s, d) => s + d.events.filter((e) => e.type !== "OPENING").length, 0) ?? 0;
+  /* 态势卡口径（2026-11-19 用户裁定：与数据总览同款双选择器，独立口径） */
+  const [bidRangeKey, setBidRangeKey] = useState<RangeKey>("all");
+  const [bidCustomRange, setBidCustomRange] = useState<{ from: string; to: string } | null>(null);
+  const [bidCompanyIds, setBidCompanyIds] = useState<string[]>([]);
+  const [bidStage, setBidStage] = useState<BidStageStatus | null>(null);
+  const queryBidRange = useMemo<{ startDate?: string; endDate?: string }>(
+    () =>
+      bidRangeKey === "custom"
+        ? { startDate: bidCustomRange?.from, endDate: bidCustomRange?.to }
+        : { startDate: RANGES[bidRangeKey].start() },
+    [bidRangeKey, bidCustomRange],
+  );
+  useEffect(() => {
+    let active = true;
+    fetchBidStageStatus(bidCompanyIds.length ? bidCompanyIds.join(",") : undefined, queryBidRange.startDate, queryBidRange.endDate)
+      .then((s) => { if (active) setBidStage(s); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [retryTick, bidCompanyIds, queryBidRange.startDate, queryBidRange.endDate]);
   const [rankingRange, setRankingRange] = useState<CompanyRankingRange>("year");
   useEffect(() => {
     let active = true;
@@ -465,14 +479,17 @@ export default function DashboardPage() {
   const rateOf = (s?: { totalSavings: number; awardedBudget: number }) =>
     s && s.awardedBudget > 0 ? s.totalSavings / s.awardedBudget : undefined;
   const rateNow = summary && summary.awardedBudget > 0 ? summary.totalSavings / summary.awardedBudget : undefined;
-  /* 公司口径标签（全称——2026-11-19 用户裁定） */
-  const companyLabel = companyIds.length === 0
-    ? "全部公司"
-    : (() => {
-        const nameOf = (id: string) => companies?.find((c) => c.id === id)?.name ?? id;
-        const names = companyIds.map(nameOf);
-        return names.length <= 2 ? names.join("、") : `${names.slice(0, 2).join("、")} 等 ${names.length} 家`;
-      })();
+  /* 公司口径标签（全称——2026-11-19 用户裁定；两卡共用） */
+  const companyLabelOf = (ids: string[]) =>
+    ids.length === 0
+      ? "全部公司"
+      : (() => {
+          const nameOf = (id: string) => companies?.find((c) => c.id === id)?.name ?? id;
+          const names = ids.map(nameOf);
+          return names.length <= 2 ? names.join("、") : `${names.slice(0, 2).join("、")} 等 ${names.length} 家`;
+        })();
+  const companyLabel = companyLabelOf(companyIds);
+  const bidCompanyLabel = companyLabelOf(bidCompanyIds);
 
   /* 数据总览 8 格（显式类型——异构字面量数组直接 .map 会丢可选属性类型）；
      仅 data 就绪后构建（挂载期 data=null 时空数组，勿无条件解构 summary） */
@@ -651,15 +668,46 @@ export default function DashboardPage() {
         </SectionCard>
       ) : null}
 
-      {/* ── 实时运行态势（2026-11-18 指挥台改版：从进展页上移——首页即指挥台；
-           30s 轮询 bid live + badges + upcoming 计数；不随区间/公司筛选）── */}
+      {/* ── 实时运行态势（2026-11-19 标段生命周期裁定：四 KPI=运行中/标前/标中/标后，
+           卡片头同款双选择器；进行中开评标实名录 30s 轮询）── */}
       <SectionCard
         icon={Radio}
         title="实时运行态势"
         index={0.5}
         right={
           <>
-            <span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">不随筛选</span>
+            <InlineSelect
+              label={bidRangeKey === "custom" && bidCustomRange ? `${bidCustomRange.from.slice(5).replace("-", "/")}~${bidCustomRange.to.slice(5).replace("-", "/")}` : RANGES[bidRangeKey as PresetKey].label}
+              active={bidRangeKey !== "all"}
+              options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
+              selected={[bidRangeKey]}
+              onSelect={(next) => setBidRangeKey(next[0] as RangeKey)}
+              onCustomApply={(from, to) => {
+                setBidCustomRange({ from, to });
+                setBidRangeKey("custom");
+              }}
+              customValue={bidCustomRange}
+              customFirst
+              ariaLabel="态势数据区间"
+            />
+            {role === "admin" ? (
+              <InlineSelect
+                multiple
+                label={bidCompanyLabel}
+                active={bidCompanyIds.length > 0}
+                options={[
+                  { value: "all", label: "全部公司" },
+                  ...(companies ?? []).map((c) => ({ value: c.id, label: c.name })),
+                ]}
+                selected={bidCompanyIds.length === 0 ? ["all"] : bidCompanyIds}
+                onSelect={(next) => {
+                  const hadAll = bidCompanyIds.length === 0;
+                  if (next.includes("all") && !hadAll) setBidCompanyIds([]);
+                  else setBidCompanyIds(next.filter((v) => v !== "all"));
+                }}
+                ariaLabel={`态势公司口径：${bidCompanyLabel}`}
+              />
+            ) : null}
             {openingNow.length + evaluatingNow.length > 0 ? (
               <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
@@ -670,25 +718,41 @@ export default function DashboardPage() {
         }
       >
         <div className="grid grid-cols-4 gap-1.5">
-          {[
-            { label: "投标中", n: submittingNow.length, color: "var(--accent)" },
-            { label: "开标中", n: openingNow.length, color: "var(--danger)" },
-            { label: "评标中", n: evaluatingNow.length, color: "var(--warning)" },
-            { label: "即将截标", n: upcomingDeadlineCount, color: "var(--gold)" },
-          ].map((c) => (
-            <button
-              key={c.label}
-              type="button"
-              onClick={() => router.push("/progress")}
-              className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]"
-              aria-label={`${c.label} ${c.n} 项，查看进展`}
-            >
-              <div className={`text-[20px] font-black leading-none tabular-nums ${c.n > 0 ? "" : "text-[var(--muted-foreground)]"}`} style={c.n > 0 ? { color: c.color } : undefined}>
-                {c.n}
-              </div>
-              <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">{c.label}</div>
-            </button>
-          ))}
+          {(() => {
+            /* 标段四 KPI（2026-11-19 用户裁定）：运行中=标前+标中、标前=确认开标前
+               （DOWNLOAD/SUBMIT）、标中=已确认开标未完成开评标（OPENING/EVALUATING）、
+               标后=完成开评标（ARCHIVED）；「全部」档隐藏同比/环比子行（同总览裁定） */
+            const bf = bidStage?.flow ?? null;
+            const bstat = (k: "running" | "pre" | "in" | "post") => ({
+              yoy: bf ? deltaOf(bf.cur[k], bf.yoy[k], null) : undefined,
+              hb: bf ? deltaOf(bf.cur[k], bf.prev[k], null) : undefined,
+            });
+            return [
+              { label: "运行中项目", n: bidStage?.running, ...bstat("running") },
+              { label: "标前项目", n: bidStage?.pre, ...bstat("pre") },
+              { label: "标中项目", n: bidStage?.in, ...bstat("in") },
+              { label: "标后项目", n: bidStage?.post, ...bstat("post") },
+            ].map((c) => (
+              <button
+                key={c.label}
+                type="button"
+                onClick={() => router.push("/progress")}
+                className="rounded-[12px] m-tile px-1 py-2 text-center active:scale-[0.98]"
+                aria-label={`${c.label} ${c.n ?? "—"} 项，查看进展`}
+              >
+                <div className={`text-[15px] font-black leading-none tabular-nums ${c.n ? "" : "text-[var(--muted-foreground)]"}`}>
+                  {c.n ?? "—"}
+                </div>
+                {queryBidRange.startDate ? (
+                  <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                    <span className={ratioCls(c.yoy)}>同比 {ratioTxt(c.yoy)}</span>
+                    <span className={ratioCls(c.hb)}>环比 {ratioTxt(c.hb)}</span>
+                  </div>
+                ) : null}
+                <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">{c.label}</div>
+              </button>
+            ));
+          })()}
         </div>
         <div className="mt-2 space-y-1.5">
           {[...openingNow, ...evaluatingNow, ...submittingNow].slice(0, 4).map((p) => (

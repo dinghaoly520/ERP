@@ -32,6 +32,23 @@ export async function fetchProjectStatusCounts(companyId?: string, startDate?: s
   return api.get<ProjectStatusCounts>(`/dashboard/project-status${q ? `?${q}` : ''}`);
 }
 
+/* 实时运行态势四 KPI（2026-11-19 用户裁定：标段生命周期）——标前=确认开标前
+   （DOWNLOAD/SUBMIT）、标中=已确认开标未完成开评标（OPENING/EVALUATING）、
+   标后=完成开评标（ARCHIVED）、运行中=标前+标中；ABORTED 流标终态不计。
+   flow 三窗同项目盘点（createdAt 立项流）；「全部」档为 null */
+export type BidStageCounts = { running: number; pre: number; in: number; post: number };
+export type BidStageStatus = BidStageCounts & {
+  flow: { cur: BidStageCounts; yoy: BidStageCounts; prev: BidStageCounts } | null;
+};
+export async function fetchBidStageStatus(companyId?: string, startDate?: string, endDate?: string): Promise<BidStageStatus> {
+  const params = new URLSearchParams();
+  if (companyId) params.set('companyId', companyId);
+  if (startDate) params.set('startDate', startDate);
+  if (endDate) params.set('endDate', endDate);
+  const q = params.toString();
+  return api.get<BidStageStatus>(`/dashboard/bid-stage-status${q ? `?${q}` : ''}`);
+}
+
 /* ── 公司龙虎榜（:3011，跨公司榜单——admin 全榜 / leader 本公司排位+集团均值）── */
 
 export type CompanyRankingRange = "month" | "year";

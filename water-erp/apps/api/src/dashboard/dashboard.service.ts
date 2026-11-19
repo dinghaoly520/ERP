@@ -1220,6 +1220,40 @@ export class DashboardService {
     return { ...base, flow: { cur, yoy, prev } };
   }
 
+  /** :3011 实时运行态势四 KPI（2026-11-19 用户裁定：标段生命周期盘点）。标前=确认开标前
+   *  （DOWNLOAD/SUBMIT）；标中=已确认开标未完成开评标（OPENING/EVALUATING）；标后=完成
+   *  开评标（ARCHIVED）；运行中=标前+标中。ABORTED（流标终态）不入任何桶。
+   *  带 startDate 附 flow 三窗（同比/环比子行，createdAt=立项流口径），结构同项目盘点。 */
+  private async bidStageCountsOf(companyFilter: CompanyWhere | undefined, startDate?: string, endDate?: string) {
+    const range = startDate || endDate
+      ? {
+          ...(startDate ? { gte: startOfDay(startDate) } : {}),
+          ...(endDate ? { lte: endOfDay(endDate) } : {}),
+        }
+      : undefined;
+    const rows = await this.prisma.bidProject.groupBy({
+      by: ['stage'],
+      _count: { _all: true },
+      where: { ...companyFilter, ...(range ? { createdAt: range } : {}) },
+    });
+    const n = (s: string) => rows.find((r) => r.stage === s)?._count._all ?? 0;
+    const pre = n('DOWNLOAD') + n('SUBMIT');
+    const inBid = n('OPENING') + n('EVALUATING');
+    return { running: pre + inBid, pre, in: inBid, post: n('ARCHIVED') };
+  }
+
+  async getBidStageStatus(companyFilter?: CompanyWhere, startDate?: string, endDate?: string) {
+    const base = await this.bidStageCountsOf(companyFilter);
+    if (!startDate) return { ...base, flow: null };
+    const [cur, yoy] = await Promise.all([
+      this.bidStageCountsOf(companyFilter, startDate, endDate),
+      this.bidStageCountsOf(companyFilter, shiftYearIsoB(startDate), shiftYearIsoB(endDate ?? nowIsoB())),
+    ]);
+    const prevW = priorWindow(startDate, endDate);
+    const prev = prevW ? await this.bidStageCountsOf(companyFilter, prevW.startDate, prevW.endDate) : { running: 0, pre: 0, in: 0, post: 0 };
+    return { ...base, flow: { cur, yoy, prev } };
+  }
+
   /** :3011 Tab 角标——异常/待处理/停滞三计数（与 getDashboard abnormalCount 同口径：
    *  异常=非 AWARDED 且非 PENDING；停滞=ACTIVE 项目【当前阶段】停留>30 天） */
   async getBadges(companyFilter?: CompanyWhere) {

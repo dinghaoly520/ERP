@@ -69,6 +69,23 @@ export class DashboardController {
     return this.dashboardService.getProjectStatusCounts(this.companyScope.filter(scope), startDate, endDate);
   }
 
+  /** :3011 实时运行态势四 KPI——标段生命周期盘点（标前/标中/标后/运行中 + 同比环比流量） */
+  @Get('bid-stage-status')
+  @ApiOperation({ summary: ':3011 实时态势标段盘点（运行中/标前/标中/标后 + 同比环比流量）' })
+  async getBidStageStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+    @Query('companyId') companyId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    if (!canViewGlobalBusinessData(user.role)) {
+      throw new ForbiddenException('普通账号无法查看数据库页面。');
+    }
+    const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
+    return this.dashboardService.getBidStageStatus(this.companyScope.filter(scope), startDate, endDate);
+  }
+
   /** 公司龙虎榜天然跨公司（比的是全集团排位）——无 companyId 入参：admin 全榜、leader 本公司排位 */
   @Get('company-ranking')
   @ApiOperation({ summary: ':3011 公司龙虎榜（admin 全榜 / leader 本公司排位+集团均值）' })
