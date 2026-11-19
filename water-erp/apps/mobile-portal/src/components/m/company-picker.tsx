@@ -32,9 +32,11 @@ export function CompanyPicker({
     }
   }, [open, value]);
 
+  /* 显示一律全称（2026-11-19 用户裁定：直接写全称不写简称——「集团本部/设计院」类
+   * shortName 不再作主标签）；搜索仍兼容简称输入 */
   const nameOf = (id: string) => {
     const c = options.find((o) => o.id === id);
-    return c?.shortName || c?.name || id;
+    return c?.name || c?.shortName || id;
   };
 
   const triggerLabel = useMemo(() => {
@@ -47,7 +49,8 @@ export function CompanyPicker({
   const filtered = useMemo(() => {
     const kw = keyword.trim();
     if (!kw) return options;
-    return options.filter((c) => (c.shortName || c.name).includes(kw) || c.name.includes(kw));
+    /* 搜索兼容：全称/简称任一命中 */
+    return options.filter((c) => c.name.includes(kw) || (c.shortName ?? "").includes(kw));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keyword, options]);
 
@@ -123,8 +126,7 @@ export function CompanyPicker({
                 style={active ? { background: "color-mix(in oklch, var(--accent) 8%, oklch(0.985 0.005 258))" } : undefined}
               >
                 <span className="min-w-0 flex-1">
-                  <span className={`block truncate text-[16px] ${active ? "font-bold text-[var(--accent)]" : "font-semibold text-[var(--foreground)]"}`}>{c.shortName || c.name}</span>
-                  {c.shortName && c.name !== c.shortName ? <span className="mt-0.5 block truncate text-[14px] text-[var(--muted-foreground)]">{c.name}</span> : null}
+                  <span className={`block truncate text-[15px] ${active ? "font-bold text-[var(--accent)]" : "font-semibold text-[var(--foreground)]"}`}>{c.name}</span>
                 </span>
                 {active ? <Check size={15} className="shrink-0 text-[var(--accent)]" /> : null}
               </button>
