@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Megaphone, ChartNoAxesCombined,
+import { ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
   AlertTriangle,
   BarChart3,
@@ -28,7 +28,7 @@ import { Megaphone, ChartNoAxesCombined,
   TrendingUp,
   Trophy,
   Users,
- } from "lucide-react";
+  } from "lucide-react";
 import {
   fetchBidStageProjects,
   fetchBidStageStatus,
@@ -263,8 +263,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   const [activeTrend, setActiveTrend] = useState<DashboardData["trendSeries"][number] | null>(null);
   /** 趋势图按下高亮列（触摸反馈：按下列 → 竖参考线 + 放大点，松开出当日弹层） */
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
-  /* 节资趋势按下列（十字准线+值签）；点击开当月下钻 */
-  const [savIdx, setSavIdx] = useState<number | null>(null);
   const [activeDept, setActiveDept] = useState<DashboardData["departmentStats"][number] | null>(null);
   const [activeMethod, setActiveMethod] = useState<DashboardData["methodStats"][number] | null>(null);
   const [activeReason, setActiveReason] = useState<DashboardData["nonAwardReasons"][number] | null>(null);
@@ -622,28 +620,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     };
   }, [analysisPm]);
 
-  /* 节资趋势（2026-11-19 执行趋势优化裁定）：月度节资（AWARDED 且
-   * budget>=award>0：Σ(预算-成交)）柱 + 节资率（节约/成交预算）线 */
-  const savingsTrend = useMemo(() => {
-    const series = (data?.trendSeries ?? []).map((t) => {
-      let savings = 0;
-      let budget = 0;
-      (t.projects ?? []).forEach((p) => {
-        const b = parseBudgetLabel(p.budgetLabel);
-        const a = parseBudgetLabel(p.awardLabel || "");
-        if (a > 0 && b >= a) {
-          savings += b - a;
-          budget += b;
-        }
-      });
-      const rate = budget > 0 ? (savings / budget) * 100 : 0;
-      return { label: t.label, count: t.count, savings: savings / 10000, rate, raw: t };
-    });
-    const total = series.reduce((sum, x) => sum + x.savings, 0);
-    if (!total) return null;
-    return { series, total };
-  }, [data]);
-
   /* 环形图分段（采购方式） */
   const methodDonut = useMemo(() => {
     const stats = data?.methodStats ?? [];
@@ -854,125 +830,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
               </>
             ) : null}
-            {/* ── 节资趋势（月度节资柱 + 节资率线，点柱开当月下钻）── */}
-            {savingsTrend ? (
-              <SectionCard
-                icon={TrendingUp}
-                title="节资趋势"
-                index={1.5}
-                right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=节资 · 线=节资率</span>}
-              >
-                {(() => {
-                  const st = savingsTrend;
-                  const n = st.series.length;
-                  const W = 340;
-                  const H = 140;
-                  const padL = 34;
-                  const padR = 26; /* 右侧让位节资率纵轴（2026-11-19 用户裁定） */
-                  const padT = 14;
-                  const padB = 22;
-                  const plotW = W - padL - padR;
-                  const plotH = H - padT - padB;
-                  const maxSav = Math.max(...st.series.map((x) => x.savings), 1);
-                  const maxRate = Math.max(...st.series.map((x) => x.rate), 1);
-                  const x = (i: number) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
-                  const colW = n > 0 ? plotW / n : plotW;
-                  const colX = (i: number) => padL + i * colW;
-                  const barW = Math.min(Math.round(colW * 0.42), 26);
-                  const savY = (v: number) => padT + plotH - (v / maxSav) * plotH;
-                  const rateY = (v: number) => padT + plotH - (v / maxRate) * plotH * 0.85;
-                  const pts = st.series.map((t, i) => [x(i), rateY(t.rate)] as const);
-                  const line = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"} ${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
-                  const labelStep = Math.max(1, Math.ceil(n / 5));
-                  return (
-                    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="节资趋势图">
-                      <defs>
-                        <linearGradient id="savBarFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--success)" stopOpacity="0.34" />
-                          <stop offset="100%" stopColor="var(--success)" stopOpacity="0.08" />
-                        </linearGradient>
-                      </defs>
-                      {[maxSav, maxSav / 2].map((v, i) => (
-                        <g key={`st-${i}`}>
-                          <line x1={padL} y1={savY(v)} x2={W - padR} y2={savY(v)} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
-                          <text x={padL - 5} y={savY(v) + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
-                            {v >= 10000 ? `${Math.round(v / 1000) / 10}亿` : v >= 100 ? Math.round(v) : Math.round(v * 10) / 10}
-                          </text>
-                        </g>
-                      ))}
-                      <text x={padL - 5} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资</text>
-                      <text x={W - 2} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资率</text>
-                      {/* 右纵轴=节资率（金），两档刻度随 rateY 线性位 */}
-                      {[maxRate, maxRate / 2].map((v, i) => (
-                        <text key={`sr-${i}`} x={W - 2} y={rateY(v) + 3} textAnchor="end" fontSize={8.5} fontWeight={600} fill="var(--gold)">
-                          {`${Math.round(v)}%`}
-                        </text>
-                      ))}
-                      <line x1={padL} y1={padT + plotH} x2={W - padR} y2={padT + plotH} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
-                      {st.series.map((t, i) => {
-                        const barH = (t.savings / maxSav) * plotH;
-                        return barH > 0 ? (
-                          <rect key={`sb-${i}`} x={x(i) - barW / 2} y={padT + plotH - barH} width={barW} height={Math.max(barH, 2)} rx={3} fill="url(#savBarFill)" className="m-bar" style={{ animationDelay: `${i * 40}ms` }} />
-                        ) : null;
-                      })}
-                      <path d={line} fill="none" stroke="var(--gold)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="m-draw-line" style={{ ["--m-path-len" as string]: "800" }} />
-                      {st.series.map((t, i) => (
-                        <g key={`sp-${i}`}>
-                          {savIdx === i ? <circle cx={x(i)} cy={rateY(t.rate)} r={5} fill="var(--gold)" opacity={0.5} className="m-point-pulse" /> : null}
-                          <circle cx={x(i)} cy={rateY(t.rate)} r={savIdx === i ? 4.6 : 3} fill="var(--gold)" stroke="white" strokeWidth={savIdx === i ? 2 : 1.2} />
-                          {i % labelStep === 0 ? (
-                            <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10.5} fill="var(--muted-foreground)">
-                              {t.label.slice(-5)}
-                            </text>
-                          ) : null}
-                        </g>
-                      ))}
-                      {savIdx != null ? (
-                        <>
-                          <line className="m-chip-in" x1={x(savIdx)} y1={padT - 4} x2={x(savIdx)} y2={padT + plotH} stroke="var(--gold)" strokeOpacity={0.5} strokeWidth={1} strokeDasharray="3 3" />
-                          {(() => {
-                            const m = st.series[savIdx];
-                            const prev = savIdx > 0 ? st.series[savIdx - 1].savings : 0;
-                            const mom = prev > 0 ? Math.round(((m.savings - prev) / prev) * 100) : null;
-                            const amtTxt = m.savings >= 10000 ? `${(m.savings / 10000).toFixed(2)}亿` : `${m.savings.toFixed(1)}万`;
-                            const chip = `${amtTxt} · ${m.rate.toFixed(1)}%${mom != null ? ` ${mom > 0 ? "↑" : mom < 0 ? "↓" : ""}${Math.abs(mom)}%` : ""}`;
-                            const cw = chip.length * 7 + 12;
-                            const cx = Math.min(Math.max(x(savIdx), padL + cw / 2), W - padR - cw / 2);
-                            const cy = Math.max(savY(m.savings) - 30, 1);
-                            return (
-                              <g className="m-chip-in">
-                                <rect x={cx - cw / 2} y={cy} width={cw} height={18} rx={9} fill="var(--foreground)" />
-                                <text x={cx} y={cy + 12.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="var(--background)">
-                                  {chip}
-                                </text>
-                              </g>
-                            );
-                          })()}
-                        </>
-                      ) : null}
-                      {st.series.map((t, i) => (
-                        <rect
-                          key={`sh-${i}`}
-                          x={colX(i)}
-                          y={padT - 4}
-                          width={colW}
-                          height={plotH + 4}
-                          fill="transparent"
-                          style={{ cursor: "pointer" }}
-                          onPointerDown={() => setSavIdx(i)}
-                          onPointerCancel={() => setSavIdx(null)}
-                          onClick={() => {
-                            setSavIdx(null);
-                            setActiveTrend(t.raw);
-                          }}
-                        />
-                      ))}
-                    </svg>
-                  );
-                })()}
-              </SectionCard>
-            ) : null}
-
             {analysisOpen === "company" ? (
               <>
 
@@ -1032,8 +889,15 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "composition" ? (
               <>
-            {/* ══ 数据分析（2026-11-19 重构裁定：归档数据 / 进行中数据 两区，各五图）══ */}
-            <div className="px-1 pt-1 text-[12px] font-bold tracking-[0.08em] text-[var(--foreground)]">归档数据</div>
+            {/* ══ 数据分析（2026-11-19 重构裁定：台账数据 / 进行中数据 两区瓷面条分区标，各五图）══ */}
+            {/* 分区标题（2026-11-19 用户裁定：台账数据/进行中数据瓷面条样式） */}
+            <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{ background: "color-mix(in oklch, var(--accent) 12%, transparent)", color: "var(--accent)" }}>
+                <ClipboardList size={15} strokeWidth={1.5} />
+              </span>
+              <span className="text-[16px] font-bold tracking[-0.01em] text-[var(--foreground)]">台账数据</span>
+              <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{scaleTotal} 项已成交</span>
+            </div>
 
             {/* 供应商集中度：Top5 中标金额横条 + CR3 结论 */}
             <SectionCard icon={Handshake} title="供应商集中度" index={0}>
@@ -1161,7 +1025,13 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </SectionCard>
 
             <div className="my-3 h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
-            <div className="px-1 text-[12px] font-bold tracking-[0.08em] text-[var(--foreground)]">进行中数据</div>
+            <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{ background: "color-mix(in oklch, var(--success) 12%, transparent)", color: "var(--success)" }}>
+                <Milestone size={15} strokeWidth={1.5} />
+              </span>
+              <span className="text-[16px] font-bold tracking[-0.01em] text-[var(--foreground)]">进行中数据</span>
+              <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pmDist.total} 项在办</span>
+            </div>
 
             {analysisPm ? (
               <>
