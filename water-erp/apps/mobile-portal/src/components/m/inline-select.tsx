@@ -24,6 +24,7 @@ export function InlineSelect({
   ariaLabel,
   onCustomApply,
   customValue,
+  customFirst = false,
 }: {
   /** 触发器文案（调用方算好——区间档名/日期段/公司名组合） */
   label: string;
@@ -37,6 +38,8 @@ export function InlineSelect({
   /** 提供即启用「自定义」日期区间行 */
   onCustomApply?: (from: string, to: string) => void;
   customValue?: { from: string; to: string } | null;
+  /** 自定义行置顶（2026-11-19 用户裁定：区间菜单倒序——自定义/全部/本年/本季/本月/本日） */
+  customFirst?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -97,6 +100,62 @@ export function InlineSelect({
   /* 菜单视口内限高：顶部锚点之下留 12px，且不超过半屏 */
   const maxMenuH = pos ? Math.max(160, Math.min(window.innerHeight * 0.52, window.innerHeight - pos.top - 12)) : 0;
 
+  /* 自定义日期区间块（customFirst=置顶+下分隔线；默认尾置+上分隔线） */
+  const customBlock = onCustomApply ? (
+    <div
+      className={
+        customFirst
+          ? "mb-1 border-b border-[color-mix(in_oklch,var(--border)_50%,transparent)] pb-1"
+          : "mt-1 border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-1"
+      }
+    >
+      <button
+        type="button"
+        role="option"
+        aria-selected={selected.includes("custom")}
+        onClick={() => pick("custom")}
+        className={`flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[13px] active:scale-[0.99] ${
+          selected.includes("custom") ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] font-bold text-[var(--accent)]" : "text-[var(--foreground)]"
+        }`}
+      >
+        <span className="min-w-0 flex-1 truncate">自定义</span>
+        {selected.includes("custom") ? <Check size={14} className="shrink-0" /> : null}
+      </button>
+      {editorOpen ? (
+        <div className="mt-1 rounded-[10px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] p-2">
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={draftFrom}
+              onChange={(e) => setDraftFrom(e.target.value)}
+              aria-label="开始日期"
+              className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px]"
+            />
+            <span className="shrink-0 text-[12px] text-[var(--muted-foreground)]">至</span>
+            <input
+              type="date"
+              value={draftTo}
+              onChange={(e) => setDraftTo(e.target.value)}
+              aria-label="结束日期"
+              className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px]"
+            />
+          </div>
+          <button
+            type="button"
+            disabled={!draftOk}
+            onClick={() => {
+              onCustomApply(draftFrom, draftTo);
+              setOpen(false);
+            }}
+            className="neu-btn-primary mt-2 h-9 w-full rounded-[10px] text-[14px] disabled:opacity-50"
+          >
+            应用
+          </button>
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
     <div ref={rootRef} className="relative shrink-0">
       <button
@@ -121,6 +180,7 @@ export function InlineSelect({
               /* 动态锚定坐标必须内联（类名无法承载测量值）：右缘对齐触发器右缘 */
               style={{ top: pos.top, left: pos.right, transform: "translateX(-100%)", maxHeight: maxMenuH }}
             >
+              {customFirst ? customBlock : null}
               {options.map((o) => {
                 const on = selected.includes(o.value);
                 return (
@@ -139,54 +199,7 @@ export function InlineSelect({
                   </button>
                 );
               })}
-              {onCustomApply ? (
-                <div className="mt-1 border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-1">
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={selected.includes("custom")}
-                    onClick={() => pick("custom")}
-                    className={`flex w-full items-center gap-2 rounded-[10px] px-2.5 py-2 text-left text-[13px] active:scale-[0.99] ${
-                      selected.includes("custom") ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] font-bold text-[var(--accent)]" : "text-[var(--foreground)]"
-                    }`}
-                  >
-                    <span className="min-w-0 flex-1 truncate">自定义</span>
-                    {selected.includes("custom") ? <Check size={14} className="shrink-0" /> : null}
-                  </button>
-                  {editorOpen ? (
-                    <div className="mt-1 rounded-[10px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] p-2">
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="date"
-                          value={draftFrom}
-                          onChange={(e) => setDraftFrom(e.target.value)}
-                          aria-label="开始日期"
-                          className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px]"
-                        />
-                        <span className="shrink-0 text-[12px] text-[var(--muted-foreground)]">至</span>
-                        <input
-                          type="date"
-                          value={draftTo}
-                          onChange={(e) => setDraftTo(e.target.value)}
-                          aria-label="结束日期"
-                          className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px]"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        disabled={!draftOk}
-                        onClick={() => {
-                          onCustomApply(draftFrom, draftTo);
-                          setOpen(false);
-                        }}
-                        className="neu-btn-primary mt-2 h-9 w-full rounded-[10px] text-[14px] disabled:opacity-50"
-                      >
-                        应用
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
+              {!customFirst ? customBlock : null}
             </div>,
             document.body,
           )

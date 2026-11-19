@@ -97,6 +97,18 @@ const RANGES: Record<PresetKey, { label: string; start: () => string | undefined
   all: { label: "全部", start: () => undefined },
 };
 
+/** ISO 日期整移一年（02-29 闰年回夹到平年 02-28）——同比窗计算 */
+function shiftYearIso(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  let t = new Date(Date.UTC(y - 1, m - 1, d));
+  if (t.getUTCMonth() !== m - 1) t = new Date(Date.UTC(y - 1, m, 0)); // 溢出=平年二月，取月末
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+}
+const TODAY_ISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 function statusColor(s: string): string {
   if (/未成交|异常|终止|撤|废/.test(s)) return "text-[var(--danger)]";
   if (/成交|完成|归档/.test(s)) return "text-[var(--success)]";
@@ -229,6 +241,9 @@ export default function DashboardPage() {
   const role = user?.role ?? null;
 
   const [data, setData] = useState<DashboardData | null>(null);
+  /* 同比窗（整窗前移一年）汇总——金额三格涨跌箭头数据源（2026-11-19 用户裁定：
+     同比而非环比，替换原 compare=true 邻窗） */
+  const [yoy, setYoy] = useState<DashboardData["summary"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
@@ -373,9 +388,17 @@ export default function DashboardPage() {
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyIds.length ? companyIds.join(",") : undefined, true)
-      .then((d) => {
+    const cid = companyIds.length ? companyIds.join(",") : undefined;
+    const mainP = fetchDashboardData(queryRange.startDate, queryRange.endDate, cid, false);
+    /* 同比窗=整窗前移一年（本月↔去年同月/本季↔去年同季/本年↔去年/自定义同移）；
+       「全部」档无起点不做同比（null→不显箭头）。主请求失败显横幅，同比失败静默降级 */
+    const yoyP = queryRange.startDate
+      ? fetchDashboardData(shiftYearIso(queryRange.startDate), shiftYearIso(queryRange.endDate ?? TODAY_ISO()), cid, false).catch(() => null)
+      : Promise.resolve(null);
+    return Promise.all([mainP, yoyP])
+      .then(([d, y]) => {
         setData(d);
+        setYoy(y?.summary ?? null);
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "加载仪表盘数据失败");
@@ -400,7 +423,6 @@ export default function DashboardPage() {
   );
 
   const summary = data?.summary;
-  const cmp = data?.compare?.summary;
   /* 公司口径标签（全称——2026-11-19 用户裁定） */
   const companyLabel = companyIds.length === 0
     ? "全部公司"
@@ -503,7 +525,7 @@ export default function DashboardPage() {
               <InlineSelect
                 label={rangeKey === "custom" && customRange ? `${customRange.from.slice(5).replace("-", "/")}~${customRange.to.slice(5).replace("-", "/")}` : RANGES[rangeKey as PresetKey].label}
                 active={rangeKey !== "year"}
-                options={(Object.keys(RANGES) as PresetKey[]).map((k) => ({ value: k, label: RANGES[k].label }))}
+                options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
                 selected={[rangeKey]}
                 onSelect={(next) => setRangeKey(next[0] as RangeKey)}
                 onCustomApply={(from, to) => {
@@ -511,6 +533,7 @@ export default function DashboardPage() {
                   setRangeKey("custom");
                 }}
                 customValue={customRange}
+                customFirst
                 ariaLabel="数据区间"
               />
               {role === "admin" ? (
@@ -543,9 +566,11 @@ export default function DashboardPage() {
               { label: "归档项目", value: projectStatus ? String(projectStatus.archived) : "—", onTap: () => router.push("/ledger") },
               { label: "进行中项目", value: projectStatus ? String(projectStatus.active) : "—", onTap: () => router.push("/progress") },
               { label: "异常项目", value: projectStatus ? String(projectStatus.terminated) : "—", danger: (projectStatus?.terminated ?? 0) > 0, onTap: () => router.push("/ledger?status=CANCELLED") },
-              { label: "成交预算", value: summary.awardedBudgetLabel },
-              { label: "成交额", value: summary.totalAwardLabel, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
-              { label: "节约资金", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
+              /* 金额三格同比涨跌（2026-11-19 用户裁定）：所选档整窗前移一年对比
+                 （本月↔去年同月、本季↔去年同季、本年↔去年）；无去年数据不显箭头 */
+              { label: "成交预算", value: summary.awardedBudgetLabel, delta: deltaOf(parseBudgetLabel(summary.awardedBudgetLabel), yoy?.awardedBudget, true) },
+              { label: "成交额", value: summary.totalAwardLabel, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), yoy?.totalAward, true), onTap: () => router.push("/ledger") },
+              { label: "节约资金", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), yoy?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
               /* 节资率=节约资金/成交预算（2026-11-19 用户裁定：第二排改四数+节资率，红显） */
               { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true },
             ].map((m) => {
