@@ -126,6 +126,20 @@ describe('stampDraftEntries（TAB-SYNC-02 ④）', () => {
     const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r' } }, { weird: true }, 5000);
     expect(out['s1:i1'].savedAt).toBe(5000);
   });
+
+  it('B1 快钟存量钳制：保留的原时戳指向未来（④前落库客户端钟）→ clamp 到 now（②过滤不再被未来时戳穿透）', () => {
+    const now = 1000;
+    const existing = { scores: { 's1:i1': { score: 80, reason: 'r', savedAt: now + 3_600_000 } }, savedAt: now + 3_600_000 };
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r' } }, existing, now);
+    expect(out['s1:i1'].savedAt).toBe(now);
+  });
+
+  it('B1 正常历史时戳不受钳制（savedAt < now 原样保留，回声无害语义不变）', () => {
+    const now = 10_000;
+    const existing = { scores: { 's1:i1': { score: 80, reason: 'r', savedAt: 5_000 } }, savedAt: 5_000 };
+    const out = stampDraftEntries({ 's1:i1': { score: 80, reason: 'r' } }, existing, now);
+    expect(out['s1:i1'].savedAt).toBe(5_000);
+  });
 });
 
 // ── T4 审查 Critical 回修：jsonb 键序归一化 × stringify 比较误判（回声必须无害）──

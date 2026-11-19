@@ -65,4 +65,14 @@ describe('BidPairingService（TAB-SYNC-02 P2-4 主持端远程解绑）', () => 
       status: 403, response: expect.objectContaining({ code: 'NOT_PROJECT_EXPERT' }),
     });
   });
+
+  it('unpairExpert：revoke-null 竞态（getActive 命中但 revoke 返回 null=并发已被吊销）→ 幂等 ok，不写日志不广播不踢除（B6③）', async () => {
+    prisma.bidExpert.findFirst.mockResolvedValue({ id: 'be1', expertName: '测试专家' });
+    registry.getActive.mockResolvedValue({ pairingId: 'jti-9', device: null, pairedAt: 1 });
+    registry.revoke.mockResolvedValue(null);
+    expect(await makeService().unpairExpert('p1', 'be1', 'op-user')).toEqual({ ok: true });
+    expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    expect(gateway.notifyPairingRevoked).not.toHaveBeenCalled();
+    expect(gateway.kickPairingSockets).not.toHaveBeenCalled();
+  });
 });

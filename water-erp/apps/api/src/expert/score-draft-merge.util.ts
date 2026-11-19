@@ -86,6 +86,9 @@ export function mergeDraftSlots(
  * - 内容变更 / 本槽新键 → 打服务器 now（含首次收编对端条目：其客户端时戳被归一为
  *   服务器钟，原始时戳仍存于对端自己槽内，合并取新不受影响——内容相同时取哪个都等价）。
  * - existingSlot 为旧扁平/畸形形状 → 全部键视为新键打点（fail-open 到打点，不拒写）。
+ * - B1（2026-11-19 残留收口）：保留的原时戳**钳制到 now**——④前（2026-11-17 前）落库条目带
+ *   客户端钟，快钟设备可指向未来；未来时戳在 ② 过滤里恒 savedAt>committedAt，陈旧 committed
+ *   条目永不被剔。clamp 归一为服务器钟：首次保存触达即治愈，无需存量迁移脚本。
  */
 export function stampDraftEntries(
   incoming: Record<string, ScoreEntry>,
@@ -97,7 +100,8 @@ export function stampDraftEntries(
   for (const [k, v] of Object.entries(incoming)) {
     const old = prev.scores[k];
     const unchanged = old !== undefined && entryContentEquals(old, v);
-    out[k] = { ...v, savedAt: unchanged ? (typeof old.savedAt === 'number' ? old.savedAt : now) : now };
+    const keep = typeof old?.savedAt === 'number' ? old.savedAt : now;
+    out[k] = { ...v, savedAt: unchanged ? (keep > now ? now : keep) : now };
   }
   return out;
 }

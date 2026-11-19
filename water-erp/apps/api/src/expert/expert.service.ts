@@ -2926,15 +2926,16 @@ export class ExpertService {
       }),
     ]);
 
-    // 草稿：从 scoreDraft 合并提取该供应商的草稿评分
-    const rawDraft = (expert.scoreDraft ?? {}) as any;
+    // 草稿：mergeDraftSlots 双槽逐键取新 + TAB-SYNC-02 ② 陈旧 committed 过滤（B2 2026-11-19
+    // 残留收口，与 getScoreDraft 同构）。原 {...tablet, ...desktop} 盲 spread 是 TAB-SYNC-01 §4.1
+    // 已废弃的「desktop 恒赢」语义在此残留，且无过滤 → 草稿列回显提交前旧值。committedAt 表
+    // 由上方已查出的 records（本供应商）构建，零额外查询；提交后新编辑 savedAt>updatedAt 保留。
     let draftScores: Record<string, any> = {};
-    if (typeof rawDraft.tablet === 'object' || typeof rawDraft.desktop === 'object') {
-      const t = rawDraft.tablet?.scores ?? {};
-      const d = rawDraft.desktop?.scores ?? {};
-      draftScores = { ...t, ...d };
-    } else if (rawDraft.scores) {
-      draftScores = rawDraft.scores;
+    const mergedDraft = mergeDraftSlots(expert.scoreDraft);
+    if (mergedDraft) {
+      const committedAt: Record<string, number> = {};
+      for (const r of records) committedAt[`${supplierId}:${r.scoreItemId}`] = new Date(r.updatedAt).getTime();
+      draftScores = filterStaleCommittedEntries(mergedDraft.scores, committedAt, mergedDraft.savedAt).kept;
     }
     const draftForSupplier: Record<string, any> = {};
     for (const [key, val] of Object.entries(draftScores)) {

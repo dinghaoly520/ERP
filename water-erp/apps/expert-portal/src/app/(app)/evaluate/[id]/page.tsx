@@ -8,7 +8,7 @@ import { useExpertWebSocket } from '@/hooks/use-expert-websocket';
 import { LiveStatusBoard } from '@/components/live-status-board';
 import type { ExpertProjectDetail, DecryptedDocuments, AssistData, EvaluationReport } from '@/lib/types';
 import { isPassFailCategory, CATEGORY_LABEL, CATEGORY_COLOR, DECRYPT_LABEL, tenderDocumentLabel } from '@water-erp/shared';
-import { validateSupplierScores, buildFullPoints, committedRecordFor, filterScorableItems, isQualificationShortCircuited, buildServerMentionedEntries, buildPendingScoreDraft, type ScoreEntry } from '@/lib/score-validation';
+import { validateSupplierScores, buildFullPoints, committedRecordFor, filterScorableItems, isQualificationShortCircuited, buildServerMentionedEntries, buildPostSubmitSlotPayload, type ScoreEntry } from '@/lib/score-validation';
 import { useScoreDraftSync } from '@/hooks/use-score-draft-sync';
 import { ArrowLeft, Check, ShieldCheck, ShieldAlert, FileText, Sparkles, Edit3, BarChart3, Lock, Unlock, Download, AlertTriangle, Clock, CheckCircle, Lightbulb, Key, Clipboard, ClipboardList, Gavel, MessageSquare, X, Scale, StickyNote, History, Info, Smartphone, UserRoundCog, Hourglass } from 'lucide-react';
 import { portalURL } from '@water-erp/config';
@@ -353,7 +353,9 @@ export default function ExpertEvaluatePage() {
   // 终审 F1 回修：myScores 经参数传入（镜像 scoreItems 模式）——此前读闭包 project（[]-deps
   // 冻结为 null），buildServerMentionedEntries 恒拿 undefined → 零值兜底覆写已提交基线，
   // 提交后拉取退化假冲突弹窗（BSM-① 语义在桌面侧从未真正执行）
-  const loadMyScores = useCallback(async (pid: string, scoreItems: Array<{ id: string; points?: Array<{ id: string }> }>, myScores?: Array<{ supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string | null }>) => {
+  // B5：scoreItems 形参类型改由 buildServerMentionedEntries 签名推导（需 category+全量 points——
+  // 原 `{id, points:{id}[]}` 自窄形参在 B5 补全后不再可赋值；调用方传的 p.scoreItems 本就是全形状）
+  const loadMyScores = useCallback(async (pid: string, scoreItems: NonNullable<Parameters<typeof buildServerMentionedEntries>[1]>, myScores?: Array<{ supplierId: string; scoreItemId: string; score: number; passed?: boolean | null; reason?: string | null }>) => {
     try {
       const d = await api.get<{
         records: unknown[];
@@ -1005,10 +1007,8 @@ export default function ExpertEvaluatePage() {
       cancelPendingAutosave();
       // 不再整键删除草稿（会误删其他供应商未提交分）；TAB-SYNC-02 ②：按供应商前缀清本端槽
       // ——该供应商键即时出槽（其余未提交分保留），对端槽由 GET 服务端陈旧过滤兜底
-      const remaining = Object.fromEntries(
-        Object.entries(buildPendingScoreDraft(scores, project?.myScores, project?.scoreItems))
-          .filter(([k]) => !k.startsWith(`${activeSupplier}:`)),
-      );
+      // （B6⑤：载荷构建下放纯函数 buildPostSubmitSlotPayload，含组合测试）
+      const remaining = buildPostSubmitSlotPayload(scores, activeSupplier, project?.myScores, project?.scoreItems);
       api.post(`/expert/projects/${projectId}/score-draft?device=desktop`, { scores: remaining, savedAt: Date.now() }).catch(() => {});
       clearDraftBanner();
       loadProject(activeSupplier);

@@ -76,6 +76,9 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
   // 草稿检查完成前暂停自动保存，避免挂载时以空值或旧 scores 覆盖待恢复草稿
   const [draftCheckDone, setDraftCheckDone] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // B4（2026-11-19 残留收口）：防抖自动保存 POST 的中断控制器——提交成功清槽时撤走在途
+  // 请求（timer 已清但在途 fetch 落地会以 stale pending 重推已提交键 → ②过滤被穿透复活幽灵横幅）
+  const autosaveAbortRef = useRef<AbortController | null>(null);
   // 未落盘评分改动标记（断点续评加固）：驱动 beforeunload 原生防误关
   const [hasUnflushed, setHasUnflushed] = useState(false);
   const unflushedRef = useRef(false);
@@ -172,9 +175,13 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
       try {
         localStorage.setItem(draftStorageKey, JSON.stringify({ scores: pending, savedAt: Date.now() }));
       } catch { /* quota / private mode — ignore */ }
-      api.post(`/expert/projects/${projectId}/score-draft?device=${device}`, { scores: pending, savedAt: Date.now() })
+      // B4：自动保存 POST 可中断（AbortController）——提交清槽时撤走在途请求
+      const ac = new AbortController();
+      autosaveAbortRef.current = ac;
+      api.post(`/expert/projects/${projectId}/score-draft?device=${device}`, { scores: pending, savedAt: Date.now() }, { signal: ac.signal })
         .then(() => advanceBaselineAfterPush(pending))
-        .catch(() => {});
+        .catch(() => {})
+        .finally(() => { if (autosaveAbortRef.current === ac) autosaveAbortRef.current = null; });
     }, 2000);
     return () => { if (draftTimer.current) clearTimeout(draftTimer.current); };
   }, [scores, draftStorageKey, active, projectId, device, draftAvailable, draftCheckDone, buildPending, advanceBaselineAfterPush]);
@@ -327,9 +334,13 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
    * T5 审查 Minor#1 回修：取消已排定的防抖自动保存——提交评分成功后必须先调本函数再清槽，
    * 否则 armed timer 以 stale myScores 重推刚提交的供应商键（stampDraftEntries 视作新键打
    * 服务器钟 > updatedAt），② 过滤被穿透、复活出「检测到未提交草稿」幽灵横幅。
+   * B4（2026-11-19）：timer 已清但 POST 在途的毫秒窗竞态同收——abort 撤走在途请求
+   * （服务端已收包的极端窗仍可能落地，属化妆性残留——值与提交值相同，见遗留待办 B4 注记）。
    */
   const cancelPendingAutosave = useCallback(() => {
     if (draftTimer.current) { clearTimeout(draftTimer.current); draftTimer.current = null; }
+    autosaveAbortRef.current?.abort();
+    autosaveAbortRef.current = null;
     unflushedRef.current = false;
     setHasUnflushed(false);
   }, []);
