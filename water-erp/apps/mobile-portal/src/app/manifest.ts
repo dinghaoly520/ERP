@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "蜀水云采·专属驾驶舱",
     short_name: "蜀水驾驶舱",
-    description: "领导视角的采购数据驾驶舱：数据库/台账/进展/水叮当",
+    description: "领导视角的采购数据驾驶舱：驾驶舱/水叮当，台账与进展页内直达",
     start_url: "/dashboard",
     display: "standalone",
     background_color: "#f4f6fa",
