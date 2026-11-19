@@ -94,6 +94,8 @@ export type StatusConfig = {
   bgColor: string;
   borderColor: string;
   icon: string;
+  /** 卡片整面浅底色（2026-11-19 用户裁定：按状态浅色系着色，比胶囊底更淡一档） */
+  cardBg: string;
 };
 
 // 状态配置映射（颜色按严重程度和原因类型区分）
@@ -105,6 +107,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     bgColor: "rgba(92,181,150,0.12)",
     borderColor: "rgba(92,181,150,0.25)",
     icon: "check",
+    cardBg: "rgba(92,181,150,0.05)",
   },
   PENDING: {
     key: "PENDING",
@@ -113,6 +116,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     bgColor: "rgba(234,188,110,0.12)",
     borderColor: "rgba(234,188,110,0.25)",
     icon: "clock",
+    cardBg: "rgba(234,188,110,0.06)",
   },
   // 资格审查未通过 - 红色（严重：供应商资质问题）
   FAILED_REVIEW: {
@@ -122,6 +126,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     bgColor: "rgba(220,90,80,0.12)",
     borderColor: "rgba(220,90,80,0.25)",
     icon: "x",
+    cardBg: "rgba(220,90,80,0.05)",
   },
   // 采购文件需修改 - 紫色/靛蓝（内部问题：可修复的流程缺陷）
   FILE_REVISION_REQUIRED: {
@@ -131,6 +136,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     bgColor: "rgba(119,129,219,0.12)",
     borderColor: "rgba(119,129,219,0.25)",
     icon: "edit",
+    cardBg: "rgba(119,129,219,0.05)",
   },
   // 未按要求响应 - 橙色（供应商响应问题：格式/密封等）
   INVALID_RESPONSE: {
@@ -140,6 +146,7 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     bgColor: "rgba(230,140,90,0.12)",
     borderColor: "rgba(230,140,90,0.25)",
     icon: "alert",
+    cardBg: "rgba(230,140,90,0.05)",
   },
   // 已终止（原「已取消」，2026-11-19 用户裁定更名）- 灰色（流程终止：中性色；仍计入台账异常四态）
   CANCELLED: {
@@ -149,5 +156,6 @@ export const RESULT_STATUS_CONFIG: Record<ResultStatusKey, StatusConfig> = {
     bgColor: "rgba(140,140,140,0.12)",
     borderColor: "rgba(140,140,140,0.25)",
     icon: "ban",
+    cardBg: "rgba(140,140,140,0.06)",
   },
 };

@@ -526,6 +526,8 @@ export default function LedgerPage() {
               type="button"
               onClick={() => setActiveItem(item)}
               className="m-tile w-full rounded-[16px] p-3.5 text-left active:scale-[0.99]"
+              /* 状态浅底色（2026-11-19 用户裁定）：内联承载 cfg.cardBg（类名无法带动态色） */
+              style={{ background: cfg.cardBg }}
             >
               <div className="flex items-start gap-2">
                 <span className="shrink-0 pt-0.5 text-[13px] tabular-nums text-[var(--muted-foreground)]">{item.procurementDate || "—"}</span>
@@ -549,7 +551,8 @@ export default function LedgerPage() {
                 <span className="tabular-nums">成交 <b className={`font-semibold tabular-nums ${award > 0 ? "text-[var(--success)]" : ""}`}>{award > 0 ? fmtAmount(item.awardAmount) : "—"}</b></span>
                 <span className="tabular-nums">节资率 <b className={`font-semibold tabular-nums ${rate !== "—" ? "text-[var(--danger)]" : ""}`}>{rate}</b></span>
               </div>
-              <div className="mt-1 flex flex-wrap gap-x-3 text-[12px] text-[var(--muted-foreground)]">
+              {/* 采购人/经办人居右（2026-11-19 用户裁定） */}
+              <div className="mt-1 flex flex-wrap justify-end gap-x-3 text-[12px] text-[var(--muted-foreground)]">
                 <span>采购人 <span className="font-medium text-[var(--foreground)]">{item.requesterName ?? "—"}</span></span>
                 <span>经办人 <span className="font-medium text-[var(--foreground)]">{item.createdByName ?? "—"}</span></span>
               </div>
