@@ -229,7 +229,7 @@ describe('ExpertAdminService', () => {
       }));
     });
 
-    it('getStatistics 四态派生（2026-11-18）：正在评标＞正选在途＞候补待命互斥去重（同人多在途行只数一次），declined 不入查询；空闲=库内 ACTIVE−在途并集', async () => {
+    it('getStatistics 四态派生（2026-11-18）：优先级链 正在评标＞正选在途＞候补待命 同人只计高位（多在途行去重），declined 不入查询、在途限库内 ACTIVE；空闲=库内 ACTIVE−在途并集', async () => {
       prisma.user.count.mockResolvedValue(10);
       prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
         by[0] === 'availability'
@@ -241,14 +241,42 @@ describe('ExpertAdminService', () => {
         { userId: 'e2', expertRole: '候补', project: { stage: 'OPENING' } },    // 候补待命
         { userId: 'e3', expertRole: '候补', project: { stage: 'EVALUATING' } }, // 同人多在途行：正在评标最高优先
         { userId: 'e3', expertRole: '候补', project: { stage: 'SUBMIT' } },
+        { userId: 'e4', expertRole: '正选', project: { stage: 'SUBMIT' } },     // 同人正选+候补双身份：只计正选
+        { userId: 'e4', expertRole: '候补', project: { stage: 'OPENING' } },
       ]);
       const res = await service.getStatistics(ACTOR);
       expect(prisma.bidExpert.findMany).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({ invitationStatus: { not: 'declined' } }),
+        where: expect.objectContaining({
+          invitationStatus: { not: 'declined' },
+          project: { stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
+          user: expect.objectContaining({ expertProfile: { entryStatus: 'ACTIVE' } }),
+        }),
+        select: expect.objectContaining({
+          userId: true, expertRole: true,
+          project: expect.objectContaining({ select: { stage: true } }),
+        }),
       }));
-      expect(res.busy).toEqual({ idle: 3, assigned: 1, evaluating: 1, alternate: 1 });
-      expect(res.available).toBe(3);
-      expect(res.occupied).toBe(3);
+      // 库内 6（4 可用+2 占用）− 在途 4 人（e1 正选/e2 候补/e3 评标/e4 正选）= 空闲 2
+      expect(res.busy).toEqual({ idle: 2, assigned: 2, evaluating: 1, alternate: 1 });
+      expect(res.available).toBe(2);
+      expect(res.occupied).toBe(4);
+    });
+
+    it('getStatistics 四态派生：在途人数超库内基数 → idle 钳 0 不出负（Math.max 防线）', async () => {
+      prisma.user.count.mockResolvedValue(2);
+      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) =>
+        by[0] === 'availability'
+          ? Promise.resolve([{ availability: '可用', _count: 1 }])
+          : Promise.resolve([]));
+      prisma.expertProfile.count.mockResolvedValue(0);
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },
+        { userId: 'e2', expertRole: '候补', project: { stage: 'OPENING' } },
+      ]);
+      const res = await service.getStatistics(ACTOR);
+      expect(res.busy).toEqual({ idle: 0, assigned: 1, evaluating: 0, alternate: 1 });
+      expect(res.available).toBe(0);
+      expect(res.occupied).toBe(2);
     });
 
     it('getStatistics：评价统计按槽位去重（2026-10-21 统计闸裁定，此前本端点为唯一漏网）', async () => {

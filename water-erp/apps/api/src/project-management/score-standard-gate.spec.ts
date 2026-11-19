@@ -14,6 +14,7 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
   const mkService = (
     prisma: Record<string, any>,
     validator?: Partial<ScoreStandardValidator>,
+    archiveScope?: { checkStageGate: jest.Mock },
   ) =>
     new ProjectManagementService(
       prisma as never,
@@ -22,7 +23,7 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
       {} as never,
       {} as never,
       {} as never,
-      { checkStageGate: jest.fn().mockResolvedValue([]) } as never,
+      (archiveScope ?? { checkStageGate: jest.fn().mockResolvedValue([]) }) as never,
       {} as never,
       {} as never,
       {} as never,
@@ -80,6 +81,9 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
       // 直接采购 03 完成闸（2026-11-18 用户裁定）：当轮已上传 ≥1 文件才放行——默认 1=放行；
       // 拦截用例用 mockResolvedValueOnce(0) 覆盖
       attachment: { count: jest.fn().mockResolvedValue(1) },
+      // 分析缓存回填（2026-11-18）：须提供 mock 否则 try 块走吞错分支——回填路径永远不被执行
+      // （null=无缓存行 → 不写回；回填 payload 断言归并行线功能测试）
+      systemConfig: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
     };
   };
 
@@ -91,13 +95,18 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
       svc.updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never),
     ).resolves.toMatchObject({ status: 'COMPLETED' });
     expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
+    // 分析缓存回填路径真执行（非 catch 吞 TypeError）：无缓存行 → 查询发生但不写回
+    expect(prisma.systemConfig.findUnique).toHaveBeenCalled();
+    expect(prisma.systemConfig.update).not.toHaveBeenCalled();
   });
 
-  it('直接采购 03 完成闸：当轮 0 文件 → 400 DIRECT_TENDER_FILE_REQUIRED（先于评分/归档闸，validator 不触发）', async () => {
+  it('直接采购 03 完成闸：当轮 0 文件 → 400 DIRECT_TENDER_FILE_REQUIRED（先于归档闸——缺件并行时文件闸先抛且 checkStageGate 未消耗），validator 不触发', async () => {
     const prisma = mkHappyPrisma({ procurementMethod: '直接采购', bidProject: null });
     prisma.attachment.count.mockResolvedValueOnce(0);
     const validator = { assertScoreStandardComplete: jest.fn() };
-    const svc = mkService(prisma, validator);
+    // 归档闸并行缺件（非空返回）：若闸序倒置会先抛 ARCHIVE_GATE_MISSING——本用例实证文件闸在前
+    const archiveScope = { checkStageGate: jest.fn().mockResolvedValue(['中标通知书']) };
+    const svc = mkService(prisma, validator, archiveScope);
     const err: any = await svc
       .updateStage('pmi-1', 'TENDER_DOCUMENT', { status: 'COMPLETED' } as never)
       .then(() => null, (e: unknown) => e);
@@ -105,6 +114,7 @@ describe('updateStage 评分标准闸（SCORE_STANDARD_REQUIRED）', () => {
     expect(prisma.attachment.count).toHaveBeenCalledWith({
       where: { projectManagementStageId: 'st-td' },
     });
+    expect(archiveScope.checkStageGate).not.toHaveBeenCalled();
     expect(validator.assertScoreStandardComplete).not.toHaveBeenCalled();
   });
 

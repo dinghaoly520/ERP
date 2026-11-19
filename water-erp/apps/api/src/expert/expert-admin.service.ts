@@ -2539,14 +2539,13 @@ export class ExpertAdminService {
         where: {
           invitationStatus: { not: 'declined' }, // 除名口径：婉拒不占状态
           project: { stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
-          user: { role: 'bid_expert', isActive: true, ...f },
+          // 在途并集限库内 ACTIVE（与分母 availGroups、负荷口径 getLoadDistribution 对称）：
+          // 库外在途行进占用会把 idle 减法被 Math.max 静默钳低、available+occupied 不再还原库内总数
+          user: { role: 'bid_expert', isActive: true, expertProfile: { entryStatus: 'ACTIVE' }, ...f },
         },
         select: { userId: true, expertRole: true, project: { select: { stage: true } } },
       }),
     ]);
-
-    const amap: Record<string, number> = {};
-    for (const g of availGroups) amap[g.availability] = g._count;
 
     const levelCounts: Record<string, number> = { A: 0, B: 0, C: 0, D: 0, E: 0 };
     for (const e of evals) levelCounts[e.overallGrade] = (levelCounts[e.overallGrade] ?? 0) + 1;
@@ -2581,6 +2580,7 @@ export class ExpertAdminService {
       else altSet.add(b.userId);
     }
     for (const uid of evaluatingSet) { assignedSet.delete(uid); altSet.delete(uid); }
+    for (const uid of assignedSet) altSet.delete(uid); // 优先级链收口：正选在途 ＞ 候补待命（同人双身份只计高位，assigned+alternate 不超 occupied）
     const busyUnion = new Set([...evaluatingSet, ...assignedSet, ...altSet]);
     const idleCount = Math.max(0, inLibraryActive - busyUnion.size);
 
