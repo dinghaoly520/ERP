@@ -61,10 +61,7 @@ export class AnnouncementService {
    *  现场补码放行；仅自愈失败（分配器抛错/未注入）才拒绝。 */
   private async assertGbCodeIfLinked(relatedProjectCode?: string | null) {
     if (!relatedProjectCode) return;
-    const project = await this.prisma.bidProject.findUnique({
-      where: { projectCode: relatedProjectCode },
-      select: { id: true, gbProcureCode: true, projectManagementItemId: true },
-    });
+    const project = await this.resolveLinkedBidProject(relatedProjectCode, { id: true, gbProcureCode: true, projectManagementItemId: true });
     if (!project || project.gbProcureCode) return;
     if (this.gbCode) {
       try {
@@ -960,12 +957,30 @@ export class AnnouncementService {
   /** 补遗项目闸（2026-11-06 用户裁定）：项目当前阶段已进入开标确认及以后
    *  （OPENING/EVALUATING/ARCHIVED/ABORTED）→ 400 拒绝发布补遗。无项目编号或项目
    *  不存在（未发公告/未建 BidProject）不拦——补遗关联以 PMI 为准，发布联动自会兜底。 */
+  /** 轮次收口解析（P1-2，2026-11-19 三门户审查）：relatedProjectCode 多为 PMI 基础码——
+   *  首轮 BidProject 持基础码、-R2 起为后缀码（resolveHostedProjectCode），裸 findUnique
+   *  必命中首轮（reproc 后恒 ABORTED）。与 syncBidProject 轮次收口同口径：先 PMI→currentRound
+   *  定位当前轮项目；PMI 未命中（公告直建回写 BidProject 编码）才回退编码直查。
+   *  消费点：补遗闸/W2 时限预检/删除闸/赋码闸/syncAddendum/getParticipants——新增消费点一律走此。 */
+  private async resolveLinkedBidProject(relatedProjectCode: string | null | undefined, select: Record<string, true>): Promise<any | null> {
+    if (!relatedProjectCode) return null;
+    const pmi = await this.prisma.projectManagementItem.findUnique({
+      where: { projectCode: relatedProjectCode },
+      select: { id: true, currentRound: true },
+    });
+    if (pmi) {
+      return this.prisma.bidProject.findFirst({
+        where: { projectManagementItemId: pmi.id, round: pmi.currentRound ?? 1 },
+        orderBy: { createdAt: 'desc' },
+        select,
+      });
+    }
+    return this.prisma.bidProject.findUnique({ where: { projectCode: relatedProjectCode }, select });
+  }
+
   private async assertAddendumProjectNotOpened(projectCode?: string | null): Promise<void> {
     if (!projectCode) return;
-    const bp = await this.prisma.bidProject.findUnique({
-      where: { projectCode },
-      select: { stage: true },
-    });
+    const bp = await this.resolveLinkedBidProject(projectCode, { stage: true });
     if (bp && ['OPENING', 'EVALUATING', 'ARCHIVED', 'ABORTED'].includes(bp.stage)) {
       throw new BadRequestException({
         error: '该项目已进入开标确认及以后步骤，不可发布补遗公告',
@@ -984,10 +999,7 @@ export class AnnouncementService {
     const code = ann.relatedProjectCode || meta.projectCode;
     if (!code) return {};
 
-    const project = await this.prisma.bidProject.findUnique({
-      where: { projectCode: code },
-      select: { id: true, deadline: true, openTime: true, stage: true, name: true, projectCode: true, projectManagementItemId: true },
-    });
+    const project = await this.resolveLinkedBidProject(code, { id: true, deadline: true, openTime: true, stage: true, name: true, projectCode: true, projectManagementItemId: true });
     if (!project) return {};
 
     // ③ 开标时间联动（2026-11-06 用户裁定）：补遗选择「改变开标时间」→ 项目开标/截标
@@ -1458,7 +1470,7 @@ export class AnnouncementService {
   private async assertBidNoticeTimingGuard(dto: { metadata?: any; relatedProjectCode?: string | null; publishDate?: any }) {
     const meta = AnnouncementService.validateMetadata(dto.metadata);
     const existing = dto.relatedProjectCode
-      ? await this.prisma.bidProject.findUnique({ where: { projectCode: dto.relatedProjectCode } })
+      ? await this.resolveLinkedBidProject(dto.relatedProjectCode, { id: true, openTime: true, downloadDeadline: true, deadline: true, legalMandatory: true })
       : null;
     const saleStart = dto.publishDate ? new Date(dto.publishDate) : new Date();
     const openTime = existing?.openTime ?? parseFlexibleDate(meta.openTime) ?? null;
@@ -1738,10 +1750,7 @@ export class AnnouncementService {
         : null;
 
     const project = relatedProjectCode
-      ? await this.prisma.bidProject.findUnique({
-          where: { projectCode: relatedProjectCode },
-          select: { id: true, projectCode: true, stage: true, riskNote: true },
-        })
+      ? await this.resolveLinkedBidProject(relatedProjectCode, { id: true, projectCode: true, stage: true, riskNote: true })
       : null;
 
     // 闸门：关联项目已进入投标/开标/评标流程（SUBMIT/OPENING/EVALUATING）时禁删公告。
@@ -1893,10 +1902,7 @@ export class AnnouncementService {
     let project: ProjectInfo & { id: string } | null = null;
 
     if (ann.relatedProjectCode) {
-      let bp = await this.prisma.bidProject.findUnique({
-        where: { projectCode: ann.relatedProjectCode },
-        select: { id: true, name: true, projectCode: true, stage: true, deadline: true },
-      });
+      let bp = await this.resolveLinkedBidProject(ann.relatedProjectCode, { id: true, name: true, projectCode: true, stage: true, deadline: true });
       if (!bp) {
         const proc = await this.prisma.procurementProject.findUnique({
           where: { projectCode: ann.relatedProjectCode },

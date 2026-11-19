@@ -13,14 +13,95 @@ const ANN_SPEC_ORIG_KMS = process.env.KMS_SECRET;
 beforeAll(() => { process.env.KMS_SECRET = ANN_SPEC_KMS; });
 afterAll(() => { if (ANN_SPEC_ORIG_KMS !== undefined) process.env.KMS_SECRET = ANN_SPEC_ORIG_KMS; else delete process.env.KMS_SECRET; });
 
-describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公告）', () => {
+describe('AnnouncementService — 多轮轮次收口（P1-2，2026-11-19 三门户审查）', () => {
   let service: AnnouncementService;
   let prisma: any;
 
   beforeEach(async () => {
     prisma = {
       announcement: { findUnique: jest.fn(), delete: jest.fn(), count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { viewCount: 0 } }), findMany: jest.fn().mockResolvedValue([]) },
-      bidProject: { findUnique: jest.fn(), update: jest.fn() },
+      bidProject: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidDocument: { updateMany: jest.fn() },
+      bidOpeningSession: { deleteMany: jest.fn() },
+      bidOpeningRecord: { deleteMany: jest.fn() },
+      bidScoreRecord: { deleteMany: jest.fn() },
+      bidEvaluationResult: { deleteMany: jest.fn() },
+      bidInvalidBid: { deleteMany: jest.fn() },
+      notification: { deleteMany: jest.fn() },
+      $transaction: jest.fn(async (cb: any) => cb(prisma)),
+    };
+    jest.spyOn(minioClient, 'removeObject').mockResolvedValue(undefined);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  /** 二轮场景桩：PMI currentRound=2；当前轮行由 findFirst 供给；旧轮（ABORTED）放在
+   *  findUnique 里当陷阱——裸查若被走到必命中它（旧行为即此病灶）。 */
+  const setupRound2 = (round2Stage: string | null) => {
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pmi-1', currentRound: 2 });
+    prisma.bidProject.findFirst.mockResolvedValue(round2Stage ? { id: 'bp-r2', projectCode: 'SWHI-XB-1-R2', stage: round2Stage } : null);
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'bp-r1', projectCode: 'SWHI-XB-1', stage: 'ABORTED', riskNote: '' });
+  };
+
+  it('resolver：PMI 基础码 → 当前轮 findFirst 命中，编码直查不再被走（旧轮陷阱不命中）', async () => {
+    setupRound2('SUBMIT');
+    const bp = await (service as any).resolveLinkedBidProject('SWHI-XB-1', { id: true, projectCode: true, stage: true });
+    expect(bp).toMatchObject({ id: 'bp-r2', stage: 'SUBMIT' });
+    expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('resolver：非 PMI 编码（公告直建回写 BidProject 编码）→ 回退编码直查', async () => {
+    prisma.projectManagementItem.findUnique.mockResolvedValue(null);
+    prisma.bidProject.findUnique.mockResolvedValue({ id: 'bp-direct', projectCode: 'BID-2026-1', stage: 'DOWNLOAD' });
+    const bp = await (service as any).resolveLinkedBidProject('BID-2026-1', { id: true, stage: true });
+    expect(bp).toMatchObject({ id: 'bp-direct' });
+    expect(prisma.bidProject.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('resolver：PMI 当前轮无项目行 → null（即便旧轮存在——直建分支将由发布联动补建当前轮）', async () => {
+    setupRound2(null);
+    const bp = await (service as any).resolveLinkedBidProject('SWHI-XB-1', { id: true, stage: true });
+    expect(bp).toBeNull();
+    expect(prisma.bidProject.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('remove：二轮进行中（round-2 SUBMIT）→ 409 BID_IN_PROGRESS——旧轮 ABORTED 在库也不再放行（删除闸被架空修复）', async () => {
+    setupRound2('SUBMIT');
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: 'SWHI-XB-1' });
+    prisma.bidProject.findUnique.mockClear(); // 陷阱在，但不应被走
+    await expect(service.remove('a1')).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+    expect(prisma.announcement.delete).not.toHaveBeenCalled();
+    expect(prisma.bidProject.update).not.toHaveBeenCalled(); // 旧轮不再被贴「来源公告已删除」
+  });
+
+  it('补遗闸：二轮 DOWNLOAD → 放行（旧轮 ABORTED 在拦截集内，但当前轮才作数——第二轮补遗死端修复）', async () => {
+    setupRound2('DOWNLOAD');
+    await expect((service as any).assertAddendumProjectNotOpened('SWHI-XB-1')).resolves.toBeUndefined();
+  });
+
+  it('补遗闸：二轮已开标（OPENING）→ 400 ADDENDUM_BID_STARTED（当前轮活动仍拦）', async () => {
+    setupRound2('OPENING');
+    await expect((service as any).assertAddendumProjectNotOpened('SWHI-XB-1')).rejects.toMatchObject({ response: { code: 'ADDENDUM_BID_STARTED' } });
+  });
+});
+
+describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公告）', () => {
+  let service: AnnouncementService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
+      announcement: { findUnique: jest.fn(), delete: jest.fn(), count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { viewCount: 0 } }), findMany: jest.fn().mockResolvedValue([]) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), update: jest.fn() },
       bidDocument: { updateMany: jest.fn() },
       bidOpeningSession: { deleteMany: jest.fn() },
       bidOpeningRecord: { deleteMany: jest.fn() },
@@ -175,7 +256,7 @@ describe('AnnouncementService — getParticipants 标题兜底公司闸（2026-1
       announcement: { findUnique: jest.fn() },
       bidProject: { findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null) },
       procurementProject: { findUnique: jest.fn().mockResolvedValue(null) },
-      projectManagementItem: { findFirst: jest.fn() },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn() },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
       supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
       supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
@@ -239,8 +320,9 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
 
   beforeEach(async () => {
     prisma = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
       announcement: { findUnique: jest.fn() },
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn() },
       bidSupplier: { findMany: jest.fn() },
       supplierBidSubmission: { findMany: jest.fn() },
       supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
@@ -310,7 +392,7 @@ describe('AnnouncementService — getParticipants 报价解密门控', () => {
 describe('AnnouncementService — syncBidProject 公告直建补 PMI (N16-A)', () => {
   const makeSvc = async (bidService: any, projectManagementService: any, prismaOverrides: Record<string, any> = {}) => {
     const prisma: any = {
-      bidProject: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
       announcement: { update: jest.fn().mockResolvedValue({}) },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
       // P1 编码空间次序：syncBidProject 先按 PMI 编码 findUnique（BID-1 非 PMI → null 回退
@@ -377,7 +459,8 @@ describe('AnnouncementService — A-87 发布钩子（招标要点提取前移�
 
   const makeSvc = async (bidService: any, prismaOverrides: Record<string, any> = {}) => {
     const prisma: any = {
-      bidProject: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
       announcement: { update: jest.fn().mockResolvedValue({}) },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
@@ -450,7 +533,7 @@ describe('AnnouncementService — E2 category 白名单（failed_bid 死分支�
 
   const makeSvc = async (bidService: any, prismaOverrides: Record<string, any> = {}) => {
     const prisma: any = {
-      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-e2', projectCode: 'BID-E2' }), update: jest.fn() },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue({ id: 'p-e2', projectCode: 'BID-E2' }), update: jest.fn() },
       announcement: { update: jest.fn().mockResolvedValue({}) },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
       // P1 编码空间次序（2026-09-07）：syncBidProject 先按 PMI 编码 findUnique——缺此 mock 即 TypeError
@@ -526,6 +609,7 @@ describe('backlog A — 公告直建失败 projectSyncWarning（发布不阻塞�
 
   beforeEach(async () => {
     prisma = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
       announcement: { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     };
     const { AnnouncementService } = await import('./announcement.service');
@@ -562,7 +646,7 @@ describe('AnnouncementService — 对接专项 T4 发布赋码闸（自愈版，
     gbCode?: any,
   ) => {
     const prisma: any = {
-      bidProject: { findUnique: jest.fn().mockResolvedValue(proj) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(proj) },
       announcement: {
         findUnique: jest.fn().mockResolvedValue({ id: 'a1', status: 'DRAFT', type: 'BID_NOTICE', relatedProjectCode: 'BID-1', metadata: {} }),
         update: jest.fn().mockResolvedValue({ id: 'a1', status: 'PUBLISHED' }),
@@ -622,7 +706,7 @@ describe('W2 依法必招标示录入口（P1-4，2026-09-09）— guard 读 met
         // 对方会话 919d5391：BID_NOTICE 直接发布也派生 publicityEnd（create 内二次 update）
         update: jest.fn().mockImplementation(async (_args: any) => ({ id: 'a1', publicityEnd: new Date(Date.now() + 3 * 86400000) })),
       },
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn() },
       // 终止项目发布闸（2026-11-16）：PMI 判定查询 mock（null=未终止 → 闸放行）
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
       // 非必招项目偏离留痕路径（deviated → supervisionLog）需要
@@ -691,7 +775,7 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     prisma = {
       announcement: { findUnique: jest.fn(), update: jest.fn(), count: jest.fn(), findMany: jest.fn() },
       announcementHistory: { create: jest.fn().mockResolvedValue({}) },
-      bidProject: { findUnique: jest.fn().mockResolvedValue(null) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null) },
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -900,6 +984,7 @@ describe('AnnouncementService — 正式盖章版引用校验（OFFICIAL_TENDER_
       projectManagementItem: {
         findUnique: jest.fn().mockResolvedValue({ id: 'pmi-1', currentRound: 1 }),
       },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：resolver 消费——null=无关联（本组校验 03 指针，不需项目行）
       projectManagementStage: {
         findFirst: jest.fn().mockResolvedValue({ officialTenderAttachmentId: 'att-official' }),
       },
@@ -968,7 +1053,7 @@ describe('AnnouncementService — 正式盖章版引用校验（OFFICIAL_TENDER_
 
   it('create 前置校验：BID_NOTICE 即时发布 + 引用不一致 → 400 且不建行（无孤儿公告）', async () => {
     const { svc, prisma } = await mk({
-      bidProject: { findUnique: jest.fn().mockResolvedValue({ gbProcureCode: 'GB-1' }) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue({ gbProcureCode: 'GB-1' }), findUnique: jest.fn().mockResolvedValue({ gbProcureCode: 'GB-1' }) }, // P1-2：resolver 经 PMI 走 findFirst
     });
     prisma.announcement = { create: jest.fn() };
     svc.announcementAi = { summarize: jest.fn().mockResolvedValue('摘要'), looksLikePromptLeak: jest.fn().mockReturnValue(false) };
@@ -989,6 +1074,7 @@ describe('AnnouncementService — supplierList 供应商视角（公开 ∪ 定�
 
   beforeEach(async () => {
     prisma = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
       announcement: { count: jest.fn(), findMany: jest.fn() },
       // 公司隔离（2026-10-20）：默认归属 co-mine（APPROVED）
       supplierCompanyLink: { findMany: jest.fn().mockResolvedValue([{ companyId: 'co-mine' }]) },
@@ -1113,6 +1199,7 @@ describe('AnnouncementService — search 字段覆盖 relatedProjectCode（2026-
 
   beforeEach(async () => {
     prisma = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
       announcement: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -1208,7 +1295,7 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
     },
     bidProject: {
       findUnique: jest.fn().mockResolvedValue(null),
-      findFirst: jest.fn().mockResolvedValue({ id: 'bp-1' }),
+      findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', gbProcureCode: '511000002026000001001' }), // P1-2：resolver 经 PMI 命中此行——补码免入无码分支（本组不测赋码闸）
     },
     bidEvaluationResult: {
       findMany: jest.fn().mockResolvedValue([
@@ -1344,7 +1431,8 @@ describe('AnnouncementService — 发布向导中标公告（WIN_BID_NOTICE）�
 describe('AnnouncementService — 发布赋码闸 assertGbCodeIfLinked（自愈版 e2cbf0c3，2026-10-21 锁定）', () => {
   const mk = async (prismaOverrides: Record<string, any> = {}, gbCode?: any) => {
     const prisma: any = {
-      bidProject: { findUnique: jest.fn() },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn() },
       ...prismaOverrides,
     };
     const { AnnouncementService } = await import('./announcement.service');
@@ -1537,7 +1625,16 @@ describe('AnnouncementService — getProjectParticipants 轮界收口（2026-10-
             .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null,
         ),
       ),
+      // P1-2：getProjectParticipants 命中本轮公告后委托 getParticipants——补全其只读链 null 桩
+      findUnique: jest.fn().mockResolvedValue({ id: 'ann-hit', type: 'BID_NOTICE', title: 'T', relatedProjectCode: 'SWHI-XX', companyId: null }),
     },
+    bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null) },
+    procurementProject: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
+    bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([]) },
+    bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
+    supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
+    supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
   });
 
   it('流标重启后（轮 2）：旧轮采购公告在轮界之前 → 不命中，返回空名单', async () => {
@@ -1562,7 +1659,7 @@ describe('AnnouncementService — getProjectParticipants 轮界收口（2026-10-
     const annDetail = { type: 'BID_NOTICE', relatedProjectCode: 'SWHI-XX' };
     const svcPrisma = {
       ...base,
-      bidProject: { findUnique: jest.fn().mockResolvedValue({ id: 'p-r2', projectCode: 'SWHI-XX-R2', stage: 'DOWNLOAD', deadline: new Date() }) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue({ id: 'p-r2', projectCode: 'SWHI-XX-R2', stage: 'DOWNLOAD', deadline: new Date() }), findUnique: jest.fn().mockResolvedValue({ id: 'p-r2', projectCode: 'SWHI-XX-R2', stage: 'DOWNLOAD', deadline: new Date() }) }, // P1-2：resolver 经 PMI(currentRound=2) 走 findFirst——两轨同值
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
       supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
       supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
@@ -1681,7 +1778,7 @@ describe('AnnouncementService — 流标公告发布联动流标（create/update
         // by projectCode（GB 赋码闸）→ null 放行；by id（联动前终态复查）→ 活动态
         findUnique: jest.fn().mockImplementation(({ where }: any) =>
           Promise.resolve(where.id === 'bp-1' ? { id: 'bp-1', stage: 'SUBMIT' } : null)),
-        findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'BID-1', projectManagementItemId: 'pm-1' }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'BID-1', projectManagementItemId: 'pm-1', gbProcureCode: '511000002026000001001' }), // P1-2：经 resolver 命中此行——补 GB 码免入无码分支（本组用例不测赋码闸）
         update: jest.fn().mockResolvedValue({}),
       },
       bidDocument: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -1735,7 +1832,7 @@ describe('AnnouncementService — 流标公告发布联动流标（create/update
       bidProject: {
         findUnique: jest.fn().mockImplementation(({ where }: any) =>
           Promise.resolve(where.id === 'bp-1' ? { id: 'bp-1', stage: 'ABORTED' } : null)),
-        findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'BID-1', projectManagementItemId: 'pm-1' }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'BID-1', projectManagementItemId: 'pm-1', gbProcureCode: '511000002026000001001' }), // P1-2：经 resolver 命中此行——补 GB 码免入无码分支（本组用例不测赋码闸）
         update: jest.fn().mockResolvedValue({}),
       },
     });
@@ -1790,6 +1887,7 @@ describe('previewBidNoticeChecklist 类型闸（2026-10-30 流标公告误报实
 describe('AnnouncementService — 流标/中标公告公示期限直供与兜底（2026-11-06）', () => {
   const mkSvc = async () => {
     const prisma: any = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
       announcement: {
         // 回声 data.publicityEnd——真实库建行即持久化所选止点，auto-set 块据此跳过
         create: jest.fn().mockImplementation(async ({ data }: any) => ({
@@ -1801,7 +1899,7 @@ describe('AnnouncementService — 流标/中标公告公示期限直供与兜底
         findUnique: jest.fn(),
         update: jest.fn().mockImplementation(async (args: any) => ({ id: args.where.id, ...args.data })),
       },
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn() },
       bidEvaluationResult: { findFirst: jest.fn().mockResolvedValue(null), updateMany: jest.fn() },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
     };
@@ -1880,11 +1978,11 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
         findFirst: jest.fn().mockResolvedValue({ id: 'bid-notice-1', metadata: { openTime: '2026-11-10T10:00', deadline: '2026-11-10T09:50' } }),
         update: jest.fn().mockResolvedValue({}),
       },
-      bidProject: {
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue({ id: 'bp-1', projectCode: 'SWHI-TP-1', projectManagementItemId: 'pmi-1', openTime: new Date('2026-11-10T10:00'), deadline: new Date('2026-11-10T09:50'), stage: 'SUBMIT' }),
         update: jest.fn().mockResolvedValue({}),
       },
-      projectManagementItem: { update: jest.fn().mockResolvedValue({}) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}) },
       bidDocument: { findFirst: jest.fn().mockResolvedValue({ id: 'doc-1' }), update: jest.fn().mockResolvedValue({}) },
       bidDocumentAccess: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1' }]) },
@@ -2006,6 +2104,7 @@ describe('AnnouncementService — syncAddendum 开标时间联动（2026-11-06 �
 describe('AnnouncementService — notifySuppliersOnPublish 补遗单轨与定向标记（2026-11-10 用户裁定）', () => {
   const mk = async (overrides: Record<string, any> = {}) => {
     const prisma: any = {
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
       announcement: { findUnique: jest.fn().mockResolvedValue({ relatedProjectCode: 'SWHI-TP-1' }) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([{ supplier: { userId: 'u-1' } }]) },
       user: { findMany: jest.fn().mockResolvedValue([{ id: 'u-1' }, { id: 'u-2' }]) },
@@ -2051,7 +2150,8 @@ describe('AnnouncementService — notifySuppliersOnPublish 补遗单轨与定向
 describe('AnnouncementService — 补遗项目闸 ADDENDUM_BID_STARTED（2026-11-06 用户裁定）', () => {
   const mk = async (stage: string | null, code?: string) => {
     const prisma: any = {
-      bidProject: { findUnique: jest.fn().mockResolvedValue(stage ? { stage } : null) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(stage ? { stage } : null) },
     };
     const { AnnouncementService: Svc } = await import('./announcement.service');
     const svc: any = new (Svc as any)(prisma, {}, undefined, undefined);
@@ -2080,9 +2180,9 @@ describe('AnnouncementService — getParticipants 合并意向集（2026-11-12 �
   beforeEach(async () => {
     prisma = {
       announcement: { findUnique: jest.fn() },
-      bidProject: { findUnique: jest.fn() },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn() },
       procurementProject: { findUnique: jest.fn().mockResolvedValue(null) },
-      projectManagementItem: { findFirst: jest.fn().mockResolvedValue(null) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null) },
       bidSupplier: { findMany: jest.fn().mockResolvedValue([]) },
       supplierBidSubmission: { findMany: jest.fn().mockResolvedValue([]) },
       supplierBidIntent: { findMany: jest.fn().mockResolvedValue([]) },
@@ -2162,7 +2262,7 @@ describe('终止项目发布闸（2026-11-16 用户裁定：终止后未发布�
       projectManagementItem: {
         findUnique: jest.fn().mockImplementation(async (a: any) => (a.where.projectCode ? pmiBy.code : pmiBy.id)),
       },
-      bidProject: { findUnique: jest.fn().mockResolvedValue(pmiBy.bp ?? null) },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(pmiBy.bp ?? null) },
     };
     const { AnnouncementService: Svc } = await import('./announcement.service');
     const svc: any = Object.create(Svc.prototype);
