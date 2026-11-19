@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Delete, Body, Param, Req } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Body, Param, Query, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { Request } from 'express';
 import { OptionalAuth } from '../common/decorators/optional-auth.decorator';
 import { portalSourceOf } from '../common/portal-source.util';
 import { AssistantService, AssistantOwner } from './assistant.service';
 import { ChatDto } from './dto/chat.dto';
+import { FeedbackDto } from './dto/feedback.dto';
 
 /**
  * 水叮当助手：:3008 公共匿名 + :3005 登录用户共用。
@@ -37,6 +38,18 @@ export class AssistantController {
     /* :3011 来源头透传（评审 F1）：代理注入的 x-portal-source 服务端判定总数据口径，
      * body 自报 portal 已弃用；portalSourceOf 归一 string[] 取首段 */
     return this.assistantService.chat(dto, this.ownerFrom(req), portalSourceOf(req));
+  }
+
+  @Post('feedback')
+  @ApiOperation({ summary: '回答点赞/点踩（2026-11-19：同属主同消息覆盖，再点同值取消）' })
+  async saveFeedback(@Body() dto: FeedbackDto, @Req() req: Request) {
+    return this.assistantService.saveFeedback(this.ownerFrom(req), dto.messageId, dto.rating);
+  }
+
+  @Get('feedback/mine')
+  @ApiOperation({ summary: '我的回答反馈（前端回显激活态，可按会话过滤）' })
+  async myFeedback(@Query('conversationId') conversationId: string | undefined, @Req() req: Request) {
+    return this.assistantService.listMyFeedback(this.ownerFrom(req), conversationId);
   }
 
   @Get('conversations')

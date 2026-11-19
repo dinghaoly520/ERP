@@ -2444,6 +2444,25 @@ model AssistantMessage {
   @@map("assistant_messages")
 }
 
+/// 回答质量反馈（2026-11-19 问答改造）：点赞/点踩按属主（userId 或 guestKey 互斥）
+/// 与消息一对多——同属主同消息仅一条，重复点按=覆盖；再点同值=取消（删除）。
+model AssistantFeedback {
+  id             String   @id @default(cuid())
+  userId         String?
+  guestKey       String?
+  conversationId String
+  messageId      String
+  rating         String // UP | DOWN
+  comment        String? @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([messageId])
+  @@index([userId, createdAt])
+  @@index([guestKey, createdAt])
+  @@map("assistant_feedback")
+}
+
 model AssistantActionLog {
   id             String    @id @default(cuid())
   conversationId String?

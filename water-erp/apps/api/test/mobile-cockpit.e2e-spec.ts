@@ -154,10 +154,22 @@ describe('移动驾驶舱水叮当（:3011）e2e', () => {
       .send({ message: DIRECT_COCKPIT_MSG })
       .expect(201);
 
-    // 总数据期望值用种子常量（本公司 1 + 他司 2 = 3）；leader 自身 dashboard 仍本公司口径不可作期望源
+    /* 期望源 = 带同一 mobile-3011 头的 dashboard（同口径全库）——相对断言不随库内
+     * 演示数据积累腐化（2026-11-19 修复：旧绝对断言「3」在种子瘦身后的积累库上恒红，
+     * 本月轮次实际 16；同 case1/case4 已验证的相对模式） */
+    const dash = await request(app.getHttpServer())
+      .get('/api/dashboard')
+      .query({ startDate: monthStart() })
+      .set('X-Portal', 'web')
+      .set('X-Web-Token', leaderToken)
+      .set('x-portal-source', 'mobile-3011')
+      .expect(200);
+
     const metrics = cockpitMetrics(chat.body);
+    expect(metrics.length).toBeGreaterThan(0);
     const roundMetric = metrics.find((m) => m.label === '采购轮次')?.value;
-    expect(roundMetric).toBe('3'); // 1(本公司) + 2(他司) = 全库本月轮次
+    expect(Number(roundMetric)).toBeGreaterThan(0);
+    expect(roundMetric).toBe(String(dash.body.summary.totalCount));
   });
 
   it('伪造 body context.portal 不再生效（评审 F1：判据是代理注入头，非 body 自报）', async () => {
@@ -168,9 +180,20 @@ describe('移动驾驶舱水叮当（:3011）e2e', () => {
       .send({ message: DIRECT_COCKPIT_MSG, context: { portal: 'mobile-3011' } })
       .expect(201);
 
+    /* 无头来源头 = leader 本公司口径；期望源 = 不带头 的 leader dashboard。
+     * 若 body 自报 portal 生效，cockpit 会变全库口径 ≠ 本公司（相对断言，2026-11-19
+     * 修绝对值「1」漂移红；区分度依赖种子 本公司≠全库，相等时退化为恒真不误报） */
+    const dash = await request(app.getHttpServer())
+      .get('/api/dashboard')
+      .query({ startDate: monthStart() })
+      .set('X-Portal', 'web')
+      .set('X-Web-Token', leaderToken)
+      .expect(200);
+
     const metrics = cockpitMetrics(chat.body);
     const roundMetric = metrics.find((m) => m.label === '采购轮次')?.value;
-    expect(roundMetric).toBe('1'); // body 自报被无视——仍是本公司口径
+    expect(Number(roundMetric)).toBeGreaterThan(0);
+    expect(roundMetric).toBe(String(dash.body.summary.totalCount));
   });
 
   it('非 admin 伪造 context.companyIds 被忽略', async () => {

@@ -2,17 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, Bot, History, Plus, RefreshCw, SendHorizonal, Sparkles, Trash2  } from "lucide-react";
+import { ArrowLeft, Bot, Check, Copy, History, Plus, RefreshCw, SendHorizonal, Sparkles, Square, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { useAuth } from "@/components/m/auth-context";
-import { sendChat, fetchConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
+import { sendChat, sendFeedback, fetchMyFeedback, fetchConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
 import { Skeleton } from "@/components/m/skeleton";
 import { EmptyState } from "@/components/m/empty-state";
 import { readSavedFilters } from "@/lib/filter-store";
 import { ChatCardView } from "@/components/m/chat-card";
 import { BottomSheet } from "@/components/m/bottom-sheet";
+import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 const CONV_KEY = "m-shuidingdang-conversation";
 const QUICK_QUESTIONS = ["本月成交总额多少", "当前最大风险是什么", "节资排名前三", "哪个阶段最堵"];
+
+/** 追问 chip（2026-11-19 四件套，本地启发式——同 :3005 思路移动端适配）：
+ *  数据类回答给趋势/风险两个方向；长文给简明化；短答给展开 */
+function followUpsOf(m: { content: string; cards?: unknown[] }): string[] {
+  const hasData = (m.cards?.length ?? 0) > 0 || /\d/.test(m.content);
+  if (hasData) return ["这些数据的变化趋势如何", "有哪些风险项"];
+  return m.content.length > 160 ? ["能再简明一点吗", "还有哪些相关信息"] : ["能展开说说吗"];
+}
 
 export default function ChatPage() {
   const router = useRouter();
@@ -23,6 +32,18 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  /* 四件套（2026-11-19 问答改造）状态：停止（AbortController）、复制反馈、点赞点踩回显 */
+  const abortRef = useRef<AbortController | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [feedback, setFeedback] = useState<Record<string, "UP" | "DOWN">>({});
+
+  /* 会话切换/载入后拉我的反馈回显（失败静默——回显缺失不影响主流程） */
+  function loadFeedback(convId: string | null) {
+    if (!convId) return;
+    fetchMyFeedback(convId)
+      .then((rows) => setFeedback(Object.fromEntries(rows.map((r) => [r.messageId, r.rating]))))
+      .catch(() => undefined);
+  }
   // admin 口径标签展示值：驾驶舱页公司选择器已撤（2026-11-19 固定全部公司）——
   // 历史存量 filter-store 值仅作展示回显，发送时 doAsk() 内再读一次真实值
   const [adminScopeCount, setAdminScopeCount] = useState(0);
@@ -45,8 +66,9 @@ export default function ChatPage() {
         if (!c) throw new Error("conversation not found");
         setConversationId(saved);
         setMessages(
-          (c.messages ?? []).slice(-20).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content, cards: m.cardsJson ?? [] })),
+          (c.messages ?? []).slice(-20).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content, cards: m.cardsJson ?? [], id: m.role === "assistant" ? m.id : undefined })),
         );
+        loadFeedback(saved);
       })
       .catch(() => {
         setConversationId(null);
@@ -94,9 +116,10 @@ export default function ChatPage() {
       if (!c) return;
       setConversationId(id);
       setMessages(
-        (c.messages ?? []).slice(-20).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content, cards: m.cardsJson ?? [] })),
+        (c.messages ?? []).slice(-20).map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.content, cards: m.cardsJson ?? [], id: m.role === "assistant" ? m.id : undefined })),
       );
       localStorage.setItem(CONV_KEY, id);
+      loadFeedback(id);
       setHistoryOpen(false);
     } catch { /* 载入失败留在列表 */ }
   }
@@ -160,22 +183,65 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  /* 发送核心（ask 与失败重试共用——重试不重复追加用户气泡，R1-2） */
+  /* 发送核心（ask 与失败重试/重新生成共用——重试不重复追加用户气泡，R1-2）。
+   * 停止生成（2026-11-19 四件套）：AbortSignal 透传到 fetch；主动取消不落错误气泡
+   * （服务端可能已把回答落库——重新打开会话可见，属可接受语义）。 */
   async function doAsk(q: string) {
     setSending(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     // 发送时读公司口径（fresh 值，不用挂载期闭包）——驾驶舱选择器已撤，正常恒为空=全部公司
     const adminCompanyIds = isAdmin
       ? (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? [])
       : undefined;
     try {
-      const r = await sendChat(q, conversationId, adminCompanyIds?.length ? adminCompanyIds : undefined);
+      const r = await sendChat(q, conversationId, adminCompanyIds?.length ? adminCompanyIds : undefined, controller.signal);
       if (r.conversationId) { setConversationId(r.conversationId); localStorage.setItem(CONV_KEY, r.conversationId); }
-      setMessages((prev) => [...prev, { role: "assistant", content: r.answer, cards: r.cards ?? [] }]);
-    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", content: r.answer, cards: r.cards ?? [], id: r.messageId }]);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return; // 用户主动停止——静默收场
       setMessages((prev) => [...prev, { role: "assistant", content: "网络开小差，这条没发出去", failedQ: q }]);
     } finally {
+      abortRef.current = null;
       setSending(false);
     }
+  }
+
+  function stopSending() {
+    abortRef.current?.abort();
+  }
+
+  /** 重新生成（2026-11-19 四件套）：取最后一条回答之前的用户提问重发（追加新问答，
+   *  不覆盖——服务端历史即完整审计轨迹） */
+  function regenerate() {
+    if (sending) return;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user" && messages[i].content.trim()) {
+        void ask(messages[i].content);
+        return;
+      }
+    }
+  }
+
+  /** 点赞/点踩（2026-11-19 反馈落库）：服务端同值再点=取消，本地镜像返回态 */
+  async function rate(messageId: string | undefined, rating: "UP" | "DOWN") {
+    if (!messageId || sending) return;
+    try {
+      const r = await sendFeedback(messageId, rating);
+      setFeedback((prev) => {
+        const next = { ...prev };
+        if (r.rating) next[messageId] = r.rating;
+        else delete next[messageId];
+        return next;
+      });
+    } catch { /* 反馈失败静默 */ }
+  }
+
+  async function copyAnswer(i: number, content: string) {
+    const ok = await copyToClipboard(content);
+    if (!ok) return;
+    setCopiedIdx(i);
+    window.setTimeout(() => setCopiedIdx((v) => (v === i ? null : v)), 1600);
   }
 
   async function retryAsk(q: string) {
@@ -190,6 +256,7 @@ export default function ChatPage() {
     setConversationId(null);
     localStorage.removeItem(CONV_KEY);
     setMessages([]);
+    setFeedback({});
   }
 
   return (
@@ -240,23 +307,75 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          messages.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
-              <div className={m.role === "user" ? "max-w-[85%] rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)]" : "max-w-[92%]"}>
-                {m.role === "assistant" ? (
-                  <div className="rounded-[14px] neu-card-static px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)]">
-                    {m.content}
-                    {m.failedQ ? (
-                      <button type="button" onClick={() => retryAsk(m.failedQ as string)} className="m-chip mt-1.5">
-                        <RefreshCw size={11} /> 重试
-                      </button>
-                    ) : null}
-                    {(m.cards ?? []).map((c, j) => <ChatCardView key={j} card={c} />)}
-                  </div>
-                ) : m.content}
+          messages.map((m, i) => {
+            const isLastMsg = i === messages.length - 1;
+            const showActions = m.role === "assistant" && !m.failedQ;
+            return (
+              <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
+                <div className={m.role === "user" ? "max-w-[85%] rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)]" : "max-w-[92%]"}>
+                  {m.role === "assistant" ? (
+                    <div className="rounded-[14px] neu-card-static px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)]">
+                      {m.content}
+                      {m.failedQ ? (
+                        <button type="button" onClick={() => retryAsk(m.failedQ as string)} className="m-chip mt-1.5">
+                          <RefreshCw size={11} /> 重试
+                        </button>
+                      ) : null}
+                      {(m.cards ?? []).map((c, j) => <ChatCardView key={j} card={c} />)}
+                      {showActions ? (
+                        <>
+                          {/* 操作行（2026-11-19 四件套+反馈）：复制 / 点赞点踩 / 重新生成（仅末条） */}
+                          <div className="mt-2 flex items-center gap-1">
+                            <button
+                              type="button"
+                              aria-label="复制回答"
+                              onClick={() => void copyAnswer(i, m.content)}
+                              className="flex h-8 w-8 items-center justify-center rounded-[9px] text-[var(--muted-foreground)] active:scale-90"
+                            >
+                              {copiedIdx === i ? <Check size={13} className="text-[var(--success)]" /> : <Copy size={13} />}
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="回答有帮助"
+                              aria-pressed={m.id ? feedback[m.id] === "UP" : false}
+                              onClick={() => void rate(m.id, "UP")}
+                              className={`flex h-8 w-8 items-center justify-center rounded-[9px] active:scale-90 ${m.id && feedback[m.id] === "UP" ? "text-[var(--success)]" : "text-[var(--muted-foreground)]"}`}
+                            >
+                              <ThumbsUp size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="回答有问题"
+                              aria-pressed={m.id ? feedback[m.id] === "DOWN" : false}
+                              onClick={() => void rate(m.id, "DOWN")}
+                              className={`flex h-8 w-8 items-center justify-center rounded-[9px] active:scale-90 ${m.id && feedback[m.id] === "DOWN" ? "text-[var(--danger)]" : "text-[var(--muted-foreground)]"}`}
+                            >
+                              <ThumbsDown size={13} />
+                            </button>
+                            {isLastMsg && !sending ? (
+                              <button type="button" onClick={regenerate} className="m-chip ml-1">
+                                <RefreshCw size={11} /> 重新生成
+                              </button>
+                            ) : null}
+                          </div>
+                          {/* 追问 chip（仅末条回答、空闲时） */}
+                          {isLastMsg && !sending ? (
+                            <div className="mt-1.5 flex flex-wrap gap-1.5">
+                              {followUpsOf(m).map((f) => (
+                                <button key={f} type="button" onClick={() => ask(f)} className="m-chip">
+                                  <Sparkles size={11} /> {f}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </div>
+                  ) : m.content}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         {sending ? (
           <div className="flex justify-start">
@@ -285,10 +404,18 @@ export default function ChatPage() {
           onFocus={() => document.body.classList.add("m-kb-open")}
           onBlur={() => document.body.classList.remove("m-kb-open")}
         />
-        <button type="submit" disabled={!input.trim() || sending} aria-label="发送"
-          className="neu-btn-primary h-11 w-11 shrink-0 rounded-[14px] p-0 disabled:opacity-50">
-          <SendHorizonal size={16} />
-        </button>
+        {sending ? (
+          /* 停止生成（2026-11-19 四件套）：发送中发送键变停止钮 */
+          <button type="button" aria-label="停止生成" onClick={stopSending}
+            className="neu-btn-soft h-11 w-11 shrink-0 rounded-[14px] p-0 active:scale-95">
+            <Square size={13} className="fill-[var(--foreground)]" />
+          </button>
+        ) : (
+          <button type="submit" disabled={!input.trim()} aria-label="发送"
+            className="neu-btn-primary h-11 w-11 shrink-0 rounded-[14px] p-0 disabled:opacity-50">
+            <SendHorizonal size={16} />
+          </button>
+        )}
       </form>
 
       {/* 历史会话回看弹层 */}

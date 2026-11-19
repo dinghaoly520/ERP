@@ -32,25 +32,40 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   cards?: ChatCard[];
+  /** 服务端消息 id（反馈定位用；失败重试的本地气泡无 id） */
+  id?: string;
 };
 
 export type ChatResult = {
   conversationId: string;
+  /** 本次回答的消息 id（2026-11-19 反馈落库：落库失败时缺省） */
+  messageId?: string;
   answer: string;
   cards: ChatCard[];
 };
 
-export async function sendChat(message: string, conversationId?: string | null, companyIds?: string[]): Promise<ChatResult> {
+export async function sendChat(message: string, conversationId?: string | null, companyIds?: string[], signal?: AbortSignal): Promise<ChatResult> {
   return api.post<ChatResult>("/assistant/chat", {
     message,
     ...(conversationId ? { conversationId } : {}),
     /* 总数据口径（2026-11-03 用户裁定）经 :3011 代理注入的 x-portal-source 头
      * 服务端判定（评审 F1：body 自报可冒充，已弃用）——此处只带 admin 公司多选 */
     ...(companyIds?.length ? { context: { companyIds } } : {}),
-  });
+  }, signal ? { signal } : undefined);
 }
 
-export async function fetchConversation(id: string): Promise<{ messages?: Array<{ role: string; content: string; cardsJson?: ChatCard[] }> } | null> {
+/** 回答反馈（2026-11-19 问答改造）：同属主同消息覆盖、再点同值取消（服务端语义） */
+export async function sendFeedback(messageId: string, rating: "UP" | "DOWN"): Promise<{ messageId: string; rating: "UP" | "DOWN" | null }> {
+  return api.post("/assistant/feedback", { messageId, rating });
+}
+
+/** 我的反馈回显（载入会话后标激活态；服务端无属主时空数组） */
+export async function fetchMyFeedback(conversationId?: string): Promise<Array<{ messageId: string; rating: "UP" | "DOWN" }>> {
+  const qs = conversationId ? `?conversationId=${encodeURIComponent(conversationId)}` : "";
+  return api.get(`/assistant/feedback/mine${qs}`);
+}
+
+export async function fetchConversation(id: string): Promise<{ messages?: Array<{ id: string; role: string; content: string; cardsJson?: ChatCard[] }> } | null> {
   return api.get(`/assistant/conversations/${id}`);
 }
 

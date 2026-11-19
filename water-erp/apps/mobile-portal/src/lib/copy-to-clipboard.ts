@@ -1,7 +1,7 @@
 /**
- * 复制到剪贴板（四门户 2026-10-16 加固口径）：navigator.clipboard 仅 https/localhost 可用，降级
- * execCommand+临时 textarea（iOS Safari 需 readonly+显式选区、fixed 移出视口、finally 移除防残留）；
- * 双双失败返回 false——调用方必须据返回值给反馈，禁止无条件 toast「已复制」。
+ * 剪贴板复制（门户自包含副本，同 web/bid/supplier 口径）：
+ * navigator.clipboard 仅 https/localhost 可用，http 演示环境直用=点击无反应或谎报
+ * 「已复制」——execCommand 降级返回真实布尔，调用方必须按结果反馈。
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
@@ -9,23 +9,20 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch { /* 降级 */ }
-  const ta = document.createElement("textarea");
-  ta.value = text;
-  ta.setAttribute("readonly", "");
-  ta.style.position = "fixed";
-  ta.style.top = "-9999px";
-  document.body.appendChild(ta);
+  } catch {
+    /* 降级 */
+  }
   try {
-    ta.focus();
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
     ta.select();
-    ta.setSelectionRange(0, text.length); // iOS Safari 需显式选区
-    try {
-      return document.execCommand("copy");
-    } catch {
-      return false;
-    }
-  } finally {
+    const ok = document.execCommand("copy");
     document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
   }
 }

@@ -331,15 +331,20 @@ ${toolList}
       answer += `\n\n（参考知识库：${ragContext.fileNames.join('、')}）`;
     }
 
+    /* 消息 id 随响应下发（2026-11-19 反馈落库）：前端点赞/点踩按 messageId 定位；
+     * 落库失败时 id 为 undefined，前端只是不显示反馈钮，不影响回答本身 */
+    let assistantMessageId: string | undefined;
     try {
-      await this.prisma.assistantMessage.create({
+      const saved = await this.prisma.assistantMessage.create({
         data: {
           conversationId: conversation.id,
           role: 'assistant',
           content: answer,
           cardsJson: (cards.length > 0 ? cards : undefined) as any,
         },
+        select: { id: true },
       });
+      assistantMessageId = saved.id;
     } catch (e) {
       this.logger.error(`保存助手消息失败: ${(e as Error).message}`, (e as Error).stack);
     }
@@ -356,7 +361,7 @@ ${toolList}
     }
 
     this.logger.log(`chat() 返回响应: conversationId=${conversation.id}, answerLen=${answer.length}, cards=${cards.length}`);
-    return { conversationId: conversation.id, answer, cards };
+    return { conversationId: conversation.id, messageId: assistantMessageId, answer, cards };
   }
 
   private async handleDirectToolCall(
@@ -1022,6 +1027,58 @@ ${toolList}
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,
     }));
+  }
+
+  /**
+   * 回答反馈（2026-11-19 问答改造）：点赞/点踩落库收集 badcase。
+   * 同属主同消息仅一条——重复点按=覆盖；再点同值=取消（删除）。
+   * 反馈目标消息必须属属主自己的会话（防跨属主刷评）。
+   */
+  async saveFeedback(owner: AssistantOwner | null, messageId: string, rating: 'UP' | 'DOWN') {
+    if (!owner?.userId && !owner?.guestKey) {
+      throw new UnauthorizedException('请先登录，或刷新页面生成访客标识');
+    }
+    const msg = await this.prisma.assistantMessage.findUnique({
+      where: { id: messageId },
+      include: { conversation: true },
+    });
+    if (!msg || !ownedBy(msg.conversation, owner)) {
+      throw new ForbiddenException('消息不存在或不属于当前用户');
+    }
+    const ownerWhere = owner.userId ? { messageId, userId: owner.userId } : { messageId, guestKey: owner.guestKey! };
+    const existing = await this.prisma.assistantFeedback.findFirst({ where: ownerWhere });
+    if (existing) {
+      if (existing.rating === rating) {
+        await this.prisma.assistantFeedback.delete({ where: { id: existing.id } });
+        return { messageId, rating: null }; // 再点同值 = 取消
+      }
+      await this.prisma.assistantFeedback.update({ where: { id: existing.id }, data: { rating } });
+      return { messageId, rating };
+    }
+    await this.prisma.assistantFeedback.create({
+      data: {
+        ...(owner.userId ? { userId: owner.userId } : { guestKey: owner.guestKey! }),
+        conversationId: msg.conversationId,
+        messageId,
+        rating,
+      },
+    });
+    return { messageId, rating };
+  }
+
+  /** 我的反馈回显（按会话过滤，前端标激活态） */
+  async listMyFeedback(owner: AssistantOwner | null, conversationId?: string) {
+    if (!owner?.userId && !owner?.guestKey) return [];
+    const rows = await this.prisma.assistantFeedback.findMany({
+      where: {
+        ...(owner.userId ? { userId: owner.userId } : { guestKey: owner.guestKey! }),
+        ...(conversationId ? { conversationId } : {}),
+      },
+      select: { messageId: true, rating: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+    });
+    return rows;
   }
 
   async getConversation(id: string, owner: AssistantOwner | null = null) {
