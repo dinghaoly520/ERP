@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Bot, History, Plus, RefreshCw, SendHorizonal, Sparkles, Trash2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Bot, History, Plus, RefreshCw, SendHorizonal, Sparkles, Trash2  } from "lucide-react";
 import { useAuth } from "@/components/m/auth-context";
 import { sendChat, fetchConversation, fetchConversationList, removeConversation, type ChatMessage, type ConversationSummary } from "@/lib/api/assistant";
 import { Skeleton } from "@/components/m/skeleton";
@@ -15,6 +15,7 @@ const CONV_KEY = "m-shuidingdang-conversation";
 const QUICK_QUESTIONS = ["本月成交总额多少", "当前最大风险是什么", "节资排名前三", "哪个阶段最堵"];
 
 export default function ChatPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [messages, setMessages] = useState<Array<ChatMessage & { failedQ?: string }>>([]);
@@ -195,8 +196,16 @@ export default function ChatPage() {
     /* 有界 fixed 壳（.m-chat-shell，见 globals.css）：top=header 44px、bottom=tabbar——消息区
      * 成唯一滚动容器，输入条钉在 tabbar 上方；不再依赖 min-h+主容器滚动的魔法高差 */
     <div ref={shellRef} className="m-chat-shell">
-      {/* 顶部：口径标签 + 新对话 */}
+      {/* 顶部：返回 + 口径标签 + 历史/新对话（2026-11-19 用户裁定：补返回按钮） */}
       <div className="mb-2 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => router.push("/dashboard")}
+          aria-label="返回驾驶舱"
+          className="neu-btn-soft h-9 w-9 shrink-0 rounded-[11px] p-0 active:scale-95"
+        >
+          <ArrowLeft size={15} />
+        </button>
         <span className="flex min-w-0 items-center gap-1.5 truncate text-[12px] text-[var(--muted-foreground)]">
           <Bot size={13} className="shrink-0 text-[var(--accent)]" />
           {isAdmin
