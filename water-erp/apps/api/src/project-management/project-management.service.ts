@@ -5842,7 +5842,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
    * 终止项目详情：与归档详情同构（复用 ArchiveDetailModal），无归档 TXT——
    * 数据取实时表（终止后只读，实时即终止时点快照），附件 filePath=null（不走归档文件预览链路）。
    */
-  private buildTerminatedDetail(pmItem: any) {
+  private async buildTerminatedDetail(pmItem: any) {
     const terminatedAt = pmItem.terminatedAt as Date;
     const stageStatusLabel = (s: string) => (s === 'COMPLETED' ? '已完成' : s === 'IN_PROGRESS' ? '进行中' : '未开始');
     return {
@@ -5873,12 +5873,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '合同金额': '',
         '经办人': pmItem.createdBy?.displayName ?? '',
       },
-      stages: pmItem.stages.map((stage: any, idx: number) => ({
+      // 步骤分析缓存直出（2026-11-19 用户裁定「缓存直出+按需生成」）：终止项目没有
+      // 归档 TXT 的逐文件分析链，analyze-step 生成的分析落本地缓存；组装载荷时命中即
+      // 带出（纯文件读、不跑 LLM），未生成过的阶段由前端「生成分析」按需触发、下次打开
+      // 即直出。终止后数据冻结，缓存不会因数据变更失配；缓存键沿 analyzeStep 键位不含
+      // 轮次，多轮项目极端场景下内容仍为本阶段事实，可接受。
+      stages: await Promise.all(pmItem.stages.map(async (stage: any, idx: number) => ({
         stageKey: stage.stageKey,
         stageName: stage.stageName,
         stageDirName: `${idx + 1}.${stage.stageName}`,
         round: stage.round ?? 1, // 轮次透出（流标再采适配，与 TXT 路径同构）
         status: stageStatusLabel(stage.status),
+        stageAnalysis: await this.readStepAnalysisCache(pmItem.id, stage.stageKey),
         attachments: stage.attachments.map((att: any) => ({
           id: att.id,
           fileName: att.fileName,
@@ -5887,7 +5893,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
           filePath: null,
           analysis: '',
         })),
-      })),
+      }))),
       summary: `项目于 ${pmItem.terminatedStage ? `「${pmItem.terminatedStage}」阶段` : ''}终止${
         terminatedAt ? `（${terminatedAt.toISOString().split('T')[0]}）` : ''
       }。终止原因：${pmItem.terminationReason ?? '未填写'}。终止后项目只读，如需继续采购请重新建立项目。`,
@@ -5990,6 +5996,21 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
+   * 读 analyze-step 落盘的步骤分析缓存（指纹键控、命中免 LLM）；未生成/损坏返回空串。
+   * 终止详情载荷直出用（见 buildTerminatedDetail）。
+   */
+  private async readStepAnalysisCache(projectId: string, stageKey: string): Promise<string> {
+    try {
+      const cached = JSON.parse(
+        await readFile(getStepAnalysisCachePath(projectId, stageKey), 'utf8'),
+      ) as { content?: string };
+      return typeof cached.content === 'string' ? cached.content.trim() : '';
+    } catch {
+      return '';
+    }
+  }
+
+  /**
    * Get archive detail for a procurement round (from archived project management item)
    * Reads and parses the archived TXT file
    */
@@ -6020,7 +6041,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         },
       });
       if (terminatedItem?.status === 'TERMINATED') {
-        return this.buildTerminatedDetail(terminatedItem);
+        return await this.buildTerminatedDetail(terminatedItem);
       }
       throw new NotFoundException('未找到对应的归档项目。');
     }

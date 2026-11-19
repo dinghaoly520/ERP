@@ -11,14 +11,17 @@ import {
   Trophy,
   CheckCircle2,
   Clock,
+  CalendarClock,
   FolderOpen,
   Loader2,
   Eye,
   Download,
+  Sparkles,
 } from "lucide-react";
 import Folder from "@/components/Folder";
 import { Modal } from "@/components/workbench";
 import { ScoreSnapshotSection } from "@/components/projects/bid-confirm/handover-preview";
+import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
 import { analyzeProjectStep } from "@/lib/api/project-management";
 import { apiFetch } from '@/lib/api/api-fetch';
 
@@ -54,6 +57,9 @@ type ArchiveDetailData = {
     /** 所属轮次（旧载荷缺省视作 1） */
     round?: number | null;
     status: string;
+    /** 终止详情专属：步骤分析缓存直出（2026-11-19「缓存直出+按需生成」裁定）；
+     *  归档 TXT 路径不带（逐文件分析在 attachments[].analysis） */
+    stageAnalysis?: string;
     attachments: Array<{
       id: string;
       fileName: string;
@@ -616,10 +622,25 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                     </div>
                   </motion.div>
 
+                  {/* 项目时间轴（2026-11-19 用户裁定「两端都接」）：复用项目详情同款横向条
+                      （按轮十节点；只读场景不传 refreshKey，挂载拉取一次） */}
+                  <motion.div
+                    {...fadeIn(2, reducedMotion)}
+                    className="wb-note p-5"
+                  >
+                    <div className="flex items-center gap-2 mb-4">
+                      <CalendarClock size={16} className="text-[var(--accent)]" />
+                      <h3 className="text-base font-semibold">项目时间轴</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <ProjectTimelineStrip pmiId={data.projectId} />
+                    </div>
+                  </motion.div>
+
                   {/* #121②：评分明细卡（关联投标项目有评标结果时才下发；复用回流包查验的快照组件——数值+通过性双形态） */}
                   {data.scoreDetail && (
                     <motion.div
-                      {...fadeIn(2, reducedMotion)}
+                      {...fadeIn(3, reducedMotion)}
                       className="wb-note p-5"
                     >
                       <div className="flex items-center gap-2 mb-4">
@@ -727,13 +748,57 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                                   {file.analysis}
                                 </p>
                               </div>
-                            ) : (
+                            ) : data.kind !== 'terminated' ? (
+                              /* 暂无分析内容占位仅归档路径（TXT 逐文件分析缺省）；
+                                 终止路径无逐文件分析链——改为下方阶段级「步骤分析」块（2026-11-19） */
                               <div className="px-3 py-2.5 text-xs text-[color:var(--muted-foreground)]">
                                 暂无分析内容
                               </div>
-                            )}
+                            ) : null}
                           </motion.div>
                         ))}
+
+                        {/* 终止详情专属·阶段级步骤分析（2026-11-19「缓存直出+按需生成」裁定）：
+                            载荷缓存命中直出（如 :3011/mobile 或本弹窗「步骤分析」页签生成过）；
+                            未生成过的已完成阶段给「生成分析」按钮走 analyze-step 懒生成+缓存 */
+                        data.kind === 'terminated' && (selectedStage.status === '已完成' || selectedStage.status === 'COMPLETED') && (
+                          (() => {
+                            const generated = stepAnalysis?.stageKey === selectedStage.stageKey && !stepAnalysisError
+                              ? stepAnalysis
+                              : null;
+                            const content = selectedStage.stageAnalysis || (generated && !generated.empty ? generated.content : '');
+                            if (content) {
+                              return (
+                                <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] px-3 py-2.5">
+                                  <div className="text-xs font-semibold uppercase tracking-wide text-[color-mix(in_oklch,var(--accent)_70%,black)] mb-1.5">
+                                    步骤分析
+                                  </div>
+                                  <p className="text-xs leading-relaxed text-[color:var(--foreground)] whitespace-pre-wrap">
+                                    {content}
+                                  </p>
+                                </div>
+                              );
+                            }
+                            if (stepAnalysisLoading) {
+                              return (
+                                <div className="flex items-center gap-2 rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-3 py-3 text-xs text-[color:var(--muted-foreground)]">
+                                  <Loader2 size={14} className="animate-spin" />
+                                  生成中…（首次分析需数秒）
+                                </div>
+                              );
+                            }
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => void loadStepAnalysis(selectedStage.stageKey)}
+                                className="neu-btn-soft w-full !h-8 !text-xs"
+                              >
+                                <Sparkles size={14} className="text-[rgba(76,111,189,1)]" />
+                                生成分析
+                              </button>
+                            );
+                          })()
+                        )}
                       </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center py-16 px-4">

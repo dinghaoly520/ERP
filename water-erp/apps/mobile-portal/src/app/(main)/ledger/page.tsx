@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { fetchArchiveDetail, type ArchiveDetail } from "@/lib/api/project-management";
+import { fetchArchiveDetail, fetchProjectTimeline, fetchStepAnalysis, type ArchiveDetail, type TimelineData } from "@/lib/api/project-management";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, priorWindowIso, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
-import { FolderKanban, Loader2, NotebookText, Search } from "lucide-react";
+import { FolderKanban, Loader2, NotebookText, Search, Sparkles } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchProcurementDimensions, fetchLedgerStats, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -127,6 +127,36 @@ export default function LedgerPage() {
       .finally(() => { if (active) setArchiveLoading(false); });
     return () => { active = false; };
   }, [activeItem]);
+
+  /* 终止详情·步骤分析按需生成（2026-11-19 用户裁定「缓存直出+按需生成」）：载荷内
+     stageAnalysis 缓存命中直出；未生成过的已完成阶段由「生成分析」触发 analyze-step
+     （服务端指纹缓存），键=stageKey@round，同阶段重复点击复用已取结果 */
+  const [stepAnalysis, setStepAnalysis] = useState<Record<string, { content: string; empty: boolean } | "loading">>({});
+  const runStepAnalysis = (projectId: string, stageKey: string, round?: number | null) => {
+    const key = `${stageKey}@${round ?? 1}`;
+    if (stepAnalysis[key]) return;
+    setStepAnalysis((m) => ({ ...m, [key]: "loading" }));
+    fetchStepAnalysis(projectId, stageKey, round ?? undefined)
+      .then((r) => setStepAnalysis((m) => ({ ...m, [key]: r })))
+      .catch(() => setStepAnalysis((m) => ({ ...m, [key]: { content: "分析生成失败，请重试", empty: true } })));
+  };
+
+  /* 项目时间轴（2026-11-19 用户裁定「两端都接」）：与归档/终止详情同源 PMI 取十节点；
+     简版回退（Excel 轮次无 PMI）不渲染 */
+  const [timeline, setTimeline] = useState<TimelineData | null>(null);
+  const timelinePmiId = archiveDetail?.projectId ?? null;
+  useEffect(() => {
+    if (!timelinePmiId) {
+      setTimeline(null);
+      return;
+    }
+    let active = true;
+    setTimeline(null);
+    fetchProjectTimeline(timelinePmiId)
+      .then((d) => { if (active) setTimeline(d); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [timelinePmiId]);
 
 
   /* 搜索 400ms 防抖 */
@@ -623,12 +653,15 @@ export default function LedgerPage() {
               <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">项目步骤</div>
               <div className="space-y-1.5 rounded-[12px] m-tile px-3 py-2.5">
                 {archiveDetail.stages.map((st) => {
-                  const done = st.status === "COMPLETED";
+                  /* 状态取值双形：归档 TXT 路径=英文枚举原值，终止/降级路径=中文标签（2026-11-19 修复：
+                     此前只认 COMPLETED，终止项目九步骤全被误染灰） */
+                  const done = st.status === "COMPLETED" || st.status === "已完成";
+                  const inProgress = st.status === "IN_PROGRESS" || st.status === "进行中";
                   return (
                     <div key={`${st.stageKey}-${st.round ?? 1}`}>
                       <div className="flex items-center gap-2 py-0.5">
                         <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${done ? "bg-[var(--success)]" : st.status === "IN_PROGRESS" || st.stageKey === activeItem.resultStatus ? "bg-[var(--accent)]" : "bg-[color-mix(in_oklch,var(--muted-foreground)_35%,transparent)]"}`}
+                          className={`h-2 w-2 shrink-0 rounded-full ${done ? "bg-[var(--success)]" : inProgress || st.stageKey === activeItem.resultStatus ? "bg-[var(--accent)]" : "bg-[color-mix(in_oklch,var(--muted-foreground)_35%,transparent)]"}`}
                         />
                         <span className={`min-w-0 flex-1 truncate text-[14px] ${done ? "font-medium text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}`}>
                           {st.stageName}
@@ -653,6 +686,40 @@ export default function LedgerPage() {
                           ) : null}
                         </div>
                       ))}
+                      {/* 终止详情·阶段级步骤分析（2026-11-19「缓存直出+按需生成」）：缓存命中直出，
+                          未生成过的已完成阶段给「生成分析」入口（归档路径逐文件分析已直出，不走此块） */}
+                      {archiveDetail.kind === "terminated" && done && st.attachments.length > 0 ? (
+                        (() => {
+                          const anaKey = `${st.stageKey}@${st.round ?? 1}`;
+                          const ana = stepAnalysis[anaKey];
+                          const content = st.stageAnalysis || (ana && ana !== "loading" && !ana.empty ? ana.content : "");
+                          if (content) {
+                            return (
+                              <div className="ml-4 mt-1 rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-2.5 py-2 text-[13px] leading-relaxed text-[var(--foreground)]">
+                                {content}
+                              </div>
+                            );
+                          }
+                          if (ana === "loading") {
+                            return (
+                              <div className="ml-4 mt-1 flex items-center gap-1.5 rounded-[10px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-2.5 py-2 text-[12px] text-[var(--muted-foreground)]">
+                                <Loader2 size={12} className="animate-spin" />
+                                正在生成分析…（首次需数秒）
+                              </div>
+                            );
+                          }
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => runStepAnalysis(archiveDetail.projectId, st.stageKey, st.round)}
+                              className="neu-btn-soft ml-4 mt-1 h-7 rounded-[8px] px-2.5 text-[12px] active:scale-95"
+                            >
+                              <Sparkles size={12} className="text-[rgba(76,111,189,1)]" />
+                              生成分析
+                            </button>
+                          );
+                        })()
+                      ) : null}
                     </div>
                   );
                 })}
@@ -711,6 +778,30 @@ export default function LedgerPage() {
                 <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">项目简报</div>
                 <div className={`rounded-[12px] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] ${archiveDetail.kind === "terminated" ? "border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_5%,transparent)]" : "m-tile"}`}>
                   {archiveDetail.summary}
+                </div>
+              </div>
+            ) : null}
+
+            {/* 项目时间轴（2026-11-19 用户裁定「两端都接」）：按轮十节点，有时间的绿点亮日期、
+                未到的灰显「—」；多轮项目逐轮分组 */}
+            {timeline && timeline.rounds.length > 0 ? (
+              <div>
+                <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">项目时间轴</div>
+                <div className="space-y-1 rounded-[12px] m-tile px-3 py-2.5">
+                  {timeline.rounds.map((r) => (
+                    <div key={r.round}>
+                      {timeline.rounds.length > 1 ? (
+                        <div className="py-1 text-[12px] font-semibold text-[var(--warning)]">第 {r.round} 轮</div>
+                      ) : null}
+                      {r.nodes.map((n) => (
+                        <div key={n.key} className="flex items-center gap-2 py-0.5">
+                          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${n.time ? "bg-[var(--success)]" : "bg-[color-mix(in_oklch,var(--muted-foreground)_30%,transparent)]"}`} />
+                          <span className={`min-w-0 flex-1 truncate text-[13px] ${n.time ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}`}>{n.label}</span>
+                          <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{n.time ? n.time.slice(0, 10) : "—"}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : null}
