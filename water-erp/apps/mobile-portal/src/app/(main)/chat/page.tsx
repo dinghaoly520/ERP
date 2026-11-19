@@ -21,8 +21,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  // admin 口径标签展示值：读驾驶舱页当前公司选择，挂载 + 回前台（visibilitychange）时刷新；
-  // 发送提问时在 doAsk() 内再读一次真实值，标签只作展示不作数据源
+  // admin 口径标签展示值：驾驶舱页公司选择器已撤（2026-11-19 固定全部公司）——
+  // 历史存量 filter-store 值仅作展示回显，发送时 doAsk() 内再读一次真实值
   const [adminScopeCount, setAdminScopeCount] = useState(0);
 
   useEffect(() => {
@@ -149,7 +149,7 @@ export default function ChatPage() {
   /* 发送核心（ask 与失败重试共用——重试不重复追加用户气泡，R1-2） */
   async function doAsk(q: string) {
     setSending(true);
-    // 发送时读驾驶舱页当前公司口径（fresh 值，不用挂载期闭包）——admin 选中公司后提问按该口径作答
+    // 发送时读公司口径（fresh 值，不用挂载期闭包）——驾驶舱选择器已撤，正常恒为空=全部公司
     const adminCompanyIds = isAdmin
       ? (readSavedFilters<{ companyIds: string[] }>("dashboard").companyIds ?? [])
       : undefined;
@@ -188,8 +188,8 @@ export default function ChatPage() {
           <Bot size={13} className="shrink-0 text-[var(--accent)]" />
           {isAdmin
             ? adminScopeCount > 0
-              ? `当前范围：已选 ${adminScopeCount} 家公司（驾驶舱页可切换）`
-              : "当前范围：全部公司（驾驶舱页可切换）"
+              ? `当前范围：已选 ${adminScopeCount} 家公司`
+              : "当前范围：全部公司"
             : "当前范围：本公司数据"}
         </span>
         <button type="button" onClick={openHistory} className="neu-btn-soft h-8 shrink-0 rounded-[9px] px-2.5 text-[13px] active:scale-95">

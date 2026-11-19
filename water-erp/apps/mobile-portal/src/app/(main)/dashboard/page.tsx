@@ -26,7 +26,6 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import {
   fetchCompanyRanking,
   fetchDashboardData,
@@ -38,8 +37,6 @@ import { fetchDashboardAnalysis, fetchMobileBrief, type DashboardAnalysisResult,
 import { fetchAlertsOverview, fetchBidLiveProjects, fetchPerformanceMetrics, type AlertsOverview, type BidLiveProject, type PerformanceMetrics } from "@/lib/api/cockpit";
 import { fetchUpcoming, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
-import { CompanyPicker } from "@/components/m/company-picker";
-import { RangePicker, RANGE_LABELS, type RangeKey } from "@/components/m/range-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
 import { MetricCard } from "@/components/m/metric-card";
@@ -51,9 +48,6 @@ import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { usePolling } from "@/hooks/use-polling";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
-import { readSavedFilters, saveFilters } from "@/lib/filter-store";
-
-type DashboardSavedFilters = { rangeKey: RangeKey; companyIds: string[] };
 
 /* ── 工具 ── */
 
@@ -81,14 +75,8 @@ const ANALYSIS_TILES: Array<{
   { key: "ai", label: "AI 分析", icon: Sparkles, color: "var(--gold)" },
 ];
 
-function rangeFor(key: RangeKey): { startDate?: string; endDate?: string } {
-  const now = new Date();
-  const y = now.getFullYear();
-  if (key === "month") return { startDate: iso(new Date(y, now.getMonth(), 1)) };
-  if (key === "quarter") return { startDate: iso(new Date(y, Math.floor(now.getMonth() / 3) * 3, 1)) };
-  if (key === "year") return { startDate: `${y}-01-01` };
-  return {};
-}
+/* 固定全景口径（2026-11-19 用户裁定：删区间/公司控制行）：本年 · 全部公司 */
+const YEAR_START = () => `${new Date().getFullYear()}-01-01`;
 
 function statusColor(s: string): string {
   if (/未成交|异常|终止|撤|废/.test(s)) return "text-[var(--danger)]";
@@ -220,15 +208,6 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
   const role = user?.role ?? null;
-  const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [companyIds, setCompanyIds] = useState<string[]>(
-    () => readSavedFilters<DashboardSavedFilters>("dashboard").companyIds ?? [],
-  );
-
-  const [rangeKey, setRangeKey] = useState<RangeKey>(
-    () => readSavedFilters<DashboardSavedFilters>("dashboard").rangeKey ?? "year",
-  );
-  const [customApplied, setCustomApplied] = useState<{ startDate?: string; endDate?: string }>({});
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -269,11 +248,11 @@ export default function DashboardPage() {
     useCallback(async () => {
       const [l, u] = await Promise.all([
         fetchBidLiveProjects().catch(() => null),
-        fetchUpcoming(14, companyIds.length ? companyIds.join(",") : undefined).catch(() => null),
+        fetchUpcoming(14).catch(() => null),
       ]);
       if (l) setLive(l);
       if (u) setUpcoming(u);
-    }, [companyIds]),
+    }, []),
     30_000,
   );
   const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
@@ -317,9 +296,7 @@ export default function DashboardPage() {
     window.setTimeout(() => setRiskShared("idle"), 2000);
   }
 
-  const effRange = rangeKey === "all" ? {} : rangeFor(rangeKey);
-  const usingCustom = Boolean(customApplied.startDate || customApplied.endDate);
-  const queryRange = usingCustom ? customApplied : effRange;
+  const queryRange: { startDate: string; endDate?: string } = { startDate: YEAR_START() };
 
   // 今日关注条（一行事实句，随公司口径/页面区间/重试变化重取——区间对齐 2026-11-03：
   // brief 与 hero 指标同区间，消灭「本月 0 万 vs 本年数百万」同屏打架；effect 置于
@@ -328,34 +305,21 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let active = true;
-    fetchMobileBrief(companyIds.length ? companyIds.join(",") : undefined, {
+    fetchMobileBrief(undefined, {
       startDate: queryRange.startDate,
       endDate: queryRange.endDate,
       /* 快捷档显式携带语义（自定义/全部不传——服务端缺省本月） */
-      rangeKey: !usingCustom && rangeKey !== "all" ? rangeKey : undefined,
+      rangeKey: "year",
     })
       .then((b) => { if (active) setBrief(b); })
       .catch(() => { if (active) setBrief({ available: false }); });
     return () => { active = false; };
-  }, [companyIds, queryRange.startDate, queryRange.endDate, rangeKey, usingCustom, retryTick]);
-
-  useEffect(() => {
-    if (role !== "admin") return;
-    let active = true;
-    fetchCompanies()
-      .then((list) => {
-        if (active) setCompanies(list);
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, [role]);
+  }, [queryRange.startDate, retryTick]);
 
   const loadData = useCallback(() => {
     setLoading(true);
     setError(null);
-    return fetchDashboardData(queryRange.startDate, queryRange.endDate, companyIds.length ? companyIds.join(",") : undefined, true)
+    return fetchDashboardData(queryRange.startDate, queryRange.endDate, undefined, true)
       .then((d) => {
         setData(d);
         setAiResult(null); // 口径变化后旧分析作废
@@ -368,7 +332,7 @@ export default function DashboardPage() {
     /* retryTick 不入 deps（R1-3）：下拉回调已直接调 loadData()，若 deps 含 retryTick，
        bump 会重建 loadData 身份 → mount effect 二次触发 → 同轮双取。
        retryTick 仍驱动今日要报/龙虎榜两 effect 的重取。 */
-  }, [queryRange.startDate, queryRange.endDate, companyIds]);
+  }, [queryRange.startDate, queryRange.endDate]);
 
   useEffect(() => {
     loadData();
@@ -439,7 +403,7 @@ export default function DashboardPage() {
     setAiError(null);
     try {
       const result = await fetchDashboardAnalysis({
-        rangeLabel: RANGE_LABELS[rangeKey] ?? "自定义",
+        rangeLabel: "本年",
         startDate: queryRange.startDate ?? "",
         endDate: queryRange.endDate ?? "",
         summary: {
@@ -502,31 +466,6 @@ export default function DashboardPage() {
           <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
         </button>
       ) : null}
-
-      {/* ── 顶部控制行：范围 + 公司（2026-11-17 改版：chips 横滚行 → 下拉按钮+弹层，RangePicker 与 CompanyPicker 同构）── */}
-      <div className="mb-3 flex gap-2">
-        <RangePicker
-          className="mb-0 flex-1"
-          value={{ rangeKey, custom: customApplied }}
-          onPickKey={(key) => {
-            setRangeKey(key);
-            setCustomApplied({});
-            saveFilters("dashboard", { rangeKey: key, companyIds } satisfies DashboardSavedFilters);
-          }}
-          onApplyCustom={(c) => setCustomApplied(c)}
-        />
-        {role === "admin" ? (
-          <CompanyPicker
-            value={companyIds}
-            options={companies}
-            onChange={(next) => {
-              setCompanyIds(next);
-              saveFilters("dashboard", { rangeKey, companyIds: next } satisfies DashboardSavedFilters);
-            }}
-            className="mb-0 flex-1"
-          />
-        ) : null}
-      </div>
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
 
