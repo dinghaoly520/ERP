@@ -31,6 +31,8 @@ export interface VizDeclaration {
   seriesField?: string;
   /** 排名只取前 N（ranking） */
   topN?: number;
+  /** 数值单位（2026-11-19：'%'/'万' 等——柱标与图注补单位，与表格展示列口径一致） */
+  unit?: string;
 }
 
 /** 工具执行上下文（2026-10-22 :3011 P1）：认证用户带公司归属；companyIds 仅 admin 经

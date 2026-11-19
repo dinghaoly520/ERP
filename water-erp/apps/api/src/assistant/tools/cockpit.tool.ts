@@ -9,7 +9,7 @@ import { toolCompanyWhere } from './company-filter';
 export class CockpitTool implements AssistantTool {
   name = 'cockpit';
   description =
-    '查询领导驾驶舱口径数据（本月 + 全量风险）。args: { action: "summary"|"risk"|"savings"|"stages" }——summary=核心指标概览，risk=风险项目，savings=节资排行，stages=采购阶段分布。领导驾驶舱类问题优先用本工具。';
+    '查询领导驾驶舱口径数据（本月 + 全量风险）。args: { action: "summary"|"risk"|"savings"|"stages", limit? }——summary=核心指标概览，risk=风险项目，savings=节资排行（limit=取前 N 条，默认 5；用户问"前几名"时传对应数量），stages=采购阶段分布。领导驾驶舱类问题优先用本工具。';
 
   constructor(
     private readonly dashboard: DashboardService,
@@ -65,6 +65,9 @@ export class CockpitTool implements AssistantTool {
       };
     }
     if (action === 'savings') {
+      /* limit（2026-11-19 用户实录「问前三答四条」）：排行条数跟随提问数量——
+         LLM 从问题里解析 N 传入；缺省 5、上限 10、下限 1 */
+      const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 10);
       return {
         success: true,
         cards: [{
@@ -72,14 +75,15 @@ export class CockpitTool implements AssistantTool {
           title: '节资率排行',
           // 出图声明（2026-11-03）：排行→横柱图。节资率/节约额展示列是格式化字符串
           // （"15%"/"30万"），viz 数值须走隐藏数值键「节资率数值」（number，columns
-          // 定义表列故不显示）——裸引展示列会 NaN→0
+          // 定义表列故不显示）——裸引展示列会 NaN→0；unit（2026-11-19）：柱标与
+          // 图注补单位，杜绝「18.1」裸数与表格「18.1%」两副面孔
           columns: [
             { key: '项目', label: '项目' },
             { key: '节资率', label: '节资率' },
             { key: '节约额', label: '节约额' },
           ],
-          viz: { kind: 'ranking', category: '项目', value: '节资率数值' },
-          rows: (data.savingsRanking ?? []).slice(0, 5).map((s: { project: string; savingsRate: number; savingsLabel: string }) => ({
+          viz: { kind: 'ranking', category: '项目', value: '节资率数值', unit: '%' },
+          rows: (data.savingsRanking ?? []).slice(0, limit).map((s: { project: string; savingsRate: number; savingsLabel: string }) => ({
             项目: s.project, 节资率: `${s.savingsRate}%`, 节约额: s.savingsLabel, 节资率数值: s.savingsRate,
           })),
         }],

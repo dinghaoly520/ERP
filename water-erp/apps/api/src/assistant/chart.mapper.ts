@@ -14,6 +14,9 @@ export interface ChartCard {
   chartType: 'bar' | 'line' | 'pie' | 'hbar' | 'grouped_bar';
   option: Record<string, unknown>;
   caption?: string;
+  /** 数值单位（2026-11-19）：viz 声明下发（'%'/'万'），柱标/图注渲染时拼接——
+   *  与表格展示列（"18.1%"）同一口径，杜绝图表裸数两副面孔 */
+  unit?: string;
   /** 自包含派生数据（2026-11-03）：:3011 等无 ECharts 消费端脱离表卡直接渲染；
    *  与 option 同源派生（排序/取Top 与 ECharts 视图严格一致） */
   data?: {
@@ -348,12 +351,15 @@ function mapRanking(
     type: 'chart',
     title,
     chartType: 'hbar',
-    caption: `Top ${sorted.length}，最高"${sorted[0].name}"（${fmtNum(sorted[0].value)}）`,
+    /* 图注（2026-11-19 实录修复）：「Top N」英文违反界面文案去英文裁定 →「前 N 名」；
+       数值拼 viz.unit，与表格展示列（"18.1%"）同口径 */
+    caption: `前 ${sorted.length} 名，最高"${sorted[0].name}"（${fmtNum(sorted[0].value)}${viz.unit ?? ''}）`,
+    unit: viz.unit,
     data: { rows, points: sorted },
     option: {
       tooltip: { trigger: 'axis' },
       grid: { left: '2%', right: '10%', bottom: '2%', top: '4%', containLabel: true },
-      xAxis: { type: 'value', axisLabel: { fontSize: 12 }, splitLine: { lineStyle: { color: 'rgba(201,217,239,0.3)', type: 'dashed' } } },
+      xAxis: { type: 'value', axisLabel: { fontSize: 12, ...(viz.unit ? { formatter: `{value}${viz.unit}` } : {}) }, splitLine: { lineStyle: { color: 'rgba(201,217,239,0.3)', type: 'dashed' } } },
       yAxis: {
         type: 'category',
         data: reversed.map((d, i) => {

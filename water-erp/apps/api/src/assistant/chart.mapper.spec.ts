@@ -116,6 +116,33 @@ describe('mapToChart', () => {
     expect(yData.length).toBe(5);
     expect(yData[4]).toContain('1.'); // top rank gets number prefix
     expect(result?.caption).toContain('最高');
+    // 2026-11-19 图注收口：禁英文「Top N」→「前 N 名」
+    expect(result?.caption).toContain('前 5 名');
+    expect(result?.caption).not.toContain('Top');
+  });
+
+  it('ranking unit 下发：caption 与卡顶层带单位、x 轴 formatter 拼单位（2026-11-19 裸数 18.1 两副面孔）', () => {
+    const rows = [
+      { 项目: '甲', 节资率数值: 18.1 },
+      { 项目: '乙', 节资率数值: 7.1 },
+      { 项目: '丙', 节资率数值: 3.6 },
+    ];
+    const result = mapToChart({
+      title: '节资率排行',
+      columns: [{ key: '项目', label: '项目' }, { key: '节资率', label: '节资率' }],
+      rows,
+      viz: { kind: 'ranking', category: '项目', value: '节资率数值', unit: '%' },
+    });
+    expect(result?.unit).toBe('%');
+    expect(result?.caption).toBe('前 3 名，最高"甲"（18.1%）');
+    expect(((result!.option.xAxis as any).axisLabel as any).formatter).toBe('{value}%');
+    // 无 unit 的存量 viz 不受影响（formatter 不注入、卡无 unit 字段）
+    const bare = mapToChart({
+      title: '排行', columns: [{ key: 'name', label: '名' }], rows: rows.map((r) => ({ name: r.项目, v: r.节资率数值 })),
+      viz: { kind: 'ranking', category: 'name', value: 'v' },
+    });
+    expect(bare?.unit).toBeUndefined();
+    expect(((bare!.option.xAxis as any).axisLabel as any).formatter).toBeUndefined();
   });
 
   it('comparison returns grouped_bar with gradient fills', () => {

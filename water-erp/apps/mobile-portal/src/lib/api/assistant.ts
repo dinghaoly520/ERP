@@ -16,6 +16,8 @@ export type ChatCard =
       [k: string]: unknown;
     }
   | { type: "chart"; title: string; chartType: string; caption?: string;
+      /** 数值单位（2026-11-19）：后端 viz 声明下发（'%'/'万'），柱标拼接——与表格展示列同口径 */
+      unit?: string;
       /** 自包含派生数据（2026-11-03）：与 :3005 ECharts option 同源；缺省=存量历史卡（回退占位） */
       data?: {
         rows?: Array<Record<string, unknown>>;

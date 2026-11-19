@@ -33,14 +33,30 @@ describe('cockpit 出图声明（2026-11-03 表下真图）', () => {
     expect((r.cards?.[0] as any).viz).toEqual({ kind: 'distribution', category: '阶段', value: '项目数' });
   });
 
-  it('savings 卡带 ranking viz + columns 隐藏数值键（节资率数值不进表列）', async () => {
+  it('savings 卡带 ranking viz（含单位）+ columns 隐藏数值键（节资率数值不进表列）', async () => {
     const tool = new CockpitTool(dashboard, progress);
     const r = await tool.execute({ action: 'savings' }, { user: { sub: 'u', role: 'admin', companyId: null } });
     const card = r.cards?.[0] as any;
-    expect(card.viz).toEqual({ kind: 'ranking', category: '项目', value: '节资率数值' });
+    expect(card.viz).toEqual({ kind: 'ranking', category: '项目', value: '节资率数值', unit: '%' });
     expect(card.columns.map((c: any) => c.key)).toEqual(['项目', '节资率', '节约额']);
     expect(typeof card.rows[0].节资率数值).toBe('number');
     expect(card.rows[0].节资率数值).toBe(15);
+  });
+
+  it('savings limit 跟随提问数量（2026-11-19「问前三答四条」实录）：问前三只回 3 行、缺省 5、越界钳制', async () => {
+    const many: any = { getDashboard: jest.fn().mockResolvedValue({
+      summary: {},
+      savingsRanking: Array.from({ length: 12 }, (_, i) => ({ project: `P${i + 1}`, savingsRate: 20 - i, savingsLabel: `${10 - i}万` })),
+    }) };
+    const tool = new CockpitTool(many, progress);
+    const cut = async (limit?: unknown) => {
+      const r = await tool.execute({ action: 'savings', ...(limit != null ? { limit } : {}) }, { user: { sub: 'u', role: 'admin', companyId: null } });
+      return ((r.cards?.[0] as any).rows as unknown[]).length;
+    };
+    expect(await cut(3)).toBe(3);
+    expect(await cut()).toBe(5);
+    expect(await cut(99)).toBe(10);
+    expect(await cut(0)).toBe(5); // 0/负数=无效输入 → 缺省 5（Number()||5 语义）
   });
 
   it('risk 卡不配 viz（明细列表图无增益，spec 裁定）', async () => {

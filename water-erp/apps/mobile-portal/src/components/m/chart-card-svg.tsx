@@ -43,7 +43,7 @@ export function ChartCardSvg({ card }: { card: Extract<ChatCard, { type: "chart"
   if (card.chartType === "pie" && d.points?.length) body = <PieChart points={d.points} total={d.total} />;
   else if (card.chartType === "line" && d.points?.length) body = <LineChart labels={d.labels ?? []} points={d.points} />;
   else if (card.chartType === "grouped_bar" && d.series?.length) body = <GroupedBar labels={d.labels ?? []} series={d.series} />;
-  else if (card.chartType === "hbar" && d.points?.length) body = <HBarChart points={d.points} />;
+  else if (card.chartType === "hbar" && d.points?.length) body = <HBarChart points={d.points} unit={card.unit} />;
   else if (d.points?.length) body = <BarChart points={d.points} />;
 
   if (!body) {
@@ -149,10 +149,11 @@ function BarChart({ points }: { points: Point[] }) {
 }
 
 /* ── 横柱：降序、前三名次前缀、右端值标签 ── */
-function HBarChart({ points }: { points: Point[] }) {
+function HBarChart({ points, unit }: { points: Point[]; unit?: string }) {
   const rowH = 24;
   const nameW = 96;
-  const valW = 52;
+  /* 数值标签宽预留单位后缀（"18.1%"比"18.1"多一截，2026-11-19） */
+  const valW = unit ? 64 : 52;
   const W = 320;
   const H = points.length * rowH;
   const max = Math.max(...points.map((p) => p.value), 1);
@@ -172,6 +173,7 @@ function HBarChart({ points }: { points: Point[] }) {
             <rect x={nameW} y={y + 4} width={bw} height={15} rx={4} fill={P[i % P.length]} opacity={i === 0 ? 1 : 0.82} />
             <text x={nameW + bw + 5} y={y + 16} fontSize={11} fontWeight={i === 0 ? 800 : 600} fill="var(--foreground)">
               {fmt(p.value)}
+              {unit ?? ""}
             </text>
           </g>
         );
