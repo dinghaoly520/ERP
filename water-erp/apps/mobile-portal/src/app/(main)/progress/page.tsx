@@ -361,7 +361,6 @@ export default function ProgressPage() {
 
       {stats ? (
         <>
-          {/* ── 项目清单 ── */}
           {/* ── 采购阶段分布统计图（随筛联动）── */}
           <SectionCard
             icon={BarChart3}
@@ -388,49 +387,52 @@ export default function ProgressPage() {
             )}
           </SectionCard>
 
-          <SectionCard title="项目清单" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{filteredProjects.length} 项</span>} index={1}>
-            {filteredProjects.length ? (
-              <div className="space-y-2">
-                {filteredProjects.map((p) => {
-                  const meta = getStageMeta(p.currentStage);
-                  const { round } = currentRoundStages(p);
-                  const scopedName = currentRoundStages(p).stages.find((s) => s.stageKey === p.currentStage)?.stageName;
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setActiveProject(p)}
-                      className="w-full rounded-[14px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
-                    >
-                      <div className="flex items-start gap-2">
-                        <span className="min-w-0 flex-1 line-clamp-2 text-[15.5px] font-semibold leading-snug text-[var(--foreground)]">{p.title}</span>
-                        <span
-                          className="shrink-0 rounded-full px-2 py-0.5 text-[13px] font-bold"
-                          style={{
-                            color: meta.color,
-                            background: meta.softColor,
-                            border: `1px solid color-mix(in oklch, ${meta.color} 30%, transparent)`,
-                          }}
-                        >
-                          {round > 1 ? `第 ${round} 轮 · ${scopedName ?? meta.label}` : (scopedName ?? meta.label)}
-                        </span>
-                      </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-[14px] text-[var(--muted-foreground)]">
-                        <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[13px] text-[var(--accent)]">
-                          {p.procurementMethod}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{p.requesterDepartment}</span>
-                        <span className="shrink-0 tabular-nums">{fmtBudget(p.budgetAmount)}</span>
-                      </div>
-                      <StageStepper project={p} />
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState text={searchKeyword || methodIds.length || departmentIds.length || handlerIds.length || rangeKey !== "all" ? "无符合筛选条件的项目" : "暂无在办项目"} />
-            )}
-          </SectionCard>
+          {/* ── 进行中项目（2026-11-19 用户裁定：撤「项目清单」卡壳直接平铺；卡片信息
+              对齐台账语言：日期·名称·阶段胶囊 / 部门·方式·预算 / 采购人·经办人居右 + 步骤条）── */}
+          {filteredProjects.length ? (
+            <div className="space-y-2.5">
+              {filteredProjects.map((p) => {
+                const meta = getStageMeta(p.currentStage);
+                const { round } = currentRoundStages(p);
+                const scopedName = currentRoundStages(p).stages.find((s) => s.stageKey === p.currentStage)?.stageName;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setActiveProject(p)}
+                    className="w-full rounded-[16px] m-tile px-3.5 py-3 text-left active:scale-[0.99]"
+                  >
+                    <div className="flex items-start gap-2">
+                      <span className="shrink-0 pt-0.5 text-[12px] tabular-nums text-[var(--muted-foreground)]">{p.createdAt.slice(5, 10)}</span>
+                      <span className="min-w-0 flex-1 line-clamp-2 text-[15.5px] font-semibold leading-snug text-[var(--foreground)]">{p.title}</span>
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-[13px] font-bold"
+                        style={{
+                          color: meta.color,
+                          background: meta.softColor,
+                          border: `1px solid color-mix(in oklch, ${meta.color} 30%, transparent)`,
+                        }}
+                      >
+                        {round > 1 ? `第 ${round} 轮 · ${scopedName ?? meta.label}` : (scopedName ?? meta.label)}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[14px] text-[var(--muted-foreground)]">
+                      <span className="min-w-0 truncate">{p.requesterDepartment || "—"}</span>
+                      <span className="font-semibold text-[var(--gold)]">{p.procurementMethod}</span>
+                      <span className="tabular-nums">预算 <b className="font-semibold text-[var(--foreground)]">{fmtBudget(p.budgetAmount)}</b></span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap justify-end gap-x-3 text-[12px] text-[var(--muted-foreground)]">
+                      <span>采购人 <span className="font-medium text-[var(--foreground)]">{p.requesterName || "—"}</span></span>
+                      <span>经办人 <span className="font-medium text-[var(--foreground)]">{p.createdBy?.displayName ?? "—"}</span></span>
+                    </div>
+                    <StageStepper project={p} />
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState text={searchKeyword || methodIds.length || departmentIds.length || handlerIds.length || rangeKey !== "all" ? "无符合筛选条件的项目" : "暂无在办项目"} />
+          )}
         </>
       ) : null}
 
