@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { Bot, Bell, Crown, FolderKanban, LayoutDashboard, LogOut, TrendingUp } from "lucide-react";
+import { Bot, Bell, Crown, LayoutDashboard, LogOut } from "lucide-react";
 import { fetchCurrentUser, logout, type AuthUser, type AuthRole } from "@/lib/api/auth";
 import { fetchDashboardBadges, type DashboardBadges } from "@/lib/api/dashboard";
 import { fetchNotifications, fetchUnreadCount, type NotificationItem } from "@/lib/api/notifications";
@@ -15,10 +15,10 @@ import { BottomSheet } from "@/components/m/bottom-sheet";
 import { Chip } from "@/components/m/chip";
 import { Skeleton } from "@/components/m/skeleton";
 
+/* 底部 Tab（2026-11-19 用户裁定）：只留驾驶舱+水叮当——台账/进展页保留（宫格
+ * 「台账明细/项目进展」入口与各深链直达），只是不占底部导航位 */
 const TABS = [
-  { href: "/dashboard", label: "数据库", icon: LayoutDashboard },
-  { href: "/ledger", label: "台账", icon: FolderKanban },
-  { href: "/progress", label: "进展", icon: TrendingUp },
+  { href: "/dashboard", label: "驾驶舱", icon: LayoutDashboard },
   { href: "/chat", label: "水叮当", icon: Bot },
 ];
 
@@ -50,7 +50,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const t = window.setInterval(() => setNow(new Date()), 30_000);
     return () => window.clearInterval(t);
   }, []);
-  /* Tab 角标（数据库=异常 / 台账=待处理 / 进展=停滞）——回前台即时重取 */
+  /* Tab 角标（驾驶舱=异常；台账/进展 Tab 已撤，待处理/停滞角标随撤）——回前台即时重取 */
   const [badges, setBadges] = useState<DashboardBadges | null>(null);
   /* 通知铃铛（2026-11-03）：未读角标 + 待办/全部列表弹层——只读浏览，已读标记留 :3005 */
   const [unread, setUnread] = useState(0);
@@ -224,7 +224,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       <nav className="m-tabbar" aria-label="主导航">
         {TABS.map(({ href, label, icon: Icon }) => {
-          const badge = href === "/dashboard" ? badges?.abnormalCount : href === "/ledger" ? badges?.pendingCount : href === "/progress" ? badges?.stalledCount : undefined;
+          const badge = href === "/dashboard" ? badges?.abnormalCount : undefined;
           return (
             <Link key={href} href={href} data-active={pathname.startsWith(href)} className="m-tab-item relative">
               <span className="relative">

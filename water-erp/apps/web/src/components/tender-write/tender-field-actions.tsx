@@ -23,8 +23,10 @@ const FIELDS_WITHOUT_ACTIONS: Set<string> = new Set([
 
 // 仅藏 AI 按钮、保留收藏/样本库的字段（2026-10-16 用户裁定）：
 // 供应商名称必须真实选定/手填，AI 会编造公司名——采购文件编写中不允许 AI 生成/优化
+// supervisors（直接采购商谈报告·监督人员）：人名同理不 AI 生成，仅保留收藏/样本库（2026-11-19）
 const FIELDS_WITHOUT_AI: Set<string> = new Set([
   'supplierName',
+  'supervisors',
 ]);
 
 // Fields that should hide actions when type is "date"
@@ -49,6 +51,7 @@ export function TenderFieldActions({
   isContactField,
   isSupervisionContactField,
   isPlaceField,
+  placeLabel,
   fieldTypeValue,
   onSampleOpen,
   onFavoriteToggle,
@@ -68,6 +71,8 @@ export function TenderFieldActions({
   isSupervisionContactField?: boolean;
   /** 开标地点字段专属：从公司维护地点条目选择（2026-10-10） */
   isPlaceField?: boolean;
+  /** 地点按钮可见文字（默认「地点」；商谈报告等场景传「商谈地点」） */
+  placeLabel?: string;
   fieldTypeValue?: string; // For composite fields: "date", "text", or "table"
   onSampleOpen: () => void;
   onFavoriteToggle: () => void;
@@ -82,6 +87,7 @@ export function TenderFieldActions({
   aiOverride?: { title: string; label: string; onClick: () => void; busy?: boolean };
 }) {
   const [showTooltip, setShowTooltip] = useState<string | null>(null);
+  const placeText = placeLabel ?? '地点';
 
   const hideActions = FIELDS_WITHOUT_ACTIONS.has(fieldKey) ||
     (FIELDS_HIDE_WHEN_DATE.has(fieldKey) && fieldTypeValue === 'date');
@@ -120,14 +126,14 @@ export function TenderFieldActions({
         <button
           type="button"
           onClick={onPlaceOpen}
-          aria-label="选择开标地点"
+          aria-label={`选择${placeText}`}
           title="从公司维护的开标地点条目中选择"
           {...bindTooltip('place')}
           className="tender-action-chip tender-action-chip--primary !text-[11px] !px-2 !py-1 text-[rgba(76,111,189,1)]"
         >
           <MapPin size={14} className="text-[rgba(76,111,189,1)]" />
-          地点
-          {showTooltip === 'place' && <ActionTooltip>地点条目选择</ActionTooltip>}
+          {placeText}
+          {showTooltip === 'place' && <ActionTooltip>{`${placeText}条目选择`}</ActionTooltip>}
         </button>
       )}
 

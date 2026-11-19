@@ -1,5 +1,5 @@
 /**
- * 数据库页 AI 综合分析（裁剪自 apps/web/src/lib/api/ai.ts——仅 Dashboard 分析，
+ * 驾驶舱页 AI 综合分析（裁剪自 apps/web/src/lib/api/ai.ts——仅 Dashboard 分析，
  * payload 为 DashboardData 的纯投影，类型与 :3005 完全同源）。
  */
 import { api } from '../api';
@@ -78,7 +78,7 @@ export type MobileBrief = {
   focus: { text: string; jump: '/ledger' | '/progress' } | null;
 } | { available: false };
 
-/** 数据库页「今日关注条」（2026-11-18 用户裁定「AI 感太重」改版：三句小作文收为
+/** 驾驶舱页「今日关注条」（2026-11-18 用户裁定「AI 感太重」改版：三句小作文收为
  *  一行事实句，复述指标的 metric/reminder 句与 shareText 全撤）。rangeKey
  *  （month/quarter/year）显式携带区间语义；自定义/全部档不传（评审 F10） */
 export async function fetchMobileBrief(

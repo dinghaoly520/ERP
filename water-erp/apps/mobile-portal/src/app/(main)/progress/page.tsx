@@ -64,7 +64,7 @@ const URGENCY_COLOR: Record<string, string> = {
   low: "var(--accent)",
 };
 
-/* 洞察分组（与数据库页 AI 卡「亮点/待关注/建议」同款三段式语言，按紧急度分层） */
+/* 洞察分组（与驾驶舱页 AI 卡「亮点/待关注/建议」同款三段式语言，按紧急度分层） */
 const INSIGHT_GROUPS: Array<{ key: "high" | "medium" | "low"; label: string; color: string; icon: typeof AlertCircle }> = [
   { key: "high", label: "高优先关注", color: URGENCY_COLOR.high, icon: AlertCircle },
   { key: "medium", label: "关注事项", color: URGENCY_COLOR.medium, icon: TrendingUp },
@@ -77,7 +77,7 @@ function fmtBudget(v: number): string {
     : `${v.toLocaleString("zh-CN")} 元`;
 }
 
-/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral（数据库页同款本地一份） */
+/** 环比箭头语义配色：成交/完成/节资↑=good，异常↑=bad，预算=neutral（驾驶舱页同款本地一份） */
 function deltaOf(cur: number, prev: number | undefined, goodWhenUp: boolean | null): { pct: number; tone: "good" | "bad" | "neutral" } | undefined {
   if (prev == null || prev === 0) return undefined;
   const pct = Math.round(((cur - prev) / prev) * 100);
@@ -204,7 +204,7 @@ export default function ProgressPage() {
     };
   }, [filterCompanyId, retryTick]);
 
-  /* 洞察手动生成（与数据库页 AI 综合分析同款：点「生成分析」才请求）；
+  /* 洞察手动生成（与驾驶舱页 AI 综合分析同款：点「生成分析」才请求）；
      公司口径变化/下拉刷新使旧结果作废（置 null 后按钮态回归） */
   async function runInsights() {
     if (aiLoading) return;
@@ -340,7 +340,7 @@ export default function ProgressPage() {
             )}
           </SectionCard>
 
-          {/* ── 进度洞察（AI，与数据库页 AI 综合分析同款折叠卡；手动点「生成分析」请求）── */}
+          {/* ── 进度洞察（AI，与驾驶舱页 AI 综合分析同款折叠卡；手动点「生成分析」请求）── */}
           <SectionCard
             icon={Sparkles}
             index={2}

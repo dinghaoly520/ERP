@@ -7,6 +7,7 @@ import {
   AlertCircle,
   AlertTriangle,
   BarChart3,
+  ClipboardList,
   Building2,
   CalendarRange,
   ChevronRight,
@@ -59,10 +60,19 @@ type DashboardSavedFilters = { rangeKey: RangeKey; companyIds: string[] };
 const iso = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/* 分析中心宫格（2026-11-18 指挥台改版：首页=要报+实时态势+4指标，趋势/AI 也收进宫格——七组）*/
+/* 全部数据入口宫格（2026-11-19 v3 全景裁定）：导航双入口（台账/进展直跳路由）+
+ * 七组分析弹层——用户自己决定看什么，不做策展取舍 */
 type AnalysisTileKey = "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "ai";
-const ANALYSIS_TILES: Array<{ key: AnalysisTileKey; label: string; icon: typeof PieChart; color: string }> = [
-  { key: "trend", label: "趋势", icon: Activity, color: "var(--accent)" },
+const ANALYSIS_TILES: Array<{
+  key: AnalysisTileKey | "ledger" | "progress";
+  label: string;
+  icon: typeof PieChart;
+  color: string;
+  jump?: string;
+}> = [
+  { key: "ledger", label: "台账明细", icon: ClipboardList, color: "var(--accent)", jump: "/ledger" },
+  { key: "progress", label: "项目进展", icon: TrendingUp, color: "var(--accent)", jump: "/progress" },
+  { key: "trend", label: "执行趋势", icon: Activity, color: "var(--accent)" },
   { key: "ranking", label: "排行", icon: Trophy, color: "var(--gold)" },
   { key: "composition", label: "构成分析", icon: PieChart, color: "var(--accent)" },
   { key: "company", label: "公司对比", icon: Building2, color: "var(--accent)" },
@@ -580,17 +590,69 @@ export default function DashboardPage() {
           {openingNow.length + evaluatingNow.length + submittingNow.length === 0 ? (
             <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">当前无进行中的开评标</div>
           ) : null}
+          {/* 告警计数（2026-11-19 v3 全景裁定并入）：风险项目随区间筛选，资质临期/专家过载不随 */}
+          <div className="mt-2 flex items-center justify-between gap-2 border-t border-[color-mix(in_oklch,var(--border)_50%,transparent)] pt-2 text-[13px]">
+            {[
+              { label: "风险项目", n: data?.riskProjects?.length ?? null },
+              { label: "资质临期", n: alerts?.expiringQualifications ?? null },
+              { label: "专家过载", n: alerts?.overloadedExperts ?? null },
+            ].map((a) => (
+              <span key={a.label} className="min-w-0 truncate text-[var(--muted-foreground)]">
+                {a.label}{" "}
+                <b className={`tabular-nums ${a.n ? "text-[var(--warning)]" : "text-[var(--foreground)]"}`}>{a.n ?? "—"}</b>
+              </span>
+            ))}
+          </div>
         </div>
       </SectionCard>
 
       {data && summary ? (
         <>
-          {/* ── 核心指标（2026-11-18 指挥台改版：6→4——项目总数/总预算/已成交预算收进「构成分析」弹层结果构成）── */}
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <MetricCard label="成交总额" value={summary.totalAwardLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true)} onClick={() => router.push("/ledger")} />
-            <MetricCard label="累计节资" value={summary.totalSavingsLabel} tone="success" delta={deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true)} />
-            <MetricCard label="待处理" value={String(data.resultStats.find((r) => r.label.includes("待处理"))?.count ?? 0)} tone="warning" onClick={() => router.push("/ledger?status=PENDING")} />
-            <MetricCard label="异常项目" value={String(summary.abnormalCount)} tone="danger" delta={deltaOf(summary.abnormalCount, cmp?.abnormalCount, false)} onClick={() => router.push("/ledger?abnormal=1")} />
+          {/* ── 数据总览（2026-11-19 v3 全景裁定：进门先给全量数字，8 格 4×2；
+               可点的两步到对应明细/分析，环比箭头以小字随值呈现）── */}
+          <div className="neu-card-static mb-3 rounded-[18px] p-3">
+            <div className="grid grid-cols-4 gap-1.5">
+              {[
+                { label: "总轮次", value: String(summary.totalCount), delta: deltaOf(summary.totalCount, cmp?.totalCount, null), onTap: () => router.push("/ledger") },
+                { label: "已成交", value: String(summary.completedCount), onTap: () => router.push("/ledger?status=AWARDED") },
+                { label: "待处理", value: String(data.resultStats.find((r) => r.label.includes("待处理"))?.count ?? 0), onTap: () => router.push("/ledger?status=PENDING") },
+                { label: "异常", value: String(summary.abnormalCount), danger: summary.abnormalCount > 0, delta: deltaOf(summary.abnormalCount, cmp?.abnormalCount, false), onTap: () => router.push("/ledger?abnormal=1") },
+                { label: "成交总额", value: summary.totalAwardLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalAwardLabel), cmp?.totalAward, true), onTap: () => router.push("/ledger") },
+                { label: "累计节资", value: summary.totalSavingsLabel, success: true, delta: deltaOf(parseBudgetLabel(summary.totalSavingsLabel), cmp?.totalSavings, true), onTap: () => setAnalysisOpen("ranking") },
+                { label: "总预算", value: summary.totalBudgetLabel },
+                { label: "已成交预算", value: summary.awardedBudgetLabel },
+              ].map((m) => {
+                const inner = (
+                  <>
+                    <div className="flex items-baseline justify-center gap-0.5">
+                      <span
+                        className={`max-w-full truncate text-[15px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                      >
+                        {m.value}
+                      </span>
+                      {m.delta ? (
+                        <span
+                          className={`shrink-0 text-[10px] font-bold tabular-nums ${m.delta.tone === "good" ? "text-[var(--success)]" : m.delta.tone === "bad" ? "text-[var(--danger)]" : "text-[var(--muted-foreground)]"}`}
+                        >
+                          {m.delta.pct > 0 ? "↑" : m.delta.pct < 0 ? "↓" : ""}
+                          {Math.abs(m.delta.pct)}%
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 truncate text-center text-[11px] text-[var(--muted-foreground)]">{m.label}</div>
+                  </>
+                );
+                return m.onTap ? (
+                  <button key={m.label} type="button" onClick={m.onTap} className="rounded-[10px] m-tile px-1 py-2.5 text-center active:scale-[0.98]">
+                    {inner}
+                  </button>
+                ) : (
+                  <div key={m.label} className="rounded-[10px] m-tile px-1 py-2.5 text-center">
+                    {inner}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* ── 分析中心（一屏总览：其余分析卡分五组收进弹层，2026-11-17 spec）── */}
@@ -599,7 +661,7 @@ export default function DashboardPage() {
               <button
                 key={t.key}
                 type="button"
-                onClick={() => setAnalysisOpen(t.key)}
+                onClick={() => (t.jump ? router.push(t.jump) : setAnalysisOpen(t.key as AnalysisTileKey))}
                 className="neu-card-static m-rise flex flex-col items-center gap-2 rounded-[16px] px-2 py-3.5 active:scale-[0.98]"
                 style={{ animationDelay: `${i * 50}ms` }}
               >

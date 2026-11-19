@@ -572,6 +572,8 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
     supplierName: string;
     tags: string[];
     rsvpStatus?: string;
+    /** 采购文件下载情况（BidSupplier.downloadStatus：已下载/待下载）；受邀未入库恒待下载 */
+    downloadStatus: string;
     submitted: boolean;
     withdrawn: boolean;
     submittedAt: string | null;
@@ -591,6 +593,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
           supplierName: it.supplierName,
           tags: it.tags ?? sub?.tags ?? [],
           rsvpStatus: it.status,
+          downloadStatus: sub?.downloadStatus ?? '待下载',
           submitted: !!sub?.submitted,
           withdrawn: !!sub?.withdrawn,
           submittedAt: sub?.submission?.submittedAt ?? null,
@@ -603,6 +606,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
         supplierName: s.supplierName,
         tags: s.tags?.length ? s.tags : (String(s.id).startsWith('intent-') ? ['自主确认'] : []),
         rsvpStatus: s.supplierId ? rsvpMap.get(s.supplierId) : undefined,
+        downloadStatus: s.downloadStatus,
         submitted: s.submitted,
         withdrawn: s.withdrawn,
         submittedAt: s.submission?.submittedAt ?? null,
@@ -727,13 +731,14 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   />
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="neu-table w-full min-w-[880px]">
+                    <table className="neu-table w-full min-w-[960px]">
                       <thead>
                         <tr>
                           <th style={{ width: 140 }}>供应商</th>
                           <th style={{ width: 160 }}>业务标签</th>
                           {!showRsvpColumn && <th style={{ width: 110 }}>意向</th>}
                           {showRsvpColumn && <th style={{ width: 80 }}>回执情况</th>}
+                          <th style={{ width: 90 }}>文件下载</th>
                           <th style={{ width: 70 }}>投递状态</th>
                           <th style={{ width: 130 }}>投递时间</th>
                         </tr>
@@ -744,6 +749,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                           const label = r.submitted ? '已投递' : r.withdrawn ? '已撤回' : '未投递';
                           const rsvpLabel = r.rsvpStatus === 'ACCEPTED' ? '参加' : r.rsvpStatus === 'DECLINED' ? '无法参加' : '未回执';
                           const rsvpTone = r.rsvpStatus === 'ACCEPTED' ? 'success' : r.rsvpStatus === 'DECLINED' ? 'danger' : 'muted';
+                          const downloaded = r.downloadStatus === '已下载';
                           return (
                             <tr key={r.key} className="row-clickable">
                               <td className="font-medium text-[var(--foreground)]">{r.supplierName}</td>
@@ -763,6 +769,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                                 </td>
                               )}
                               {showRsvpColumn && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
+                              <td><StatusPill tone={downloaded ? 'success' : 'muted'}>{downloaded ? '已下载' : '未下载'}</StatusPill></td>
                               <td><StatusPill tone={tone}>{label}</StatusPill></td>
                               <td className="tabular-nums text-[var(--muted-foreground)]">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
                             </tr>
@@ -1084,7 +1091,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   }
                 >
                   <p className="py-2 text-xs leading-5 text-[var(--muted-foreground)]">
-                    商谈结束后填写商谈情况并生成《直接采购商谈报告》（供应商报价、商谈过程与结果）——支持 AI 优化润色、纸质预览、导出 Word 或上传至「开标评标」步骤附件。
+                    商谈结束后据实记录商谈过程与最终报价，生成《直接采购商谈报告》并上传至「开标评标」步骤附件。
                   </p>
                 </SectionCard>
               )}

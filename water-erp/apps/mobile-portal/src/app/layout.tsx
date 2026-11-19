@@ -8,7 +8,7 @@ const display = DM_Sans({ variable: "--font-display", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "移动驾驶舱-蜀水云采·智慧水发",
-  description: "采购驾驶舱移动端：数据库、台账、进展",
+  description: "采购驾驶舱移动端：全景汇总、实时运行、全数据入口",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "蜀水驾驶舱" },
   icons: { icon: "/icon-192.png", apple: "/icon-192.png" },

@@ -52,7 +52,7 @@ export default function LoginPage() {
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold tracking-[0.05em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</h1>
-            <p className="mt-1.5 text-[15px] text-[var(--muted-foreground)]">数据库 · 台账 · 进展，随时掌握采购全局</p>
+            <p className="mt-1.5 text-[15px] text-[var(--muted-foreground)]">全景数据 · 实时运行，随时掌握采购全局</p>
           </div>
         </div>
 
