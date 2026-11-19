@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { Milestone, FolderKanban, Search } from "lucide-react";
+import { Milestone, BarChart3, FolderKanban, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, type ProgressStats, type ProjectProgress } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -192,6 +192,18 @@ export default function ProgressPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stats, searchKeyword, methodIds, departmentIds, handlerIds, queryRange.startDate, queryRange.endDate, dimensions]);
 
+  /* 采购阶段分布统计图（2026-11-19 用户裁定）：对筛选后清单按当前阶段计数——
+     随搜索/时间/方式/部门/经办人/公司全联动；顺位=STAGE_META 键序（采购流程 canon） */
+  const stageDist = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredProjects.forEach((p) => counts.set(p.currentStage, (counts.get(p.currentStage) ?? 0) + 1));
+    const order = Object.keys(STAGE_META);
+    return [...counts.entries()]
+      .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
+      .map(([key, count]) => ({ key, count, meta: getStageMeta(key) }));
+  }, [filteredProjects]);
+  const stageMax = Math.max(...stageDist.map((d) => d.count), 1);
+
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -350,7 +362,33 @@ export default function ProgressPage() {
       {stats ? (
         <>
           {/* ── 项目清单 ── */}
-          <SectionCard title="项目清单" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{filteredProjects.length} 项</span>} index={0}>
+          {/* ── 采购阶段分布统计图（随筛联动）── */}
+          <SectionCard
+            icon={BarChart3}
+            title="采购阶段分布"
+            index={0}
+            right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{filteredProjects.length} 项在办</span>}
+          >
+            {stageDist.length ? (
+              <div className="space-y-2">
+                {stageDist.map((d) => (
+                  <div key={d.key} className="flex items-center gap-2">
+                    <span className="w-[6.25rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{d.meta.label}</span>
+                    <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                      <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / stageMax) * 100}%`, background: d.meta.color }} />
+                    </div>
+                    <span className="w-[3rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--foreground)]">
+                      {d.count} <span className="font-medium text-[var(--muted-foreground)]">项</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState text="无符合筛选条件的项目" />
+            )}
+          </SectionCard>
+
+          <SectionCard title="项目清单" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{filteredProjects.length} 项</span>} index={1}>
             {filteredProjects.length ? (
               <div className="space-y-2">
                 {filteredProjects.map((p) => {
