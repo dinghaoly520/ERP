@@ -147,67 +147,92 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
 
   return (
     <>
+      {/* 来源：拆「条款号 · 文件名」两段——去嵌套括号堆叠（排版优化 2026-11-19 二轮），
+          条款号保持完整、文件名截断，悬浮显示原始全文 */}
       {source !== undefined && (
-        <div className="text-xs text-[var(--muted-foreground)]">
-          来源：<span className="text-[var(--foreground)]">{source}</span>
-        </div>
+        (() => {
+          const sep = source.lastIndexOf('（');
+          const clause = sep > 0 && source.endsWith('）') ? source.slice(0, sep) : source;
+          const file = sep > 0 && source.endsWith('）') ? source.slice(sep + 1, -1) : '';
+          return (
+            <div className="flex items-baseline gap-1.5 text-xs text-[var(--muted-foreground)]" title={source}>
+              <span className="shrink-0">来源：</span>
+              <span className="shrink-0 text-[var(--foreground)]">{clause}</span>
+              {file && (
+                <>
+                  <span className="shrink-0">·</span>
+                  <span className="min-w-0 truncate">{file}</span>
+                </>
+              )}
+            </div>
+          );
+        })()
       )}
 
-      <div>
-        <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则名称{isCreate ? ' *' : ''}</label>
-        <input
-          type="text"
-          value={draft.name}
-          onChange={(e) => patch({ name: e.target.value })}
-          placeholder={isCreate ? '例：投标保证金比例' : undefined}
-          className="workbench-input"
-          readOnly={disabled}
-        />
-      </div>
+      {/* 属性区：名称通栏 + 三枚举一行（lg 宽度三列各 ~210px，短值枚举正好；
+          一行放下同时压缩弹窗高度——旧「两列+类型通栏」多占一整行） */}
+      <div className="grid grid-cols-3 gap-x-3 gap-y-2.5">
+        <div className="col-span-3">
+          <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则名称{isCreate ? ' *' : ''}</label>
+          <input
+            type="text"
+            value={draft.name}
+            onChange={(e) => patch({ name: e.target.value })}
+            placeholder={isCreate ? '例：投标保证金比例' : undefined}
+            className="workbench-input w-full"
+            readOnly={disabled}
+          />
+        </div>
 
-      <div className="flex gap-3">
-        <div className="flex-1">
+        <div>
           <label className="block text-xs text-[var(--muted-foreground)] mb-1">严重程度</label>
           <select
             value={draft.severity}
             onChange={(e) => patch({ severity: e.target.value })}
-            className="workbench-input"
+            className="workbench-input w-full"
           >
             {opts(RULE_SEVERITIES, draft.severity).map((v) => (
               <option key={v} value={v}>{(SEVERITY_LABELS as Record<string, string>)[v] ?? v}</option>
             ))}
           </select>
         </div>
-        <div className="flex-1">
+        <div>
           <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查对象</label>
           <select
             value={draft.checkTarget}
             onChange={(e) => patch({ checkTarget: e.target.value })}
-            className="workbench-input"
+            className="workbench-input w-full"
           >
             {opts(RULE_CHECK_TARGETS, draft.checkTarget).map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>
         </div>
+        <div>
+          <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则类型</label>
+          <select
+            value={draft.ruleType}
+            onChange={(e) => patch({ ruleType: e.target.value as RuleType })}
+            className="workbench-input w-full"
+          >
+            <option value="numeric_compare">数值比较</option>
+            <option value="existence_check">存在性检查</option>
+            <option value="semantic">语义判定</option>
+          </select>
+        </div>
       </div>
 
-      <div>
-        <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则类型</label>
-        <select
-          value={draft.ruleType}
-          onChange={(e) => patch({ ruleType: e.target.value as RuleType })}
-          className="workbench-input"
-        >
-          <option value="numeric_compare">数值比较</option>
-          <option value="existence_check">存在性检查</option>
-          <option value="semantic">语义判定</option>
-        </select>
-      </div>
+      {/* 检查条件区：标题 + muted 类型后缀（基线对齐，替代徽章——弹窗内小徽章
+          与表单黑字风格不搭），内部 existence 一行两列压缩高度 */}
+      <div className="space-y-2.5 rounded-[12px] bg-[var(--muted)]/40 p-3">
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-xs font-semibold text-[var(--foreground)]">检查条件</span>
+          <span className="text-[10px] text-[var(--muted-foreground)]">
+            · {RULE_TYPE_LABELS[draft.ruleType] ?? draft.ruleType}
+          </span>
+        </div>
 
-      {draft.ruleType === 'numeric_compare' && (
-        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-          <div className="text-xs font-medium text-[var(--muted-foreground)]">检查条件（数值比较）</div>
+        {draft.ruleType === 'numeric_compare' && (
           <div className="flex gap-2">
             <input type="text" value={l.field ?? ''} onChange={(e) => patchLogic({ field: e.target.value })}
               className="workbench-input flex-1" readOnly={disabled} placeholder="字段名，如 budgetAmount" />
@@ -226,37 +251,46 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
               ))}
             </select>
           </div>
-        </div>
-      )}
+        )}
 
-      {draft.ruleType === 'existence_check' && (
-        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-          <div className="text-xs font-medium text-[var(--muted-foreground)]">检查条件（存在性检查）</div>
-          <select
-            value={l.checkType ?? 'keyword'}
-            onChange={(e) => patchLogic({ checkType: e.target.value })}
-            className="workbench-input"
-          >
-            {opts(RULE_CHECK_TYPES, l.checkType ?? 'keyword').map((v) => (
-              <option key={v} value={v}>{CHECK_TYPE_LABELS[v] ?? v}</option>
-            ))}
-          </select>
-          {/* 双侧都驻留 draft（审查 #1）：executor 对 keywords→sectionName 是回退链，
-              只渲染一侧+收割抹掉另一侧=静默废掉规则；生效侧由上方检查方式决定 */}
-          <input type="text" value={l.keywords ?? ''} onChange={(e) => patchLogic({ keywords: e.target.value })}
-            className="workbench-input" readOnly={disabled} placeholder="关键词，多个用逗号分隔" />
-          <input type="text" value={l.sectionName ?? ''} onChange={(e) => patchLogic({ sectionName: e.target.value })}
-            className="workbench-input" readOnly={disabled} placeholder="章节名" />
-        </div>
-      )}
+        {draft.ruleType === 'existence_check' && (
+          <div className="grid grid-cols-3 gap-x-3 gap-y-2.5">
+            <div>
+              <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查方式</label>
+              <select
+                value={l.checkType ?? 'keyword'}
+                onChange={(e) => patchLogic({ checkType: e.target.value })}
+                className="workbench-input w-full"
+              >
+                {opts(RULE_CHECK_TYPES, l.checkType ?? 'keyword').map((v) => (
+                  <option key={v} value={v}>{CHECK_TYPE_LABELS[v] ?? v}</option>
+                ))}
+              </select>
+            </div>
+            {/* 双侧都驻留 draft（审查 #1）：executor 对 keywords→sectionName 是回退链，
+                只渲染一侧+收割抹掉另一侧=静默废掉规则；生效侧由检查方式决定。
+                检查方式+关键词（主用对）一行，章节名次级通栏 */}
+            <div className="col-span-2">
+              <label className="block text-xs text-[var(--muted-foreground)] mb-1">关键词</label>
+              <input type="text" value={l.keywords ?? ''} onChange={(e) => patchLogic({ keywords: e.target.value })}
+                className="workbench-input w-full" readOnly={disabled} placeholder="多个用逗号分隔" />
+            </div>
+            <div className="col-span-3">
+              <label className="block text-xs text-[var(--muted-foreground)] mb-1">章节名</label>
+              <input type="text" value={l.sectionName ?? ''} onChange={(e) => patchLogic({ sectionName: e.target.value })}
+                className="workbench-input w-full" readOnly={disabled} placeholder="按章节检查时使用" />
+            </div>
+          </div>
+        )}
 
-      {draft.ruleType === 'semantic' && (
-        <div className="space-y-2 p-3 rounded-[12px] bg-[var(--muted)]/40">
-          <div className="text-xs font-medium text-[var(--muted-foreground)]">检查条件（语义判定）</div>
-          <textarea value={l.description ?? ''} onChange={(e) => patchLogic({ description: e.target.value })}
-            rows={2} className="neu-input text-sm" readOnly={disabled} placeholder="检查描述" />
-        </div>
-      )}
+        {draft.ruleType === 'semantic' && (
+          <div>
+            <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查描述</label>
+            <textarea value={l.description ?? ''} onChange={(e) => patchLogic({ description: e.target.value })}
+              rows={2} className="neu-input w-full text-sm" readOnly={disabled} placeholder="描述要检查的合规要求" />
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -636,7 +670,7 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
           open
           onClose={() => !creating && setShowCreate(false)}
           title="新增规则"
-          size="md"
+          size="lg"
           footer={
             <>
               <button className="neu-btn-soft" disabled={creating} onClick={() => setShowCreate(false)}>取消</button>
@@ -656,7 +690,7 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
           open
           onClose={() => !saving && setEditingRule(null)}
           title="编辑规则"
-          size="md"
+          size="lg"
           footer={
             <>
               <button className="neu-btn-soft" disabled={saving} onClick={() => setEditingRule(null)}>取消</button>
