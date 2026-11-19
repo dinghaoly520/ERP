@@ -125,6 +125,16 @@ const KNOWN_METHODS = [
 
 const KNOWN_ORGANIZATION_FORMS = ['自行招标', '委托招标'];
 
+/** 《直接采购商谈报告》模板固定章节题文（2026-11-19 商谈报告闸判定标记）：
+ *  模板「模板文件/直接采购评审报告模板.docx」的固定文本——占位值替换不影响命中；
+ *  备案表/公告/谈判采购文件均不含此组合。扫描件 OCR 容错：命中 ≥3 项即认定。 */
+const DIRECT_TALK_REPORT_MARKERS = [
+  '商谈地点、时间以及商谈小组成员名单',
+  '四、商谈过程',
+  '五、商谈结果',
+  '商谈小组签字',
+];
+
 // 本单位名称，不应被拾取为中标单位
 
 /** 解析项目基本信息中的开标时间字符串：兼容 ISO、"2026年8月15日"、"2026-08-15"、"2026/8/15 10:00" 等 */
@@ -3729,6 +3739,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
           await this.assertScoreStandardConfigured(projectId, targetRound);
         }
       }
+      // 直接采购商谈报告闸（2026-11-19 用户裁定）：开标评标完成前须已上传《直接采购
+      // 商谈报告》——按内容判定（模板固定章节题文），不按文件名判定（弹窗生成件为
+      // docx、线下签字回传常为扫描 PDF，均走 documentParser 全链提取：文本层→OCR 兜底）
+      if (stageKey === 'BID_EVALUATION' && project.procurementMethod === '直接采购') {
+        await this.assertDirectTalkReportUploaded(stage.id);
+      }
       // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
       // （范围表 attachment 源必选项 = TENDER_DOCUMENT/AWARD_DECISION/CONTRACT 三处，与下方专项检查口径互补）
       // M5：显式豁免路径——确无材料（流标终止等）时 waiveArchiveGate=true + note 必填留痕，阶段可推进
@@ -6576,6 +6592,38 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (!byName && !byMime) {
       throw new BadRequestException('仅支持 PDF、Word（doc/docx）、TXT 文件。');
     }
+  }
+
+  /** 《直接采购商谈报告》内容判定：提取文本（空白归一）命中 ≥3 项模板标记即认定
+   *  （全 4 项为数字 docx/PDF 基线；扫描件 OCR 允许 1 项误识容错） */
+  private looksLikeDirectTalkReport(text: string): boolean {
+    const normalized = (text || '').replace(/\s+/g, '');
+    if (!normalized) return false;
+    const hits = DIRECT_TALK_REPORT_MARKERS.filter((m) => normalized.includes(m)).length;
+    return hits >= 3;
+  }
+
+  /** 直接采购商谈报告闸（2026-11-19 用户裁定）：开标评标步骤附件中须存在内容为
+   *  《直接采购商谈报告》的文件——逐件提取文本判定（docx/PDF 数字层/扫描 OCR），
+   *  单件缺失或解析失败跳过看下一件；一件都不是才拦截。不以文件名判定。 */
+  private async assertDirectTalkReportUploaded(stageId: string): Promise<void> {
+    const attachments = await this.prisma.attachment.findMany({
+      where: { projectManagementStageId: stageId },
+      select: { fileName: true, objectKey: true, mimeType: true },
+    });
+    for (const att of attachments) {
+      const text = await this.extractFileText(
+        resolve(process.cwd(), 'uploads', att.objectKey),
+        att.mimeType,
+        att.fileName,
+      );
+      if (this.looksLikeDirectTalkReport(text)) return;
+    }
+    throw new BadRequestException({
+      error:
+        '尚未上传《直接采购商谈报告》：请先在「开标确认 → 填写商谈报告」生成并上传（线下签字版可扫描上传 PDF），再标记本阶段完成。',
+      code: 'DIRECT_TALK_REPORT_REQUIRED',
+    });
   }
 
   private async extractFileText(

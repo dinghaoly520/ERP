@@ -1898,7 +1898,7 @@ export function ProjectDetailPanel({
                       </div>
                     ) : (
                       <button type="button" onClick={() => handleStartEdit('contractNumber', extractedInfoOverride?.contractNumber ?? (item.contractNumber || item.demandContractNumber || ''))} className="group mt-0.5 flex items-center gap-1">
-                        <span className="text-[color:var(--foreground)]">{extractedInfoOverride?.contractNumber ?? item.contractNumber ?? item.demandContractNumber ?? '无'}</span>
+                        <span className={`text-sm ${(extractedInfoOverride?.contractNumber || item.contractNumber || item.demandContractNumber) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{(extractedInfoOverride?.contractNumber || item.contractNumber || item.demandContractNumber) || '待补充'}</span>
                         <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
                       </button>
                     )}
