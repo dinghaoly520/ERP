@@ -3,11 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
+  ChartNoAxesCombined,
   AlertCircle,
   AlertTriangle,
   BarChart3,
-  ClipboardList,
+  NotebookText,
+  Milestone,
+  ListOrdered,
+  ChartPie,
+  Scale,
+  ShieldAlert,
+  Handshake,
+  BookUser,
   Building2,
   CalendarRange,
   ChevronRight,
@@ -77,15 +84,15 @@ export const ANALYSIS_TILES: Array<{
   color: string;
 }> = [
   /* 九模块全窗口化（2026-11-19 用户裁定）：点击均以窗口呈现，标题=卡片标题 */
-  { key: "ledger", label: "台账明细", icon: ClipboardList, color: "var(--accent)" },
-  { key: "progress", label: "项目进展", icon: TrendingUp, color: "var(--accent)" },
-  { key: "trend", label: "执行趋势", icon: Activity, color: "var(--accent)" },
-  { key: "ranking", label: "排行", icon: Trophy, color: "var(--gold)" },
-  { key: "composition", label: "构成分析", icon: PieChart, color: "var(--accent)" },
-  { key: "company", label: "公司对比", icon: Building2, color: "var(--accent)" },
-  { key: "risk", label: "风险告警", icon: AlertCircle, color: "var(--danger)" },
-  { key: "supplier", label: "供应商", icon: Users, color: "var(--success)" },
-  { key: "experts", label: "专家库", icon: GraduationCap, color: "var(--gold)" },
+  { key: "ledger", label: "台账明细", icon: NotebookText, color: "var(--accent)" },
+  { key: "progress", label: "项目进展", icon: Milestone, color: "var(--accent)" },
+  { key: "trend", label: "执行趋势", icon: ChartNoAxesCombined, color: "var(--accent)" },
+  { key: "ranking", label: "排行", icon: ListOrdered, color: "var(--gold)" },
+  { key: "composition", label: "构成分析", icon: ChartPie, color: "var(--accent)" },
+  { key: "company", label: "公司对比", icon: Scale, color: "var(--accent)" },
+  { key: "risk", label: "风险告警", icon: ShieldAlert, color: "var(--danger)" },
+  { key: "supplier", label: "供应商", icon: Handshake, color: "var(--success)" },
+  { key: "experts", label: "专家库", icon: BookUser, color: "var(--gold)" },
 ];
 
 /* 数据总览口径档（2026-11-19 用户裁定：卡片头「本年 · 全部公司」改下拉选择器）：

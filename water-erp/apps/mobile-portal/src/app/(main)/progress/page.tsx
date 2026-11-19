@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp   } from "lucide-react";
+import { Milestone, Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp    } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -247,7 +247,7 @@ export default function ProgressPage() {
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
       {/* 页头（2026-11-19 九板块页面化）：返回驾驶舱 + 页面名称 */}
-      <PageHeader title="项目进展" icon={TrendingUp} />
+      <PageHeader title="项目进展" icon={Milestone} />
       {role === "admin" ? (
         <CompanyPicker
           value={companyIds}

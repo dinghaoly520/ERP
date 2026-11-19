@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { AlertTriangle, ClipboardList, Loader2, Search, TrendingUp  } from "lucide-react";
+import { AlertTriangle, Loader2, NotebookText, Search, TrendingUp  } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
@@ -253,7 +253,7 @@ export default function LedgerPage() {
   return (
     <div>
       <PullIndicator pull={pull} refreshing={refreshing} />
-      <PageHeader title="台账明细" icon={ClipboardList} />
+      <PageHeader title="台账明细" icon={NotebookText} />
       {/* ── 汇总条 ── */}
       {stats ? (
         <div className="neu-card-static mb-3 rounded-[16px] p-3">
