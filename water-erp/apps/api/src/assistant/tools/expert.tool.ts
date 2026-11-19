@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantTool, AssistantToolCtx, ToolResult } from './assistant-tool';
 import { toolCompanyWhere } from './company-filter';
-import { deriveBusyCounts, busyStateOf, lifecycleStateOf, IN_FLIGHT_STAGES, BusyStateLabel } from '../../expert/expert-busy-state.util';
+import { deriveBusyCounts, lifecycleStateOf, IN_FLIGHT_STAGES, BusyStateLabel } from '../../expert/expert-busy-state.util';
 
 @Injectable()
 export class ExpertTool implements AssistantTool {
