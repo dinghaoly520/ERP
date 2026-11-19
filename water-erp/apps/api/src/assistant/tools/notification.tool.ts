@@ -10,7 +10,7 @@ import { NOTIFICATION_TYPE_LABEL, t } from './labels';
 export class NotificationTool implements AssistantTool {
   name = 'notification';
   description =
-    '查询当前登录用户的通知列表/统计/未读数量。args: { action: "list"|"stats"|"unread", limit? }——stats 含类型分布';
+    '查询当前登录用户的通知列表/统计/未读数量。args: { action: "list"|"stats"|"unread", limit?（清单取前N条，1-20，默认10） }——stats 含类型分布';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -19,7 +19,7 @@ export class NotificationTool implements AssistantTool {
       return { success: false, error: '通知为个人数据，请登录后查询' };
     }
     const action = (args.action as string) || 'stats';
-    const limit = (args.limit as number) || 10;
+    const limit = Math.min(Math.max((args.limit as number) || 10, 1), 20); /* limit 钳 1-20（2026-11-19 参数规范化：全清单类工具统一口径） */
     const mine = { userId: ctx.user.sub };
 
     if (action === 'unread') {

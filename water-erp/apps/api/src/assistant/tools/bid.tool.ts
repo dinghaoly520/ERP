@@ -8,7 +8,7 @@ import { STAGE_LABEL, keyOfLabel, t } from './labels';
 export class BidTool implements AssistantTool {
   name = 'bid';
   description =
-    '查询投标项目（开评标执行）列表/详情/阶段统计/月度趋势/风险项目/进行中项目。注意：本工具的阶段=投标执行阶段（文件下载/加密投递/开标/评标/归档）；采购流程阶段（采购文件→合同）请用 cockpit 或 global_overview；采购活动的月度量请用 procurement。args: { action: "list"|"detail"|"stats"|"monthly"|"risks"|"active", stage?, projectId?, limit? }';
+    '查询投标项目（开评标执行）列表/详情/阶段统计/月度趋势/风险项目/进行中项目。注意：本工具的阶段=投标执行阶段（文件下载/加密投递/开标/评标/归档）；采购流程阶段（采购文件→合同）请用 cockpit 或 global_overview；采购活动的月度量请用 procurement。args: { action: "list"|"detail"|"stats"|"monthly"|"risks"|"active", stage?, projectId?, limit?（清单取前N条，1-20，默认10；用户问"前几"传对应数） }';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -18,7 +18,7 @@ export class BidTool implements AssistantTool {
     // 阶段容错（中文标签反查枚举键；未知值按不过滤处理）
     const stage = stageRaw ? keyOfLabel(STAGE_LABEL, stageRaw) : undefined;
     const projectId = args.projectId as string | undefined;
-    const limit = (args.limit as number) || 10;
+    const limit = Math.min(Math.max((args.limit as number) || 10, 1), 20); /* limit 钳 1-20（2026-11-19 参数规范化：全清单类工具统一口径） */
     const companyWhere = toolCompanyWhere(ctx);
 
     if (action === 'detail' && projectId) {

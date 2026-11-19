@@ -10,7 +10,7 @@ import { openPiiForMask } from '../../common/crypto/sm-field-crypto';
 export class SupplierTool implements AssistantTool {
   name = 'supplier';
   description =
-    '查询供应商列表/详情/统计/风险画像/待审核项/活跃排名。args: { action: "list"|"detail"|"stats"|"pending"|"risk"|"top", keyword?, status?, supplierId?, limit?, topN? }——stats=多维度结构（状态/行业/企业类型分布+概览，「供应商分布/结构」类问题用 stats）；list 支持 keyword=供应商名称关键词（按名找供应商先用它）';
+    '查询供应商列表/详情/统计/风险画像/待审核项/活跃排名。args: { action: "list"|"detail"|"stats"|"pending"|"risk"|"top", keyword?, status?, supplierId?, limit?（清单/排行取前N条，1-20，默认10；topN 为旧参等价） }——stats=多维度结构（状态/行业/企业类型分布+概览，「供应商分布/结构」类问题用 stats）；list 支持 keyword=供应商名称关键词（按名找供应商先用它）';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -23,7 +23,7 @@ export class SupplierTool implements AssistantTool {
     // 状态容错（「已入库/待审核」反查枚举键；未知值按不过滤处理）
     const status = statusRaw ? keyOfLabel(SUPPLIER_STATUS_LABEL, statusRaw) : undefined;
     const supplierId = args.supplierId as string | undefined;
-    const limit = (args.limit as number) || 10;
+    const limit = Math.min(Math.max((args.limit as number) || 10, 1), 20); /* limit 钳 1-20（2026-11-19 参数规范化：全清单类工具统一口径） */
     const companyWhere = toolCompanyWhere(ctx);
 
     if (action === 'detail' && supplierId) {
@@ -90,7 +90,7 @@ export class SupplierTool implements AssistantTool {
 
     if (action === 'top') {
       // Top suppliers by bid participation count
-      const topN = Number(args.topN) || 10;
+      const topN = Math.min(Math.max(Number(args.limit) || Number(args.topN) || 10, 1), 20); /* 2026-11-19 参数规范化：topN 归并 limit（旧参兼容），钳 1-20 */
       const suppliers = await this.prisma.supplier.findMany({
         where: { ...companyWhere, status: 'APPROVED' },
         take: topN,

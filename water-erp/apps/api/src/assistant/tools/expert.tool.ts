@@ -8,7 +8,7 @@ import { deriveBusyCounts, busyStateOf, IN_FLIGHT_STAGES, BusyStateLabel } from 
 export class ExpertTool implements AssistantTool {
   name = 'expert';
   description =
-    '查询专家库统计/列表/专业方向分布/库况状态/条件检索专家。args: { action: "stats"|"list"|"by_specialty"|"search", specialty?, title?, employer?, keyword?, availability?, limit? }——stats=多维度结构（专业/部门或公司/职称/评审负荷四分布+总览：leader/staff 单公司视野=部门维度、admin/总数据=公司维度），「专家分布/专家库结构」类问题用 stats 并覆盖全部维度。用户用自然语言找专家（如"找3个做过水利的高工"）时，用 action:"search"，把专业填 specialty、职称填 title、单位填 employer、姓名填 keyword、按当前库况筛人填 availability="空闲"（也可填"正在评标"/"已被抽取"/"候补待命"；"可用"视同"空闲"）——库况按在途项目实时派生，非档案登记值。';
+    '查询专家库统计/列表/专业方向分布/库况状态/条件检索专家。args: { action: "stats"|"list"|"by_specialty"|"search", specialty?, title?, employer?, keyword?, availability?, limit?（清单取前N条，1-20，默认10；用户问"前几位"传对应数） }——stats=多维度结构（专业/部门或公司/职称/评审负荷四分布+总览：leader/staff 单公司视野=部门维度、admin/总数据=公司维度），「专家分布/专家库结构」类问题用 stats 并覆盖全部维度。用户用自然语言找专家（如"找3个做过水利的高工"）时，用 action:"search"，把专业填 specialty、职称填 title、单位填 employer、姓名填 keyword、按当前库况筛人填 availability="空闲"（也可填"正在评标"/"已被抽取"/"候补待命"；"可用"视同"空闲"）——库况按在途项目实时派生，非档案登记值。';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -17,7 +17,7 @@ export class ExpertTool implements AssistantTool {
     const specialty = args.specialty as string | undefined;
     // 负数兜底（终评低置信#1）：|| 10 只兜 NaN/0/undefined，负数会穿透 take/slice
     //（slice(0,-5) 截尾成空表）——Math.max(1,…) 一行封死畸形输入
-    const limit = Math.max(1, (args.limit as number) || 10);
+    const limit = Math.min(Math.max((args.limit as number) || 10, 1), 20); /* limit 钳 1-20（2026-11-19 参数规范化；search 的 take 放大逻辑随 limit 同步收敛） */
     // 专家归属不在 ExpertProfile 本表，落 User.companyId（2026-09-24）——过滤经 user 关系嵌套
     const companyWhere = toolCompanyWhere(ctx);
 

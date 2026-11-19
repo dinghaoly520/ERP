@@ -30,7 +30,7 @@ export const PUBLIC_WHERE = {
 export class AnnouncementTool implements AssistantTool {
   name = 'announcement';
   description =
-    '查询已公开的公告列表/详情/统计，支持按类型筛选。args: { action: "list"|"detail"|"stats", type?, announcementId?, limit? }';
+    '查询已公开的公告列表/详情/统计，支持按类型筛选。args: { action: "list"|"detail"|"stats", type?, announcementId?, limit?（清单取前N条，1-20，默认10；用户问"前几条"传对应数） }';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -38,7 +38,7 @@ export class AnnouncementTool implements AssistantTool {
     const action = (args.action as string) || 'list';
     const type = args.type as string | undefined;
     const announcementId = args.announcementId as string | undefined;
-    const limit = (args.limit as number) || 10;
+    const limit = Math.min(Math.max((args.limit as number) || 10, 1), 20); /* limit 钳 1-20（2026-11-19 参数规范化：全清单类工具统一口径） */
     // 公司口径（2026-11-03 用户裁定）：管理端公告按归属公司隔离（平台级全员可见）；
     // 匿名=不过滤（公开可见性仍由 PUBLIC_WHERE 把关）
     const companyScope = announcementCompanyWhere(ctx);

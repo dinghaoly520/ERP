@@ -59,6 +59,20 @@ export function pickAdminCompanyIds(raw: unknown, role: string): string[] | unde
   return ids.length ? ids : undefined;
 }
 
+/**
+ * 第二轮写作要求——normal/direct 双路径共用单源（2026-11-19 全面改造：此前两路径
+ * 各写一份、详略不一）。规范本体（直答式结构+数字纪律）在 SYSTEM_KNOWLEDGE，
+ * 这里只放工具数据落地后的引用纪律与硬禁令。
+ */
+const SECOND_ROUND_WRITING_RULES = [
+  '1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。',
+  '2. 涉及统计/数量时，必须原样引用上面的关键数字——数字一个不能改，数值与单位照抄卡片口径。',
+  '3. 遵守系统规范的数字与卡片纪律：卡片已呈现的明细不逐条复述、正文点名数字至多 2-3 个、同一数字全文只出现一次。',
+  '4. 提问带数量限定（前三/前五等）时正文只写前 N 名，不得提及或点评第 N+1 名及以后。',
+  '5. 不写数据外的归因与小样本推广；用户未被询问建议时不输出建议段。',
+  '6. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。',
+].join('\n');
+
 export async function resolveToolCtx(
   prisma: { user: { findUnique(args: { where: { id: string }; select: { companyId: boolean } }): Promise<{ companyId: string | null } | null> } },
   owner: { userId?: string; guestKey?: string; role?: string } | null,
@@ -176,6 +190,43 @@ export class AssistantService {
       role: m.role as 'user' | 'assistant',
       content: m.content,
     })) || [];
+    /* 多轮卡片记忆（2026-11-19 改造）：此前历史只回放正文，卡片数据不进上下文——
+     * 追问「刚才第三名是谁」模型无据。把最近 2 条带卡 assistant 消息的卡片压缩成
+     * 紧凑摘要（表=标题+前3行键值、图=图注）附在 content 尾部再喂模型；仅改喂给
+     * LLM 的副本，存储与前端回放不受影响。 */
+    conversation.messages?.forEach((m, i) => {
+      if (m.role !== 'assistant' || history[i]?.role !== 'assistant') return;
+      const cards = m.cardsJson as unknown[] | null | undefined;
+      if (!Array.isArray(cards) || !cards.length || history[i].content.includes('（上轮数据卡：')) return;
+      const parts: string[] = [];
+      for (const c of cards.slice(0, 4)) {
+        const card = c as Record<string, unknown>;
+        if (card.type === 'table') {
+          const rows = (card.rows as Array<Record<string, unknown>> | undefined) ?? [];
+          const rowTxt = rows
+            .filter((r) => !r._total)
+            .slice(0, 3)
+            .map((r) => Object.entries(r).filter(([k]) => k !== '_total').slice(0, 3).map(([k, v]) => `${k}:${v}`).join(' '))
+            .join('；');
+          parts.push(`${String(card.title ?? '')} ${rowTxt}`.trim());
+        } else if (card.type === 'chart' && card.caption) {
+          parts.push(String(card.caption));
+        }
+      }
+      if (parts.length) {
+        const brief = `（上轮数据卡：${parts.join(' ｜ ')}）`;
+        history[i] = { ...history[i], content: `${history[i].content}\n${brief.slice(0, 400)}` };
+      }
+    });
+    /* 带卡摘要只保留最近 2 条（更早的剥掉摘要省 token——历史窗口 20 条内的旧卡
+     * 上下文价值低） */
+    const cardIdx = history
+      .map((m, i) => ({ m, i }))
+      .filter(({ m }) => m.content.includes('（上轮数据卡：'))
+      .map(({ i }) => i);
+    for (const i of cardIdx.slice(0, Math.max(cardIdx.length - 2, 0))) {
+      history[i] = { ...history[i], content: history[i].content.replace(/\n（上轮数据卡：[^）]*）$/, '') };
+    }
 
     const toolCtx = await resolveToolCtx(
       this.prisma,
@@ -223,12 +274,7 @@ ${toolList}
   TOOL_CALL: {"tool": "<工具名>", "args": {"action": "<action>", ...}}
 - 综合概览类问题（如"整体运行状况""全面梳理"）调用 global_overview；清单/详情类调用对应工具的 list/detail；趋势类调用 monthly。
 - 分布/结构类问题（如"专家分布""供应商结构""各公司项目情况"）是多结构数据——调用对应工具的 stats 动作并覆盖其返回的全部维度卡（如专家=专业/归属公司/职称/评审负荷），不得只挑一个维度作答。
-- 提问带数量限定（"前三名""前五""前几"）时严格只答前 N 名：正文、点评、对比中不得出现第 N+1 名及以后的项目；调用带 limit 参数的排行类工具时把数量传进去（如问前三传 limit:3）。
-- 表格/图表卡片已完整呈现的明细，正文不逐条复述——正文只写结论与关键对比，点名的具体数字控制在 1-2 个，数值与单位照抄卡片口径（如"18.1%""212.0 万"）。
-- 同一条信息只说一次：开头总述与后文分述不得重复同一对象的同一组数字。
-- 数据中不存在的原因与定性不得写出（如竞争是否充分、技术水平高低、预算编制松紧等归因推断）——确需归因时明说"需结合预算与竞争情况核实"；样本很少时不得推广成"多数项目/全系统"的结论。
-- 用户没有询问建议、对策或下一步时，不主动输出管理建议——只答所问的数据与事实。
-- 数据类回答遵循系统提示词中的总-分结构和数据引用原则，直接引用工具返回的项目名称、金额、日期等具体信息，不写空洞的概括；非数据类回答按常规对话，简洁直接。
+- 数据类回答遵循系统规范中的直答式结构与数字纪律（2026-11-19 改造：规范本体在系统知识内，单一来源），直接引用工具返回的项目名称、金额、日期等具体信息，不写空洞的概括；非数据类回答按常规对话，简洁直接。
 - 禁止使用任何 emoji 表情符号。
 - 涉及修改/审批/删除/禁用/退回时，说明操作预案和风险，不要直接执行。`;
 
@@ -344,7 +390,7 @@ ${toolList}
        规则闸全弃（一句话可答）→ 关键数字写进正文，不再假装「卡片已渲染」 */
     const toolSummary = result.success
       ? attachedCount > 0
-        ? `查询成功，已生成 ${attachedCount} 张数据卡片。请基于这些卡片中的数据，按照系统提示词中的回答格式规范，给董事长一份针对性的分析（用户未询问建议时不输出建议段；卡片已呈现的明细数字不逐条复述）。`
+        ? `查询成功，已生成 ${attachedCount} 张数据卡片。请基于这些卡片中的数据，按照系统规范中的直答式结构与数字纪律给出面向用户的分析。`
         : `查询成功。本次不展示数据卡片，查询结果：${droppedData.join('；')}。请把这些关键数字自然地写进正文回答（原样引用，一个不能改），不要罗列元描述。`
       : `工具调用失败: ${result.error}`;
 
@@ -371,7 +417,7 @@ ${toolList}
         role: 'user' as const,
         content:
           attachedCount > 0
-            ? `（系统消息）工具 ${toolName} 已执行完毕。${dataCtx}${toolSummary}\n\n请基于上述真实数据，用自然段落给出你的判断。写作要求：① 提问带数量限定（如前三）时正文只写前 N 名；② 卡片已在前端渲染，明细数字不逐条复述，正文点名的具体数字至多 2 个，同一数字全文只出现一次；③ 不写数据外的归因（预算松紧、竞争程度等），样本少时不得推广成"其余项目/整体"的结论；④ 用户未询问建议时不加建议段。`
+            ? `（系统消息）工具 ${toolName} 已执行完毕。${dataCtx}${toolSummary}\n\n请基于上述真实数据，用自然段落给出你的判断。写作要求：\n${SECOND_ROUND_WRITING_RULES}`
             : `（系统消息）工具 ${toolName} 已执行完毕。${toolSummary}\n\n请把上述关键数字写进自然段落正文。`,
       },
     ];
@@ -544,7 +590,7 @@ ${toolList}
             return rest;
           }),
         })),
-    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n0. 所有工具已执行完毕、上述即全部数据——你的回复中【禁止出现任何 TOOL_CALL 指令】，直接给出面向用户的最终中文回答（2026-11-03 实录：第二轮再发 TOOL_CALL 被剥离后正文为空，用户拿到「未能生成有效回复」）。\n1. 若用户问"有哪些项目/供应商/专家"等清单类问题，必须逐条列出实体清单中的名称，不得只给汇总数字。\n2. 涉及统计/数量时，必须原样引用上面的关键数字，例如"系统共有 23 个采购项目、25 个投标项目"——数字一个不能改。\n3. 后续段落引用具体对象与数字时不得与已写内容重复——同一对象的同一组数字全文只出现一次，不能只说"有多条记录"。\n4. 英文状态码（OPENING、PENDING等）在回答中必须译为中文。\n5. 用户问题带数量限定（前三/前五等）时，正文只答前 N 名，不得提及或点评第 N+1 名及以后。\n6. 卡片（表格/图）已呈现的明细不复述进正文——正文只写结论、对比与至多 1-2 个关键数字，单位照抄卡片（如"18.1%""212.0 万"）。\n7. 不写数据外的归因与定性（竞争程度、技术水平、预算松紧等）；用户未被询问建议时不得输出建议段。`;
+    ).slice(0, 3000)}\n\n【严格写作要求 —— 违反即为编造数据】\n0. 所有工具已执行完毕、上述即全部数据——你的回复中【禁止出现任何 TOOL_CALL 指令】，直接给出面向用户的最终中文回答（2026-11-03 实录：第二轮再发 TOOL_CALL 被剥离后正文为空，用户拿到「未能生成有效回复」）。\n${SECOND_ROUND_WRITING_RULES}`;
 
     try {
       // 若剥离 TOOL_CALL 后 answer 为空，不传空 assistant 消息（DeepSeek 会拒绝空 content）
@@ -742,6 +788,12 @@ ${toolList}
       .replace(/\b[A-Z]{1,6}\d{0,4}\s*\/\s*[A-Z]{1,6}(?:\s*\d{1,8})?\b/g, protect)
       .replace(/U盾/g, protect)
       .replace(/\b(?:ISO|PDF|DOCX?|XLSX?|XML|CSV|JSON)\b/g, protect)
+      // 1b) 字母数字混合标识（2026-11-19 加固：ISO9001 曾剥成 9001）——至少含一
+      //     个字母且至少含一个数字的 ASCII 串（A4/PM2.5/380V/H7N9/3mm/5kW/V2.3）
+      .replace(/\b(?=[A-Za-z0-9.]*[A-Za-z])(?=[A-Za-z0-9.]*\d)[A-Za-z0-9.]{2,12}\b/g, protect)
+      // 1c) 常用业务缩写（大小写均护）与小写文件扩展名（ERP/API/CA/APP/ID/IP/OA、pdf/docx…）
+      .replace(/\b(?:ERP|API|CA|APP|ID|IP|OA|OK|PC|UI|QA|UX)\b/gi, protect)
+      .replace(/\b(?:pdf|docx?|xlsx?|pptx?|csv|xml|json|txt)\b/g, protect)
       // 2) 删除所有 ASCII 字母（a-z, A-Z）
       .replace(/[a-zA-Z]+/g, '')
       // 删除英文标点符号（保留 % 和 . 因为它们可能属于数字如 47.1%、0.8%）
