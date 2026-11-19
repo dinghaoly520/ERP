@@ -1383,6 +1383,20 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             <div className="grid grid-cols-2 gap-2">
               <MetricCard label="采购" value={`${activeTrend.count} 项`} tone="accent" />
               <MetricCard label="成交额" value={`${activeTrend.amount.toFixed(1)} 万`} tone="success" />
+              {/* 预算=当月项目预算合计；节资率=成交且预算≥成交的节资/预算（2026-11-19 增补裁定） */}
+              <MetricCard label="预算金额" value={`${((): string => {
+                const b = (activeTrend.projects ?? []).reduce((sum, p) => sum + parseBudgetLabel(p.budgetLabel), 0);
+                return b >= 10000 ? `${(b / 10000).toFixed(1)} 万` : `${Math.round(b)} 元`;
+              })()}`} />
+              <MetricCard label="节资率" value={`${((): string => {
+                let sav = 0, bud = 0;
+                (activeTrend.projects ?? []).forEach((p) => {
+                  const b = parseBudgetLabel(p.budgetLabel);
+                  const a = parseBudgetLabel(p.awardLabel || "");
+                  if (a > 0 && b >= a) { sav += b - a; bud += b; }
+                });
+                return bud > 0 ? `${((sav / bud) * 100).toFixed(1)}%` : "—";
+              })()}`} tone="success" />
             </div>
             <div>
               <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">当日项目</div>
