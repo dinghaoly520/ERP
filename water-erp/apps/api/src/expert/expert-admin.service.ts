@@ -263,7 +263,9 @@ export class ExpertAdminService {
           department: { select: { id: true, name: true } },
           expertProfile: true,
           bidExperts: {
-            select: { id: true, expertName: true, major: true, progress: true, signedIn: true, avoidanceConfirmed: true, totalScore: true, expertRole: true, project: { select: { id: true, name: true, stage: true } } },
+            // invitationStatus（E3 2026-11-19）：喂料带上婉拒标记——库页状态派生滤 declined 用；
+            // 查询侧不过滤（「受邀=分配项目总数」历史计数语义，declined 也算受邀）
+            select: { id: true, expertName: true, major: true, progress: true, signedIn: true, avoidanceConfirmed: true, totalScore: true, expertRole: true, invitationStatus: true, project: { select: { id: true, name: true, stage: true } } },
             orderBy: { createdAt: 'desc' },
           },
           _count: { select: { expertEvaluations: true } },

@@ -29,6 +29,13 @@ const EXPERT_STATUS_TABS = [
   { key: 'PENDING', label: '待审核' },
 ] as const;
 
+/** E3（2026-11-19）：在途行 = 非 declined 邀请（婉拒不占库况，与 expert-busy-state.util
+ *  派生面同语义——declined-only 在途专家此前被库页误显「已被抽取/候补待命」）。
+ *  仅用于状态派生（状态列 / Hero KPI 兜底 / 清空名单 live 标记）；
+ *  「参评/受邀」计数仍用全量行（受邀=分配项目总数，declined 也算受邀）。 */
+const activeInFlightOf = (rows: { invitationStatus: string; expertRole?: string; project?: { stage?: string } | null }[]) =>
+  rows.filter(b => b.invitationStatus !== 'declined' && ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'].includes(b.project?.stage ?? ''));
+
 export default function ExpertRepositoryPage() {
   const router = useRouter();
   const [experts, setExperts] = useState<ExpertListItem[]>([]);
@@ -379,12 +386,13 @@ export default function ExpertRepositoryPage() {
                       if (!e.isActive || e.expertProfile?.availability === '停用') {
                         return <td className="text-center" title={note}><StatusBadge tone="gray">已停用</StatusBadge></td>;
                       }
-                      const inFlight = e.bidExperts.filter(b => ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'].includes(b.project?.stage ?? ''));
+                      const inFlight = activeInFlightOf(e.bidExperts);
                       if (inFlight.some(b => b.project?.stage === 'EVALUATING')) {
                         return <td className="text-center" title="该专家有处于评标阶段的在途项目"><StatusBadge tone="orange">正在评标</StatusBadge></td>;
                       }
-                      // 候补待命（2026-11-18 用户裁定）：仅以候补身份在途——独特状态色，与正选区分
-                      if (inFlight.length > 0 && !inFlight.some(b => b.expertRole !== '候补')) {
+                      // 候补待命（2026-11-18 用户裁定；E3 对齐 deriveBusySets）：有在途但无正选
+                      //（非正选含理论 null 角色全归候补，与 util 的 alternate 口径一致）
+                      if (inFlight.length > 0 && !inFlight.some(b => b.expertRole === '正选')) {
                         return <td className="text-center" title={`候补待命（在途项目 ${inFlight.length} 个，均为候补身份）`}><StatusBadge tone="cyan">候补待命</StatusBadge></td>;
                       }
                       if (inFlight.length > 0) {
@@ -439,17 +447,17 @@ export default function ExpertRepositoryPage() {
   );
 
   // Hero KPI：总数来自服务端，其余指标基于当前页近似
-  // 三态派生（与状态列同口径）：空闲 / 已被抽取 / 正在评标
-  const inFlightOf = (e: ExpertListItem) => e.bidExperts.filter(b => ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'].includes(b.project?.stage ?? ''));
+  // 三态派生（与状态列同口径；E3：滤 declined + 角色分类对齐 deriveBusySets）
+  const inFlightOf = (e: ExpertListItem) => activeInFlightOf(e.bidExperts);
   const idle = experts.filter(e => e.isActive && (e.expertProfile?.entryStatus ?? 'ACTIVE') === 'ACTIVE' && e.expertProfile?.availability !== '停用' && inFlightOf(e).length === 0).length;
-  // 候补待命（2026-11-18）：在途但仅以候补身份（无正选在途、未进评标）——独特状态呈现
+  // 候补待命（2026-11-18；E3 对齐）：有在途但无正选、未进评标
   const alternates = experts.filter(e => {
     const fl = inFlightOf(e);
-    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && !fl.some(b => b.expertRole !== '候补');
+    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && !fl.some(b => b.expertRole === '正选');
   }).length;
   const assigned = experts.filter(e => {
     const fl = inFlightOf(e);
-    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && fl.some(b => b.expertRole !== '候补');
+    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && fl.some(b => b.expertRole === '正选');
   }).length;
   const occupied = experts.filter(e => inFlightOf(e).some(b => b.project?.stage === 'EVALUATING')).length;
   const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
@@ -793,7 +801,7 @@ export default function ExpertRepositoryPage() {
             <div className="max-h-[42vh] space-y-1.5 overflow-y-auto pr-1">
               {rosterFiltered.map(e => {
                 const checked = rosterIds.has(e.id);
-                const live = (e.bidExperts ?? []).some(b => b.project?.stage === 'OPENING' || b.project?.stage === 'EVALUATING');
+                const live = activeInFlightOf(e.bidExperts ?? []).some(b => b.project?.stage === 'OPENING' || b.project?.stage === 'EVALUATING');
                 return (
                   <label key={e.id} className={`flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 transition-colors ${checked ? 'bg-[color-mix(in_oklch,var(--danger)_7%,transparent)]' : 'hover:bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)]'}`}>
                     <input type="checkbox" checked={checked} disabled={clearing}
