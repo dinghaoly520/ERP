@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, Radio, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
+import { Activity, AlertCircle, BarChart3, CalendarClock, FolderKanban, Lightbulb, RefreshCw, Sparkles, Target, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, fetchProgressAiInsights, fetchUpcoming, type ProgressStats, type ProgressAiInsights, type ProjectProgress, type UpcomingResult } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
@@ -15,8 +15,6 @@ import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
 import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
-import { usePolling } from "@/hooks/use-polling";
-import { fetchBidLiveProjects, type BidLiveProject } from "@/lib/api/cockpit";
 import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 /* ── 阶段元数据（移植自 web progress-content STAGE_META——oklch 阶段色令牌）── */
@@ -143,18 +141,8 @@ export default function ProgressPage() {
   const [activeProject, setActiveProject] = useState<ProjectProgress | null>(null);
   const router = useRouter();
 
-  /* 开评标进行时（2026-11-03）：30s 轮询——「现在正在发生什么」是驾驶舱此前完全
-     缺席的时效维度；失败保旧数据，页面隐藏暂停 */
-  const [live, setLive] = useState<{ projects: BidLiveProject[] } | null>(null);
-  usePolling(
-    useCallback(async () => {
-      setLive(await fetchBidLiveProjects());
-    }, []),
-    30_000,
-  );
-  const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
-  const evaluatingNow = live?.projects.filter((p) => p.stage === "EVALUATING") ?? [];
-  const submittingNow = live?.projects.filter((p) => p.stage === "SUBMIT") ?? [];
+  /* 开评标进行时已上移首页「实时运行态势」（2026-11-18 指挥台改版）——本页去重，
+     30s 轮询随之移除（进展页聚焦项目阶段时间线与节点预告） */
 
   /* URL 预置（:3011 两步铁律桥，2026-11-03）：?focusPmi=<PMI id> 直开项目弹层——
      台账详情「查看进展」的落地端 */
@@ -271,77 +259,33 @@ export default function ProgressPage() {
 
       {error ? <ErrorBanner message={error} onRetry={() => setRetryTick((t) => t + 1)} /> : null}
 
-      {/* ── 未来 14 天关键节点（截标/开标横滑日卡；无节点不渲染）── */}
+      {/* ── 未来 14 天关键节点（截标/开标横滑日卡；无节点不渲染）──
+          2026-11-18 排版改版：窄卡名截断+同行挤压 → 宽卡分两行（类型行在上/项目名
+          两行在下），日期带周几；横滑日历保留（内容轮播非筛选 chips） */}
       {upcoming?.items.length ? (
         <SectionCard icon={CalendarClock} title="未来 14 天关键节点" index={0}>
           <div className="flex gap-2 overflow-x-auto pb-1">
             {upcoming.items.map((d) => (
-              <div key={d.date} className="w-[7.5rem] shrink-0 rounded-[12px] m-tile px-2.5 py-2">
-                <div className="text-[12px] font-bold tabular-nums text-[var(--accent)]">{d.date.slice(5)}</div>
-                {d.events.map((e, i) => (
-                  <div key={i} className="mt-1 flex items-center gap-1">
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.type === "OPENING" ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--foreground)]">{e.name}</span>
-                    <span className="shrink-0 text-[11px] text-[var(--muted-foreground)]">{e.type === "OPENING" ? "开标" : "截标"}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
-
-      {/* ── 开评标进行时（30s 轮询 + 呼吸点——驾驶舱的「现在时」）── */}
-      {live && openingNow.length + evaluatingNow.length + submittingNow.length > 0 ? (
-        <SectionCard
-          icon={Radio}
-          title="开评标进行时"
-          index={0.5}
-          right={
-            <>
-              <span className="shrink-0 text-[12px] font-semibold text-[var(--muted-foreground)]">不随公司筛选</span>
-              {openingNow.length + evaluatingNow.length > 0 ? (
-                <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
-                </span>
-              ) : null}
-            </>
-          }
-        >
-          <div className="space-y-2">
-            {[
-              { label: "截标进行中", n: submittingNow.length, tone: "accent" },
-              { label: "开标现场", n: openingNow.length, tone: "danger" },
-              { label: "评标进行", n: evaluatingNow.length, tone: "warning" },
-            ].map((r) => (
-              <div key={r.label} className="flex items-center justify-between rounded-[12px] m-tile px-3 py-2.5">
-                <span className="text-[14px] text-[var(--foreground)]">{r.label}</span>
-                <span
-                  className={`text-[16px] font-black tabular-nums ${
-                    r.n > 0
-                      ? r.tone === "danger"
-                        ? "text-[var(--danger)]"
-                        : r.tone === "warning"
-                          ? "text-[var(--warning)]"
-                          : "text-[var(--accent)]"
-                      : "text-[var(--muted-foreground)]"
-                  }`}
-                >
-                  {r.n} 场
-                </span>
-              </div>
-            ))}
-            {[...openingNow, ...evaluatingNow].slice(0, 3).map((p) => (
-              <div key={p.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: p.stage === "OPENING" ? "var(--danger)" : "var(--warning)" }}
-                />
-                <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                <span className="shrink-0 tabular-nums">
-                  已投 {p.supplierSubmitted}/{p.supplierCount} · 专家 {p.expertCount}
-                </span>
+              <div key={d.date} className="w-[10.5rem] shrink-0 rounded-[12px] m-tile px-3 py-2.5">
+                <div className="text-[12px] font-bold tabular-nums text-[var(--accent)]">
+                  {d.date.slice(5)}
+                  <span className="ml-1 font-medium text-[var(--muted-foreground)]">
+                    {["周日", "周一", "周二", "周三", "周四", "周五", "周六"][new Date(d.date).getDay()]}
+                  </span>
+                </div>
+                <div className="mt-1.5 space-y-2">
+                  {d.events.map((e, i) => (
+                    <div key={i}>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.type === "OPENING" ? "bg-[var(--success)]" : "bg-[var(--warning)]"}`} />
+                        <span className={`text-[12px] font-semibold ${e.type === "OPENING" ? "text-[var(--success)]" : "text-[var(--warning)]"}`}>
+                          {e.type === "OPENING" ? "开标" : "截标"}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 line-clamp-2 pl-3 text-[13px] font-medium leading-snug text-[var(--foreground)]">{e.name}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

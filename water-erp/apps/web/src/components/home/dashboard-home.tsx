@@ -219,7 +219,6 @@ function SupplierConcentrationPanel({ profile, index, reducedMotion }: { profile
   const items = profile.supplierConcentration ?? [];
   const [active, setActive] = useState<(typeof items)[number] | null>(null);
   const total = items.reduce((s, x) => s + x.count, 0);
-  const mc = Math.max(...items.map(s => s.amount), 1);
 
   return (
     <>
@@ -227,7 +226,8 @@ function SupplierConcentrationPanel({ profile, index, reducedMotion }: { profile
         <section className="wb-panel h-full">
           <div className="wb-panel-header"><div className="flex items-center gap-2"><Building2 size={15} className="text-[var(--warning)]" /><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">供应商集中度</h2></div><div className="flex items-center gap-1.5 rounded-full border border-[color-mix(in_oklch,var(--warning)_25%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-2.5 py-1 text-[10px] font-bold text-[var(--warning)]">CR5 {profile.supplierCr5 ?? 0}% · {total} 笔</div></div>
           <div className="wb-panel-body gap-2 flex flex-col">
-            {items.map((seg, i) => { const bw = (seg.amount / mc) * 100; return <button key={seg.name} onClick={() => setActive(seg)} className="scale-row group flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_4px_oklch(1_0_0/0.6)]"><div className="flex min-w-0 flex-1 flex-col items-start leading-tight"><span className="truncate text-[11px] font-semibold text-[var(--foreground)]" title={seg.name}>{seg.name}</span><span className="text-[10px] text-[var(--muted-foreground)]">{seg.count} 笔</span></div><div className="h-5 w-[120px] shrink-0 rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] overflow-hidden"><motion.div initial={{width:0}} animate={{width:`${bw}%`}} transition={{duration:0.6,delay:i*0.1,ease:easeOutQuint}} className="h-full rounded-[5px] opacity-85" style={{backgroundColor:DBC[i%DBC.length]}}/></div><div className="flex shrink-0 w-[86px] flex-col items-end leading-tight"><span className="text-[11px] font-bold" style={{color:DBC[i%DBC.length]}}>{seg.share}%</span><span className="text-[10px] text-[var(--muted-foreground)]">{seg.amountLabel}</span></div><ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)] transition-transform duration-200 group-hover:translate-x-0.5"/></button>;})}
+            {/* 2026-11-18 用户裁定：删进度条设计——行卡只留 名称/笔数 + 占比/累计成交 + 下钻箭头 */}
+            {items.map((seg, i) => <button key={seg.name} onClick={() => setActive(seg)} className="scale-row group flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[2px_2px_6px_oklch(0.55_0.03_258/0.08),-1px_-1px_4px_oklch(1_0_0/0.6)]"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] text-[9px] font-bold text-white tabular-nums" style={{ background: DBC[i%DBC.length] }} title={`第 ${i+1} 名`}>{i + 1}</span><div className="flex min-w-0 flex-1 flex-col items-start leading-tight"><span className="truncate text-[11px] font-semibold text-[var(--foreground)]" title={seg.name}>{seg.name}</span><span className="text-[10px] text-[var(--muted-foreground)]">{seg.count} 笔</span></div><div className="flex shrink-0 w-[86px] flex-col items-end leading-tight"><span className="text-[11px] font-bold" style={{color:DBC[i%DBC.length]}}>{seg.share}%</span><span className="text-[10px] text-[var(--muted-foreground)]">{seg.amountLabel}</span></div><ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)] transition-transform duration-200 group-hover:translate-x-0.5"/></button>)}
             {items.length===0&&<div className="flex flex-1 items-center justify-center text-[11px] text-[var(--muted-foreground)]">暂无重复成交（≥2 笔）的供应商</div>}
           </div>
         </section>
@@ -723,6 +723,7 @@ export function DashboardHome({ currentUserRole }: DashboardHomeProps) {
         </div>
         </div>
       </motion.div>
+      {/* 供应商集中度与节资排行等宽（2026-11-18 用户裁定）：三列 2fr_1fr_1fr */}
       <div className="mb-3 grid grid-cols-1 items-stretch gap-2 md:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><IntelligencePanel analysis={analysis} loading={alLoading} error={alErr} onRefresh={()=>void forceAnalysis()} index={7} reducedMotion={reducedMotion} manualPrompt={companyId.includes(",")}/></div>
         <div className="flex h-full flex-col min-h-[280px] md:min-h-[300px]"><SavingsRankingPanel items={data.savingsRanking as SavingsRankingItem[]} index={8} reducedMotion={reducedMotion}/></div>

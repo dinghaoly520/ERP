@@ -45,6 +45,8 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   meta?: string;
   roles?: AuthRole[];
+  /** 角色拒绝清单（2026-11-18 用户裁定：admin 隐藏工作台）——优先于 roles 白名单 */
+  hiddenFor?: AuthRole[];
   hidden?: boolean;
 };
 
@@ -62,7 +64,7 @@ const navGroups: NavGroup[] = [
     label: "个人中心",
     icon: UserRound,
     items: [
-      { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: House, meta: "工作安排" },
+      { key: "work-arrangements", label: "工作台", href: "/work-arrangements", icon: House, meta: "工作安排", hiddenFor: ["admin"] },
       { key: "personal-center", label: "个人中心", href: "/profile", icon: UserRound, meta: "管理个人资料与偏好" },
       { key: "assistant", label: "水叮当助手", href: "/assistant", icon: Sparkles, meta: "AI智能助手" },
     ],
@@ -228,6 +230,7 @@ export function AppShell({
             ...group,
             items: group.items.filter((item) => {
               if (item.hidden) return false;
+              if (item.hiddenFor && effectiveRole && item.hiddenFor.includes(effectiveRole)) return false;
               if (profile?.navKeys && !profile.navKeys.includes(item.key)) return false;
               if (!item.roles) return true;
               return !!effectiveRole && item.roles.includes(effectiveRole);

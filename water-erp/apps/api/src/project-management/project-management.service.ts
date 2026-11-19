@@ -169,7 +169,8 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
   直接采购: [
     { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
     { key: 'INITIATION', label: '采购立项' },
-    { key: 'TENDER_DOCUMENT', label: '采购文件' },
+    // 谈判文件（2026-11-18 用户裁定）：直接采购 03 步骤更名，与谈判采购同口径
+    { key: 'TENDER_DOCUMENT', label: '谈判文件' },
     { key: 'SUPPLIER_INVITATION', label: '供应商邀请' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
@@ -982,6 +983,149 @@ export class ProjectManagementService {
       }
     }
     return field ? { [field]: result[field] ?? null } : result;
+  }
+
+  /**
+   * 直接采购 03（谈判文件）完成前综合分析（2026-11-18 用户裁定）：读取需求/立项/谈判文件
+   * 三步骤当轮全部附件，AI 综合写出项目概况与开标时间——只返回不落库，由前端完成确认弹窗
+   * 展示、用户可修改，确认时随 updateExtractedInfo 写入（采购文件获取时间由前端固定写"/"）。
+   * 开标时间宁空勿假：材料无明确时点则返回空串，严禁编造。
+   */
+  async analyzeDirectProcurementCompletion(itemId: string, roundParam?: number) {
+    const project = await this.prisma.projectManagementItem.findUnique({
+      where: { id: itemId },
+      select: { procurementMethod: true, currentRound: true },
+    });
+    if (!project) throw new NotFoundException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.procurementMethod !== '直接采购') {
+      throw new BadRequestException({ error: '本分析仅适用于直接采购项目。', code: 'NOT_DIRECT_PROCUREMENT' });
+    }
+    const round = roundParam ?? project.currentRound ?? 1;
+
+    const STAGE_LABELS: Record<string, string> = {
+      PROCUREMENT_DEMAND: '采购需求',
+      INITIATION: '采购立项',
+      TENDER_DOCUMENT: '谈判文件',
+    };
+    const stages = await this.prisma.projectManagementStage.findMany({
+      where: { projectManagementItemId: itemId, stageKey: { in: Object.keys(STAGE_LABELS) }, round },
+      include: { attachments: { orderBy: { createdAt: 'asc' } } },
+    });
+    const allAttachments = stages
+      .sort((a, b) => a.stageOrder - b.stageOrder)
+      .flatMap((s) => s.attachments.map((att) => ({ ...att, stageLabel: STAGE_LABELS[s.stageKey] })));
+    if (allAttachments.length === 0) {
+      throw new BadRequestException({
+        error: '请先在「谈判文件」步骤上传文件（需求/立项步骤的材料也将纳入综合分析），再标记本阶段完成。',
+        code: 'DIRECT_TENDER_FILE_REQUIRED',
+      });
+    }
+
+    // 文件指纹缓存（2026-11-18 用户裁定）：文件集未变 → 直接返回上次分析结果，不重跑 LLM。
+    // 指纹 = 三步骤当轮附件集的 id/objectKey/fileName/fileSize 稳定哈希——内容替换会换
+    // objectKey（saveAttachmentHtml 原地换 key）、增删附件均改变集合，指纹即变触发重析。
+    // 存储沿用 SystemConfig 键值表（与 company-data-fingerprint 洞察缓存同载体，零迁移）。
+    const fingerprint = createHash('sha256')
+      .update(allAttachments.map((a) => `${a.id}|${a.objectKey}|${a.fileName}|${a.fileSize ?? 0}`).sort().join('\n'))
+      .digest('hex')
+      .slice(0, 32);
+    const cacheKey = `pm-direct-analysis:${itemId}:r${round}`;
+    const cachedRow = await this.prisma.systemConfig.findUnique({ where: { key: cacheKey } });
+    if (cachedRow) {
+      try {
+        const cached = JSON.parse(cachedRow.value) as {
+          fingerprint: string;
+          projectOverview: string;
+          bidOpeningTime: string;
+          filesAnalyzed: string[];
+          filesFailed: string[];
+          generatedAt: string;
+        };
+        if (cached.fingerprint === fingerprint) {
+          return {
+            projectOverview: cached.projectOverview ?? '',
+            bidOpeningTime: cached.bidOpeningTime ?? '',
+            filesAnalyzed: cached.filesAnalyzed ?? [],
+            filesFailed: cached.filesFailed ?? [],
+            cached: true as const,
+            generatedAt: cached.generatedAt,
+          };
+        }
+      } catch { /* 损坏缓存按 miss 处理，重析后覆写 */ }
+    }
+
+    // 逐文件抽取文本（失败跳过不阻塞），单文件 12k / 总量 48k 字预算防 LLM 过载
+    const PER_FILE_CAP = 12_000;
+    const TOTAL_CAP = 48_000;
+    const parts: string[] = [];
+    const filesAnalyzed: string[] = [];
+    const filesFailed: string[] = [];
+    let used = 0;
+    for (const att of allAttachments) {
+      if (used >= TOTAL_CAP) break;
+      try {
+        const text = await this.readAttachmentText(att.objectKey, att.mimeType, att.fileName);
+        if (!text || text.length <= 20) continue;
+        const slice = text.slice(0, Math.min(PER_FILE_CAP, TOTAL_CAP - used));
+        parts.push(`【${att.stageLabel} - ${att.fileName}】\n${slice}`);
+        used += slice.length;
+        filesAnalyzed.push(`${att.stageLabel}·${att.fileName}`);
+      } catch {
+        filesFailed.push(`${att.stageLabel}·${att.fileName}`);
+      }
+    }
+    if (parts.length === 0) {
+      throw new BadRequestException({
+        error: `文件内容解析失败（共 ${allAttachments.length} 个文件），请检查文件后重试。`,
+        code: 'DIRECT_ANALYSIS_EMPTY',
+      });
+    }
+
+    const systemPrompt =
+      '你是采购文件信息分析助手。以下是一个直接采购项目的全套材料（含采购需求、采购立项、谈判文件步骤的文件内容）。' +
+      '请综合全部材料，输出 JSON：{"projectOverview": "...", "bidOpeningTime": "..."}。\n' +
+      'projectOverview（项目概况）：80-300 字概括——项目背景与采购事项、采购标的与数量、主要技术要求；' +
+      '只描述"买什么"，不罗列资格门槛/商务条款；材料中没有实质内容则给空字符串。\n' +
+      'bidOpeningTime（开标时间）：从材料中的开标/谈判/响应文件提交截止等明确时点推导，规范化为"YYYY年M月D日H:MM"（24 小时制）；' +
+      '仅有日期无时分的按"下午"补 14:00、其余补 9:00；材料中无任何明确时点则给空字符串——宁空勿假，严禁编造。\n' +
+      '只输出 JSON 本体，不要 markdown 代码块或解释。';
+    let projectOverview = '';
+    let bidOpeningTime = '';
+    try {
+      const raw = await this.aiService.chat(systemPrompt, parts.join('\n\n'), 0.2, undefined, undefined, {
+        maxTokens: 4096, timeoutMs: 120_000, retries: 1,
+      });
+      const jsonText = raw?.match(/\{[\s\S]*\}/)?.[0] ?? '';
+      const parsed = JSON.parse(jsonText) as { projectOverview?: unknown; bidOpeningTime?: unknown };
+      const po = parsed.projectOverview;
+      const bt = parsed.bidOpeningTime;
+      if (typeof po === 'string' && po.trim()) {
+        const capped = capOverviewLength(po.trim());
+        if (capped) projectOverview = capped;
+      }
+      if (typeof bt === 'string' && /\d{4}年\d{1,2}月\d{1,2}日/.test(bt)) {
+        bidOpeningTime = bt.trim().replace(/\s+/g, '');
+      }
+    } catch (e) {
+      this.logger.warn(`[analyzeDirectProcurementCompletion] AI 解析失败: ${(e as Error)?.message}`);
+    }
+
+    const record = {
+      fingerprint,
+      projectOverview,
+      bidOpeningTime,
+      filesAnalyzed,
+      filesFailed,
+      generatedAt: new Date().toISOString(),
+    };
+    try {
+      await this.prisma.systemConfig.upsert({
+        where: { key: cacheKey },
+        update: { value: JSON.stringify(record) },
+        create: { key: cacheKey, value: JSON.stringify(record) },
+      });
+    } catch { /* 缓存写失败不影响本次返回 */ }
+    return { ...record, cached: false as const };
   }
 
   /**
@@ -3461,7 +3605,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      select: { currentStage: true, currentRound: true },
+      select: { currentStage: true, currentRound: true, procurementMethod: true },
     });
 
     if (!project) {
@@ -3544,10 +3688,46 @@ ${JSON.stringify(algorithmResult, null, 2)}
       // 评标标准属采购文件组成内容，配置前置到本阶段收口；办法=none（不评分）免校验。
       // 先于归档材料闸抛出（评分标准是本阶段产物本身，不可豁免）。
       if (stageKey === 'TENDER_DOCUMENT') {
-        // 正式盖章版强制闸（2026-09-26 用户裁定：必须强制、不可豁免）——先于评分标准闸：
-        // 连正式文件都没定，「对照正式文件确认评分标准」无从谈起
-        this.assertOfficialTenderSelected(stage);
-        await this.assertScoreStandardConfigured(projectId, targetRound);
+        if (project.procurementMethod === '直接采购') {
+          // 直接采购（2026-11-18 用户裁定）：03（谈判文件）不走正式盖章版指针/评分标准向导——
+          // 完成闸=本步骤当轮已上传 ≥1 个文件（综合分析与信息确认在前端完成弹窗闭环）
+          const fileCount = await this.prisma.attachment.count({
+            where: { projectManagementStageId: stage.id },
+          });
+          if (fileCount === 0) {
+            throw new BadRequestException({
+              error: '请先在「谈判文件」步骤上传文件，再标记本阶段完成。',
+              code: 'DIRECT_TENDER_FILE_REQUIRED',
+            });
+          }
+          // 确认值随完成落库：采购文件获取时间固定"/"；概况/开标时间非空才写。
+          // 开标时间唯一权威口径：写入后同步当前轮开标前 BidProject（无 BP 自然 no-op）。
+          const directInfo: Record<string, string> = { documentAcquireTime: '/' };
+          if (dto.directOverview?.trim()) directInfo.projectOverview = dto.directOverview.trim();
+          if (dto.directOpeningTime?.trim()) directInfo.bidOpeningTime = dto.directOpeningTime.trim();
+          await this.prisma.projectManagementItem.update({ where: { id: projectId }, data: directInfo });
+          if (directInfo.bidOpeningTime) {
+            await this.syncBidProjectOpeningFromPmi(projectId, directInfo.bidOpeningTime);
+          }
+          // 分析缓存回填确认值（2026-11-18）：文件未变重开完成弹窗时展示用户确认值而非原始生成值
+          try {
+            const cacheKey = `pm-direct-analysis:${projectId}:r${targetRound}`;
+            const row = await this.prisma.systemConfig.findUnique({ where: { key: cacheKey } });
+            if (row) {
+              const rec = JSON.parse(row.value) as {
+                projectOverview?: string; bidOpeningTime?: string;
+              };
+              if (dto.directOverview?.trim()) rec.projectOverview = dto.directOverview.trim();
+              if (dto.directOpeningTime?.trim()) rec.bidOpeningTime = dto.directOpeningTime.trim();
+              await this.prisma.systemConfig.update({ where: { key: cacheKey }, data: { value: JSON.stringify(rec) } });
+            }
+          } catch { /* 缓存回填失败不阻断完成 */ }
+        } else {
+          // 正式盖章版强制闸（2026-09-26 用户裁定：必须强制、不可豁免）——先于评分标准闸：
+          // 连正式文件都没定，「对照正式文件确认评分标准」无从谈起
+          this.assertOfficialTenderSelected(stage);
+          await this.assertScoreStandardConfigured(projectId, targetRound);
+        }
       }
       // DA/T 103-2024 前端控制（§4.1 + A.1a）：按归档范围表检查该阶段必选材料
       // （范围表 attachment 源必选项 = TENDER_DOCUMENT/AWARD_DECISION/CONTRACT 三处，与下方专项检查口径互补）
@@ -3573,7 +3753,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
         // （不信任前端计数），达标蕴含通知已发（原「须先发送邀请通知」核查被覆盖）。回执 projectId
         // 为 BidProject id、阶段接口收 PMI id（双 id 空间）。2026-10-28 二轮隔离：完成闸只数本轮
         // BidProject 名下回执；本轮未懒建时回退数 PMI id 存量行。
-        const threshold = Math.min(Math.max(dto.confirmedThreshold ?? 3, 1), 50);
+        // 直接采购缺省 1（2026-11-18 用户裁定：单一供应商 1/1 即达标）；其余方式缺省 3
+        const thresholdDefault = project.procurementMethod === '直接采购' ? 1 : 3;
+        const threshold = Math.min(Math.max(dto.confirmedThreshold ?? thresholdDefault, 1), 50);
         const roundBpForGate = await this.resolveRoundBidProject(projectId, targetRound, { id: true });
         const rsvpWhere = roundBpForGate ? { projectId: roundBpForGate.id } : { projectId };
         // 按供应商去重计数（2026-10-23 用户口径：与邀请页「已确认」同源）——同一供应商

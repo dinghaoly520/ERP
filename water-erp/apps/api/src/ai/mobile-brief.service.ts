@@ -7,28 +7,23 @@ import { PrismaService } from '../prisma/prisma.service';
 import { readInsightCache, writeInsightCache } from '../common/company-data-fingerprint';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
-export type BriefItem = { text: string; jump: '/dashboard' | '/ledger' | '/progress' };
+export type BriefFocus = { text: string; jump: '/ledger' | '/progress' };
 export type MobileBriefResult =
-  | { available: true; focus: BriefItem; metric: BriefItem; reminder: BriefItem; shareText: string }
+  | { available: true; focus: BriefFocus | null }
   | { available: false };
+
+/** 阶段拥堵判定阈值：分布最大阶段 ≥ 此值才算「事项」（1~2 项称拥堵是 AI 夸张） */
+export const CONGESTION_THRESHOLD = 3;
 
 /** getDashboard 返回的结构化取值（未导出类型，仅声明本服务消费的字段；缺字段走 ?? 兜底） */
 type BriefDashboardData = {
-  summary: {
-    totalCount: number;
-    completedCount: number;
-    abnormalCount: number;
-    totalAwardLabel: string;
-    totalSavingsLabel: string;
-  };
   riskProjects?: Array<{ project: string; pendingDays: number; reason: string }>;
-  savingsRanking?: Array<{ project: string; savingsRate: number }>;
 };
 
 /** 阶段分布（最堵阶段输入）条目——getDashboard 无此字段，来源 ProgressService.getProgressStats */
 type BriefStageDistribution = Array<{ stage: string; stageName?: string; count: number }>;
 
-/** 单句出口净化：禁词替换/剥引号/截断 40 字（与 mobile-greeting.sanitize 同规则） */
+/** 单句出口净化：禁词替换/剥引号/截断 40 字 */
 export function sanitizeBriefText(raw: string): string {
   const t = raw
     .replace(/^[\s"'「」『』“”‘’]+|[\s"'「」『』“”‘’]+$/g, '')
@@ -38,38 +33,11 @@ export function sanitizeBriefText(raw: string): string {
   return t.length > 40 ? t.slice(0, 40) : t;
 }
 
-/** shareText 出口净化：同禁词/剥引号/折叠空白规则，但 160 字上限——段落文案（80~120 字规格），
- *  不共用单句 40 字截断（fix round 1：pick() 路径曾把 shareText 压到 40 字，规格永不可达） */
-export function sanitizeBriefShareText(raw: string): string {
-  const t = raw
-    .replace(/^[\s"'「」『』“”‘’]+|[\s"'「」『』“”‘’]+$/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/审批/g, '查阅')
-    .trim();
-  return t.length > 160 ? t.slice(0, 160) : t;
-}
-
-/** 区间标签（2026-11-03 口径对齐）：优先采信页面显式 rangeKey（月/季边界跨时区
- *  无歧义——评审 F10），缺省回退按服务端本地时钟的自然边界启发式，再退显式区间；
- *  无区间维持本月（向后兼容，页面「全部」档无区间） */
-export function briefRangeLabel(rangeKey?: string, startDate?: string, endDate?: string): string {
-  const byKey: Record<string, string> = { month: '本月', quarter: '本季', year: '本年' };
-  if (rangeKey && byKey[rangeKey]) return byKey[rangeKey];
-  if (!startDate) return '本月';
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  if (startDate === `${y}-01-01` && (endDate ?? `${y}-12-31`) === `${y}-12-31`) return '本年';
-  if (startDate === `${y}-${m}-01` && (endDate ?? `${y}-${m}-${lastDay}`) === `${y}-${m}-${lastDay}`) return '本月';
-  return `${startDate} 至 ${endDate ?? '今天'}`;
-}
-
 @Injectable()
 export class MobileBriefService {
   private readonly logger = new Logger(MobileBriefService.name);
-  /** 数据指纹缓存命名空间（SystemConfig 键前缀，与综合分析/进度洞察同源件） */
-  private static readonly BRIEF_CACHE_NS = 'mobile-brief';
+  /** 数据指纹缓存命名空间（v2=2026-11-18 关注条改版——三句→一行事实句，旧缓存不复用） */
+  private static readonly BRIEF_CACHE_NS = 'mobile-brief:v2';
 
   constructor(
     private readonly llm: LlmService,
@@ -88,83 +56,79 @@ export class MobileBriefService {
     portalSource?: string,
   ): Promise<MobileBriefResult> {
     /* :3011 总数据（2026-11-04 门户级落地）：来源头穿参，leader/staff 无显式
-     * 公司筛选时全库口径（与页面 /dashboard 同视野——否则要报说设计院 0 轮、
-     * 数据库页却全库，同设备自相矛盾） */
+     * 公司筛选时全库口径（与页面 /dashboard 同视野）。 */
     const scope = await this.companyScope.resolveScope(user, companyId, portalSource);
     const filter = this.companyScope.filter(scope);
-    /* 数据指纹缓存（2026-11-12 用户裁定「数据变才变，拒绝时间窗」同源件，2026-11-16
-     * 接入）：此前每击必重跑 LLM（3~15s），叠加 AiController 类级 @Throttle 20/min，
-     * 挂载/切Tab/切区间/下拉连续触发即打满 429 → 前端抹成「生成失败」，表现为
-     * 「本次登录怎么点都不再更新」。变体=full：brief 除台账数外还吃 PMI 阶段分布
-     * （最堵阶段句），PMI 写入也须失效。键公司段=scope 派生（含 mobile-3011 总数据
-     * 口径），非客户端直传。 */
+    /* 数据指纹缓存（2026-11-12 用户裁定「数据变才变，拒绝时间窗」）：变体=full——
+     * 关注条吃台账风险 + PMI 阶段分布两面，PMI 写入也须失效。 */
     const scopeKey = scope.all ? 'all' : scope.companyIds.slice().sort().join(',');
     const cached = await readInsightCache(
       this.prisma, MobileBriefService.BRIEF_CACHE_NS, scopeKey, startDate, endDate, 'full',
     );
     if (cached.hit) return cached.result as MobileBriefResult;
+
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    // 区间随页面（2026-11-03）：缺省回退本月；prompt 标签同源——「本月 0 万 vs 本年数百万」同屏打架根治
     const rangeStart = startDate ?? monthStart;
-    const rangeLabel = briefRangeLabel(rangeKey, startDate, endDate);
     const data = (await this.dashboard.getDashboard(rangeStart, endDate, filter)) as BriefDashboardData;
-    // 最堵阶段输入：getDashboard 无 stageDistribution，取 ProgressService 阶段分布（同 companyFilter 隔离）
     const progressStats = (await this.progress.getProgressStats(undefined, undefined, filter)) as {
       stageDistribution?: BriefStageDistribution;
     };
 
-    const riskTop = (data.riskProjects ?? []).slice(0, 3)
-      .map((r) => `${r.project}（滞留${r.pendingDays}天，${r.reason}）`).join('；') || '无';
-    const savingsTop = (data.savingsRanking ?? []).slice(0, 3)
-      .map((s) => `${s.project}（节资率${s.savingsRate}%）`).join('；') || '无';
+    const risks = (data.riskProjects ?? []).slice(0, 3);
     const stageMax = (progressStats.stageDistribution ?? []).slice().sort((a, b) => b.count - a.count)[0];
+    const congested = stageMax != null && stageMax.count >= CONGESTION_THRESHOLD;
+
+    /* 无事项（2026-11-18 用户裁定「AI 感太重」）：无风险且拥堵未达阈值 →
+     * focus:null 直接返回，零 LLM 调用——无事不生成「今日无风险项目…」式填充句 */
+    if (risks.length === 0 && !congested) {
+      const idle: MobileBriefResult = { available: true, focus: null };
+      await writeInsightCache(
+        this.prisma, MobileBriefService.BRIEF_CACHE_NS, scopeKey, idle, startDate, endDate, 'full',
+      ).catch(() => undefined);
+      return idle;
+    }
+
+    const riskText = risks.map((r) => `${r.project}（滞留${r.pendingDays}天，${r.reason}）`).join('；') || '无';
+    const stageText = stageMax
+      ? `${STAGE_LABELS[stageMax.stage] ?? stageMax.stageName ?? stageMax.stage}（${stageMax.count}项）`
+      : '无';
 
     try {
       const r = await this.llm.chatJson(
         [
-          '你是「蜀水云采」采购平台给领导写「今日要报」的助手。输出 JSON：',
-          '{"focus":{"text":...},"metric":{"text":...},"reminder":{"text":...},"shareText":...}',
-          '规则：focus=今天最该关注的一件事（优先风险/停滞，含项目名与天数）；metric=一个关键数字（本月成交额或节资，只用给定数据）；',
-          'reminder=一个提醒（阶段拥堵/异常信号）；每句 ≤30 字、只讲需要领导知道的事、禁止 emoji、禁止出现「审批」一词、禁止编造未提供的数据。',
-          'shareText=80~120 字一段话，适合发到管理群，含上述三要点，口语但专业。',
+          '你是采购平台驾驶舱的值情员，只陈述事实。根据给定数据输出一行「今日关注」：',
+          '{"focus": "事项描述"}',
+          '规则：只写最需要领导关注的一个事项，风险项目优先于阶段拥堵；纯事实，必须含项目名与数字；每句 ≤30 字；',
+          '数据中无风险且无拥堵时返回 {"focus": null}；禁止建议性套话（「需关注」「建议」「请尽快」等）；禁止编造未提供的数据。',
         ].join(''),
-        `${rangeLabel}数据：总轮次${data.summary.totalCount}，已成交${data.summary.completedCount}，异常${data.summary.abnormalCount}，成交额${data.summary.totalAwardLabel}，累计节资${data.summary.totalSavingsLabel}。风险项目：${riskTop}。节资前三：${savingsTop}。当前最堵阶段：${stageMax ? `${STAGE_LABELS[stageMax.stage] ?? stageMax.stageName ?? stageMax.stage}（${stageMax.count}项）` : '无'}。`,
+        `风险项目：${riskText}。最堵阶段：${stageText}。`,
         0.4,
         undefined,
         Math.floor(Math.random() * 1_000_000),
-        // maxTokens 4096（2026-11-03 实录）：deepseek-v4-flash 思维链与正文共享预算，
-        // 2048 时 reasoning_tokens 可独占全部预算（finish=length、content 空），直连探测
-        // 12 发 2 中；4096 覆盖实测思维链峰值（~2.4k token）+正文余量
         { maxTokens: 4096, timeoutMs: 20_000, retries: 1 },
       );
-      // 形状归一（2026-11-03 实录）：模型间歇性把 {"focus":{"text":…}} 拍平成
-      // {"focus":"…"}（直连探测 12 发 2 中），两种形状都接受——只认嵌套会把合法
-      // 返回静默降级成 available:false
-      const pickText = (v: unknown): string =>
-        sanitizeBriefText(String((v && typeof v === 'object' ? (v as { text?: unknown }).text : v) ?? ''));
-      const focusText = pickText((r as any).focus);
-      const metricText = pickText((r as any).metric);
-      const reminderText = pickText((r as any).reminder);
-      const shareText = sanitizeBriefShareText(String((r as any).shareText ?? ''));
-      if (!focusText || !metricText || !reminderText) {
-        this.logger.warn(`今日要报字段为空，LLM 原始返回：${JSON.stringify(r).slice(0, 800)}`);
-        return { available: false };
+      // 形状归一（2026-11-03 教训）：{"focus":"…"} 扁平形状与 null 均接受
+      const rawFocus = (r as any).focus;
+      const text = rawFocus == null ? '' : sanitizeBriefText(String(rawFocus && typeof rawFocus === 'object' ? (rawFocus as { text?: unknown }).text : rawFocus));
+      if (!text) {
+        /* LLM 依数据自判无事——与前置无事路径同为合法缓存态，免得同数据反复触达 LLM */
+        const idle: MobileBriefResult = { available: true, focus: null };
+        await writeInsightCache(
+          this.prisma, MobileBriefService.BRIEF_CACHE_NS, scopeKey, idle, startDate, endDate, 'full',
+        ).catch(() => undefined);
+        return idle;
       }
       const result: MobileBriefResult = {
         available: true,
-        focus: { text: focusText, jump: '/dashboard' },
-        metric: { text: metricText, jump: '/ledger' },
-        reminder: { text: reminderText, jump: '/progress' },
-        shareText: shareText || `${metricText}；${focusText}`,
+        focus: { text, jump: risks.length > 0 ? '/ledger' : '/progress' },
       };
-      /* 生成成功落存（失败/兜底不入库——质量降级不冻结共享缓存）；写失败不阻断返回 */
       await writeInsightCache(
         this.prisma, MobileBriefService.BRIEF_CACHE_NS, scopeKey, result, startDate, endDate, 'full',
       ).catch(() => undefined);
       return result;
     } catch (err) {
-      this.logger.warn(`今日要报生成失败：${err instanceof Error ? err.message : err}`);
+      this.logger.warn(`今日关注生成失败：${err instanceof Error ? err.message : err}`);
       return { available: false };
     }
   }

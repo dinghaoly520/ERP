@@ -1,4 +1,5 @@
 import { api } from '../api';
+import { apiFetch } from './api-fetch';
 import type { Supplier, SupplierListResponse, SupplierClassification, SupplierEvaluation, SupplierChangeRecord, SupplierQualification } from '../types';
 
 /** 公司视野 query 段（admin 选择器值：'all'/空=全部，缺省 ''；多选逗号列表 encodeURIComponent） */
@@ -849,4 +850,23 @@ export function revealSupplierField(
   body: { entity: 'supplier' | 'contact' | 'bankAccount'; targetId?: string; field: string },
 ) {
   return api.post<{ entity: string; targetId: string; field: string; value: string | null }>(`/supplier/${id}/reveal`, body);
+}
+
+/** 导出供应商参标情况（2026-11-18，开标确认面板）：PDF 证明材料——邀请制（谈判/直接采购）
+ *  含选取设置条件/邀请批次/多轮补选回执明细；公告类含意向/获取/投递参标表 */
+export async function downloadParticipationExport(bidProjectId: string, projectName?: string) {
+  const res = await apiFetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/supplier/participation-export/${bidProjectId}`, {
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({} as any));
+    throw new Error(e?.error || '导出失败');
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `供应商参标情况_${projectName || bidProjectId}_${new Date().toISOString().slice(0, 10)}.pdf`;
+  a.click();
+  URL.revokeObjectURL(url);
 }

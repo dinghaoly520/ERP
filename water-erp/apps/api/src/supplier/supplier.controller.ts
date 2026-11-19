@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, Request, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, Request, BadRequestException, ForbiddenException, Res, StreamableFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
@@ -27,6 +27,7 @@ import { NegotiationConfigDto } from './dto/negotiation-config.dto';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { SupplierLinkService } from './supplier-link.service';
+import { ParticipationReportPdfService } from './participation-report-pdf.service';
 import { ApproveLinkDto, RejectLinkDto } from './dto/company-link.dto';
 import { BidIntentOversightService } from './bid-intent-oversight.service';
 
@@ -39,7 +40,20 @@ export class SupplierController {
     private prisma: PrismaService,
     private linkService: SupplierLinkService,
     private intentOversight: BidIntentOversightService,
+    private participationPdf: ParticipationReportPdfService,
   ) {}
+
+  /** 导出供应商参标情况（2026-11-18，开标确认面板）：邀请制（谈判/直接采购）含选取
+   *  设置条件、邀请批次与多轮补选回执明细；公告类含意向确认/获取文件/投递状态表 */
+  @Get('participation-export/:bidProjectId')
+  @Roles('admin', 'leader', 'staff')
+  @ApiOperation({ summary: '导出供应商参标情况（PDF 证明材料，按采购方式自动分轨）' })
+  async participationExport(@Param('bidProjectId') bidProjectId: string, @Res({ passthrough: true }) res: any) {
+    const { buffer, filename } = await this.participationPdf.build(bidProjectId);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    return new StreamableFile(buffer);
+  }
 
   @Post('register')
   @Public()

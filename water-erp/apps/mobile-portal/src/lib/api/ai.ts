@@ -72,24 +72,15 @@ export async function fetchDashboardAnalysis(
   return api.post<DashboardAnalysisResult>('/ai/dashboard-analysis', payload);
 }
 
-export type MobileGreeting = { text: string; source: 'llm' | 'fallback' };
-
-/** 顶部欢迎语（服务端 LLM 每次现场生成新句，不缓存） */
-export async function fetchMobileGreeting(): Promise<MobileGreeting> {
-  return api.get<MobileGreeting>('/ai/mobile-greeting');
-}
-
 export type MobileBrief = {
   available: true;
-  focus: { text: string; jump: string };
-  metric: { text: string; jump: string };
-  reminder: { text: string; jump: string };
-  shareText: string;
+  /** 一行事实句（风险/拥堵事项）；无事为 null——条不渲染 */
+  focus: { text: string; jump: '/ledger' | '/progress' } | null;
 } | { available: false };
 
-/** 数据库页「今日要报」三句（LLM 生成，失败时 available:false；区间随页面，缺省本月）。
- *  rangeKey（month/quarter/year）显式携带区间语义——服务端标签零歧义，
- *  自定义/全部档不传（评审 F10：时区跨界时日期启发式会误标「本月/本年」） */
+/** 数据库页「今日关注条」（2026-11-18 用户裁定「AI 感太重」改版：三句小作文收为
+ *  一行事实句，复述指标的 metric/reminder 句与 shareText 全撤）。rangeKey
+ *  （month/quarter/year）显式携带区间语义；自定义/全部档不传（评审 F10） */
 export async function fetchMobileBrief(
   companyId?: string,
   range?: { startDate?: string; endDate?: string; rangeKey?: string },

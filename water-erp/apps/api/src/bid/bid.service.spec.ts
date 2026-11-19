@@ -2905,33 +2905,17 @@ describe('截标↔开标间隔（P0-2；间隔=共享常量）', () => {
     expect(prisma.bidProject.update).not.toHaveBeenCalled();
   });
 
-  it('updateProject frozen：改 deadline → DEADLINE_FROZEN；仅延 openTime（≥+间隔）→ 放行且 deadline 不变', async () => {
-    const frozenDeadline = new Date(Date.now() - 86400_000);
+  it('updateProject 截标恒随开标重算（2026-11-18 用户裁定，推翻 2026-11-10 frozen 分档）：仅延 openTime → deadline=新开标−间隔', async () => {
+    const passedDeadline = new Date(Date.now() - 86400_000);
     prisma.bidProject.findUnique.mockResolvedValue({
-      openTime: new Date(frozenDeadline.getTime() + 12 * 3_600_000), deadline: frozenDeadline, stage: 'OPENING',
+      openTime: new Date(passedDeadline.getTime() + 12 * 3_600_000), deadline: passedDeadline, stage: 'OPENING',
     });
-    await expect(service.updateProject('p1', {
-      deadline: new Date(frozenDeadline.getTime() + 3600_000).toISOString(),
-    } as any)).rejects.toMatchObject({ response: { code: 'DEADLINE_FROZEN' } });
-    expect(prisma.bidProject.update).not.toHaveBeenCalled();
-
     prisma.bidProject.update.mockResolvedValue({ id: 'p1' });
-    const delayedOpen = new Date(frozenDeadline.getTime() + 48 * 3_600_000);
+    const delayedOpen = new Date(passedDeadline.getTime() + 48 * 3_600_000);
     await service.updateProject('p1', { openTime: delayedOpen.toISOString() } as any);
     const data = prisma.bidProject.update.mock.calls[0][0].data;
     expect(data.openTime.getTime()).toBe(delayedOpen.getTime());
-    expect(data.deadline).toBeUndefined();
-  });
-
-  it('updateProject frozen：openTime < deadline+间隔 → DEADLINE_OPENING_GAP_INVALID', async () => {
-    const frozenDeadline = new Date(Date.now() - 86400_000);
-    prisma.bidProject.findUnique.mockResolvedValue({
-      openTime: new Date(frozenDeadline.getTime() + 12 * 3_600_000), deadline: frozenDeadline, stage: 'OPENING',
-    });
-    await expect(service.updateProject('p1', {
-      openTime: new Date(frozenDeadline.getTime() + GAP_MS - 2 * 60_000).toISOString(),
-    } as any)).rejects.toMatchObject({ response: { code: 'DEADLINE_OPENING_GAP_INVALID' } });
-    expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    expect(data.deadline.getTime()).toBe(delayedOpen.getTime() - GAP_MS);
   });
 
   it('updateProject 终审 null 守卫：PATCH {openTime: null} 视同未提供——不写时间字段、不进 align 校验', async () => {

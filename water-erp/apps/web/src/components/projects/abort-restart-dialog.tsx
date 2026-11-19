@@ -294,16 +294,16 @@ export function AbortRestartDialog({
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold text-[color:var(--foreground)]">{def.label}</span>
         {aiLoadingField === def.formKey ? (
-          <span className="neu-btn-xs pointer-events-none text-[var(--accent)]"><Loader2 size={13} className="animate-spin" /></span>
+          <span className="neu-btn-primary is-water pointer-events-none !h-[28px] !px-2"><Loader2 size={13} className="animate-spin text-[var(--accent)]" /></span>
         ) : (
           <button
             type="button"
             title={extractedText ? 'AI 识别：从上传的文档中读取该字段' : '请先在上一步上传并解析文件'}
             disabled={!extractedText}
             onClick={() => void handleAiIdentify(def.formKey, def.aiKey)}
-            className="neu-btn-xs text-[var(--accent)] disabled:opacity-40"
+            className="neu-btn-primary is-water !h-[28px] !px-2 disabled:opacity-50"
           >
-            <Sparkles size={13} />
+            <Sparkles size={13} className="text-[var(--accent)]" />
           </button>
         )}
       </div>
@@ -319,9 +319,10 @@ export function AbortRestartDialog({
             onClick={() => void handlePolish(def.formKey as 'projectReason', def.label)}
             disabled={polishing[def.formKey]}
             title="AI 优化：基于文档原文润色"
-            className="neu-btn-xs shrink-0 text-[var(--accent)] disabled:opacity-40"
+            className="neu-btn-primary is-water shrink-0 !h-[30px] !px-2.5 !text-xs gap-1 disabled:opacity-50"
           >
-            {polishing[def.formKey] ? <Loader2 size={13} className="animate-spin" /> : <><Wand2 size={13} className="inline mr-0.5" />AI 优化</>}
+            {polishing[def.formKey] ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+            AI 优化
           </button>
         </div>
       ) : def.options ? (
@@ -531,7 +532,7 @@ export function AbortRestartDialog({
         <div className="mt-4 space-y-4">
           {needsUpload && uploadedName && (
             <p className="text-xs text-[var(--accent-strong)]">
-              已读取新上传的《{uploadedName}》{extractedCount > 0 ? `并更新 ${extractedCount} 项信息` : '（信息与当前一致）'}，请核对；各项可点 <Sparkles size={11} className="inline" /> 从文档 AI 识别。
+              已读取新上传的《{uploadedName}》{extractedCount > 0 ? `并更新 ${extractedCount} 项信息` : '（信息与当前一致）'}，请核对；各项可点 <Sparkles size={11} className="inline" /> 从文档中识别。
             </p>
           )}
           {!needsUpload && (

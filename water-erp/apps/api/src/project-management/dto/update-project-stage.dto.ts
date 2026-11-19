@@ -1,9 +1,23 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, Max } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min, Max, MaxLength } from 'class-validator';
 import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 
 export class UpdateProjectStageDto {
   @IsIn(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'])
   status!: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+  /** 直接采购 03（谈判文件）完成确认值（2026-11-18 用户裁定）：随完成调用一并落库——
+   *  综合分析确认弹窗的最终值（用户可改）；采购文件获取时间固定写"/"（服务端写死）。 */
+  @EmptyAsUndefined()
+  @IsString()
+  @MaxLength(2000)
+  @IsOptional()
+  directOverview?: string;
+
+  @EmptyAsUndefined()
+  @IsString()
+  @MaxLength(100)
+  @IsOptional()
+  directOpeningTime?: string;
 
   /** 目标阶段行轮次（多轮再次采购每轮各有一行同 stageKey 阶段——schema (pmiId, stageKey, round)
    *  唯一）。缺省取 PMI.currentRound；不带 round 的解析在多轮项目会命中任意行（I-1 修复）。 */

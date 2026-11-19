@@ -140,11 +140,14 @@ export function ProjectStageTimeline({
     // 待补充（2026-11-09）：被越过的需求/立项未开始，等用户回来补材料
     const isSupplement = !isCompleted && !isInProgress
       && isPendingSupplementStage(stage, { stages, currentStage: currentStageKey ?? null, currentRound });
+    // 直接采购 03 更名「谈判文件」（2026-11-18 用户裁定）：显示层覆写——存量项目 DB
+    // stageName 仍是「采购文件」，新项目由前后端模板直接建为「谈判文件」
+    const isDirectTender = stage.stageKey === 'TENDER_DOCUMENT' && roundMethods?.[stage.round ?? 1] === '直接采购';
 
     return {
       key: stage.id,
       orderLabel: String(stage.stageOrder).padStart(2, '0'),
-      title: stage.stageName,
+      title: isDirectTender ? '谈判文件' : stage.stageName,
       statusLabel: PROJECT_STAGE_STATUS_LABELS[stage.status],
       summary: isCompleted
         ? '当前阶段已完成，可继续补充材料。'
@@ -310,6 +313,9 @@ export function ProjectStageTimeline({
                 const isSelected = entry.stageKey === activeStageKey && entry.round === activeRound;
                 const stageKey = entry.stageKey;
                 const actionLabel = STAGE_ACTION_LABELS[stageKey];
+                // 直接采购 03（谈判文件，2026-11-18 用户裁定）：无采购文件编写/评分标准入口——
+                // 文件直接上传，完成走综合分析确认弹窗
+                const isDirectTender = stageKey === 'TENDER_DOCUMENT' && roundMethods?.[entry.round] === '直接采购';
 
                 return (
                   <div key={entry.key} className={segmentClassName}>
@@ -398,7 +404,7 @@ export function ProjectStageTimeline({
                         <div className="flex flex-col items-stretch gap-1.5">
                           {/* 步骤操作按钮仅对"进行中"步骤开放（2026-09-09 拍板）——
                               仅选中/聚焦（activeStageKey）不再显示按钮；选中卡只切换右侧详情面板 */}
-                          {actionLabel && onStageAction && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
+                          {actionLabel && onStageAction && !isDirectTender && entry.isInProgress && entry.stageKey !== 'PROCUREMENT_DEMAND' && entry.stageKey !== 'INITIATION' && (
                             <span
                               role="button"
                               tabIndex={0}
@@ -412,7 +418,7 @@ export function ProjectStageTimeline({
                           {/* 评分标准入口（2026-09-24 定稿：原「采购文件修改」按钮位）——
                               点击弹出评分标准面板。显隐与「采购文件编写」一致（2026-09-28 裁定）：
                               仅进行中显示，标记完成后自动隐藏（重开步骤可再入） */}
-                          {stageKey === 'TENDER_DOCUMENT' && entry.isInProgress && onOpenScoreStandard && (
+                          {stageKey === 'TENDER_DOCUMENT' && !isDirectTender && entry.isInProgress && onOpenScoreStandard && (
                             <span
                               role="button"
                               tabIndex={0}

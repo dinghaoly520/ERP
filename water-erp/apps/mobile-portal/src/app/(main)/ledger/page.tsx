@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Search, TrendingUp } from "lucide-react";
+import { AlertTriangle, Loader2, Search, TrendingUp } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProcurements, fetchLedgerStats, fetchProcurementMethods } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
 import { CompanyPicker } from "@/components/m/company-picker";
+import { SelectPicker } from "@/components/m/select-picker";
 import { BottomSheet } from "@/components/m/bottom-sheet";
-import { Chip } from "@/components/m/chip";
 import { MetricCard } from "@/components/m/metric-card";
 import { ErrorBanner } from "@/components/m/error-banner";
 import { EmptyState } from "@/components/m/empty-state";
@@ -310,68 +310,64 @@ export default function LedgerPage() {
         ) : null}
       </div>
 
-      {/* ── 筛选 chips ── */}
-      <div className="mb-2 flex gap-2 overflow-x-auto pb-0.5">
-        <Chip
-          active={abnormalFilter}
+      {/* ── 筛选行（2026-11-17 改版：状态/方式 chips 长条 → 下拉按钮+弹层，同 RangePicker 语言）── */}
+      <div className="mb-2 flex gap-2">
+        <button
+          type="button"
+          aria-pressed={abnormalFilter}
           onClick={() =>
             changeFilter(() => {
               const next = !abnormalFilter;
               setAbnormalFilter(next);
               /* 互斥（评审 F6）：服务端 abnormalOnly 覆盖 resultStatus——开启异常时清
-                 状态 chip，避免「已成交」chip 亮着而数据是异常四态 */
+                 状态筛选，避免「已成交」生效而数据是异常四态 */
               if (next) {
                 setStatusFilter(null);
                 persistLedger({ statusFilter: null });
               }
             })
           }
+          className={`m-input flex w-[5.5rem] shrink-0 items-center gap-1.5 font-medium active:scale-[0.98] ${
+            abnormalFilter ? "text-[var(--danger)]" : "text-[var(--foreground)]"
+          }`}
+          style={abnormalFilter ? { background: "color-mix(in oklch, var(--danger) 8%, oklch(0.985 0.005 258))" } : undefined}
         >
+          <AlertTriangle size={15} className={`shrink-0 ${abnormalFilter ? "text-[var(--danger)]" : "text-[var(--muted-foreground)]"}`} />
           异常
-        </Chip>
-        <Chip active={!statusFilter} onClick={() => changeFilter(() => { setStatusFilter(null); persistLedger({ statusFilter: null }); })}>
-          全部状态
-        </Chip>
-        {statusChips.map((c) => (
-          <Chip
-            key={c.key}
-            active={statusFilter === c.key}
-            onClick={() =>
+        </button>
+        <SelectPicker
+          className="mb-0 flex-1"
+          title="按状态筛选"
+          allLabel="全部状态"
+          options={statusChips.map((c) => ({ value: c.key, label: c.label }))}
+          value={statusFilter}
+          onChange={(next) =>
+            changeFilter(() => {
+              /* SelectPicker 出参 string——窄化回 RESULT_STATUS_CONFIG 键集（选项即由其派生） */
+              const key = next as ResultStatusKey | null;
+              setStatusFilter(key);
+              persistLedger({ statusFilter: key });
+              /* 互斥另一侧：显式选状态即退出异常视图 */
+              if (key) setAbnormalFilter(false);
+            })
+          }
+        />
+        {methods.length > 1 ? (
+          <SelectPicker
+            className="mb-0 flex-1"
+            title="按方式筛选"
+            allLabel="全部方式"
+            options={methods.map((m) => ({ value: m, label: m }))}
+            value={methodFilter}
+            onChange={(next) =>
               changeFilter(() => {
-                const next = statusFilter === c.key ? null : c.key;
-                setStatusFilter(next);
-                persistLedger({ statusFilter: next });
-                /* 互斥另一侧：显式选状态即退出异常视图 */
-                if (next) setAbnormalFilter(false);
+                setMethodFilter(next);
+                persistLedger({ methodFilter: next });
               })
             }
-          >
-            {c.label}
-          </Chip>
-        ))}
+          />
+        ) : null}
       </div>
-      {methods.length > 1 ? (
-        <div className="mb-2 flex gap-2 overflow-x-auto pb-0.5">
-          <Chip active={!methodFilter} onClick={() => changeFilter(() => { setMethodFilter(null); persistLedger({ methodFilter: null }); })}>
-            全部方式
-          </Chip>
-          {methods.map((m) => (
-            <Chip
-              key={m}
-              active={methodFilter === m}
-              onClick={() =>
-                changeFilter(() => {
-                  const next = methodFilter === m ? null : m;
-                  setMethodFilter(next);
-                  persistLedger({ methodFilter: next });
-                })
-              }
-            >
-              {m}
-            </Chip>
-          ))}
-        </div>
-      ) : null}
       {role === "admin" ? (
         <CompanyPicker
           value={companyIds}

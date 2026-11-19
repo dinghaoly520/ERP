@@ -16,7 +16,7 @@ import type { Supplier } from '@/lib/types';
 import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidProjectDetail } from '@/lib/api/expert';
 import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
+import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, ChevronRight, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
 import { Modal } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
@@ -56,11 +56,8 @@ const NEGOTIATION_STEPS = [
   { num: 4, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
   { num: 5, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
-// 直接采购：已确定供应商 → 仅显示通知+确认两步，隐藏前置选取步骤
-const DIRECT_STEPS = [
-  { num: 1, label: '确认通知', desc: '发送通知给候选供应商' },
-  { num: 2, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
-] as const;
+// 直接采购（2026-11-18 用户裁定）：与标准流程一致——先选择供应商、确认通知、供应商确认，
+// 不再跳过选取直达通知步；拟定供应商自动预填候选名单（见 auto-inject），用户可增删调整
 /** 智能匹配 0 推荐时的提示（2026-11-02 排障定案）：仅属步骤1-2 的获取阶段问题——
  *  获取完成后（手动补选入列/已发通知）即为陈旧信息，不得跟随到后续步骤（曾在步骤4 误导排障）。 */
 const NO_MATCH_ERROR = '未找到匹配的候选供应商，请调整需求描述或筛选条件';
@@ -294,8 +291,8 @@ export function SupplierSelectionPage({
   const [shortlist, setShortlist] = useState<Map<string, { item: SupplierRecommendation; note: string }>>(new Map());
 
   // 「未找到匹配」在供应商已入列（手动补选/AI 选用）后即为陈旧信息，自动清除（2026-11-02 排障定案）
-  useEffect(() => { if (error === NO_MATCH_ERROR && shortlist.size > 0) setError(''); }, [error, shortlist.size]);  const [step, setStepInner] = useState(project?.procurementMethod === '直接采购' ? 3 : 1);
-  const [maxStepReached, setMaxStepReached] = useState(project?.procurementMethod === '直接采购' ? 3 : 1); // 历史最大步骤（允许回看后仍点击前进）
+  useEffect(() => { if (error === NO_MATCH_ERROR && shortlist.size > 0) setError(''); }, [error, shortlist.size]);  const [step, setStepInner] = useState(1);
+  const [maxStepReached, setMaxStepReached] = useState(1); // 历史最大步骤（允许回看后仍点击前进）
   const setStep = (s: number) => { setStepInner(s); setMaxStepReached(prev => Math.max(prev, s)); };
   // 谈判采购（从项目管理进入）在确认通知后增加附件选择步骤
   const neg = !!(project && project.procurementMethod === '谈判采购');
@@ -328,7 +325,10 @@ export function SupplierSelectionPage({
   const isAnyRerunConfirm = step > baseConfirmStep && (step - baseConfirmStep) % 3 === 0;
   // 动态步骤轨道
   const steps = useMemo(() => {
-    const base: { num: number; label: string; desc: string }[] = [...(isDirect ? DIRECT_STEPS : neg ? NEGOTIATION_STEPS : STEPS)].map(s => ({ ...s }));
+    // 直接采购（2026-11-18 用户裁定）：删「审核候选」步——选取完成直达确认通知；
+    // 过滤后重编号（1 选取 / 2 确认通知 / 3 供应商确认），内部步骤号经 StepTrack 边界翻译
+    const baseSrc = isDirect ? STEPS.filter(s => s.label !== '审核候选') : (neg ? NEGOTIATION_STEPS : STEPS);
+    const base: { num: number; label: string; desc: string }[] = baseSrc.map((s, i) => (isDirect ? { ...s, num: i + 1 } : { ...s }));
     if (!isRerun) return base;
     const baseRenumbered = base.map((s, i) => ({ ...s, num: i + 1 }));
     const lastIdx = baseRenumbered.length - 1;
@@ -345,7 +345,7 @@ export function SupplierSelectionPage({
         baseRenumbered.push({ num: baseRenumbered.length + 1, label: e.label, desc: e.desc });
       });
       return baseRenumbered;
-  }, [neg, isRerun, rerunRound]);
+  }, [neg, isDirect, isRerun, rerunRound]);
   // 日期解析：从 AI 提取的中文/ISO 格式字符串中提取日期和时分
   // 开标时间为单点时间："2026年3月27日14:00"→ {date, time}
   // 采购文件获取时间为区间："2026年3月23日9:00-2026年3月26日15:00"→ {startDate, startTime, endDate, endTime}
@@ -550,6 +550,9 @@ export function SupplierSelectionPage({
   const [manualLoading, setManualLoading] = useState(false);
   const [manualTotal, setManualTotal] = useState(0);
   const [showManualAdd, setShowManualAdd] = useState(false);
+  // 步骤一选取方式（2026-11-18 用户裁定）：ai=智能推荐（条件筛选+AI 匹配）/ manual=手动选择（搜索库内供应商）
+  // 进入默认手动选择（同日用户裁定）；仅直接采购显示切换，其余方式恒走智能推荐
+  const [pickMode, setPickMode] = useState<'ai' | 'manual'>('manual');
   // 增选（在已推荐名单外追加 N 家 AI 推荐）
   const [addMoreOpen, setAddMoreOpen] = useState(false);
   const [addMoreCount, setAddMoreCount] = useState(1);
@@ -663,8 +666,10 @@ export function SupplierSelectionPage({
         // 快照版本迁移：v2=合并「选择项目+描述需求」后的新步骤制；无版本标记的旧快照（6 步制）≥2 的步骤号 -1
         const isNewSnapshot = state.v === 2;
         const shiftOld = (n: number) => (isNewSnapshot ? n : n >= 2 ? n - 1 : n);
-        if (state.step) setStepInner(isDirect ? Math.max(shiftOld(state.step), 3) : shiftOld(state.step));
-        if (state.maxStepReached) setMaxStepReached(isDirect ? Math.max(shiftOld(state.maxStepReached), 3) : shiftOld(state.maxStepReached));
+        // 直采步序兼容（2026-11-18 删审核候选）：旧会话存的 step 2（审核候选）映射到 3（确认通知）
+        const shiftDirect = (n: number) => (isDirect && shiftOld(n) === 2 ? 3 : shiftOld(n));
+        if (state.step) setStepInner(shiftDirect(state.step));
+        if (state.maxStepReached) setMaxStepReached(shiftDirect(state.maxStepReached));
         if (state.notified) setNotified(true);
         if (state.completed) setCompleted(true);
         if (typeof state.notifyNotFound === 'number') setNotifyNotFound(state.notifyNotFound);
@@ -731,7 +736,9 @@ export function SupplierSelectionPage({
     } // applySnapshot
   }, [sessionKey, draftKey, isDirect]);
 
-  // 直接采购：自动注入候选人列表。供应商名来源：awardedSupplier > 采购文件编写草稿 > 后端提取
+  // 直接采购：拟定供应商自动预填候选名单（2026-11-18 步骤口径修订后保留——流程不再跳过选取，
+  // 此注入只是把已定供应商提前放进「审核候选」名单，用户仍可增删调整或另选）。
+  // 供应商名来源：awardedSupplier > 采购文件编写草稿 > 后端提取；
   // 注入时用名称到供应商库查真实 ID，确保后续发送通知能命中关联账户。
   const directInjectDone = useRef(false);
   useEffect(() => {
@@ -1013,7 +1020,7 @@ export function SupplierSelectionPage({
       const res = await recommendSuppliers({ requirement: text, tags: selectedTags.length ? selectedTags : undefined, maxCount, projectContext: buildProjectContext(text), companyId: project?.companyId || undefined, hardConditions: activeHardConditions });
       setResult(res);
       setShortlist(new Map());
-      setStep(2); // 自动跳转到审核候选步骤
+      setStep(isDirect ? 3 : 2); // 直采无审核候选步，直达确认通知（2026-11-18）
       if (res.recommendations.length === 0) setError(NO_MATCH_ERROR);
       // Capture history ID for later shortlist save
       const { getSelectionHistory } = await import('@/lib/api/supplier');
@@ -1681,18 +1688,32 @@ export function SupplierSelectionPage({
   // 合并名单与确认状态（正选 + 历史补选 + 当前补选）
   const allShortlist = useMemo(() => new Map([...shortlist, ...previousRerunShortlist, ...rerunShortlist]), [shortlist, previousRerunShortlist, rerunShortlist]);
 
-  // 手动搜索供应商
-  const handleManualSearch = async () => {
-    if (!manualSearch.trim()) return;
+  // 手动搜索供应商（2026-11-18 用户裁定：必须输入关键词——空搜索不浏览全库不出清单；
+  // term 参数供 compositionend 直传输入框当前值，规避组词落定前的状态闭包过期）
+  const handleManualSearch = async (term?: string) => {
+    const kw = (term ?? manualSearch).trim();
+    if (!kw) { setManualSuppliers([]); setManualTotal(0); return; }
     setManualLoading(true);
     try {
-      const res = await getSupplierList({ search: manualSearch.trim(), status: 'APPROVED', pageSize: 20 });
+      const res = await getSupplierList({ search: kw, status: 'APPROVED', pageSize: 20 });
       const items = (res as any).items ?? (res as any).data ?? res ?? [];
       setManualSuppliers(Array.isArray(items) ? items : []);
       setManualTotal((res as any).total ?? (Array.isArray(items) ? items.length : 0));
     } catch { toast.error('供应商搜索失败'); }
     setManualLoading(false);
   };
+
+  // 输入即搜（2026-11-18 用户裁定）：防抖 400ms 热加载，无需点搜索钮；
+  // IME 组词中不触发（compositionend 后由 onCompositionEnd 直接搜）
+  const manualComposingRef = useRef(false);
+  useEffect(() => {
+    if (manualComposingRef.current) return;
+    const kw = manualSearch.trim();
+    if (!kw) { setManualSuppliers([]); setManualTotal(0); return; }
+    const t = setTimeout(() => { void handleManualSearch(); }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manualSearch]);
 
   // 手动将供应商加入候选名单（构造虚拟 SupplierRecommendation）
   const toggleManualSupplier = (s: Supplier) => {
@@ -2140,17 +2161,18 @@ export function SupplierSelectionPage({
       {/* 步骤轨道 */}
       <StepTrack
         steps={steps}
-        current={isDirect ? step - 2 : step}
-        onStepClick={(s) => setStep(isDirect ? s + 2 : s)}
+        current={isDirect ? (step === 1 ? 1 : step - 1) : step}
+        onStepClick={(s) => setStep(isDirect ? (s === 1 ? 1 : s + 1) : s)}
         reachable={(s) => {
-          const si = isDirect ? s + 3 : s;
-          if (!isDirect && s === 1) return false; // 第一步不可回访（2026-11-04 用户裁定）：推荐启动即锁定筛选条件
+          // 直采显示号→内部号：1→1、2→3、3→4（审核候选内部 2 已删，显示层不出现）
+          const si = isDirect ? (s === 1 ? 1 : s + 1) : s;
+          if (s === 1) return false; // 第一步不可回访（2026-11-04 用户裁定）：推荐启动即锁定筛选条件
           if (si <= maxStepReached) return true;
-          if (!isDirect && s === 3 && !!result) return true;
+          if (si === 3 && !!result) return true;
           if (isRerun) {
             if (si === rerunPickStep) return true;
             if (si === rerunNotifyStep && rerunShortlist.size > 0) return true;
-            if (s === finalConfirmStep && rerunNotified) return true;
+            if (si === finalConfirmStep && rerunNotified) return true;
           }
           return false;
         }}
@@ -2185,6 +2207,27 @@ export function SupplierSelectionPage({
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           )}
+
+          {/* 选取方式（2026-11-18 用户裁定）：仅直接采购分「智能推荐 / 手动选择」两模式；
+              其余采购方式（谈判/竞价/邀请/询比）不显示切换，恒为智能推荐 */}
+          {isDirect && (
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="neu-segment" role="group" aria-label="供应商选取方式" data-count="2" data-index={pickMode === 'manual' ? 0 : 1}>
+              <span className="neu-segment-thumb" aria-hidden="true" />
+              <button
+                type="button"
+                className="neu-segment-btn"
+                aria-pressed={pickMode === 'manual'}
+                onClick={() => setPickMode('manual')}
+              >
+                手动选择
+              </button>
+              <button type="button" className="neu-segment-btn" aria-pressed={pickMode === 'ai'} onClick={() => setPickMode('ai')}>智能推荐</button>
+            </div>
+          </div>
+          )}
+
+          {(!isDirect || pickMode === 'ai') ? (<>
 
           {/* 条件筛选卡（2026-11-04 二次裁定）：业务标签（必选）+ 行业/资质/业绩评价（可选）同款 picker 依次放置 */}
           <div className="rounded-[20px] p-5 space-y-4"
@@ -2261,6 +2304,84 @@ export function SupplierSelectionPage({
               <Wand2 size={14} />{loading ? '智能匹配中…' : '开始智能推荐'}
             </button>
           </div>
+
+          </>) : (<>
+
+          {/* 手动选择卡（2026-11-18）：搜索库内全部供应商，自行加入候选名单 */}
+          <div className="rounded-[20px] p-5 space-y-4"
+            style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.92) 0%, oklch(0.985 0.005 258 / 0.58) 40%, oklch(1 0 0 / 0.14) 75%)', boxShadow: 'inset 0 1px 0 oklch(0.75), 2px 3px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.88)' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-[var(--foreground)]">手动选择供应商</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">搜索库内已入库供应商，加入候选名单</span>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1 relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                <input
+                  value={manualSearch}
+                  onChange={e => { setManualSearch(e.target.value); if (!e.target.value.trim()) { setManualSuppliers([]); setManualTotal(0); } }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent as KeyboardEvent).isComposing) handleManualSearch(); }}
+                  onCompositionStart={() => { manualComposingRef.current = true; }}
+                  onCompositionEnd={e => { manualComposingRef.current = false; void handleManualSearch(e.currentTarget.value); }}
+                  placeholder="输入关键词即自动搜索（供应商名称、标签或经营范围）"
+                  className="workbench-input w-full !pl-9 !pr-8 text-sm"
+                />
+                {manualSearch && (
+                  <button type="button" onClick={() => { setManualSearch(''); setManualSuppliers([]); setManualTotal(0); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--muted-foreground)]/50 transition hover:text-[var(--muted-foreground)]">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <button onClick={() => handleManualSearch()} disabled={manualLoading} className="neu-btn-soft text-sm gap-1.5">
+                <Search size={14} />{manualLoading ? '搜索中…' : '搜索'}
+              </button>
+            </div>
+            {manualLoading ? (
+              <div className="py-8 text-center text-sm text-[var(--muted-foreground)]"><Loader2 size={16} className="inline animate-spin mr-1.5" />正在搜索供应商库…</div>
+            ) : manualSearch.trim() && manualSuppliers.length > 0 ? (
+              <>
+                <div className="space-y-1.5 max-h-[340px] overflow-y-auto">
+                  {manualSuppliers.map(s => {
+                    const inList = shortlist.has(s.id);
+                    return (
+                      <div key={s.id} className={`flex items-center justify-between rounded-[14px] p-3 ${inList ? 'ring-2 ring-[var(--success)]/20' : ''}`} style={{ background: 'oklch(1 0 0 / 0.5)' }}>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-[var(--foreground)]">{s.name}</span>
+                            {(s as any).enterpriseType && <span className="neu-tab-count">{normalizeEnterpriseType((s as any).enterpriseType)}</span>}
+                            {inList && <span className="text-[10px] font-bold text-[var(--success)]">✓ 已加入</span>}
+                          </div>
+                          {(s as any).tags?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(s as any).tags.slice(0, 5).map((tg: string) => (
+                                <span key={tg} className="inline-flex items-center rounded-[5px] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent-strong)]" style={{ background: 'color-mix(in oklch, var(--accent) 9%, transparent)' }}>{tg}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => toggleManualSupplier(s)} className={`neu-btn-xs flex-shrink-0 ${inList ? 'is-danger' : 'is-success'}`}>
+                          {inList ? <><X size={12} />移除</> : <><Plus size={12} />加入</>}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            ) : manualSearch.trim() ? (
+              <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">未搜索到匹配的供应商，请调整关键词</div>
+            ) : null}
+          </div>
+
+          {/* 手动模式底部操作 */}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-semibold text-[var(--muted-foreground)]">已选 {shortlist.size} 家供应商</span>
+            <button onClick={() => setStep(3)} disabled={shortlist.size === 0} title={shortlist.size === 0 ? '请先加入候选供应商' : undefined} className="neu-btn-primary gap-2">
+              下一步：确认通知 <ChevronRight size={14} />
+            </button>
+          </div>
+
+          </>)}
         </div>
       )}
 
@@ -2388,7 +2509,7 @@ export function SupplierSelectionPage({
                       <div className="flex-1 relative">
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
                         <input value={manualSearch} onChange={e => { setManualSearch(e.target.value); if (!e.target.value.trim()) { setManualSuppliers([]); setManualTotal(0); } }}
-                          onKeyDown={e => { if (e.key === 'Enter') handleManualSearch(); }}
+                          onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent as KeyboardEvent).isComposing) handleManualSearch(); }}
                           placeholder="搜索供应商名称、标签或经营范围..." className="workbench-input w-full !pl-9 !pr-8 text-sm" />
                         {manualSearch && (
                           <button type="button" onClick={() => { setManualSearch(''); setManualSuppliers([]); setManualTotal(0); }}
@@ -2397,7 +2518,7 @@ export function SupplierSelectionPage({
                           </button>
                         )}
                       </div>
-                      <button onClick={handleManualSearch} disabled={manualLoading} className="neu-btn-soft text-sm gap-1.5">
+                      <button onClick={() => handleManualSearch()} disabled={manualLoading} className="neu-btn-soft text-sm gap-1.5">
                         <Search size={14} />{manualLoading ? '搜索中…' : '搜索'}
                       </button>
                     </div>
@@ -2694,8 +2815,8 @@ export function SupplierSelectionPage({
           </div>
 
           <div className="flex items-center justify-between">
-            <button onClick={() => setStep(2)} className="neu-btn-soft gap-2">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：审核候选
+            <button onClick={() => setStep(isDirect ? 1 : 2)} className="neu-btn-soft gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>{isDirect ? '上一步：选取供应商' : '上一步：审核候选'}
             </button>
             <div className="flex items-center gap-2">
               <button onClick={handleNotify} disabled={notifySending || notified || notifyPerSupplier.size === 0}
@@ -2945,7 +3066,9 @@ export function SupplierSelectionPage({
                       </div>
                     </div>
                   </div>
-                  {/* 核定最少供应商数量：回执确认达到该值即可在项目详情标记阶段完成（详情页按钮读取同一设置） */}
+                  {/* 核定最少供应商数量：回执确认达到该值即可在项目详情标记阶段完成（详情页按钮读取同一设置）；
+                      直接采购固定 1/1（2026-11-18 用户裁定）——不显示可调输入 */}
+                  {!isDirect && (
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-[11px] font-bold text-[var(--foreground)] whitespace-nowrap">核定最少供应商数量</span>
                     <input type="number" min={1} max={50} value={confirmThreshold}
@@ -2957,6 +3080,7 @@ export function SupplierSelectionPage({
                       className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
                       title="供应商回执确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />
                   </div>
+                  )}
                 </div>
 
                 {/* 逐供应商确认列表 */}
@@ -3593,7 +3717,9 @@ export function SupplierSelectionPage({
                   </div>
                 </div>
               </div>
-              {/* 核定最少供应商数量：正选+补选合计确认达到该值即可在项目详情标记阶段完成 */}
+              {/* 核定最少供应商数量：正选+补选合计确认达到该值即可在项目详情标记阶段完成；
+                  直接采购固定 1/1（2026-11-18）——不显示可调输入 */}
+              {!isDirect && (
               <div className="flex shrink-0 items-center gap-2">
                 <span className="text-[11px] font-bold text-[var(--foreground)] whitespace-nowrap">核定最少供应商数量</span>
                 <input type="number" min={1} max={50} value={confirmThreshold}
@@ -3605,6 +3731,7 @@ export function SupplierSelectionPage({
                   className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
                   title="全部供应商（正选+补选）确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />
               </div>
+              )}
             </div>
 
             {/* 正选供应商 */}

@@ -383,6 +383,10 @@ export default function ExpertRepositoryPage() {
                       if (inFlight.some(b => b.project?.stage === 'EVALUATING')) {
                         return <td className="text-center" title="该专家有处于评标阶段的在途项目"><StatusBadge tone="orange">正在评标</StatusBadge></td>;
                       }
+                      // 候补待命（2026-11-18 用户裁定）：仅以候补身份在途——独特状态色，与正选区分
+                      if (inFlight.length > 0 && !inFlight.some(b => b.expertRole !== '候补')) {
+                        return <td className="text-center" title={`候补待命（在途项目 ${inFlight.length} 个，均为候补身份）`}><StatusBadge tone="cyan">候补待命</StatusBadge></td>;
+                      }
                       if (inFlight.length > 0) {
                         return <td className="text-center" title={`已被抽取（在途项目 ${inFlight.length} 个，未进入评标）`}><StatusBadge tone="blue">已被抽取</StatusBadge></td>;
                       }
@@ -438,7 +442,15 @@ export default function ExpertRepositoryPage() {
   // 三态派生（与状态列同口径）：空闲 / 已被抽取 / 正在评标
   const inFlightOf = (e: ExpertListItem) => e.bidExperts.filter(b => ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'].includes(b.project?.stage ?? ''));
   const idle = experts.filter(e => e.isActive && (e.expertProfile?.entryStatus ?? 'ACTIVE') === 'ACTIVE' && e.expertProfile?.availability !== '停用' && inFlightOf(e).length === 0).length;
-  const assigned = experts.filter(e => inFlightOf(e).length > 0 && !inFlightOf(e).some(b => b.project?.stage === 'EVALUATING')).length;
+  // 候补待命（2026-11-18）：在途但仅以候补身份（无正选在途、未进评标）——独特状态呈现
+  const alternates = experts.filter(e => {
+    const fl = inFlightOf(e);
+    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && !fl.some(b => b.expertRole !== '候补');
+  }).length;
+  const assigned = experts.filter(e => {
+    const fl = inFlightOf(e);
+    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && fl.some(b => b.expertRole !== '候补');
+  }).length;
   const occupied = experts.filter(e => inFlightOf(e).some(b => b.project?.stage === 'EVALUATING')).length;
   const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
   // totalEvals 已删（2026-11-06 随累计评价胶囊移除；当前页推导值本就随翻页漂移）
@@ -477,11 +489,14 @@ export default function ExpertRepositoryPage() {
           <div className="page-hero__right">
             {/* 库况数字锚点四联（2026-11-06 用户裁定：同 :3006 统计三联设计） */}
             <div className="mr-2 hidden items-center lg:flex">
+              {/* 库况全库口径（2026-11-18 修正）：三态+候补待命改读服务端阶段派生（busy），
+                  此前当前页近似曾致 6 名在册只显 2；stats 未就绪时回退页内推导 */}
               {([
                 { value: String(expStats?.totalExperts ?? total), unit: '名', label: '全库口径', color: 'var(--accent)' },
-                { value: String(idle), unit: '名', label: '空闲', color: 'var(--success)' },
-                { value: String(assigned), unit: '名', label: '已被抽取', color: 'var(--accent)' },
-                { value: String(occupied), unit: '名', label: '正在评标', color: 'var(--warning)' },
+                { value: String(expStats?.busy?.idle ?? idle), unit: '名', label: '空闲', color: 'var(--success)' },
+                { value: String(expStats?.busy?.assigned ?? assigned), unit: '名', label: '已被抽取', color: 'var(--accent)' },
+                { value: String(expStats?.busy?.evaluating ?? occupied), unit: '名', label: '正在评标', color: 'var(--warning)' },
+                { value: String(expStats?.busy?.alternate ?? alternates), unit: '名', label: '候补待命', color: 'var(--water, oklch(0.5 0.12 175))' },
                 { value: String(expStats?.disabled ?? disabled), unit: '名', label: '已停用', color: 'var(--muted-foreground)' },
               ] as const).map((s, i) => (
                 <div key={s.label} className="flex items-center">
