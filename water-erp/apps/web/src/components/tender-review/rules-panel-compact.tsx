@@ -15,6 +15,7 @@ import {
   RULE_OPERATORS,
   RULE_SEVERITIES,
   RULE_CHECK_TYPES,
+  RULE_NUMERIC_FIELDS,
 } from '@water-erp/shared';
 import { fetchRules, extractRules, getExtractionTask, findActiveExtraction, deleteRule, updateRule, createRuleLegacy } from '@/lib/api/rules';
 import type { ComplianceRule, RuleType, Severity } from '@/lib/types/tender-review';
@@ -54,15 +55,19 @@ interface RuleDraft {
 function draftFromRule(rule: ComplianceRule): RuleDraft {
   const logic = (rule.logicExpression ?? {}) as Record<string, unknown>;
   const str = (v: unknown, fallback = '') => (v == null ? fallback : String(v));
+  const field = str(logic.field);
+  // 单位随字段绑定（2026-11-19）：词表内字段的单位由 RULE_NUMERIC_FIELDS 锁定，
+  // 存量漂移组合（如 budgetAmount 配「万」）载入即收口，保存自然落正
+  const boundUnit = RULE_NUMERIC_FIELDS.find((f) => f.value === field)?.unit;
   return {
     name: rule.name,
     severity: rule.severity,
     ruleType: rule.ruleType,
     logic: {
-      field: str(logic.field),
+      field,
       operator: str(logic.operator, '>='),
       threshold: logic.threshold == null ? '' : String(logic.threshold),
-      unit: str(logic.unit, 'cny'),
+      unit: boundUnit ?? str(logic.unit, 'cny'),
       checkType: str(logic.checkType, 'keyword'),
       keywords: Array.isArray(logic.keywords) ? (logic.keywords as string[]).join(', ') : '',
       sectionName: str(logic.sectionName),
@@ -212,23 +217,52 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
         </div>
 
         {draft.ruleType === 'numeric_compare' && (
-          <div className="flex gap-2">
-            <input type="text" value={l.field ?? ''} onChange={(e) => patchLogic({ field: e.target.value })}
-              className="workbench-input flex-1" readOnly={disabled} placeholder="字段名，如 budgetAmount" />
-            <select value={l.operator ?? '>='} onChange={(e) => patchLogic({ operator: e.target.value })}
-              className="workbench-input w-16">
-              {opts(RULE_OPERATORS, l.operator ?? '>=').map((op) => (
-                <option key={op} value={op}>{OPERATOR_LABELS[op] ?? op}</option>
-              ))}
-            </select>
-            <input type="text" value={l.threshold ?? ''} onChange={(e) => patchLogic({ threshold: e.target.value })}
-              className="workbench-input flex-1" readOnly={disabled} placeholder="阈值" inputMode="decimal" />
-            <select value={l.unit ?? 'cny'} onChange={(e) => patchLogic({ unit: e.target.value })}
-              className="workbench-input w-20">
-              {opts(RULE_UNITS.map((u) => u.value), l.unit ?? 'cny').map((v) => (
-                <option key={v} value={v}>{RULE_UNITS.find((u) => u.value === v)?.label ?? v}</option>
-              ))}
-            </select>
+          <div className="space-y-1">
+            <div className="flex gap-2">
+              {/* 字段名=封闭下拉（2026-11-19）：执行器按 fields[field] 精确键名匹配、
+                  无别名映射——自由文本拼错=每次审查静默「数据缺失」；中文标签+绑定
+                  单位联动，词表外存量值追加为选项原样保留（#6 惯例） */}
+              <select
+                value={l.field ?? ''}
+                onChange={(e) => {
+                  const bound = RULE_NUMERIC_FIELDS.find((f) => f.value === e.target.value);
+                  patchLogic(bound ? { field: e.target.value, unit: bound.unit } : { field: e.target.value });
+                }}
+                className="workbench-input flex-1"
+                disabled={disabled}
+              >
+                {(RULE_NUMERIC_FIELDS.some((f) => f.value === (l.field ?? ''))
+                  ? RULE_NUMERIC_FIELDS
+                  : [{ value: l.field ?? '', label: `${l.field}（词表外存量值）` }, ...RULE_NUMERIC_FIELDS]
+                ).map((f) => (
+                  <option key={f.value} value={f.value}>{f.label}</option>
+                ))}
+              </select>
+              <select value={l.operator ?? '>='} onChange={(e) => patchLogic({ operator: e.target.value })}
+                className="workbench-input w-16">
+                {opts(RULE_OPERATORS, l.operator ?? '>=').map((op) => (
+                  <option key={op} value={op}>{OPERATOR_LABELS[op] ?? op}</option>
+                ))}
+              </select>
+              <input type="text" value={l.threshold ?? ''} onChange={(e) => patchLogic({ threshold: e.target.value })}
+                className="workbench-input flex-1" readOnly={disabled} placeholder="阈值" inputMode="decimal" />
+              {/* 单位随字段锁定：执行比裸数值、unit 不参与运算，自由单位=「看起来对
+                  实际差一万倍」；词表外字段（无绑定）保持可改 */}
+              <select
+                value={l.unit ?? 'cny'}
+                onChange={(e) => patchLogic({ unit: e.target.value })}
+                className="workbench-input w-20"
+                disabled={disabled || RULE_NUMERIC_FIELDS.some((f) => f.value === (l.field ?? ''))}
+                title="单位由所选字段锁定（词表外字段可修改）"
+              >
+                {opts(RULE_UNITS.map((u) => u.value), l.unit ?? 'cny').map((v) => (
+                  <option key={v} value={v}>{RULE_UNITS.find((u) => u.value === v)?.label ?? v}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[10px] leading-relaxed text-[var(--muted-foreground)]">
+              字段由系统审查时从上传的采购文件中自动提取；文档未包含该信息时，规则将报告「数据缺失」而非不通过。
+            </p>
           </div>
         )}
 

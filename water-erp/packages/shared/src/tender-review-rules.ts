@@ -7,6 +7,16 @@
  *  审查执行/规则列表/报告三面均不读，LLM 判定与表单下拉徒增噪音；DB 列 NOT NULL
  *  无默认暂留（写入点兜底 '全部'），删列待安全 schema 窗口。 */
 
+/** 数值比较字段全集（value=入库 logic.field、label=表单展示、unit=绑定单位）。
+ *  词表须与 field-extractor 提示词字段对齐——执行器按 fields[field] 精确键名
+ *  匹配（无别名映射），词表外值=每次审查「数据缺失」；单位绑定并锁定：执行
+ *  比的是裸数值、unit 不参与运算，自由选单位会造出「看起来对、实际差一万倍」
+ *  的规则（同构 2026-09-14 唱标万元事故）。 */
+export const RULE_NUMERIC_FIELDS: ReadonlyArray<{ value: string; label: string; unit: string }> = [
+  { value: 'budgetAmount', label: '预算金额（元）', unit: 'cny' },
+  { value: 'publicityDays', label: '公示期天数（天）', unit: 'days' },
+];
+
 /** 数值比较单位全集（value=入库值，label=表单展示） */
 export const RULE_UNITS: ReadonlyArray<{ value: string; label: string }> = [
   { value: 'cny', label: '元' },
