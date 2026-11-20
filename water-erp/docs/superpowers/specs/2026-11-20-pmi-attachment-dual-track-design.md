@@ -1,7 +1,9 @@
 # PMI 附件双轨存储加固设计（本地主轨 + MinIO 副本）
 
 **日期**：2026-11-20
-**状态**：已实施（2026-11-20，9 任务落地；生产运维侧挂卷/回填见 docs/ops/pmi-attachment-volume-mount-runbook.md）
+**状态**：已实施（2026-11-20，9 任务落地 + 终审修复轮 I1-I5；生产运维侧挂卷/回填见 docs/ops/pmi-attachment-volume-mount-runbook.md）
+
+> **终审增补（2026-11-20，commit 35e3de987）**：§4 原「expert:1191/bid-document:132 不动」的排除前提经全分支评审**证伪**——expert 的 FileAsset 兼容轨只兜「附件行缺失」（不同表 id 查不中），不兜「本地文件缺失」（裸 500）；公告向导引用采购文件（announcement-attachment attachFromObject）纯本地读零兜底。两者按本 spec 目标 2「全部裸读点获得回退」的字面覆盖纳入修复（I3/I4），实现同款 readAttachmentBuffer 回退。另有第五删除点双清（I1）、parseAnnouncementFields 回退（I2）、回填脚本不可达响亮失败（I5，S3 缺失码 NoSuchKey/NotFound 双形态）。
 **事故触发**：2026-11-20 13:50 生产（10.60.14.14）PMI 附件 ENOENT——容器 recreate 抹掉可写层 `uploads/`，DB 行在、文件永久丢失；`getAttachmentFile` 裸吐 500 ×3，`analyzeProject` OCR 提取静默返回空串。
 
 ## 1. 意图（为什么）
