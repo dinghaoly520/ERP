@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
 import { fetchAnnouncements, fetchAnnouncementDetail, ANNOUNCEMENT_TABS, typeOf, matchesTab, type AnnouncementItem, type AnnouncementDetail } from "@/lib/api/announcement";
 import { fetchSupplierLibrary, SUPPLIER_STATUS_LABELS, type SupplierItem } from "@/lib/api/supplier";
-import { Search, ClipboardList, Megaphone, ChartNoAxesCombined,
+import { Award, Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
   AlertTriangle,
   BarChart3,
@@ -31,7 +31,7 @@ import { Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   TrendingUp,
   Trophy,
   Users,
-   } from "lucide-react";
+    } from "lucide-react";
 import {
   fetchBidStageProjects,
   fetchBidStageStatus,
@@ -1713,19 +1713,24 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "experts" ? (
               <>
-            {/* ══ 专家库（2026-11-19 板块优化）：总览+专业+公司 ══ */}
+            {/* ══ 专家库（2026-11-20 丰富化）：总览+职称+专业+评价+公司 多图表 ══ */}
             {expertStats ? (
               <>
+                {/* 总览：双格 + 三率行 */}
                 <AnalysisZone icon={GraduationCap} title="专家库总览" count={`${expertStats.total} 人`} color="var(--gold)">
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="rounded-[10px] m-tile px-3 py-2.5 text-center">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
                         <div className="text-[18px] font-black tabular-nums text-[var(--success)]">{expertStats.availability.available}</div>
-                        <div className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">可抽取</div>
+                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">可抽取</div>
                       </div>
-                      <div className="rounded-[10px] m-tile px-3 py-2.5 text-center">
+                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
                         <div className="text-[18px] font-black tabular-nums text-[var(--warning)]">{expertStats.availability.occupied}</div>
-                        <div className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">评标占用</div>
+                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">评标占用</div>
+                      </div>
+                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
+                        <div className="text-[18px] font-black tabular-nums text-[var(--muted-foreground)]">{expertStats.availability.disabled}</div>
+                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">池外</div>
                       </div>
                     </div>
                     <div className="space-y-0.5 rounded-[10px] m-tile px-3 py-2 text-[13px]">
@@ -1734,17 +1739,49 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.availability.availableRate}%</span>
                       </div>
                       <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">履职优良率（A/B 占比）</span>
+                        <span className="text-[var(--muted-foreground)]">履职优良率（A/B）</span>
                         <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.excellentRatio}%</span>
                       </div>
                       <div className="flex justify-between gap-3">
                         <span className="text-[var(--muted-foreground)]">平均评分偏离度</span>
                         <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.avgScoreDeviation}</span>
                       </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-[var(--muted-foreground)]">评价总数</span>
+                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.total}</span>
+                      </div>
                     </div>
                   </div>
                 </AnalysisZone>
 
+                {/* 公司分布：排名卡（八色条） */}
+                {expertCompanies?.length ? (
+                  <AnalysisZone icon={Building2} title="公司分布" count={`${expertCompanies.length} 家`} color="var(--accent)">
+                    <div className="space-y-1.5">
+                      {expertCompanies.map((c, i) => {
+                        const max = expertCompanies[0].count;
+                        const total = expertCompanies.reduce((s2, x) => s2 + x.count, 0) || 1;
+                        return (
+                          <div key={c.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{c.name}</span>
+                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
+                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((c.count / total) * 100).toFixed(1)}%</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(c.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </AnalysisZone>
+                ) : null}
+
+                {/* 专业分布：排名卡（金条） */}
                 {expertStats.specialties.length ? (
                   <AnalysisZone icon={BarChart3} title="专业分布" count={`Top ${expertStats.specialties.length}`} color="var(--gold)">
                     <div className="space-y-1.5">
@@ -1754,11 +1791,11 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                             <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
                             <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{sp.name ?? "未填"}</span>
                             <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
-                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{sp.pct}%</span>
+                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{Math.round((sp.count / (expertStats.specialties.reduce((s2, x) => s2 + x.count, 0) || 1)) * 100)}%</span>
                           </div>
                           <div className="mt-1.5 flex items-center gap-2">
                             <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                              <span className="block h-full rounded-full bg-[var(--gold)] opacity-75" style={{ width: `${sp.pct}%` }} />
+                              <span className="block h-full rounded-full bg-[var(--gold)] opacity-75 transition-[width] duration-300" style={{ width: `${sp.pct}%` }} />
                             </span>
                           </div>
                         </div>
@@ -1767,18 +1804,72 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   </AnalysisZone>
                 ) : null}
 
-                {expertCompanies?.length ? (
-                  <AnalysisZone icon={Building2} title="各公司在库" count={`${expertCompanies.length} 家`} color="var(--accent)">
-                    <div className="space-y-1.5">
-                      {expertCompanies.map((c, i) => (
-                        <div key={c.name} className="flex items-center justify-between gap-2 rounded-[10px] m-tile px-3 py-2">
-                          <span className="flex min-w-0 flex-1 items-center gap-2">
-                            <span className={`shrink-0 text-[11px] font-black ${i === 0 ? "text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{c.name}</span>
-                          </span>
-                          <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
+                {/* 职称分布：环形图 */}
+                {expertStats.titles?.length ? (
+                  <AnalysisZone icon={Award} title="职称分布" count={`${expertStats.titles.reduce((s2, x) => s2 + x.count, 0)} 人`} color="var(--warning)">
+                    {(() => {
+                      const total = expertStats.titles.reduce((s2, x) => s2 + x.count, 0) || 1;
+                      let acc = 0;
+                      const segs = expertStats.titles.map((t, i) => {
+                        const sweep = (t.count / total) * 360;
+                        const seg = { t, a0: acc, a1: acc + Math.max(sweep, 0.001), color: DONUT_COLORS[i % DONUT_COLORS.length] };
+                        acc += sweep;
+                        return seg;
+                      });
+                      return (
+                        <div className="flex items-center gap-3">
+                          <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="职称分布环形图">
+                            {segs.map((seg, i) => (
+                              <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />
+                            ))}
+                            <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{expertStats.total}</text>
+                            <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">在库</text>
+                          </svg>
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            {segs.map((seg, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
+                                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.t.name}</span>
+                                <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.t.count}人</span>
+                                <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.t.count / total) * 100)}%</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
+                      );
+                    })()}
+                  </AnalysisZone>
+                ) : null}
+
+                {/* 履职评价等级分布：柱状排名卡 */}
+                {expertStats.evaluation?.levelCounts && expertStats.evaluation.total > 0 ? (
+                  <AnalysisZone icon={Gauge} title="履职评价等级" count={`${expertStats.evaluation.total} 次`} color="var(--success)">
+                    <div className="space-y-1.5">
+                      {Object.entries(expertStats.evaluation.levelCounts)
+                        .filter(([, n]) => n > 0)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([grade, n], i) => {
+                          const total = expertStats.evaluation.total;
+                          const max = Math.max(...Object.values(expertStats.evaluation.levelCounts), 1);
+                          const color = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : 'var(--warning)';
+                          return (
+                            <div key={grade} className="rounded-[12px] m-tile px-3 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black`} style={{ background: `color-mix(in oklch, ${color} 14%, transparent)`, color }}>{grade}</span>
+                                <span className="min-w-0 flex-1 text-[14px] font-semibold text-[var(--foreground)]">
+                                  {grade === 'A' ? '优秀' : grade === 'B' ? '良好' : grade === 'C' ? '一般' : grade === 'D' ? '较差' : grade === 'E' ? '差' : grade}
+                                </span>
+                                <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{n}</span>
+                                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((n / total) * 100).toFixed(1)}%</span>
+                              </div>
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(n / max) * 100}%`, background: color }} />
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                     </div>
                   </AnalysisZone>
                 ) : null}
@@ -1786,7 +1877,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : (
               <div className="py-2"><Skeleton lines={6} height={40} /></div>
             )}
-          </>
+              </>
             ) : null}
           </>
         ) : null}

@@ -46,7 +46,13 @@ export type ExpertLibraryStats = {
   total: number;
   availability: { available: number; occupied: number; disabled: number; availableRate: number };
   specialties: Array<{ name: string | null; count: number; pct: number }>;
-  evaluation: { excellentRatio: number; total: number; avgScoreDeviation: number };
+  evaluation: {
+    levelCounts: Record<string, number>;
+    excellentRatio: number;
+    total: number;
+    avgScoreDeviation: number;
+  };
+  titles: Array<{ name: string; count: number }>;
 };
 export type ExpertCompanyCount = { name: string; count: number };
 
