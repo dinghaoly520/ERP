@@ -1083,3 +1083,16 @@ select.neu-select {
   to { opacity: 1; transform: translateX(-50%); }
 }
 @media (prefers-reduced-motion: reduce) { .help-tip__bubble { animation: none; } }
+
+/* ── 计算器浮窗 .exp-calc-shell（2026-11-20 v1.5：不透明底 + 可拖拽/限界缩放窗口）──
+   与 .neu-card-static 连用：本类后置同层覆写其半透明玻璃底（浮窗叠在滚动内容上，
+   透底会糊）；键区按钮放开固定高（auto-rows-fr 拉伸填满窗口）。 */
+.exp-calc-shell {
+  background: oklch(1 0 0);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.exp-calc-shell .neu-btn-xs {
+  height: auto;
+  min-height: 30px;
+}

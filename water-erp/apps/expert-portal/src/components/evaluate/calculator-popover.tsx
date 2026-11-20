@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calculator } from 'lucide-react';
+import { Calculator, Grip, X } from 'lucide-react';
 import {
   initialCalcState,
   calcReducer,
@@ -13,11 +13,12 @@ import {
 } from '@/lib/calculator-core';
 
 /**
- * 评标工作台·通用计算器（2026-11-20 v1）——挂 evaluate 页顶部导航「开标消息/澄清答疑」左侧。
- * 常驻挂载（开合不丢状态/历史；切项目/重挂载时整体重置）。
- * 弹层 createPortal + fixed：右栏 aside overflow-hidden 且可缩至 15%，就地 absolute
- * 会被裁切（cgzxui SearchSelect 先例——portal 挂 body 摆脱窄列/overflow 裁切）。
- * 键盘仅在弹层聚焦时生效（容器 onKeyDown，不挂 window 监听）；Escape 只关计算器，
+ * 评标工作台·通用计算器浮窗（2026-11-20 v1.5）——挂 evaluate 页顶部导航「开标消息/澄清答疑」左侧。
+ * 浮窗语义：不透明底、标题栏拖拽、右下角限界缩放（MIN/MAX_SIZE）；常驻不随点外/失焦关闭
+ * （工具窗叠在工作页上操作，误触关闭反而丢上下文），关闭= X 钮 / Escape（聚焦时）。
+ * 状态常驻挂载（开合不丢；切项目重挂载即重置）。定位壳必须内联 position:fixed——globals.css
+ * 的 .neu-card-static 是 unlayered position:relative，Tailwind v4 utilities 在 @layer 内恒被压过。
+ * 键盘仅在弹窗聚焦时生效（容器 onKeyDown，不挂 window 监听）；Escape 只关计算器，
  * stopPropagation 防同时触发面板全屏退出（requirement-compare-panel 的 window 监听）。
  */
 
@@ -63,47 +64,100 @@ const KEY_ROWS: CalcKey[][] = [
   ],
 ];
 
+/** 窗口尺寸约束（右下角 grip 拖拽缩放） */
+const INIT_SIZE = { w: 248, h: 376 };
+const MIN_SIZE = { w: 232, h: 328 };
+const MAX_SIZE = { w: 480, h: 640 };
+
+/** 视口钳制：标题栏永不移出屏幕（至少留 48px 高度、80px 宽度可抓回） */
+const clampPos = (left: number, top: number) => ({
+  left: Math.max(0, Math.min(left, window.innerWidth - 80)),
+  top: Math.max(0, Math.min(top, window.innerHeight - 48)),
+});
+
 export function CalculatorPopover({ className = '' }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [state, dispatch] = useReducer(calcReducer, initialCalcState);
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [size, setSize] = useState(INIT_SIZE);
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
+  /** 拖拽/缩放统一手势态（null=无手势；监听器常驻，无手势时 no-op） */
+  const gestureRef = useRef<null | {
+    mode: 'drag' | 'resize';
+    startX: number;
+    startY: number;
+    origLeft: number;
+    origTop: number;
+    origW: number;
+    origH: number;
+  }>(null);
 
-  // 打开：按触发钮矩形定位（右缘对齐、向下弹）；窗口尺寸变化即关（SearchSelect 同款语义，
-  // 终审 F4：关后还焦触发钮——resize 无自然落焦目标，不还焦会掉到 body）
+  // 打开：初始位置 = 右缘对齐触发钮（按当前窗宽）向下弹，视口内钳制
   useEffect(() => {
     if (!open) return;
     const r = btnRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
-    const onResize = () => {
-      setOpen(false);
-      btnRef.current?.focus();
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    if (r) setPos(clampPos(r.right - sizeRef.current.w, r.bottom + 8));
   }, [open]);
 
-  // 打开即聚焦弹层（吃键盘）；关闭还焦触发钮
+  // 视口尺寸变化：浮窗钳回屏内（浮窗常驻，不再直接关）
+  useEffect(() => {
+    const onResize = () => setPos((p) => (p ? clampPos(p.left, p.top) : p));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // 打开即聚焦弹窗（吃键盘）
   useEffect(() => {
     if (open) popRef.current?.focus();
   }, [open, pos]);
 
-  // 点外关闭（触发钮与弹层之外的 pointerdown）
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (btnRef.current?.contains(t) || popRef.current?.contains(t)) return;
-      setOpen(false);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [open]);
-
   const closePopover = () => {
     setOpen(false);
     btnRef.current?.focus();
+  };
+
+  // 拖拽（标题栏）/ 缩放（右下角 grip）：pointer 手势，位移自起点增量计算（无 stale state）
+  useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const g = gestureRef.current;
+      if (!g) return;
+      const dx = e.clientX - g.startX;
+      const dy = e.clientY - g.startY;
+      if (g.mode === 'drag') {
+        setPos(clampPos(g.origLeft + dx, g.origTop + dy));
+      } else {
+        setSize({
+          w: Math.max(MIN_SIZE.w, Math.min(MAX_SIZE.w, g.origW + dx)),
+          h: Math.max(MIN_SIZE.h, Math.min(MAX_SIZE.h, g.origH + dy)),
+        });
+      }
+    };
+    const up = () => {
+      gestureRef.current = null;
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }, []);
+
+  const startGesture = (mode: 'drag' | 'resize') => (e: React.PointerEvent) => {
+    if (e.button !== 0 || !pos) return;
+    e.preventDefault(); // 防拖动时选中文字/触发触摸滚动
+    gestureRef.current = {
+      mode,
+      startX: e.clientX,
+      startY: e.clientY,
+      origLeft: pos.left,
+      origTop: pos.top,
+      origW: sizeRef.current.w,
+      origH: sizeRef.current.h,
+    };
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -139,25 +193,38 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
       {open &&
         pos &&
         createPortal(
-          // 定位壳：fixed 必须走内联 style——globals.css 的 .neu-card-static 是 unlayered
-          // `position:relative`，Tailwind v4 utilities 在 @layer 内恒被其压过（验收实录：
-          // 弹层被相对定位偏移到页面左下角容器外）。内层保 neu-card-static 视觉。
-          <div style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 70 }}>
+          // 定位壳：fixed 走内联 style（unlayered position:relative 压过 Tailwind fixed，验收实录）
+          <div style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 70 }}>
           <div
             ref={popRef}
             role="dialog"
             aria-label="计算器"
             tabIndex={-1}
             onKeyDown={onKeyDown}
-            onBlur={(e) => {
-              // 终审 F6：焦点离开弹层即收起——防 Tab 逃逸后 Escape 直击 window（语义反转：
-              // 面板全屏被退、计算器却还开着）。relatedTarget 仍在弹层内（键钮间移动）不收。
-              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
-            }}
-            className="neu-card-static w-[248px] !rounded-[16px] p-3 focus:outline-none"
+            className="exp-calc-shell neu-card-static flex select-none flex-col overflow-hidden !rounded-[16px] p-3 focus:outline-none"
+            style={{ width: size.w, height: size.h }}
           >
-            {/* 显示区：待算式小字 + 主显示（mono 表格数字；终审 F3 truncate 防超宽，title 悬停看全值） */}
-            <div className="rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-2 text-right">
+            {/* 标题栏：拖拽手柄（左标签 + 右关闭） */}
+            <div
+              className="flex shrink-0 cursor-move touch-none items-center justify-between pb-2"
+              onPointerDown={startGesture('drag')}
+            >
+              <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-[var(--muted-foreground)]">
+                <Calculator size={11} strokeWidth={1.5} /> 计算器
+              </span>
+              <button
+                type="button"
+                onClick={closePopover}
+                onPointerDown={(e) => e.stopPropagation()}
+                className="neu-btn-xs is-square !h-6 !w-6"
+                aria-label="关闭计算器"
+              >
+                <X size={13} strokeWidth={1.5} />
+              </button>
+            </div>
+
+            {/* 显示区：待算式小字 + 主显示（mono 表格数字；truncate 防超宽，title 悬停看全值） */}
+            <div className="shrink-0 rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-2 text-right">
               <div className="h-4 truncate font-mono text-[10px] leading-4 text-[var(--muted-foreground)]" title={exprLine}>
                 {exprLine}
               </div>
@@ -173,9 +240,9 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               )}
             </div>
 
-            {/* 历史条：≤5 条，点击回填结果 */}
+            {/* 历史条（伸缩区①）：≤5 条，点击回填结果 */}
             {state.history.length > 0 && (
-              <div className="mt-2 max-h-[76px] overflow-y-auto rounded-[10px] bg-[oklch(0.96_0.01_258/0.3)] px-1.5 py-1">
+              <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-[10px] bg-[oklch(0.96_0.01_258/0.3)] px-1.5 py-1">
                 {state.history.map((h, i) => (
                   <button
                     key={`${h.expr}|${h.result}|${i}`}
@@ -190,18 +257,28 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               </div>
             )}
 
-            {/* 键区 5×4 */}
-            <div className="mt-2 grid grid-cols-4 gap-1.5">
+            {/* 键区（伸缩区②）：auto-rows-fr 随窗口高度拉伸 */}
+            <div className="mt-2 grid flex-1 auto-rows-fr grid-cols-4 gap-1.5">
               {KEY_ROWS.flat().map((k) => (
                 <button
                   key={k.label}
                   type="button"
                   onClick={() => dispatch(k.act)}
-                  className={`neu-btn-xs !h-9 !px-0 font-mono !text-[13px] ${k.cls ?? ''}`}
+                  className={`neu-btn-xs !px-0 font-mono !text-[13px] ${k.cls ?? ''}`}
                 >
                   {k.label}
                 </button>
               ))}
+            </div>
+
+            {/* 右下角缩放手柄（SE 方向，MIN/MAX_SIZE 钳制） */}
+            <div
+              className="absolute bottom-0.5 right-0.5 flex h-4 w-4 cursor-nwse-resize touch-none items-center justify-center text-[var(--muted-foreground)]"
+              onPointerDown={startGesture('resize')}
+              role="separator"
+              aria-label="拖拽调整计算器大小"
+            >
+              <Grip size={12} strokeWidth={1.5} />
             </div>
           </div>
           </div>,
