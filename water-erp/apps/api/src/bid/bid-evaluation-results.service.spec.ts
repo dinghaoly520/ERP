@@ -155,7 +155,8 @@ describe('BidEvaluationResultsService — evaluation results', () => {
         id: 'p1', stage: 'EVALUATING', name: '测试项目', leaderCoSigned: true,
         evaluationDeadline: new Date(Date.now() + 7200_000),
         experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }],
-        suppliers: [],
+        // N1 后须有合格家（空供应商集现被 ALL_BIDS_REJECTED 拦——本用例意图=时限内放行）
+        suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' }],
       });
       await expect(service.generateEvaluationResults('p1')).resolves.toBeDefined();
     });
@@ -594,6 +595,37 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       );
     });
 
+    it('N1：全部投标无效（bidValidity=invalid 全员）→ 409 ALL_BIDS_REJECTED 引导流标', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        procurementMethod: '公开招标',
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'invalid' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'invalid' },
+          { id: 's3', supplierName: '丙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'invalid' },
+        ],
+      }));
+      await expect(service.generateEvaluationResults('p1', 'u1'))
+        .rejects.toMatchObject({ response: { code: 'ALL_BIDS_REJECTED' } });
+      expect(prisma.bidEvaluationResult.createMany).not.toHaveBeenCalled();
+    });
+
+    it('N1：招标类有效标 2/3 家 → 放行生成 + 高风险留痕「不足法定」', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        procurementMethod: '公开招标',
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's3', supplierName: '丙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED', bidValidity: 'invalid' },
+        ],
+      }));
+      await service.generateEvaluationResults('p1', 'u1');
+      expect(prisma.bidEvaluationResult.createMany).toHaveBeenCalled();
+      const warn = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '有效标不足法定家数提示');
+      expect(warn).toBeTruthy();
+      expect(warn?.[0].data.riskFlag).toBe('高');
+      expect(warn?.[0].data.result).toContain('不足法定 3 家');
+    });
+
     it('C1 余留（2026-09-24 全链审计）：分母同 confirmed 口径——declined 正选残留不计入专家组人数', async () => {
       // 4 confirmed 正选 + 1 declined 残留：裸正选口径=5 人（还会误标「去极值」）；confirmed 口径=4 人
       prisma.bidProject.findUnique.mockResolvedValue(buildProject({
@@ -646,7 +678,10 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       prisma.bidProject.findUnique.mockResolvedValue({
         id: 'p1', name: '项目', stage: 'EVALUATING', bondRequired: false, leaderCoSigned: true,
         experts: [{ id: 'e1', expertRole: '正选', reportConfirmed: true }, { id: 'e2', expertRole: '正选', reportConfirmed: true }, { id: 'e3', expertRole: '正选', reportConfirmed: true }],
-        suppliers: [{ id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }],
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: 'ok', confirmStatus: 'CONFIRMED' }, // N1：留一合格家（全废被 409 拦），废标家排末位断言不变
+        ],
       });
       prisma.bidScoreRecord.findMany.mockResolvedValue([
         // 通过性项：2 不通过 + 1 通过
@@ -667,7 +702,7 @@ describe('BidEvaluationResultsService — evaluation results', () => {
 
       await service.generateEvaluationResults('p1');
 
-      const created = (prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data[0];
+      const created = ((prisma.bidEvaluationResult.createMany.mock.calls[0][0] as any).data as any[]).find(r => r.supplierId === 's1');
       expect(created.disqualified).toBe(true);
       expect(created.recommended).toBe(false);
     });
@@ -950,14 +985,14 @@ describe('BidEvaluationResultsService — generateEvaluationResults 保证金软
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
-      bidSupervisionLog: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
       bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]) }, // P3-15：expertConflicts 组装查询
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
-        bidSupervisionLog: { create: jest.fn() },
+        bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
         bidSupplier: { update: jest.fn() },
         bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
         bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -1095,14 +1130,14 @@ describe('generateEvaluationResults expertRole filter', () => {
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
-      bidSupervisionLog: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
       bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]) }, // P3-15：expertConflicts 组装
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
-        bidSupervisionLog: { create: jest.fn() },
+        bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
         bidSupplier: { update: jest.fn() },
         bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
         bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
@@ -1160,14 +1195,14 @@ describe('generateEvaluationResults expertRole filter', () => {
       auditLog: { create: jest.fn() },
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]) },
       expertDispute: { count: jest.fn().mockResolvedValue(0) },
-      bidSupervisionLog: { create: jest.fn() },
+      bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
       // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
       bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]) }, // P3-15：expertConflicts 组装
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: txCreateMany },
-        bidSupervisionLog: { create: jest.fn() },
+        bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
         bidSupplier: { update: jest.fn() },
         bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
         bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
