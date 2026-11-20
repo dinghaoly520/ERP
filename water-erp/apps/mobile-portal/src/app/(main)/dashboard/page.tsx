@@ -72,6 +72,18 @@ function PMI_STAGE_LABELS_OF(key: string): string {
   return m[key] ?? key;
 }
 
+/** 部门分布指示条色板（2026-11-19 用户裁定：丰富色彩）——八色循环，与 DONUT_COLORS 同族 */
+const DEPT_BAR_COLORS = [
+  "var(--accent)",
+  "var(--gold)",
+  "oklch(0.55 0.14 285)",
+  "oklch(0.55 0.11 168)",
+  "var(--warning)",
+  "oklch(0.55 0.1 228)",
+  "oklch(0.58 0.14 25)",
+  "oklch(0.6 0.12 188)",
+];
+
 const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
   running: "运行中项目",
   pre: "标前项目",
@@ -1150,7 +1162,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                 className="block h-full rounded-full transition-[width] duration-300"
                                 style={{
                                   width: `${barPct}%`,
-                                  background: i === 0 ? "var(--accent)" : i === 1 ? "var(--gold)" : i === 2 ? "var(--warning)" : "color-mix(in oklch, var(--accent) 45%, transparent)",
+                                  background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length],
                                 }}
                               />
                             </span>
