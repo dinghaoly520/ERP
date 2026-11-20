@@ -8,6 +8,7 @@ export class CreateTenderHistoryDto {
     'INQUIRY_PURCHASE',
     'SINGLE_SOURCE',
     'INVITED_BIDDING',
+    'PUBLIC_BIDDING',
   ])
   documentType: string;
 
@@ -26,6 +27,7 @@ export class QueryTenderHistoryDto {
     'INQUIRY_PURCHASE',
     'SINGLE_SOURCE',
     'INVITED_BIDDING',
+    'PUBLIC_BIDDING',
   ])
   documentType: string;
 

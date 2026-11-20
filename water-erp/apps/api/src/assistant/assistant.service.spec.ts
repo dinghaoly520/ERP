@@ -458,7 +458,7 @@ describe('AssistantService', () => {
       expect(result.notification.unread).toBe(2);
       // 「采购项目」总数=PMI（非邀请招标、不含回收站，2026-11-04 口径裁定）；admin 无公司过滤
       expect(prisma.projectManagementItem.count).toHaveBeenCalledWith({
-        where: { status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+        where: { status: { not: 'RECYCLED' }, procurementMethod: { notIn: ['邀请招标', '公开招标'] } },
       });
       // 旧台账立项表只数待审批（pending 语义收窄为台账）
       expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: { status: 'PENDING_REVIEW' } });
@@ -496,7 +496,7 @@ describe('AssistantService', () => {
       await service.getQuickStats('leader-1');
 
       expect(prisma.projectManagementItem.count).toHaveBeenCalledWith({
-        where: { companyId: 'co-1', status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+        where: { companyId: 'co-1', status: { not: 'RECYCLED' }, procurementMethod: { notIn: ['邀请招标', '公开招标'] } },
       });
       expect(prisma.procurementProject.count).toHaveBeenCalledWith({ where: { companyId: 'co-1', status: 'PENDING_REVIEW' } });
       expect(prisma.bidProject.count).toHaveBeenCalledWith({ where: { companyId: 'co-1', isExtractionOnly: false } });

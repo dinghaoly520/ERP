@@ -962,10 +962,11 @@ ${toolList}
       expertAvailable,
       notificationUnread,
     ] = await Promise.all([
-      /* 「采购项目」口径（2026-11-04 用户裁定）：PMI 为准（非邀请招标、不含回收站）；
+      /* 「采购项目」口径（2026-11-04 用户裁定；2026-11-20 公开招标入 PMI 收窄）：
+       * PMI 为准（非招标两方式——邀请招标/公开招标单列招标口径、不含回收站）；
        * pending=台账立项待审批（旧台账审批概念，语义收窄为台账） */
       this.prisma.projectManagementItem.count({
-        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: ['邀请招标', '公开招标'] } },
       }),
       this.prisma.procurementProject.count({ where: { ...companyWhere, status: 'PENDING_REVIEW' } }),
       this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),

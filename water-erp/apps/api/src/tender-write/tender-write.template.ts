@@ -14,6 +14,8 @@ export const INQUIRY_PURCHASE_TEMPLATE_FILE = '模板文件/询比采购文件�
 export const INTERNAL_BIDDING_TEMPLATE_FILE =
   '模板文件/竞价采购文件模板.docx';
 export const INVITED_BIDDING_TEMPLATE_FILE = '模板文件/邀请招标文件模板.docx';
+// 公开招标（2026-11-20）：克隆邀请招标文件模板、招标人口吻（占位符与邀请招标完全一致）
+export const PUBLIC_BIDDING_TEMPLATE_FILE = '模板文件/公开招标文件模板.docx';
 
 
 // Chinese number mapping for date formatting
@@ -2334,6 +2336,10 @@ function replacePlaceholderPreservingFormat(
 
 export const INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE =
   '模板文件/邀请招标公告模板.docx';
+// 公开招标（2026-11-20）：克隆邀请招标公告模板、招标人口吻；替换计划复用
+// buildInvitedBiddingAnnouncementPlan（占位符一致，谈判/询比同款先例）
+export const PUBLIC_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE =
+  '模板文件/公开招标公告模板.docx';
 // 2026-10-09：模板文件已规范命名（旧「竞价采购公告.docx」「询比采购公示.docx」删除、
 // 内容同款带「模板」后缀的新文件在库）——常量对齐，否则导出公告 404
 export const INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE =

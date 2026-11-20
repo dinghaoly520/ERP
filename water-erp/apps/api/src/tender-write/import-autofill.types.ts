@@ -3,7 +3,8 @@ export type ReadyTenderDocumentType =
   | 'SINGLE_SOURCE'
   | 'INQUIRY_PURCHASE'
   | 'INTERNAL_BIDDING'
-  | 'INVITED_BIDDING';
+  | 'INVITED_BIDDING'
+  | 'PUBLIC_BIDDING';
 
 export type ImportAutofillFileStatus = 'parsed' | 'unsupported' | 'failed';
 

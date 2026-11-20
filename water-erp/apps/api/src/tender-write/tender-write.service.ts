@@ -33,7 +33,9 @@ import {
   INQUIRY_PURCHASE_TEMPLATE_FILE,
   INTERNAL_BIDDING_TEMPLATE_FILE,
   INVITED_BIDDING_TEMPLATE_FILE,
+  PUBLIC_BIDDING_TEMPLATE_FILE,
   INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
+  PUBLIC_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
   INTERNAL_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
   INQUIRY_PURCHASE_ANNOUNCEMENT_TEMPLATE_FILE,
   SINGLE_SOURCE_ANNOUNCEMENT_TEMPLATE_FILE,
@@ -146,6 +148,9 @@ export class TenderWriteService {
     if (documentType === 'INVITED_BIDDING') {
       return path.resolve(PROJECT_ROOT, INVITED_BIDDING_TEMPLATE_FILE);
     }
+    if (documentType === 'PUBLIC_BIDDING') {
+      return path.resolve(PROJECT_ROOT, PUBLIC_BIDDING_TEMPLATE_FILE);
+    }
     return path.resolve(PROJECT_ROOT, COMPETITIVE_NEGOTIATION_TEMPLATE_FILE);
   }
 
@@ -164,6 +169,9 @@ export class TenderWriteService {
       typeLabel = '竞价采购文件';
     } else if (documentType === 'INVITED_BIDDING') {
       typeLabel = '邀请招标采购文件';
+    } else if (documentType === 'PUBLIC_BIDDING') {
+      // 公开招标（2026-11-20）：法定名「招标文件」（tenderDocumentLabel 同口径）
+      typeLabel = '招标文件';
     } else {
       typeLabel = '谈判文件';
     }
@@ -251,7 +259,8 @@ export class TenderWriteService {
       ]);
     } else if (
       dto.documentType === 'INTERNAL_BIDDING' ||
-      dto.documentType === 'INVITED_BIDDING'
+      dto.documentType === 'INVITED_BIDDING' ||
+      dto.documentType === 'PUBLIC_BIDDING'
     ) {
       updatedXml = renderTemplateXml(documentXml, [
         ...buildInternalBiddingReplacementPlan(
@@ -492,7 +501,20 @@ export class TenderWriteService {
           draft as Record<string, string>,
         );
         typeLabel = '询比采购公告';
+      } else if (tenderType === 'PUBLIC_BIDDING') {
+        // 公开招标（2026-11-20）：公告公示组织（供应商邀请仅邀请招标/直接采购两方式）——
+        // 模板克隆自邀请招标公告（招标人口吻），替换计划完全复用；原 INVITED_BIDDING
+        // 分支在 2026-11-12 硬闸（INVITED_NO_PROCUREMENT_NOTICE）之下不可达，就此让位
+        templatePath = path.resolve(
+          PROJECT_ROOT,
+          PUBLIC_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
+        );
+        replacementPlan = buildInvitedBiddingAnnouncementPlan(
+          draft as Record<string, string>,
+        );
+        typeLabel = '招标公告';
       } else {
+        // INVITED_BIDDING/SINGLE_SOURCE 已被上方硬闸拦截，此处不可达（保留兜底防枚举漂移）
         templatePath = path.resolve(
           PROJECT_ROOT,
           INVITED_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,

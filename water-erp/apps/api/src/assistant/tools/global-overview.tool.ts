@@ -11,11 +11,14 @@ import {
  *  阶段分布以采购步骤为准，BidProject 投标执行阶段不再冒充全局阶段） */
 import { STAGE_LABELS as PM_STAGE_LABELS } from '../../progress/progress.service';
 
+/** 法定招标方式（2026-11-20 分列两行裁定）：「采购项目」口径=PMI 非招标两方式 */
+const TENDER_METHODS = ['邀请招标', '公开招标'];
+
 @Injectable()
 export class GlobalOverviewTool implements AssistantTool {
   name = 'global_overview';
   description =
-    '获取 ERP 系统全局概览统计，包括采购/投标/供应商/专家/公告数量与状态分布（采购项目=项目管理口径、邀请招标单列；阶段=采购流程步骤）';
+    '获取 ERP 系统全局概览统计，包括采购/投标/供应商/专家/公告数量与状态分布（采购项目=项目管理口径、招标项目公开/邀请两方式单列；阶段=采购流程步骤）';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -27,10 +30,14 @@ export class GlobalOverviewTool implements AssistantTool {
     const announcementScope = announcementCompanyWhere(ctx);
     /* 「采购项目」数据源改 PMI（2026-11-04 用户裁定）：只有项目管理中的项目才是
      * 进行中的项目；除邀请招标外都是采购——邀请招标=法定招标形态，单列「招标项目」
-     * 行。旧数据源 ProcurementProject（采购台账立项，全库仅 1 行）不再充当「采购项目」 */
+     * 行。旧数据源 ProcurementProject（采购台账立项，全库仅 1 行）不再充当「采购项目」
+     * 2026-11-20 公开招标入 PMI：同为法定招标形态，分列两行（用户裁定）——
+     * 「招标项目（公开招标）/招标项目（邀请招标）」各自单列，「采购项目」=非招标两方式 */
     const [
       procurementCount,
       procurementActive,
+      publicCount,
+      publicActive,
       invitedCount,
       invitedActive,
       bidCount,
@@ -39,10 +46,16 @@ export class GlobalOverviewTool implements AssistantTool {
       announcementCount,
     ] = await Promise.all([
       this.prisma.projectManagementItem.count({
-        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: TENDER_METHODS } },
       }),
       this.prisma.projectManagementItem.count({
-        where: { ...companyWhere, status: 'ACTIVE', procurementMethod: { not: '邀请招标' } },
+        where: { ...companyWhere, status: 'ACTIVE', procurementMethod: { notIn: TENDER_METHODS } },
+      }),
+      this.prisma.projectManagementItem.count({
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: '公开招标' },
+      }),
+      this.prisma.projectManagementItem.count({
+        where: { ...companyWhere, status: 'ACTIVE', procurementMethod: '公开招标' },
       }),
       this.prisma.projectManagementItem.count({
         where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: '邀请招标' },
@@ -59,7 +72,7 @@ export class GlobalOverviewTool implements AssistantTool {
     const pmByStatus =
       await this.prisma.projectManagementItem.groupBy({
         by: ['status'],
-        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { not: '邀请招标' } },
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: TENDER_METHODS } },
         _count: true,
         _sum: { budgetAmount: true },
       });
@@ -105,6 +118,7 @@ export class GlobalOverviewTool implements AssistantTool {
           ],
           rows: [
             { item: '采购项目', value: procurementCount, note: `其中 ${procurementActive} 个在办` },
+            { item: '招标项目（公开招标）', value: publicCount, note: `其中 ${publicActive} 个在办` },
             { item: '招标项目（邀请招标）', value: invitedCount, note: `其中 ${invitedActive} 个在办` },
             { item: '投标项目', value: bidCount, note: `其中 ${activeBids} 个进行中` },
             { item: '在库供应商', value: supplierCount, note: `其中 ${pendingSuppliers} 家待审核` },

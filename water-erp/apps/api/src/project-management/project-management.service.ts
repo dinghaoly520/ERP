@@ -209,6 +209,18 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
   ],
+  // 公开招标（2026-11-20）：邀请招标同构、供应商邀请换招标公告公示（与前端
+  // PROCUREMENT_METHOD_STAGES['公开招标'] 镜像同步；04 法定口吻显「招标公告公示」）
+  公开招标: [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '招标文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '招标公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家抽取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
 };
 
 /** 留痕时间戳：本地时区可读格式（YYYY-MM-DD HH:mm）——裸 ISO 对用户即串码观感（2026-10-27） */
@@ -426,7 +438,13 @@ export class ProjectManagementService {
       const gbProjectCode = await this.gbCode.allocateProjectCode().catch(() => null); // A1（B.4.3.2）
 
     // 阶段集：全套 + 方法过滤（与 create 流程同口径）
-    const needsPublicAnnouncement = ['竞价采购', '直接采购', '邀请招标'].includes(dto.procurementMethod);
+    // 2026-11-20 修正：公告型方式=谈判/询比/竞价/公开招标（2026-11-12 流程互换后口径）
+    // 保留公告公示阶段；邀请域（邀请招标/直接采购）不发布采购公告、被 announcement 方式闸
+    // 拦截不可达本路径（防御性过滤）。原列表 ['竞价','直接','邀请'] 与互换后语义相反——
+    // 直接/邀请模板本无公告阶段，谈判/询比（发公告）反被误剔；公开招标公告直建必须有
+    // 公告阶段（补记 COMPLETED）而随本修正一并落位
+    const NOTICE_BASED_METHODS = ['谈判采购', '询比采购', '竞价采购', '公开招标'];
+    const needsPublicAnnouncement = NOTICE_BASED_METHODS.includes(dto.procurementMethod);
     const stagesToCreate = PROJECT_WORKFLOW_STAGES.filter(
       (s) =>
         (needsPublicAnnouncement || s.key !== 'PUBLIC_ANNOUNCEMENT')
@@ -436,6 +454,10 @@ export class ProjectManagementService {
     );
     // 公告直建=前置链路（需求/立项/采购文件/公告公示/供应商邀请）以公告为准补记 COMPLETED
     const completedKeys = new Set(['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'SUPPLIER_INVITATION']);
+    // 方式模板阶段名覆写表：模板无该键（全集补行）时回退 canon 标签
+    const methodStageNames = new Map(
+      (METHOD_STAGE_TEMPLATES[dto.procurementMethod] ?? []).map((s) => [s.key, s.label]),
+    );
 
     const item = await tx.projectManagementItem.create({
       data: {
@@ -465,7 +487,10 @@ export class ProjectManagementService {
       data: stagesToCreate.map((stage, index) => ({
         projectManagementItemId: item.id,
         stageKey: stage.key,
-        stageName: stage.label,
+        // 阶段名按方式模板覆写（2026-11-20 公开招标随带）：行集沿用全集过滤（含补记
+        // COMPLETED 的邀请/公告段，行为不变），显示名与 create 流程同口径——公开招标
+        // 直建显法定名「招标文件/招标公告公示」而非 canon「采购文件/采购公告公示」
+        stageName: methodStageNames.get(stage.key) ?? stage.label,
         stageOrder: index + 1,
         round: 1,
         stageCode: stageCodeFor(projectCode, stage.key, 1),

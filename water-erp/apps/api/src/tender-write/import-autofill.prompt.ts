@@ -450,6 +450,8 @@ const INTERNAL_BIDDING_SECTIONS: TenderSectionDef[] = [
 ];
 
 const INVITED_BIDDING_SECTIONS = INTERNAL_BIDDING_SECTIONS;
+// 公开招标（2026-11-20）：章节与邀请招标完全一致
+const PUBLIC_BIDDING_SECTIONS = INVITED_BIDDING_SECTIONS;
 
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   COMPETITIVE_NEGOTIATION: '谈判采购',
@@ -457,6 +459,7 @@ const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   INQUIRY_PURCHASE: '询比采购',
   INTERNAL_BIDDING: '竞价采购',
   INVITED_BIDDING: '邀请招标',
+  PUBLIC_BIDDING: '公开招标',
 };
 
 export function getFieldDefsForDocumentType(
@@ -611,6 +614,8 @@ function getSectionsForDocumentType(
       return INTERNAL_BIDDING_SECTIONS;
     case 'INVITED_BIDDING':
       return INVITED_BIDDING_SECTIONS;
+    case 'PUBLIC_BIDDING':
+      return PUBLIC_BIDDING_SECTIONS;
     default:
       return COMPETITIVE_NEGOTIATION_SECTIONS;
   }

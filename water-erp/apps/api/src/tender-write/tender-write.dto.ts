@@ -8,13 +8,15 @@ export class ExportTenderWriteDto {
     'INQUIRY_PURCHASE',
     'INTERNAL_BIDDING',
     'INVITED_BIDDING',
+    'PUBLIC_BIDDING',
   ])
   documentType:
     | 'COMPETITIVE_NEGOTIATION'
     | 'SINGLE_SOURCE'
     | 'INQUIRY_PURCHASE'
     | 'INTERNAL_BIDDING'
-    | 'INVITED_BIDDING';
+    | 'INVITED_BIDDING'
+    | 'PUBLIC_BIDDING';
 
   @IsObject()
   answers: Record<string, unknown>;
@@ -38,13 +40,15 @@ export class ExportAnnouncementDto {
     'INQUIRY_PURCHASE',
     'INTERNAL_BIDDING',
     'INVITED_BIDDING',
+    'PUBLIC_BIDDING',
   ])
   tenderType:
     | 'COMPETITIVE_NEGOTIATION'
     | 'SINGLE_SOURCE'
     | 'INQUIRY_PURCHASE'
     | 'INTERNAL_BIDDING'
-    | 'INVITED_BIDDING';
+    | 'INVITED_BIDDING'
+    | 'PUBLIC_BIDDING';
 
   @IsIn(['procurement_document', 'failed_bid', 'winning_bid', 'change_notice', 'addendum'])
   category: 'procurement_document' | 'failed_bid' | 'winning_bid' | 'change_notice' | 'addendum';
