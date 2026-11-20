@@ -1012,7 +1012,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
             {/* 供应商集中度（2026-11-19 用户裁定恢复选择式）：CR3 头卡 + 下拉选家 +
                 单家三数详情瓷片（点开下钻）；标题行点击展开/收起 */}
-            <SectionCard icon={Handshake} title="供应商集中度" index={0} collapsible defaultOpen={false} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>}>
+            <SectionCard icon={Handshake} title="供应商集中度" index={0} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>}>
               {supplierConc.top10.length ? (
                 (() => {
                   const rows = supplierConc.top10;
