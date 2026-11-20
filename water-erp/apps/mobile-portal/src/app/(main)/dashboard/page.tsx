@@ -1064,7 +1064,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                           <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.amount / totalAmt) * 100}%`, background: seg.color }} />
                         </span>
-                        <span className="w-[3.5rem] shrink-0 text-right leading-tight">
+                        <span className="w-[5rem] shrink-0 text-right leading-tight">
                           <span className="block text-[14px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
                           <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{seg.amountLabel}</span>
                           <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{seg.share}%</span>
