@@ -572,17 +572,21 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   }, [analysisOpen, analysisPm]);
 
   /* 归档区派生：各部门采购分布（按金额）/归属项目分布（按轮次）/供应商集中度（Top5 金额+CR3） */
+  /* 各部门采购分布（2026-11-19 用户裁定）：全部公司=「公司·部门」复合键标公司名；
+   * 选中公司=纯部门键（同公司不重复标） */
   const arcDeptDist = useMemo(() => {
+    const multi = companyIds.length === 0;
     const m = new Map<string, number>();
     (data?.trendSeries ?? []).forEach((t) =>
       (t.projects ?? []).forEach((p) => {
         if (!p.status.includes("成交")) return;
         const amt = parseBudgetLabel(p.awardLabel || p.budgetLabel);
-        m.set(p.department || "未归属", (m.get(p.department || "未归属") ?? 0) + amt);
+        const key = multi ? `${p.company || "未归属"} · ${p.department || "未归属"}` : p.department || "未归属";
+        m.set(key, (m.get(key) ?? 0) + amt);
       }),
     );
     return [...m.entries()].map(([name, amount]) => ({ name, amount, label: amount >= 10000 ? `${(amount / 10000).toFixed(1)}万` : `${Math.round(amount)}元` })).sort((a, b) => b.amount - a.amount);
-  }, [data]);
+  }, [data, companyIds]);
   const arcProjectDist = useMemo(() => {
     const m = new Map<string, number>();
     (data?.trendSeries ?? []).forEach((t) =>
@@ -1113,7 +1117,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                     const max = arcDeptDist[0].amount;
                     return arcDeptDist.map((d) => (
                       <div key={d.name} className="flex items-center gap-2">
-                        <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
+                        <span className="w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
                         <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                           <span className="block h-full rounded-[5px] bg-[var(--accent)] opacity-80" style={{ width: `${(d.amount / max) * 100}%` }} />
                         </span>

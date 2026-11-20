@@ -124,6 +124,8 @@ export type DashboardData = {
       name: string;
       date: string;
       department: string;
+      /** 归属公司（各部门分布标注用，2026-11-19） */
+      company: string;
       method: string;
       budgetLabel: string;
       awardLabel: string;

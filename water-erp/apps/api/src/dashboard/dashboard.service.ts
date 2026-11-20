@@ -247,6 +247,7 @@ export class DashboardService {
           name: string;
           date: string;
           department: string;
+          company: string;
           method: string;
           budgetLabel: string;
           awardLabel: string;
@@ -413,6 +414,7 @@ export class DashboardService {
         name: round.project.name,
         date: procurementDateLabel(round),
         department: round.department?.name ?? '未归属部门',
+        company: round.company?.name ?? round.companyName ?? '', // 2026-11-19：各部门分布标注公司
         method: round.procurementMethod ?? '未填',
         budgetLabel: formatWan(decimalToNumber(round.budgetAmount)),
         awardLabel:
