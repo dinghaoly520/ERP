@@ -57,6 +57,9 @@ export class StagingCleanupService {
     };
     // N10（2026-11-20b 复核轮）：分批循环清空——原单轮 take 500 上限可被 10/min 暂存速率
     // 超越（14400/日 ≫ 500/日），未投递残留日净增长。满批即续批直至无候选。
+    // F1（2026-11-20b 终审）：无进展守卫——满批但本批零删除（全被引用/全存储错误）时，
+    // 下轮必重查同批（kept 行不删库行），无守卫则死循环（被引用行随 dual-v3 投递量单调
+    // 增长，≥500 后 03:30 cron 永久空转）。
     for (;;) {
       const candidates = await this.prisma.fileAsset.findMany({
         where: { key: { startsWith: STAGING_PREFIX }, createdAt: { lt: cutoff } },
@@ -64,6 +67,7 @@ export class StagingCleanupService {
         take: BATCH,
       });
       if (candidates.length === 0) break;
+      let removedThisBatch = 0;
       for (const c of candidates) {
         if (referenced.has(c.id)) { kept++; tally(c.key, 'kept'); continue; }
         try {
@@ -73,9 +77,10 @@ export class StagingCleanupService {
           if ((err as { code?: string }).code !== 'NoSuchKey') { kept++; tally(c.key, 'kept'); continue; }
         }
         await this.prisma.fileAsset.delete({ where: { id: c.id } }).catch(() => {});
-        removed++; tally(c.key, 'removed');
+        removed++; removedThisBatch++; tally(c.key, 'removed');
       }
       if (candidates.length < BATCH) break;
+      if (removedThisBatch === 0) break; // F1：满批零删除=无进展，停（下轮 cron 再试）
     }
     // I-1（终审）：'__ops__' 假 projectId 撞 BidProject 外键必败——改按真实项目分组留痕
     // （key=v3-staging/{projectId}/{supplierId}/... 二段即项目）；单项目无候选时不记

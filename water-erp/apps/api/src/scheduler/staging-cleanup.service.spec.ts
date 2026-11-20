@@ -81,6 +81,16 @@ describe('StagingCleanupService（T7）', () => {
     expect(prisma.fileAsset.findMany).toHaveBeenCalledTimes(2); // 500 + 100 两轮
   });
 
+  test('F1 终审：满批全被引用（kept 满 500）→ 无进展即停，不得死循环', async () => {
+    const many = Array.from({ length: 500 }, (_, i) => ({ id: `fa-kept-${i}`, key: `v3-staging/p1/s${i}/k.outer`, createdAt: OLD }));
+    const prisma = mkPrisma({ assets: many, versions: many.map(a => ({ envelope: { files: { technical: { assetId: a.id } } } })) });
+    // 服务端 where 语义由 mkPrisma 内置（过滤 createdAt）；全引用 → 全 kept
+    const r = await new StagingCleanupService(prisma as any).cleanupOnce();
+    expect(r.removed).toBe(0);
+    expect(r.kept).toBe(500);
+    expect(prisma.fileAsset.findMany).toHaveBeenCalledTimes(1); // 第二轮同 500 满批全留 → 守卫 break
+  });
+
   test('N13-B：CaOperation 冻结载荷（submit/reupload PAYLOAD_READY）引用的暂存不删', async () => {
     const prisma = mkPrisma({ frozenOps: [
       { result: { files: { technical: { assetId: 'fa-stale' } } } },

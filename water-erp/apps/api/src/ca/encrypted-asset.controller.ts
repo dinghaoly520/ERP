@@ -52,12 +52,21 @@ export class EncryptedAssetController {
       select: { stage: true, deadline: true },
     });
     if (!project) throw new BadRequestException({ error: '投标项目不存在', code: 'PROJECT_NOT_FOUND' });
-    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+    // F2（2026-11-20b 终审）：开标期 dual-v3 补传窗——该供应商已有 dual-v3 submitted 投递时，
+    // 暂存步放行（reupload 前端补传卡经本端点上传新 C_outer，reuploadBidV3 强制 OPENING，
+    // 无此例外则 P3-3 阶段闸+N11 截标闸把补传链前置步拦死）。补传资格细闸由 reuploadBidV3
+    // 自身把守（版本冻结/归属/六闸）；本例外只认「已投递 dual-v3」最小面。
+    const reuploadWindowOpen = project.stage === 'OPENING' && !!(await this.prisma.supplierBidSubmission.findFirst({
+      where: { supplierId: supplier.id, projectId, status: 'submitted', envelopeVersion: 'dual-v3' },
+      select: { id: true },
+    }));
+    if (!reuploadWindowOpen && project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
       throw new ConflictException({ error: '项目不在投递阶段，不可暂存投标密文', code: 'PROJECT_NOT_SUBMITTING' });
     }
     // N11（2026-11-20b 复核轮）：截标闸——截标已过、按时开标未推进（stage 仍 SUBMIT）的窗口期
     // 不可再暂存 500MB×10/min（投递本身有事务内 deadline 复查，此处堵纯暂存滥用窗口）。
-    if (project.deadline && project.deadline.getTime() < Date.now()) {
+    // F2：补传窗（OPENING 期）不受截标闸（开标恒晚于截标）。
+    if (!reuploadWindowOpen && project.deadline && project.deadline.getTime() < Date.now()) {
       throw new ConflictException({ error: '投标截止时间已过，不可暂存投标密文', code: 'DEADLINE_PASSED' });
     }
     if (supplier.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
