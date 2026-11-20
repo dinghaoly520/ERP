@@ -28,6 +28,7 @@ import {
 import { BusinessTagReview } from './business-tag-review';
 import { ApprovalHistoryModal } from './approval-history-modal';
 import { FilePreviewModal, type FilePreviewTarget } from './file-preview-modal';
+import { MediaThumb } from './media-thumb';
 import { CompanySectionHeader, buildCompanyCounts, NO_COMPANY } from '@/components/company/company-tag';
 import { SupplierPasswordResetPanel } from './password-reset-panel';
 import { ChangeReviewPanel } from './change-review-panel';
@@ -447,6 +448,25 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
   );
 }
 
+/** 资料字段：短字段单行 ellipsis；full=长文本整行换行（经营范围/简介等） */
+function RCField({ k, v, full }: { k: string; v?: string | null; full?: boolean }) {
+  const empty = !v || !v.trim();
+  if (full) {
+    return (
+      <div className="rc-field col-span-full" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 2 }}>
+        <dt>{k}</dt>
+        <dd style={{ whiteSpace: 'normal', overflow: 'visible', textOverflow: 'clip' }}>{empty ? '—' : v}</dd>
+      </div>
+    );
+  }
+  return (
+    <div className="rc-field">
+      <dt>{k}</dt>
+      <dd title={v ?? ''}>{empty ? '—' : v}</dd>
+    </div>
+  );
+}
+
 /* ═══ 注册审批（三级）· 双栏：左列表 / 右详情+操作 ═══ */
 function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string; onChanged: () => void; preselectId?: string | null }) {
   const [statusTab, setStatusTab] = useState<'PENDING' | 'RETURNED' | 'REJECTED'>('PENDING');
@@ -780,74 +800,192 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                 )}
               </div>
 
-              {/* 分段二：注册申请资料 */}
+              {/* 分段二～N：注册申请资料——按注册向导分节（2026-11-20 用户裁定：审批展示与
+                  注册填报同构——企业信息→法人信息→公司联系方式→业务标签→联系人→银行账户→
+                  资质证照→主体业绩；材料图片直接平铺，点击放大/旋转，不再收进「查看文件」按钮） */}
               {full === null ? (
-                <div className="rc-section"><div className="rc-section-label">注册申请资料</div>
+                <div className="rc-section"><div className="rc-section-label">企业信息</div>
                   <div className="flex flex-col gap-2"><div className="rc-skel h-3 w-2/3" /><div className="rc-skel h-3 w-1/2" /><div className="rc-skel h-3 w-3/5" /></div>
                 </div>
-              ) : (
-                <div className="rc-section">
-                  <div className="rc-section-label">注册申请资料</div>
-                  <dl className="rc-field-grid">
-                    {([
-                      ['法定代表人', full.legalPerson], ['法人电话', full.legalPersonPhone],
-                      ['企业类型', normalizeEnterpriseType(full.enterpriseType || '')], ['注册资本', full.registeredCapital],
-                      ['所属行业', full.industry], ['成立日期', full.establishedDate ? new Date(full.establishedDate).toLocaleDateString('zh-CN') : null],
-                      ['国别/区域', [full.country, full.region].filter(Boolean).join(' · ') || null], ['归属公司', full.companyName],
-                      ['注册地址', full.registeredAddress], ['经营范围', full.businessScope],
-                    ] as const).map(([k, v]) => (
-                      <div key={k} className="rc-field"><dt>{k}</dt><dd title={v ?? ''}>{v || '—'}</dd></div>
-                    ))}
-                  </dl>
-                  {(full as SupplierWithParts).contacts?.length ? (
+              ) : (() => {
+                const w = full as SupplierWithParts;
+                const fmtDate = (d?: string | null) => (d ? new Date(d).toLocaleDateString('zh-CN') : null);
+                // 身份证行拆出归「法人信息」节（注册时在法人信息区上传），其余资质按原序展示
+                const quals = w.qualifications ?? [];
+                const legalIdQual = quals.find(q => q.type === '法定代表人身份证');
+                const otherQuals = quals.filter(q => q !== legalIdQual);
+                const legalIdBack = (legalIdQual?.attachments ?? []).find(a => a?.url);
+                const contacts = w.contacts ?? [];
+                const banks = w.bankAccounts ?? [];
+                const perfs = w.performances ?? [];
+                const tags = w.tags ?? [];
+                return (<>
+                  {/* 企业信息（对应注册「企业与业务 · 企业信息」） */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">企业信息</div>
+                    <dl className="rc-field-grid">
+                      <RCField k="国别 / 行政区域" v={[w.country, w.region].filter(Boolean).join(' · ')} />
+                      <RCField k="公司体制类型" v={normalizeEnterpriseType(w.enterpriseType || '')} />
+                      <RCField k="所属的国民经济行业" v={w.industry} />
+                      <RCField k="注册资金（万元）" v={w.registeredCapital} />
+                      <RCField k="成立日期" v={fmtDate(w.establishedDate)} />
+                      <RCField k="归属公司" v={w.companyName} />
+                      <RCField k="注册地址" v={w.registeredAddress} full />
+                      <RCField k="详细地址" v={w.detailedAddress} full />
+                      <RCField k="主要经营业务范围" v={w.businessScope} full />
+                      <RCField k="企业简介" v={w.companyProfile} full />
+                    </dl>
+                    {w.logoUrl && (
+                      <div className="mt-2.5">
+                        <div className="mb-1 text-[10px] font-bold text-[var(--muted-foreground)]">公司标志</div>
+                        <MediaThumb url={w.logoUrl} name="公司标志" caption="公司标志" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 法人信息（对应注册「法人信息」：身份证正反面平铺展示） */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">法人信息</div>
+                    <dl className="rc-field-grid">
+                      <RCField k="法人姓名" v={w.legalPerson} />
+                      <RCField k="身份证号" v={w.legalPersonIdCard} />
+                      <RCField k="联系电话" v={w.legalPersonPhone} />
+                    </dl>
                     <div className="mt-2.5">
-                      <div className="mb-1 text-[10px] font-bold text-[var(--muted-foreground)]">联系人</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(full as SupplierWithParts).contacts!.map(c => (
-                          <span key={c.id} className="rounded-lg px-2 py-1 text-[10px] leading-4"
-                            style={{ background: 'oklch(0.965 0.012 258 / 0.8)' }}>
-                            <b className="text-[var(--foreground)]">{c.name}</b>
-                            {c.isPrimary && <span className="ml-1 text-[var(--accent)]">主</span>}
-                            <span className="ml-1 font-mono tabular-nums text-[var(--muted-foreground)]">{c.phone}</span>
-                            {c.position && <span className="ml-1 text-[var(--muted-foreground)]">{c.position}</span>}
-                          </span>
-                        ))}
+                      <div className="mb-1 text-[10px] font-bold text-[var(--muted-foreground)]">法定代表人身份证（正反面）</div>
+                      <div className="flex flex-wrap gap-2.5">
+                        {legalIdQual?.fileUrl
+                          && <MediaThumb url={legalIdQual.fileUrl} name={legalIdQual.name} caption="正面 · 人像面" />}
+                        {legalIdBack
+                          && <MediaThumb url={legalIdBack.url} name={legalIdBack.name} caption="反面 · 国徽面" />}
+                        {!legalIdQual?.fileUrl && !legalIdBack
+                          && <span className="text-[10px] text-[var(--muted-foreground)]">未提交身份证扫描件</span>}
                       </div>
                     </div>
-                  ) : null}
-                  {((full as SupplierWithParts).qualifications ?? []).length ? (
-                    <div className="mt-2.5">
-                      <div className="mb-1 text-[10px] font-bold text-[var(--muted-foreground)]">资质证照</div>
-                      <div className="flex flex-col gap-1">
-                        {(full as SupplierWithParts).qualifications!.map(q => (
-                          <div key={q.id} className="flex flex-wrap items-center gap-1.5 text-[10px] leading-4">
-                            <span className="rc-stage-chip" style={{ '--rc-accent': 'var(--accent)' } as React.CSSProperties}>{q.type}</span>
-                            <span className="font-semibold text-[var(--foreground)]">{q.name}</span>
-                            {(q.validFrom || q.validTo) && (
-                              <span className="font-mono tabular-nums text-[var(--muted-foreground)]">
-                                {q.validFrom ? new Date(q.validFrom).toLocaleDateString('zh-CN') : ''} ~ {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '长期'}
-                              </span>
-                            )}
-                            {q.fileUrl && (
-                              <button type="button" onClick={() => setFilePreview({ src: q.fileUrl!, name: q.name })}
-                                className="font-bold text-[var(--accent)] hover:underline" title="窗口预览">查看文件</button>
-                            )}
-                            {(q.attachments ?? []).filter((a) => a?.url).map((a, ai) => (
-                              <button key={`${q.id}-att-${ai}`} type="button"
-                                onClick={() => setFilePreview({ src: a.url, name: a.name || `${q.name}·附加材料${ai + 1}` })}
-                                className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-px font-bold text-[var(--accent)] hover:underline"
-                                style={{ background: 'oklch(1 0 0 / 0.55)' }}
-                                title="窗口预览附加材料">
-                                <Paperclip size={10} />{a.name || `附加材料${ai + 1}`}
-                              </button>
+                  </div>
+
+                  {/* 公司联系方式 */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">公司联系方式</div>
+                    <dl className="rc-field-grid">
+                      <RCField k="公司邮箱" v={w.companyEmail} />
+                      <RCField k="公司官网地址" v={w.companyWebsite} />
+                    </dl>
+                  </div>
+
+                  {/* 业务标签 */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">业务标签</div>
+                    {tags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">{tags.map(t => <span key={t} className="biz-tag">{t}</span>)}</div>
+                    ) : <span className="text-[10px] text-[var(--muted-foreground)]">未选择业务标签</span>}
+                  </div>
+
+                  {/* 联系人（注册第 3 部分全字段） */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">联系人</div>
+                    {contacts.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="neu-table w-full min-w-[560px]">
+                          <thead><tr><th>姓名</th><th>性别</th><th>联系电话</th><th>身份证号</th><th>邮箱</th><th>部门职务</th><th>类型</th></tr></thead>
+                          <tbody>
+                            {contacts.map(c => (
+                              <tr key={c.id}>
+                                <td className="font-semibold text-[var(--foreground)]">{c.name}</td>
+                                <td>{c.gender || '—'}</td>
+                                <td className="font-mono tabular-nums">{c.phone}</td>
+                                <td className="font-mono tabular-nums">{c.idCard || '—'}</td>
+                                <td>{c.email || '—'}</td>
+                                <td>{c.position || '—'}</td>
+                                <td>{c.isPrimary ? <span className="font-bold text-[var(--accent)]">主要联系人</span> : '普通联系人'}</td>
+                              </tr>
                             ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : <span className="text-[10px] text-[var(--muted-foreground)]">未登记联系人</span>}
+                  </div>
+
+                  {/* 银行账户（注册第 4 部分） */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">银行账户</div>
+                    {banks.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="neu-table w-full min-w-[520px]">
+                          <thead><tr><th>户名</th><th>开户银行</th><th>开户支行</th><th>银行账号</th><th>默认账户</th></tr></thead>
+                          <tbody>
+                            {banks.map(b => (
+                              <tr key={b.id}>
+                                <td className="font-semibold text-[var(--foreground)]">{b.accountName}</td>
+                                <td>{b.bankName}</td>
+                                <td>{b.bankBranch || '—'}</td>
+                                <td className="font-mono tabular-nums">{b.accountNo}</td>
+                                <td>{b.isDefault ? <span className="font-bold text-[var(--success)]">默认</span> : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : <span className="text-[10px] text-[var(--muted-foreground)]">未登记银行账户（注册时选填）</span>}
+                  </div>
+
+                  {/* 资质证照（注册第 4 部分：材料原件平铺） */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">资质证照</div>
+                    {otherQuals.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {otherQuals.map(q => (
+                          <div key={q.id} className="rounded-xl p-2.5" style={{ background: 'oklch(0.965 0.012 258 / 0.55)' }}>
+                            <div className="flex flex-wrap items-center gap-1.5 text-[10px] leading-4">
+                              <span className="rc-stage-chip" style={{ '--rc-accent': 'var(--accent)' } as React.CSSProperties}>{q.type}</span>
+                              <span className="font-semibold text-[var(--foreground)]">{q.name}</span>
+                              {(q.validFrom || q.validTo) && (
+                                <span className="font-mono tabular-nums text-[var(--muted-foreground)]">
+                                  {q.validFrom ? new Date(q.validFrom).toLocaleDateString('zh-CN') : ''} ~ {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '长期'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2.5">
+                              {q.fileUrl && <MediaThumb url={q.fileUrl} name={q.name} caption="证照原件" />}
+                              {(q.attachments ?? []).filter(a => a?.url).map((a, ai) => (
+                                <MediaThumb key={`${q.id}-att-${ai}`} url={a.url} name={a.name || `附加材料${ai + 1}`} />
+                              ))}
+                            </div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  ) : <p className="mt-2 text-[10px] text-[var(--muted-foreground)]">未提交资质证照</p>}
-                </div>
-              )}
+                    ) : <span className="text-[10px] text-[var(--muted-foreground)]">未提交其他资质证照</span>}
+                  </div>
+
+                  {/* 主体业绩（注册第 4 部分：证明材料平铺） */}
+                  <div className="rc-section">
+                    <div className="rc-section-label">主体业绩</div>
+                    {perfs.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {perfs.map(p => (
+                          <div key={p.id} className="rounded-xl p-2.5" style={{ background: 'oklch(0.965 0.012 258 / 0.55)' }}>
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[10px] leading-4">
+                              <span className="font-bold text-[var(--foreground)]">{p.projectName}</span>
+                              {p.clientName && <span className="text-[var(--muted-foreground)]">业主：{p.clientName}</span>}
+                              {p.contractAmount && <span className="tabular-nums text-[var(--muted-foreground)]">合同金额 {p.contractAmount}</span>}
+                              {p.signDate && <span className="font-mono tabular-nums text-[var(--muted-foreground)]">{new Date(p.signDate).toLocaleDateString('zh-CN')} 签订</span>}
+                            </div>
+                            {p.description && <p className="mt-0.5 text-[10px] leading-4 text-[var(--muted-foreground)]">{p.description}</p>}
+                            {(p.proofFiles ?? []).filter(f => f?.url).length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-2.5">
+                                {(p.proofFiles ?? []).filter(f => f?.url).map((f, fi) => (
+                                  <MediaThumb key={`${p.id}-proof-${fi}`} url={f.url} name={f.name || (f.kind === 'payment' ? '汇款凭证' : '证明材料')}
+                                    caption={f.name || (f.kind === 'payment' ? '汇款凭证' : '证明材料')} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : <span className="text-[10px] text-[var(--muted-foreground)]">未登记主体业绩（注册时选填）</span>}
+                  </div>
+                </>);
+              })()}
             </div>
 
             {/* 固定操作区（卡内底部） */}

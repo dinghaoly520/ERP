@@ -19,6 +19,7 @@ import { SupplierTimeline } from '@/components/supplier/timeline';
 import { ApprovalChangeHistory } from '@/components/supplier/approval-change-history';
 import { PortraitTab } from '@/components/supplier/portrait-tab';
 import { ParticipationTab } from '@/components/supplier/participation-tab';
+import { MediaThumb } from '@/components/supplier/media-thumb';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { CopyIconButton } from '@/components/copy-icon-button';
 
@@ -895,9 +896,11 @@ export default function SupplierDetailPage() {
                           <StatusBadge tone="blue">{q.type}</StatusBadge>
                           <span className="text-xs px-2.5 py-1 rounded font-semibold" style={{ color: qs.color, backgroundColor: `color-mix(in oklch, ${qs.color} 12%, transparent)` }}>{qs.label}</span>
                         </div>
-                        {(() => {
+                        {q.type !== '法定代表人身份证' && (() => {
                           // 多合一名称拆分（2026-11-09 用户裁定）：一条记录塞进多项资质/许可/认证时
-                          // 按分类拆条目展示；单项/不可识别形态保持原文标题
+                          // 按分类拆条目展示；单项/不可识别形态保持原文标题。
+                          // 身份证型不渲染文件名标题（2026-11-20）——原实现把正面文件名当标题、
+                          // 主文件图片整段漏渲染；现正反面直接平铺展示、自带说明 caption
                           const groups = splitQualificationItems(q.name);
                           if (!groups) return <p className="font-bold text-[var(--foreground)] text-sm mb-3">{q.name}</p>;
                           const total = groups.reduce((n, g) => n + g.items.length, 0);
@@ -930,17 +933,20 @@ export default function SupplierDetailPage() {
                         ) : (
                           <p className="text-xs text-[var(--success)] font-semibold">长期有效</p>
                         )}
-                        {/* 注册 2.0：附加材料链接 */}
-                        {q.attachments && q.attachments.length > 0 && (
+                        {/* 材料原件平铺（2026-11-20 用户裁定）：主文件 + 附加材料直接展示——
+                            图片缩略图点击放大（支持旋转/缩放），PDF 走窗口内预览。
+                            修复：原实现主文件（身份证人像面/营业执照）整段漏渲染、附加材料只有
+                            裸链接无图可看 */}
+                        {(q.fileUrl || (q.attachments ?? []).some(a => a?.url)) && (
                           <div className="mt-3 border-t border-[var(--border)] pt-2.5">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-1.5">附加材料（{q.attachments.length}）</p>
-                            <div className="flex flex-col gap-1">
-                              {q.attachments.map((att, i) => (
-                                <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 text-xs text-[var(--accent)] hover:underline truncate">
-                                  <Paperclip size={12} className="flex-shrink-0" />
-                                  <span className="truncate">{att.name || `附件 ${i + 1}`}</span>
-                                </a>
+                            <div className="flex flex-wrap gap-2.5">
+                              {q.fileUrl && (
+                                <MediaThumb url={q.fileUrl} name={q.name}
+                                  caption={q.type === '法定代表人身份证' ? '正面 · 人像面' : '证照原件'} />
+                              )}
+                              {(q.attachments ?? []).filter(a => a?.url).map((att, i) => (
+                                <MediaThumb key={`${q.id}-att-${i}`} url={att.url} name={att.name || `附件 ${i + 1}`}
+                                  caption={q.type === '法定代表人身份证' && i === 0 ? '反面 · 国徽面' : (att.name || `附件 ${i + 1}`)} />
                               ))}
                             </div>
                           </div>

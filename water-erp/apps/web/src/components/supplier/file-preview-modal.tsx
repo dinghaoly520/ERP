@@ -20,7 +20,8 @@ const IMAGE_RE = /\.(png|jpe?g|webp|gif)(\?|$)/i;
 const PDF_RE = /\.pdf(\?|$)/i;
 type PreviewKind = 'image' | 'pdf' | 'iframe' | 'unsupported';
 
-function kindFromName(name: string): PreviewKind | null {
+/** 名称扩展名判型（media-thumb 同口径复用：图片/PDF 直接判定，其余返回 null 走探测） */
+export function kindFromName(name: string): PreviewKind | null {
   if (IMAGE_RE.test(name)) return 'image';
   if (PDF_RE.test(name)) return 'pdf';
   return null; // 名称无可用扩展 → 探测
