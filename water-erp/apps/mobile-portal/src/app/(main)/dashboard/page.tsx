@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
-import { fetchAnnouncements, ANNOUNCEMENT_TYPE_LABELS, type AnnouncementItem, type AnnouncementItemType } from "@/lib/api/announcement";
+import { fetchAnnouncements, ANNOUNCEMENT_TABS, typeOf, matchesTab, type AnnouncementItem } from "@/lib/api/announcement";
 import { fetchSupplierLibrary, SUPPLIER_STATUS_LABELS, type SupplierItem } from "@/lib/api/supplier";
 import { Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
@@ -606,15 +606,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .catch(() => { if (active) setSupplierLib([]); });
     return () => { active = false; };
   }, [analysisOpen, supplierLib]);
-  const [annType, setAnnType] = useState<AnnouncementItemType | "all">("all");
+  const [annType, setAnnType] = useState<string>("all");
+  /* 公司口径联动：选择器变化时重取（2026-11-20 业务对齐） */
   useEffect(() => {
-    if (analysisOpen !== "risk" || announcements) return;
+    if (analysisOpen !== "risk") return;
     let active = true;
-    fetchAnnouncements({ pageSize: 30 })
+    setAnnouncements(null);
+    fetchAnnouncements({ pageSize: 30, companyId: companyIds.length ? companyIds.join(",") : undefined })
       .then((r) => { if (active) setAnnouncements(r.items); })
       .catch(() => { if (active) setAnnouncements([]); });
     return () => { active = false; };
-  }, [analysisOpen, announcements]);
+  }, [analysisOpen, companyIds]);
   const [cmpA, setCmpA] = useState<string | null>(null);
   const [cmpB, setCmpB] = useState<string | null>(null);
 
@@ -1598,45 +1600,38 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "risk" ? (
               <>
-            {/* ══ 公告公示（2026-11-19 板块优化）：类型筛选 + 公告列表 ══ */}
+            {/* ══ 公告公示（2026-11-20 业务对齐 :3002/:3005）：真实类型树 + 公司口径 + 项目关联 ══ */}
             {announcements ? (
               <AnalysisZone icon={Megaphone} title="公告公示" count={`${announcements.length} 条`} color="var(--danger)">
                 <div className="mb-2 flex flex-wrap gap-1.5">
-                  {(["all", "BID_NOTICE", "WIN_RESULT", "POLICY", "NEWS"] as const).map((k) => (
-                    <Chip key={k} active={annType === k} onClick={() => setAnnType(k)}>
-                      {k === "all" ? "全部" : ANNOUNCEMENT_TYPE_LABELS[k]}
-                    </Chip>
+                  {ANNOUNCEMENT_TABS.map((t) => (
+                    <Chip key={t.key} active={annType === t.key} onClick={() => setAnnType(t.key)}>{t.label}</Chip>
                   ))}
                 </div>
                 {(() => {
-                  const filtered = annType === "all" ? announcements : announcements.filter((a) => a.type === annType);
+                  const filtered = announcements.filter((a) => matchesTab(a.type, annType));
                   return filtered.length ? (
                     <div className="space-y-1.5">
                       {filtered.map((a) => {
-                        const isBid = a.type === "BID_NOTICE";
-                        const isWin = a.type === "WIN_RESULT";
-                        const isPolicy = a.type === "POLICY";
+                        const meta = typeOf(a.type);
                         return (
                           <div key={a.id} className="rounded-[12px] m-tile px-3 py-2.5">
                             <div className="flex items-start gap-2.5">
                               <span
-                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${
-                                  isBid ? "bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]"
-                                  : isWin ? "bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]"
-                                  : isPolicy ? "bg-[color-mix(in_oklch,var(--gold)_12%,transparent)] text-[var(--gold)]"
-                                  : "bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] text-[var(--warning)]"
-                                }`}
+                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black"
+                                style={{ background: `color-mix(in oklch, ${meta.color} 12%, transparent)`, color: meta.color }}
                               >
-                                {isBid ? "公" : isWin ? "结" : isPolicy ? "法" : "闻"}
+                                {meta.label.slice(0, 1)}
                               </span>
                               <span className="min-w-0 flex-1">
                                 <span className={`block line-clamp-2 text-[14px] font-semibold leading-snug ${a.metadata?.titleOnly ? "text-[var(--muted-foreground)]" : "text-[var(--foreground)]"}`}>
                                   {a.title}
                                 </span>
-                                <span className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
-                                  <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] px-1.5 py-0.5 font-medium">
-                                    {ANNOUNCEMENT_TYPE_LABELS[a.type] ?? a.type}
+                                <span className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+                                  <span className="rounded-full px-1.5 py-0.5 font-semibold" style={{ background: `color-mix(in oklch, ${meta.color} 8%, transparent)`, color: meta.color }}>
+                                    {meta.label}
                                   </span>
+                                  {a.relatedProjectCode ? <span className="tabular-nums">{a.relatedProjectCode}</span> : null}
                                   <span className="tabular-nums">{a.publishedAt?.slice(0, 10) ?? "—"}</span>
                                 </span>
                               </span>
