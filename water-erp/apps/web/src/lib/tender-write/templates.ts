@@ -133,20 +133,14 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
         aiPrompt: "根据项目类型生成特定资格要求，包含资质证书、业绩要求、人员配置等。要求：根据内容复杂度选择合适的表达方式。简单内容直接用段落描述，无需编号；复杂或多项内容可用层次编号（主层次用1.、2.、3.，子层次用①②③）。不要过度使用编号，避免机械感。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称。必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。对采购标的逐项描述时使用连贯的叙述语句，各品目用逗号和顿号自然连接。",
       },
       {
-        key: "documentAcquireTime",
-        label: "文件获取时间",
-        placeholder: "起止时间选择（形成时间段）",
-        type: "datetime-range",
-        aiPrompt: "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。",
-      },
-      {
         key: "responseDeadline",
         label: "开标时间",
         // 原「响应文件提交截止时间」统一改「开标时间」（截止即开标），
         // 且不再支持填写文字——仅 datetime-local 选择时间
         type: "datetime",
         placeholder: "选择日期时间",
-        aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
+        // 「文件获取时间」字段已删（2026-11-20 用户裁定）——锚点改从今天起算
+        aiPrompt: "生成开标时间。规则：从今天起往后推6-8个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
       },
       { key: "bidOpeningPlace", label: "开标地点", placeholder: "请填写开标地点" },
       { key: "contactName", label: "联系人", placeholder: "请填写联系人" },
@@ -244,7 +238,6 @@ export function createEmptyCompetitiveNegotiationDraft(): CompetitiveNegotiation
     submissionRequirements: "",
     submissionRequirementsType: "",
     qualificationRequirements: "",
-    documentAcquireTime: "",
     responseDeadline: "",
     responseDeadlineType: "",
     contactName: "",
@@ -291,7 +284,6 @@ export const SINGLE_SOURCE_SECTIONS: TenderSectionConfig[] = [
         placeholder: "例如 自合同签订之日起 60 日内完成",
         aiPrompt: "生成项目完成期限。规则：直接输出完成期限的内容本身（如“自合同签订之日起 60 日内完成”），严禁在开头重复“项目完成期限：”作为前缀，也不要输出任何其他说明文字。",
       },
-      { key: "documentAcquireTime", label: "采购文件获取时间", placeholder: "请输入采购文件获取时间", aiPrompt: "生成采购文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。" },
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元", aiPrompt: "生成采购文件售价。本公司电子采购文件免费提供，只输出数字 0，不要添加元、元/份等单位或任何说明。" },
       {
         key: "submissionAndNegotiationTime",
@@ -376,7 +368,6 @@ export function createEmptySingleSourceDraft(): SingleSourceDraft {
     supplierName: "",
     projectBudget: "",
     projectDuration: "",
-    documentAcquireTime: "",
     documentPrice: "0",
     submissionAndNegotiationTime: "",
     submissionAndNegotiationTimeType: "",
@@ -465,20 +456,14 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
           ],
         },
       },
-      {
-        key: "documentAcquireTime",
-        label: "文件获取时间",
-        placeholder: "起止时间选择（形成时间段）",
-        type: "datetime-range",
-        aiPrompt: "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。",
-      },
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元", aiPrompt: "生成采购文件售价。本公司电子采购文件免费提供，只输出数字 0，不要添加元、元/份等单位或任何说明。" },
       {
         key: "responseSubmissionTime",
         label: "开标时间",
         type: "datetime",
         placeholder: "选择日期时间",
-        aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
+        // 「文件获取时间」字段已删（2026-11-20 用户裁定）——锚点改从今天起算
+        aiPrompt: "生成开标时间。规则：从今天起往后推6-8个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
       },
       { key: "bidOpeningPlace", label: "开标地点", placeholder: "请填写开标地点" },
       { key: "contactName", label: "联系人", placeholder: "请填写联系人" },
@@ -707,7 +692,6 @@ export function createEmptyInquiryPurchaseDraft(): InquiryPurchaseDraft {
     qualificationRequirements: "",
     consortiumForm: "",
     consortiumFormType: "",
-    documentAcquireTime: "",
     documentPrice: "0",
     responseSubmissionTime: "",
     contactName: "",
@@ -845,21 +829,15 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
           ],
         },
       },
-      {
-        key: "documentAcquireTime",
-        label: "文件获取时间",
-        placeholder: "起止时间选择（形成时间段）",
-        type: "datetime-range",
-        aiPrompt: "生成文件获取时间。规则：生成一个日期时间范围，起始为今天起往后推3-5个工作日（跳过周六日）的上午09:00，结束为起始日期往后推3-5个工作日的下午15:00。格式为'YYYY年MM月DD日HH:MM至YYYY年MM月DD日HH:MM'（如2026年03月23日09:00至2026年03月26日15:00），只输出该时间范围，不要其他说明。",
-      },
       { key: "documentPrice", label: "采购文件售价", placeholder: "例如 0 元", aiPrompt: "生成采购文件售价。本公司电子采购文件免费提供，只输出数字 0，不要添加元、元/份等单位或任何说明。" },
       {
         key: "responseSubmissionTime",
         label: "开标时间",
-        // 原「响应文件提交时间」统一改「开标时间」，仅支持时间选择
+        // 原「响应文件提交时间」统一改「开标时间」，仅支持时间选择；
+        // 「文件获取时间」字段已删（2026-11-20 用户裁定）——锚点改从今天起算
         type: "datetime",
         placeholder: "选择日期时间",
-        aiPrompt: "生成开标时间。规则：从'文件获取时间'的结束日期往后推至少3个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
+        aiPrompt: "生成开标时间。规则：从今天起往后推6-8个工作日（跳过周六日），取该工作日的下午14:00。格式为'YYYY年MM月DD日HH:MM'（如2026年7月1日14:00），只输出该日期时间，不要其他说明。",
       },
       { key: "bidOpeningPlace", label: "开标地点", placeholder: "请填写开标地点" },
       { key: "contactName", label: "联系人", placeholder: "请填写联系人" },
@@ -1100,7 +1078,6 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
     qualificationRequirements: "",
     consortiumForm: "",
     consortiumFormType: "",
-    documentAcquireTime: "",
     documentPrice: "0",
     responseSubmissionTime: "",
     contactName: "",

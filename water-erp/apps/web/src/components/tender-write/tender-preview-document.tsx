@@ -14,7 +14,6 @@ import type { TableData, TableCell } from './quotation-table-editor';
 import { createDefaultQuotationTable } from './quotation-table-editor';
 import { hasValidScoringRows, scoringTotal } from './scoring-items-editor';
 import { numberToChineseAmount } from '@/lib/tender-write/announcement-templates';
-import { fmtAcquireTime } from '@/lib/utils/format-acquire-time';
 import { useCompanyInfo } from '@/lib/api/company-info';
 
 const CHINESE_NUMBERS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
@@ -522,8 +521,8 @@ function CompetitiveNegotiationPreview({
               三、采购文件获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
-              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并下载采购文件。</p>
+              {/* 「时　　间」条目已删（2026-11-20 用户裁定）：不再填写文件获取时间，方式为该节唯一条目 */}
+              <p>1.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并在公示期间下载采购文件。</p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -878,14 +877,7 @@ function SingleSourcePreview({
                       <PreviewValue value={draft.projectDuration} placeholder="{{项目完成期限}}" fieldKey="projectDuration" onValueChange={onValueChange} />
                     </td>
                   </tr>
-                  <tr>
-                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
-                      采购文件获取时间
-                    </td>
-                    <td className="border border-[oklch(0.55_0.05_258_/_0.2)] px-3 py-2 text-center text-sm">
-                      <PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{采购文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />
-                    </td>
-                  </tr>
+                  {/* 「采购文件获取时间」行已删（2026-11-20 用户裁定）：不再填写该条目 */}
                   <tr>
                     <td className="border border-[oklch(0.55_0.05_258_/_0.2)] bg-[oklch(0.55_0.05_258_/_0.06)] px-3 py-2 text-center text-sm">
                       采购文件领取地点
@@ -1229,10 +1221,10 @@ function InquiryPurchasePreview({
               三、{T.file}获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
-              <p>2.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
-              <p>3.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并下载采购文件。</p>
-              <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
+              {/* 「时　　间」条目已删（2026-11-20 用户裁定）：不再填写文件获取时间，其余条目重排号 */}
+              <p>1.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
+              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并在公示期间下载采购文件。</p>
+              <p>3.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
           </div>
           <div className="tender-preview-subsection">
@@ -1697,10 +1689,10 @@ function InternalBiddingPreview({
               三、{T.file}获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              <p>1.时　　间：<PreviewValue value={fmtAcquireTime(draft.documentAcquireTime) ?? ''} placeholder="{{文件获取时间}}" fieldKey="documentAcquireTime" onValueChange={onValueChange} />。</p>
-              <p>2.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
-              <p>3.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并下载采购文件。</p>
-              <p>4.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
+              {/* 「时　　间」条目已删（2026-11-20 用户裁定）：不再填写文件获取时间，其余条目重排号 */}
+              <p>1.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
+              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并在公示期间下载采购文件。</p>
+              <p>3.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
           </div>
           <div className="tender-preview-subsection">

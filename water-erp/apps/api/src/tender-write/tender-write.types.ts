@@ -21,7 +21,6 @@ export type CompetitiveNegotiationAnswers = {
   submissionRequirements: string;
   submissionRequirementsType: string;
   qualificationRequirements: string;
-  documentAcquireTime: string;
   responseDeadline: string;
   responseDeadlineType: string;
   // 开标地点/联系人地址（2026-10-09 占位符化）：选填，留空回退模板原值
@@ -61,7 +60,6 @@ export type SingleSourceAnswers = {
   supplierName: string;
   projectBudget: string;
   projectDuration: string;
-  documentAcquireTime: string;
   documentPrice: string;
   submissionAndNegotiationTime: string;
   bidOpeningPlace?: string;
@@ -102,7 +100,6 @@ export type InquiryPurchaseAnswers = {
   qualificationRequirements: string;
   consortiumForm: string;
   consortiumFormType: string;
-  documentAcquireTime: string;
   documentPrice: string;
   responseSubmissionTime: string;
   bidOpeningPlace?: string;
@@ -146,7 +143,6 @@ export type InternalBiddingAnswers = {
   qualificationRequirements: string;
   consortiumForm: string;
   consortiumFormType: string;
-  documentAcquireTime: string;
   documentPrice: string;
   responseSubmissionTime: string;
   bidOpeningPlace?: string;

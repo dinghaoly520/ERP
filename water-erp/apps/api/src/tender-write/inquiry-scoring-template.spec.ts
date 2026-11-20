@@ -59,7 +59,6 @@ function fixture(
     qualificationRequirements: '特定资质要求内容',
     consortiumForm: '联合体要求',
     consortiumFormType: 'reject',
-    documentAcquireTime: '2026年11月2日09:00至2026年11月5日15:00',
     documentPrice: '0',
     responseSubmissionTime: '2026年11月10日14:00',
     bidOpeningPlace: '开标室',

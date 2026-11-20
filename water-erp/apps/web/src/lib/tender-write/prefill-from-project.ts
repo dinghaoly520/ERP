@@ -58,8 +58,8 @@ export function buildPrefillFromProject(
         supplierName: project.awardedSupplier || '',
         contactName: project.requesterName || draft.contactName,
         // 采购内容/采购要求不再直塞立项原文（2026-09-11 拍板）：保持为空，由 AI 基于立项事由/
-        // 供方要求等上下文生成（buildAiGenerationContext 已携带两者作素材）；获取时间 ← 阶段提取值
-        documentAcquireTime: project.documentAcquireTime || '',
+        // 供方要求等上下文生成（buildAiGenerationContext 已携带两者作素材）；
+        // 「采购文件获取时间」字段已删（2026-11-20 用户裁定），不再预填
       };
     }
 
@@ -138,7 +138,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
       return withPrompts([
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
-        { fieldKey: 'documentAcquireTime', label: '文件获取时间' },
         { fieldKey: 'responseDeadline', label: '开标时间' },
         { fieldKey: 'contactPhone', label: '联系电话' },
         { fieldKey: 'contactEmail', label: '联系邮箱' },
@@ -151,7 +150,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
     case 'SINGLE_SOURCE':
       return withPrompts([
         { fieldKey: 'projectDuration', label: '项目完成期限' },
-        { fieldKey: 'documentAcquireTime', label: '采购文件获取时间' },
         { fieldKey: 'documentPrice', label: '采购文件售价' },
         { fieldKey: 'submissionAndNegotiationTime', label: '开标时间' },
         { fieldKey: 'contactPhone', label: '联系电话' },
@@ -168,7 +166,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
         { fieldKey: 'consortiumForm', label: '联合体形式' },
-        { fieldKey: 'documentAcquireTime', label: '文件获取时间' },
         { fieldKey: 'documentPrice', label: '采购文件售价' },
         { fieldKey: 'responseSubmissionTime', label: '开标时间' },
         { fieldKey: 'contactPhone', label: '联系电话' },
@@ -188,7 +185,6 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
         { fieldKey: 'consortiumForm', label: '联合体形式' },
-        { fieldKey: 'documentAcquireTime', label: '文件获取时间' },
         { fieldKey: 'documentPrice', label: '采购文件售价' },
         { fieldKey: 'responseSubmissionTime', label: '开标时间' },
         { fieldKey: 'contactPhone', label: '联系电话' },

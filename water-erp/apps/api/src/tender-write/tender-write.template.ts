@@ -547,15 +547,7 @@ function fmtZh(dt: Date, hh: number, mm: number): string {
   return `${d.getFullYear()}年${pad2(d.getMonth() + 1)}月${pad2(d.getDate())}日${pad2(hh)}:${pad2(mm)}`;
 }
 
-/** 从「获取时间」区间串（…至YYYY年MM月DD日HH:MM）解析结束日期；失败返回今天 */
-function parseAcquireEnd(acquireTime: string | undefined): Date {
-  const m = (acquireTime || '').match(/至\s*(\d{4})年(\d{1,2})月(\d{1,2})日/) || (acquireTime || '').match(/(\d{4})年(\d{1,2})月(\d{1,2})日[^至]*$/);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return new Date();
-}
-
 /** 时间类字段兜底（各字段空值才推导，已有值不覆盖） */
- 
 function applyTimeFallbacks<T extends Record<string, any>>(answers: T): T {
   const out = { ...answers } as Record<string, any>;
   const today = new Date();
@@ -564,14 +556,11 @@ function applyTimeFallbacks<T extends Record<string, any>>(answers: T): T {
   // 封面时间：空 → 当前年月
   if (empty('coverDate')) out.coverDate = `${today.getFullYear()}年${pad2(today.getMonth() + 1)}月`;
 
-  // 文件获取时间：空 → 今天+3工作日09:00 至 +5工作日15:00
-  if (empty('documentAcquireTime')) {
-    out.documentAcquireTime = `${fmtZh(addWorkdays(today, 3), 9, 0)}至${fmtZh(addWorkdays(today, 5), 15, 0)}`;
-  }
+  // 「文件获取时间」字段已删（2026-11-20 用户裁定，模板占位符同日移除）——开标类兜底
+  // 锚点沿用原获取期缺省末端（今天+5工作日），再+3工作日
+  const acquireEnd = addWorkdays(today, 5);
 
-  const acquireEnd = parseAcquireEnd(out.documentAcquireTime);
-
-  // 响应/递交/开标类截止时间：空 → 获取结束后+3工作日 14:00（单一直接来源为 09:00）
+  // 响应/递交/开标类截止时间：空 → 锚点+3工作日 14:00（单一直接来源为 09:00）
   if (empty('responseDeadline')) out.responseDeadline = fmtZh(addWorkdays(acquireEnd, 3), 14, 0);
   if (empty('responseSubmissionTime')) out.responseSubmissionTime = fmtZh(addWorkdays(acquireEnd, 3), 14, 0);
   if (empty('submissionAndNegotiationTime')) out.submissionAndNegotiationTime = fmtZh(addWorkdays(acquireEnd, 3), 9, 0);
@@ -692,10 +681,6 @@ export function buildCompetitiveNegotiationReplacementPlan(
       isHierarchicalText: true,
     },
     {
-      targetText: '文件获取时间',
-      ...buildReplacement('文件获取时间', answers.documentAcquireTime),
-    },
-    {
       // 2026-09-09 拍板：原「响应文件提交截止时间」统一改「开标时间」（docx 模板已同步改名）
       targetText: '开标时间',
       ...buildReplacement('开标时间', answers.responseDeadline),
@@ -804,10 +789,6 @@ export function buildSingleSourceReplacementPlan(
     {
       targetText: '项目完成期限',
       ...buildReplacement('项目完成期限', answers.projectDuration),
-    },
-    {
-      targetText: '采购文件获取时间',
-      ...buildReplacement('采购文件获取时间', answers.documentAcquireTime),
     },
     {
       targetText: '采购文件售价',
@@ -1067,10 +1048,6 @@ export function buildInquiryPurchaseReplacementPlan(
       targetText: '联合体形式要求',
       replacementText: consortiumFormValue,
       highlight: false,
-    },
-    {
-      targetText: '文件获取时间',
-      ...buildReplacement('文件获取时间', answers.documentAcquireTime),
     },
     {
       targetText: '采购文件售价',
@@ -1380,10 +1357,6 @@ export function buildInternalBiddingReplacementPlan(
       targetText: '联合体形式要求',
       replacementText: consortiumFormValue,
       highlight: false,
-    },
-    {
-      targetText: '文件获取时间',
-      ...buildReplacement('文件获取时间', answers.documentAcquireTime),
     },
     {
       targetText: '采购文件售价',

@@ -96,7 +96,6 @@ export type CompetitiveNegotiationFieldKey =
   | "submissionRequirements"
   | "submissionRequirementsType"
   | "qualificationRequirements"
-  | "documentAcquireTime"
   | "responseDeadline"
   | "responseDeadlineType"
   | "bidOpeningPlace"
@@ -123,7 +122,6 @@ export type SingleSourceFieldKey =
   | "supplierName"
   | "projectBudget"
   | "projectDuration"
-  | "documentAcquireTime"
   | "documentPrice"
   | "submissionAndNegotiationTime"
   | "submissionAndNegotiationTimeType"
@@ -162,7 +160,6 @@ export type InquiryPurchaseFieldKey =
   | "qualificationRequirements"
   | "consortiumForm"
   | "consortiumFormType"
-  | "documentAcquireTime"
   | "documentPrice"
   | "responseSubmissionTime"
   | "bidOpeningPlace"
@@ -207,7 +204,6 @@ export type InternalBiddingFieldKey =
   | "qualificationRequirements"
   | "consortiumForm"
   | "consortiumFormType"
-  | "documentAcquireTime"
   | "documentPrice"
   | "responseSubmissionTime"
   | "bidOpeningPlace"
@@ -296,9 +292,9 @@ export type TenderFieldConfig<K extends TenderFieldKey = TenderFieldKey> = {
   placeholder: string;
   multiline?: boolean;
   // "datetime" = datetime-local 选择器存「YYYY年MM月DD日HH:MM」（开标时间等时间字段，
-  // 2026-09-09 起不支持文字）；"datetime-range" = 起止两个 datetime-local 存「…至…」
-  //（与 AI 生成同口径），用于文件获取时间（2026-10-21 用户口径：弃文句式录入）
-  type?: "text" | "date" | "month" | "datetime" | "datetime-range" | "email" | "tel";
+  // 2026-09-09 起不支持文字）。"datetime-range"（起止双选择器，曾用于文件获取时间）已随
+  // 该字段删除退役（2026-11-20 用户裁定）
+  type?: "text" | "date" | "month" | "datetime" | "email" | "tel";
   aiPrompt?: string;
   composite?: {
     typeKey: TenderFieldKey;

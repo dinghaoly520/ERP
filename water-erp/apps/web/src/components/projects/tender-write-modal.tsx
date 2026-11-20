@@ -141,7 +141,7 @@ type Props = {
   project: ProjectManagementItem | null;
   /** 文件上传至项目阶段成功后回调，供父面板即时刷新附件列表（无需手动刷新页面） */
   onAttachmentUploaded?: (result: UploadStageAttachmentResult) => void;
-  /** 导出上传完成后回调，供父面板刷新项目基本信息（projectOverview/documentAcquireTime 等） */
+  /** 导出上传完成后回调，供父面板刷新项目基本信息（projectOverview 等） */
   onUpdated?: () => Promise<void> | void;
 };
 
@@ -252,7 +252,8 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     if (!selectedType || round <= 1 || !project) return;
     const typeKey = selectedType as keyof TenderDraftsState;
     const prevAll = prevRoundDraftRef.current;
-    /** 轮次敏感字段剥离：开标时间（按方式映射）+ 文件获取时间（含类型伴生字段）——必须按本轮重填 */
+    /** 轮次敏感字段剥离：开标时间（按方式映射）——必须按本轮重填；
+     *  文件获取时间字段已删（2026-11-20 用户裁定），delete 仅清存量旧轮草稿残留键 */
     const stripRoundSensitive = (obj: Record<string, unknown>) => {
       const stripped = { ...obj };
       const openingKey = TENDER_OPENING_KEY[selectedType];
@@ -265,7 +266,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     const prev = prevAll?.[typeKey] as Record<string, unknown> | undefined;
     if (prev && Object.keys(prev).length > 0) {
       setDrafts((cur) => ({ ...cur, [typeKey]: stripRoundSensitive(prev) }));
-      toast.success(`已带入第 ${round - 1} 轮草稿；开标时间与文件获取时间已清空，请按本轮重新填写`);
+      toast.success(`已带入第 ${round - 1} 轮草稿；开标时间已清空，请按本轮重新填写`);
       return;
     }
     // ② 文件识别轨（2026-10-30 用户口径「填入上一轮的采购文件填入的内容」）：上一轮
