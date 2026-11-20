@@ -5062,7 +5062,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
             lines.push(`  ${analysisFile.contentSummary}`);
           }
 
-          const srcPath = resolve(process.cwd(), 'uploads', att.objectKey);
+          const srcPath = await this.ensureAttachmentLocal(att.objectKey);
+          if (!srcPath) continue; // 双轨皆失（2026-11-20）：跳过该附件的归档拷贝
           // Copy to local archive
           const localDstPath = join(localStageDir, att.fileName);
           try { await copyFile(srcPath, localDstPath); } catch { /* skip if file missing */ }
@@ -5191,10 +5192,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       if (!cachedFiles) {
         const filesWithText = await Promise.all(
           stage.attachments.map(async (attachment) => {
-            const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
-            const extractedText = await this.extractFileTextWithOcr(
-              filePath, attachment.mimeType, attachment.fileName,
-            );
+            const extractedText = await this.attachmentExtractedText(attachment);
             return {
               objectKey: attachment.objectKey,
               fileName: attachment.fileName,
@@ -5715,10 +5713,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (newAttachments.length > 0) {
           const newFilesWithText = await Promise.all(
             newAttachments.map(async (attachment) => {
-              const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
-              const extractedText = await this.extractFileTextWithOcr(
-                filePath, attachment.mimeType, attachment.fileName,
-              );
+              const extractedText = await this.attachmentExtractedText(attachment);
               return {
                 objectKey: attachment.objectKey,
                 fileName: attachment.fileName,
@@ -6787,8 +6782,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       select: { fileName: true, objectKey: true, mimeType: true },
     });
     for (const att of attachments) {
+      const filePath = await this.ensureAttachmentLocal(att.objectKey);
+      if (!filePath) continue; // 双轨皆失（2026-11-20）：跳过该附件，维持识别流程可用
       const text = await this.extractFileText(
-        resolve(process.cwd(), 'uploads', att.objectKey),
+        filePath,
         att.mimeType,
         att.fileName,
       );
@@ -6844,18 +6841,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   private async extractFileTextWithOcr(
-    filePath: string,
+    buffer: Buffer,
     mimeType: string,
     fileName: string,
   ): Promise<string> {
     try {
-      const buffer = await readFile(filePath);
       const text = await this.documentParser.parseWithOcr(buffer, mimeType, fileName);
       return text.slice(0, 8000);
     } catch (error) {
       this.logger.error(`Failed to extract text with OCR from ${fileName}:`, error);
       return '';
     }
+  }
+
+  /** 双轨提取（2026-11-20）：本地 miss 回退 MinIO 副本；双失返回空串（维持静默降级语义）。 */
+  private async attachmentExtractedText(attachment: {
+    objectKey: string;
+    mimeType: string | null;
+    fileName: string;
+  }): Promise<string> {
+    const buffer = await readAttachmentBuffer(attachment.objectKey);
+    if (!buffer) {
+      this.logger.warn(`[attachmentExtractedText] 附件双轨皆失，文本提取为空: ${attachment.objectKey}`);
+      return '';
+    }
+    return this.extractFileTextWithOcr(buffer, attachment.mimeType ?? '', attachment.fileName);
   }
 
   private normalizeInitiationText(text: string) {
@@ -7560,7 +7570,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
 
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
     const zip = await JSZip.loadAsync(buffer);
     const docXml = await zip.file('word/document.xml')?.async('string');
@@ -7819,7 +7835,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (!oldAttachment) throw new NotFoundException('未找到对应附件');
     await this.assertStageAttachmentMutable(projectId, oldAttachment); // 属主+旧轮闸（2026-10-26 补漏，此前两查皆无）
 
-    const filePath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(oldAttachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
     const zip = await JSZip.loadAsync(buffer);
     const docXml = await zip.file('word/document.xml')?.async('string');
@@ -8106,7 +8128,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
 
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
 
     if (!this.patcherEnabled) {
@@ -8325,7 +8353,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 冻结锁（2026-09-27）：已完成的 03 正式盖章版不可替换内容
     await this.assertAttachmentNotFrozen(oldAttachment);
 
-    const oldPath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    const oldPath = await this.ensureAttachmentLocal(oldAttachment.objectKey);
+    if (!oldPath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const usePatcher = this.patcherEnabled && !!dto.originalHash;
     let newBuffer: Buffer;
 

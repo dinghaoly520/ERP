@@ -2947,4 +2947,64 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
       expect(writeFileMock).not.toHaveBeenCalled();
     });
   });
+
+  describe('分析/派生读端 MinIO 回退', () => {
+    const readBufferMock = readAttachmentBuffer as unknown as jest.Mock;
+    const statMock = stat as unknown as jest.Mock;
+    const ATT_ROW = {
+      id: 'att-4',
+      fileName: '直谈报告.pdf',
+      objectKey: 'project-management/200-x-直谈报告.pdf',
+      mimeType: 'application/pdf',
+    };
+
+    beforeEach(() => {
+      readBufferMock.mockReset();
+      statMock.mockReset();
+      statMock.mockResolvedValue(null);
+    });
+
+    it('extractFileTextWithOcr 收 Buffer → parseWithOcr 文本（截 8000）', async () => {
+      const { service, documentParser } = makeService();
+      const ocrMock = (documentParser as unknown as { parseWithOcr: jest.Mock }).parseWithOcr;
+      ocrMock.mockResolvedValue('x'.repeat(9000));
+
+      const input = Buffer.from('pdf');
+      const out = await (service as unknown as {
+        extractFileTextWithOcr: (b: Buffer, m: string, f: string) => Promise<string>;
+      }).extractFileTextWithOcr(input, 'application/pdf', 'a.pdf');
+
+      expect(out.length).toBe(8000);
+      expect(ocrMock).toHaveBeenCalledWith(input, 'application/pdf', 'a.pdf');
+    });
+
+    it('attachmentExtractedText：双失 → 空串不抛；MinIO 命中 → 提取文本', async () => {
+      const { service, documentParser } = makeService();
+
+      readBufferMock.mockResolvedValue(null);
+      const empty = await (service as unknown as {
+        attachmentExtractedText: (a: { objectKey: string; mimeType: string | null; fileName: string }) => Promise<string>;
+      }).attachmentExtractedText(ATT_ROW);
+      expect(empty).toBe('');
+
+      readBufferMock.mockResolvedValue(Buffer.from('pdf'));
+      (documentParser as unknown as { parseWithOcr: jest.Mock }).parseWithOcr.mockResolvedValue('提取文本');
+      const text = await (service as unknown as {
+        attachmentExtractedText: (a: { objectKey: string; mimeType: string | null; fileName: string }) => Promise<string>;
+      }).attachmentExtractedText(ATT_ROW);
+      expect(text).toBe('提取文本');
+    });
+
+    it('getAttachmentParagraphs 双失 → 404 ATTACHMENT_FILE_MISSING', async () => {
+      readBufferMock.mockResolvedValue(null);
+      const { service, prisma } = makeService();
+      prisma.attachment.findUnique.mockResolvedValue(ATT_ROW);
+
+      await expect(
+        (service as unknown as { getAttachmentParagraphs: (id: string) => Promise<unknown> }).getAttachmentParagraphs('att-4'),
+      ).rejects.toMatchObject({
+        response: { code: 'ATTACHMENT_FILE_MISSING' },
+      });
+    });
+  });
 });
