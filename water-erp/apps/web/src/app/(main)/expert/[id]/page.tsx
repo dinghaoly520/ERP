@@ -12,7 +12,7 @@ import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-opti
 import { listSpecialties } from '@/lib/api/expert';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
 import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
-import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL } from '@water-erp/shared';
+import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL, lifecycleLabelOf, LIFECYCLE_LABELS } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
 interface Assignment {
@@ -47,19 +47,21 @@ interface ExpertDetail {
   };
 }
 
-/** E2（2026-11-19）：库况状态徽标单源——hero 头部与基本信息卡共用。
- *  已退库/已停用优先（镜像列「停用」仍是人口过滤语义），否则四态派生（后端 busyState，
- *  与库页状态列/水叮当同口径；tone 同库页：正在评标=orange、已被抽取=blue、候补待命=cyan、空闲=green）。
+/** E2（2026-11-19）→ 跨端收口（2026-11-20）：库况状态徽标单源——hero 头部与基本信息卡共用。
+ *  标签判定走 @water-erp/shared lifecycleLabelOf（与 api/水叮当/AI 批注同链——已退库＞已停用＞
+ *  后端 busyState 四态；web 不再手写优先链）；tone 为 web 展示层本地映射
+ *  （正在评标=orange、已被抽取=blue、候补待命=cyan、空闲=green、池外=gray，同库页）。
  *  账号启停是另一维度，已在「身份与联系→账户状态」呈现，不冒充库况。 */
 const stateBadgeOf = (e: ExpertDetail | null): { tone: string; label: string } | null => {
   if (!e) return null;
-  const p = e.expertProfile || {};
-  if (p.entryStatus === 'RETIRED') return { tone: 'gray', label: '已退库' };
-  if (p.availability === '停用') return { tone: 'gray', label: '已停用' };
-  const s = e.busyState;
-  if (!s) return null;
-  const tone = s === '空闲' ? 'green' : s === '正在评标' ? 'orange' : s === '已被抽取' ? 'blue' : 'cyan';
-  return { tone, label: s };
+  const label = lifecycleLabelOf(e.expertProfile || {}, e.busyState ?? '');
+  if (!label) return null;
+  const tone = label === LIFECYCLE_LABELS.idle ? 'green'
+    : label === LIFECYCLE_LABELS.evaluating ? 'orange'
+    : label === LIFECYCLE_LABELS.assigned ? 'blue'
+    : label === LIFECYCLE_LABELS.alternate ? 'cyan'
+    : 'gray'; // 已退库/已停用（池外）
+  return { tone, label };
 };
 
 import { RingGauge, GRADE_SCORE, type WidgetTone } from '@/components/detail/data-widgets';
