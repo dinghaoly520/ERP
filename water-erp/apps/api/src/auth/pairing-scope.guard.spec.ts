@@ -96,9 +96,13 @@ describe('PairingScopeGuard', () => {
       { method: 'GET', path: '/api/expert/profile' },
       { method: 'GET', path: '/api/expert/profile/contact-check' },
       { method: 'GET', path: '/api/expert/statistics' },
-      { method: 'GET', path: '/api/expert/tasks' },
     ])('$method $path', (req) => {
       expect(guard.canActivate(ctx({ ...req, pairingScope: SCOPE }))).toBe(true);
+    });
+
+    // P3-19（2026-11-20）：tasks 是跨项目聚合端点（pid 绑定不覆盖），移出白名单
+    it('GET /api/expert/tasks → 拒绝（跨项目聚合面，配对平板不可读他项目动议/异议）', () => {
+      expect(() => guard.canActivate(ctx({ method: 'GET', path: '/api/expert/tasks', pairingScope: SCOPE }))).toThrow();
     });
 
     it('POST /upload 仅 expert_signin_photo 类目放行（比对 req.query.category）', () => {

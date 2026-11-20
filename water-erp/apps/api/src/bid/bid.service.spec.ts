@@ -127,6 +127,7 @@ describe('BidService — stage transitions', () => {
   beforeEach(async () => {
     prisma = {
       bidProject: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }), // P3-17：重开重置末签
         findUnique: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
@@ -4529,6 +4530,7 @@ describe('submitQuote — 准入校验', () => {
       bidRound: { findUnique: jest.fn() },
       bidSupplier: { findFirst: jest.fn() },
       bidQuote: { create: jest.fn() },
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) }, // P3-24：结果冻结闸默认无结果
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };
@@ -5064,7 +5066,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   const RANK1 = { supplierId: 'sup-win', supplierName: '中标公司' };
 
   it('公示未发布 → 409 PUBLICITY_NOT_ENDED 且零交付/零通知', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(null);
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司' }))
       .rejects.toMatchObject({ response: { code: 'PUBLICITY_NOT_ENDED' } });
@@ -5075,7 +5077,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('公示期未满 → 409 且 error 含公示截止时间', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     const future = new Date(Date.now() + 86_400_000);
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(future));
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司' }))
@@ -5085,7 +5087,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('publicityEnd 为 null → getPublicityStatus canIssueAward=false', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', projectManagementItemId: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(null));
     const status = await svc.getPublicityStatus('p1');
     expect(status.canIssueAward).toBe(false);
@@ -5093,7 +5095,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('公示期满 → 放行且定向通知仅中标方（sendToUser 用供应商 userId，sendToRole 零调用）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5120,7 +5122,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('定标回写（拍板#7）：中标人与台账不一致 → 自动回写 PMI.awardedSupplier；一致 → 幂等跳过', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5141,7 +5143,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('winnerSupplierId 与 rank1 不符 → 400 WINNER_MISMATCH 零交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司', winnerSupplierId: 'sup-other' }))
@@ -5151,7 +5153,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书必须引用当前操作者上传的合同文档资产', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue(null);
@@ -5168,7 +5170,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('仅伪装成 PDF MIME 但不属于 contract_document 分类的资产仍拒绝交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     // Prisma 的复合过滤不会返回 category=general 的资产，即使其 mimeType 自称 PDF。
@@ -5190,7 +5192,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书附件超过 20 MiB 时拒绝交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue({
@@ -5211,7 +5213,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     'image/png',
     'text/html',
   ])('通知书附件存储 MIME 为 %s 时拒绝交付', async (mimeType) => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-wrong-type', mimeType, size: 1_024 });
@@ -5228,7 +5230,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ])('通知书附件允许可信 PDF/Word 存储 MIME：%s', async (mimeType) => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue({
@@ -5243,7 +5245,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书缺少实际文件时拒绝发出', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
 
@@ -5254,7 +5256,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书资产已绑定其他 delivery 时拒绝跨交付复用', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findFirst.mockResolvedValue({ id: 'delivery-other' });
@@ -5278,7 +5280,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   it.each(['draftAssetId', 'signedAssetId'] as const)(
     '通知书资产已作为合同 %s 时拒绝反向复用',
     async (contractAssetField) => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
       prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
       prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
       prisma.contract.findFirst.mockResolvedValue({ id: 'contract-1' });
@@ -5305,7 +5307,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   );
 
   it('通知书资产已作为合同履约证明时拒绝反向复用', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.contractFulfillment.findFirst.mockResolvedValue({ id: 'fulfillment-1' });
@@ -5324,7 +5326,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('已签收通知书不可被覆盖或重新交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findUnique.mockResolvedValue({
@@ -5343,7 +5345,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('未签收通知书重发时原子替换文件并清空旧查看回执', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5379,7 +5381,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('未签收通知书可用同一资产幂等重发，且占用查询排除当前 delivery', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5404,7 +5406,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('重发条件更新未命中时按并发签收冲突拒绝', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findUnique
@@ -5421,7 +5423,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('并发重发已换版时拒绝用旧版本继续覆盖', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findUnique
@@ -6255,7 +6257,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
 
   it('定标联动：sendToUser(创建人) resolve 后才写 marker + marker 幂等（marker 已在则不再提醒）', async () => {
     // 2026-10-09 串号修复：BOND_REFUND_DUE 从 staff 全平台广播改为只发项目创建人（PMI.createdById）
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
     prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -6300,7 +6302,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
   });
 
   it('定标联动：无待退还（pending=0）→ 不发送不写 marker（零副作用）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6317,7 +6319,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
   });
 
   it('定标联动：sendToUser 失败 → marker 不写（不占坑）+ warn 留痕，不阻塞通知书', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
     prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -6337,7 +6339,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
   });
 
   it('定标联动：创建人已停用（isActive=false）→ 不发送且不占坑（法定提醒通道不被死信空耗）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
     prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: false } });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -6356,7 +6358,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
 
   it('定标联动：创建人不可解析（无宿主 PMI）→ 不发送且不占坑（不回退广播）', async () => {
     // 2026-10-09 串号修复口径：解析失败宁可不发，marker 也不写——日调度兜底通道仍可补发
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6372,7 +6374,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
   });
     it('P1-6：定标即定向通知未中标投标人（法45条）——BID_AWARD_RESULT 含中标人名称 + marker 幂等', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
       prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
       prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
       prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6401,7 +6403,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     });
 
     it('P1-6：marker 已在 → 不重复通知落标家（重签收/重发不重复）', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
       prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
       prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
       prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6417,7 +6419,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     });
 
     it('P1-6：仅中标人参标（无落标者）→ 不发落标通知、不写 marker', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
       prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
       prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
       prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6458,6 +6460,7 @@ describe('BidService — reopenExpertScoring', () => {
     prisma = {
       bidProject: {
         findUnique: jest.fn().mockResolvedValue({ id: 'p1', name: '测试项目', stage: 'EVALUATING', projectCode: 'GK-TEST' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }), // P3-17：重开重置 leaderCoSigned
       },
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ closedAt: null }) },
       bidExpert: {

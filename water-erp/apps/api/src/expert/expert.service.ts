@@ -800,9 +800,20 @@ export class ExpertService {
     // 名称归一化自动匹配误判时会强制误回避（不可撤销），侵害评审独立与供应商权益。
     // conflictedSupplierIds 自此全量为专家手动勾选；存量含自动合并项的历史数据保持原样（申报时点证据）。
     const existingConflicts = parseConflictedIds(expert.conflictedSupplierIds);
-    const resolvedConflicts = conflictedSupplierIds !== undefined
+    // P3-20（2026-11-20 全链路审查）：回避名单须属本项目名册——跨项目/伪造 id 只过滤空串直接
+    // 落库，会污染自身评分阻断集与监督日志名称解析（裸 id 查名会命中他项目同名行）。
+    let resolvedConflicts = conflictedSupplierIds !== undefined
       ? conflictedSupplierIds.filter((id): id is string => !!id)
       : existingConflicts;
+    // P3-20 过滤与名称解析合并为单查询：名册命中行即最终回避名单（id+名称同源）
+    const rosterRows = resolvedConflicts.length > 0
+      ? await this.prisma.bidSupplier.findMany({
+          where: { projectId, id: { in: resolvedConflicts } },
+          select: { id: true, supplierName: true },
+        })
+      : [];
+    const rosterIdName = new Map(rosterRows.map(r => [r.id, r.supplierName]));
+    resolvedConflicts = [...rosterIdName.keys()];
 
     const updated = await this.prisma.bidExpert.update({
       where: { id: expert.id },
@@ -811,8 +822,7 @@ export class ExpertService {
     });
     // 回避确认监督日志
     const conflictNames = resolvedConflicts.length > 0
-      ? (await this.prisma.bidSupplier.findMany({ where: { id: { in: resolvedConflicts } }, select: { supplierName: true } }))
-          .map(s => s.supplierName).join('、')
+      ? [...rosterIdName.values()].join('、')
       : '无';
     await this.prisma.bidSupervisionLog.create({
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
@@ -2390,23 +2400,37 @@ export class ExpertService {
       // 须评完该供应商全部评分项才能核对（防止漏评项被核对/确认）
       // PRICE 项由公式引擎出分、专家不写记录——同 recomputeExpertProgress 口径排除，
       // 否则竞价采购（仅通过性+PRICE）每家恒「尚 1 项未评」，核对/报告确认/末签全链死锁。
-      const itemCount = await this.prisma.bidScoreItem.count({ where: { projectId, category: { not: 'PRICE' } } });
+      // P3-18（2026-11-20 全链路审查）：完整性闸由「记录数比对」改为「逐项比对」——
+      // 旧口径 scores.length 含 PRICE 残留记录与已删评分项的孤儿记录，可掩盖非 PRICE 项缺评
+      //（多类目凑数过闸）。confirmReport 活体重算兜底仍在，此处提前按项收口。
+      const requiredItems = await this.prisma.bidScoreItem.findMany({
+        where: { projectId, category: { not: 'PRICE' } },
+        select: { id: true },
+      });
       // bug#140a 资格短路豁免（2026-11-18 验收实录）：该专家已判该供应商任一通过性项「不通过」→
       // 其非通过性项免评，完整性闸只要求通过性项——与 recomputeExpertProgress 分母/前端校验同口径。
       // 否则豁免家永远过不了核对 → allVerified 恒 false → canConfirm 恒 false → 报告确认新死锁。
       // passed===false 只会出现在通过性记录上（数值项落库恒 null），无需再按类目复核。
       const shortCircuited = scores.some(r => r.passed === false);
-      const requiredCount = shortCircuited
-        ? await this.prisma.bidScoreItem.count({ where: { projectId, category: { in: ['QUALIFICATION', 'RESPONSIVE'] } } })
-        : itemCount;
+      let requiredIds = requiredItems.map(i => i.id);
+      if (shortCircuited) {
+        const passFailItems = await this.prisma.bidScoreItem.findMany({
+          where: { projectId, category: { in: ['QUALIFICATION', 'RESPONSIVE'] } },
+          select: { id: true },
+        });
+        requiredIds = passFailItems.map(i => i.id);
+      }
+      const scoredItemIds = new Set(scores.map(r => r.scoreItemId));
+      const missingIds = requiredIds.filter(id => !scoredItemIds.has(id));
+      const itemCount = requiredIds.length;
       // 0 记录拒收须 0 项感知（2026-10-20 终审对齐）：非 none 项目 0 个非 PRICE 项（如仅 PRICE 公式标）
       // 的 progress 已按真实比例算到 100，旧序先判 scores.length===0 → 恒 400 SCORING_INCOMPLETE
       // 的混合态——先取 itemCount 再判「有项且 0 记录」（scores.length < itemCount 对 0 项天然放行）。
       if (itemCount > 0 && scores.length === 0) {
         throw new BadRequestException({ error: '该供应商尚未评分，无法核对', code: 'SCORING_INCOMPLETE' });
       }
-      if (scores.length < requiredCount) {
-        throw new BadRequestException({ error: `该供应商尚有 ${requiredCount - scores.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
+      if (missingIds.length > 0) {
+        throw new BadRequestException({ error: `该供应商尚有 ${missingIds.length} 个评分项未评，无法核对`, code: 'SCORING_INCOMPLETE' });
       }
     }
 

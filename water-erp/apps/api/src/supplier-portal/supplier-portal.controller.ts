@@ -21,6 +21,7 @@ import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/c
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ObjectionService } from './objection.service';
+import { CreateObjectionDto } from './dto/create-objection.dto';
 import { PrequalService } from '../prequal/prequal.service';
 import { FrameworkService } from '../framework/framework.service';
 import { PerformanceService } from '../performance/performance.service';
@@ -296,7 +297,7 @@ export class SupplierPortalController {
   }
 
   @Post('objections')
-  async createObjection(@Request() req: any, @Body() dto: { announcementId?: string; projectCode?: string; phase: string; title: string; content: string; attachments?: any; companyId?: string }) {
+  async createObjection(@Request() req: any, @Body() dto: CreateObjectionDto) { // P3-6：DTO 化（whitelist 生效，attachments 结构白名单）
     const supplier = await this.prisma.supplier.findUnique({
       where: { userId: req.user.sub },
       select: { id: true, name: true, userId: true },

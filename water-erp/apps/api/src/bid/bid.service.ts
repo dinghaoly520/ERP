@@ -3042,12 +3042,23 @@ export class BidService {
       }
     }
 
+    // P3-15：回避排除数据——对该供应商申报回避的专家不进聚合（可评集合=聚合集合）
+    const conflictRows = await this.prisma.bidExpert.findMany({
+      where: { projectId, expertRole: '正选', conflictedSupplierIds: { not: Prisma.DbNull } },
+      select: { id: true, conflictedSupplierIds: true },
+    });
+    const expertConflicts = new Map<string, Set<string>>();
+    for (const e of conflictRows) {
+      const ids = parseConflictedIds(e.conflictedSupplierIds);
+      if (ids.length > 0) expertConflicts.set(e.id, new Set(ids));
+    }
     const ranked = aggregateSupplierScores({
       activeSuppliers,
       recordsBySupplier,
       formulaPriceScores,
       priceItemIds,
       passFailItemIds, // bug#140a：聚合层按 (专家,供应商) 对排除资格短路豁免专家
+      expertConflicts, // P3-15：回避专家评分不进聚合（预览与正式结果同源）
       passFailVerdicts,
       bidPrices,
       isNegotiation: project.procurementMethod === '谈判采购',
@@ -4824,9 +4835,15 @@ export class BidService {
   ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { name: true, projectCode: true, projectManagementItemId: true },
+      select: { name: true, projectCode: true, projectManagementItemId: true, stage: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // P3-25（2026-11-20 全链路审查）：归档前置——定标属完整归档后的收尾动作，原仅公示期+
+    // 一致性闸（手工 API 可对 EVALUATING 项目发中标通知书=定标先于归档）。公告侧 WIN_BID_NOTICE
+    // 发布的前置属公告域另行收口，此处把通知书出口钉在 ARCHIVED 之后。
+    if (project.stage !== 'ARCHIVED') {
+      throw new ConflictException({ error: '中标通知书须在项目完整归档后发出（当前阶段未归档）', code: 'AWARD_BEFORE_ARCHIVE' });
+    }
 
     // 公示期硬闸——公示未发布或未期满不得发出中标通知书（实施条例第54条）
     const publicity = await this.getPublicityStatus(projectId);
@@ -5657,6 +5674,13 @@ export class BidService {
     if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
     if (round.deadline && new Date() > new Date(round.deadline)) {
       throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
+    }
+    // P3-24（2026-11-20 全链路审查）：结果冻结直接闸——createRound 侧同闸早已存在（:5458-5461），
+    // 本端点注释自述「提交侧同闸」但未实现（此前靠「结果生成要求全轮 closed」间接封死，
+    // 数据修正流程清零结果与轮次重开之间的窗口内可迟报；补直接闸消除对间接闸的依赖）。
+    const existingResults = await this.prisma.bidEvaluationResult.count({ where: { projectId } });
+    if (existingResults > 0) {
+      throw new ConflictException({ error: '评标结果已生成，报价通道已冻结；如需更正请走数据修正流程', code: 'RESULTS_FROZEN' });
     }
 
     // 验证供应商属于该项目
@@ -6967,6 +6991,13 @@ export class BidService {
 
     await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, projectId, 'EVALUATING'); // 事务内行锁复查阶段（防并发归档偷跑）
+      // P3-17（2026-11-20 全链路审查）：同步重置组长末签——旧末签是对改分前分数的背书，
+      // 重开改分后仍有效会让新结果带着陈旧末签直接生成（专家侧撤销路径 expert-admin 会同步
+      // 清 leaderCoSigned，主持侧此前漏了同款）。
+      await tx.bidProject.updateMany({
+        where: { id: projectId, leaderCoSigned: true },
+        data: { leaderCoSigned: false, leaderCoSignedAt: null },
+      });
       await tx.bidExpert.updateMany({
         where: { id: { in: targets.map(t => t.id) } },
         data: { reportConfirmed: false, reportConfirmedAt: null },

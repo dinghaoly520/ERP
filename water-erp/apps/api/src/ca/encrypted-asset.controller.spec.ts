@@ -13,6 +13,8 @@ jest.mock('../upload/minio.client', () => ({
 const mockPrisma: any = {
   supplier: { findUnique: async () => ({ id: 'sup-1', userId: 'user-1' }) },
   fileAsset: { create: async (d: any) => ({ id: 'fa-1', ...d.data }) },
+  // P3-3：暂存资格闸（项目存在+投递阶段）
+  bidProject: { findUnique: async () => ({ stage: 'SUBMIT' }) },
 };
 
 import { EncryptedAssetController } from './encrypted-asset.controller';
@@ -20,6 +22,17 @@ import { EncryptedAssetController } from './encrypted-asset.controller';
 describe('EncryptedAssetController（dual-v3 暂存）', () => {
   const ctrl = new EncryptedAssetController(mockPrisma);
   const mockReq = { user: { sub: 'user-1' } } as any;
+
+  test('P3-3：项目不存在 → 400 PROJECT_NOT_FOUND；已开标项目 → 409 PROJECT_NOT_SUBMITTING', async () => {
+    const buffer = Buffer.from('x');
+    const mockFile = { buffer, originalname: 't.outer', mimetype: 'application/octet-stream', size: 1 } as Express.Multer.File;
+    const orig = mockPrisma.bidProject.findUnique;
+    mockPrisma.bidProject.findUnique = async () => null;
+    await expect(ctrl.uploadEncryptedAsset('proj-x', mockReq, mockFile)).rejects.toMatchObject({ response: { code: 'PROJECT_NOT_FOUND' } });
+    mockPrisma.bidProject.findUnique = async () => ({ stage: 'OPENING' });
+    await expect(ctrl.uploadEncryptedAsset('proj-x', mockReq, mockFile)).rejects.toMatchObject({ response: { code: 'PROJECT_NOT_SUBMITTING' } });
+    mockPrisma.bidProject.findUnique = orig;
+  });
 
   test('上传密文→服务端实算 outerSha256+返回暂存信息', async () => {
     const buffer = Buffer.from('encrypted-data-outer-ciphertext');

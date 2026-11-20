@@ -98,6 +98,7 @@ export class BidSignPacketService {
           isPurchaserRepresentative: true, signStatus: true, signStatusAt: true,
           signScanFileId: true, dissentingOpinion: true, dissentingReason: true,
           esignature: true, esignatureAt: true,
+          invitationStatus: true, // P3-27：前端「未签」警示名单排除 pending（与 P2-4 分母同口径）
         },
       }),
     ]);
@@ -126,6 +127,7 @@ export class BidSignPacketService {
         name: e.expertName,
         major: e.major,
         role: e.expertRole,
+        invitationStatus: e.invitationStatus, // P3-27：下发名册状态（前端警示名单过滤依据）
         reviewGroup: e.reviewGroup,
         dutyRole: e.dutyRole,
         isLead: e.isLead,
@@ -364,6 +366,9 @@ export class BidSignPacketService {
     if (!packet) throw new ConflictException({ error: '签字包尚未生成', code: 'SIGN_PACKET_NOT_GENERATED' });
     if (!packet.closedAt) throw new ConflictException({ error: '签字未闭环，无法生成评标回流包', code: 'SIGN_HANDOVER_NOT_CLOSED' });
     if (packet.handoverFileAssetId) return this.getStatus(projectId); // 幂等：已生成直接返回
+    // P3-26（2026-11-20 全链路审查）：并发双击行锁——body 含 generatedAt 时间戳、两次内容不同，
+    // 交错可留「DB handoverSha256=调用A、MinIO 实体=调用B」指纹-内容失配且该 sha 入归档哈希链。
+    // 锁 BidProject 行（与 reopen/register 同锁族）：第二笔在锁上串行，锁内复查幂等早退。
 
     // 基础快照复用评标完整性包（结果生成时的同一数据来源），扩展签字/异议/动议信息
     const base = await this.evalResults.buildEvaluationPackage(projectId);
@@ -566,30 +571,40 @@ export class BidSignPacketService {
     const buffer = Buffer.from(JSON.stringify(body, null, 2), 'utf8');
     const objectKey = `bid-sign-handover/${projectId}.json`; // 同 key 覆盖
     const sha256 = crypto.createHash('sha256').update(buffer).digest('hex');
-    await this.storage.upload(objectKey, buffer, 'application/json');
-
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
-    // N14：幂等守卫已挡重复生成，此处 upsert 为防御性同 key 覆盖——若行已存在则更新指纹，
-    // 保证 DB 记录与 MinIO 内容恒一致（与 N2/N3 同款，同构）。
-    const asset = await this.prisma.fileAsset.upsert({
-      where: { key: objectKey },
-      create: {
-        key: objectKey, originalName: `评标回流包-${projectId}.json`, mimeType: 'application/json',
-        size: buffer.length, sha256, category: 'bid_evaluation_sign_handover', uploaderId: actorId,
-      },
-      update: { size: buffer.length, sha256, uploaderId: actorId ?? null },
+
+    // P3-26（2026-11-20 全链路审查）：终局段整体事务化——upload+asset+packet+日志在
+    // BidProject 行锁后串行执行（回流包 JSON 小、upload 入事务可接受）。原实现幂等检查在
+    // 事务外且各写散落：双击两笔内容不同（generatedAt 时间戳），交错可留「DB 指纹=先提交、
+    // MinIO 实体=后覆盖」失配且该 sha 入归档哈希链（bid.service:4462）。锁内复查幂等早退，
+    // 后到者不再 upload——MinIO 与 DB 恒同源。N14：upsert 为防御性同 key 覆盖（与 N2/N3 同构）。
+    let alreadyGenerated = false;
+    await this.prisma.$transaction(async (tx) => {
+      await lockAndReassertStage(tx, projectId, 'EVALUATING');
+      const fresh = await tx.bidSignPacket.findUnique({ where: { projectId }, select: { handoverFileAssetId: true } });
+      if (fresh?.handoverFileAssetId) { alreadyGenerated = true; return; } // 并发先完成——零副作用早退
+      await this.storage.upload(objectKey, buffer, 'application/json');
+      const asset = await tx.fileAsset.upsert({
+        where: { key: objectKey },
+        create: {
+          key: objectKey, originalName: `评标回流包-${projectId}.json`, mimeType: 'application/json',
+          size: buffer.length, sha256, category: 'bid_evaluation_sign_handover', uploaderId: actorId,
+        },
+        update: { size: buffer.length, sha256, uploaderId: actorId ?? null },
+      });
+      await tx.bidSignPacket.update({
+        where: { projectId },
+        data: { handoverFileAssetId: asset.id, handoverSha256: sha256 },
+      });
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '开标主持人', target: project?.name ?? projectId,
+          action: '生成评标回流包', result: `指纹 ${sha256.slice(0, 16)}…，可回传 :3005 归档`, riskFlag: '无',
+          operatorId: actorId, operatorRole: 'bid_host',
+        },
+      }).catch(() => {});
     });
-    await this.prisma.bidSignPacket.update({
-      where: { projectId },
-      data: { handoverFileAssetId: asset.id, handoverSha256: sha256 },
-    });
-    await this.prisma.bidSupervisionLog.create({
-      data: {
-        projectId, time: new Date(), role: '开标主持人', target: project?.name ?? projectId,
-        action: '生成评标回流包', result: `指纹 ${sha256.slice(0, 16)}…，可回传 :3005 归档`, riskFlag: '无',
-        operatorId: actorId, operatorRole: 'bid_host',
-      },
-    });
+    if (alreadyGenerated) return this.getStatus(projectId);
 
     return this.getStatus(projectId);
   }

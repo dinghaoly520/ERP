@@ -130,6 +130,11 @@ export class BidDecryptService {
     const bidSupplier = await this.prisma.bidSupplier.findFirst({ where: { projectId, id: bidSupplierId } });
     if (!bidSupplier) throw new BadRequestException({ error: '供应商投标记录不存在', code: 'NOT_FOUND' });
     const { supplierName } = bidSupplier;
+    // P3-1（2026-11-20 全链路审查）：单家路径补撤回过滤——批量预筛（:104-108）显式滤「已撤回」，
+    // 单家直进不查：主持人可对已撤回投标解外层，落不可删的 C_inner 资产+误导性监督日志（污染证据链）。
+    if (bidSupplier.submitStatus === '已撤回') {
+      throw new BadRequestException({ error: '该供应商已撤回投标，不参与解外层（与批量路径口径一致）', code: 'SUPPLIER_WITHDRAWN' });
+    }
     if (!bidSupplier.supplierId) {
       throw new BadRequestException({ error: '供应商未关联系统账户，无信封提交记录', code: 'NOT_FOUND' });
     }
@@ -328,18 +333,9 @@ export class BidDecryptService {
     await assertDecryptCheckInQuorum(this.prisma, projectId);
 
     // ── DecryptExecution 槽位（fence 每尝试 +1；attempt=fence 序号入对象键）──
-    const leaseUntil = new Date(Date.now() + 120_000);
-    const slot = await this.prisma.decryptExecution.upsert({
-      where: { submissionId_revision_phase: { submissionId: submission.id, revision: submission.revision, phase: 'outer' } },
-      create: {
-        submissionId: submission.id, revision: submission.revision, phase: 'outer',
-        attemptId: randomUUID(), fence: 1, leaseUntil, status: 'RUNNING',
-      },
-      update: { fence: { increment: 1 }, attemptId: randomUUID(), leaseUntil, status: 'RUNNING' },
-    });
-    const attempt = slot.fence;
-
-    // ── outerDecryptedAt 抢占（v2 同款互斥；v3 叠加 fence 管版本内多 attempt 隔离）──
+    // P3-13（2026-11-20 全链路审查）：fence 槽位登记挪至 outerDecryptedAt 抢占成功之后——
+    // 原顺序（upsert 先行）下并发第二笔在 skipped 路径也会 fence+1，把在途第一笔的终局写
+    // 顶成 STALE_ATTEMPT（白工重试）。抢占成功才登记 attempt，skipped 路径零副作用。
     const claimAt = new Date();
     const claim = await this.prisma.supplierBidSubmission.updateMany({
       where: { supplierId: submission.supplierId, projectId, outerDecryptedAt: null },
@@ -366,6 +362,18 @@ export class BidDecryptService {
         return { supplierId: bidSupplierId, supplierName, skipped: true };
       }
     }
+
+    // ── DecryptExecution 槽位（抢占成功后登记；fence 每尝试 +1，attempt=fence 序号入对象键）──
+    const leaseUntil = new Date(Date.now() + 120_000);
+    const slot = await this.prisma.decryptExecution.upsert({
+      where: { submissionId_revision_phase: { submissionId: submission.id, revision: submission.revision, phase: 'outer' } },
+      create: {
+        submissionId: submission.id, revision: submission.revision, phase: 'outer',
+        attemptId: randomUUID(), fence: 1, leaseUntil, status: 'RUNNING',
+      },
+      update: { fence: { increment: 1 }, attemptId: randomUUID(), leaseUntil, status: 'RUNNING' },
+    });
+    const attempt = slot.fence;
 
     try {
       // ── 逐角色两遍流（Task 11 分块化）：pass1 流式哈希闸（调包件不解密直接拒）→

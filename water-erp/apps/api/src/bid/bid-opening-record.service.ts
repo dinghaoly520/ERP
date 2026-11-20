@@ -212,6 +212,11 @@ export class BidOpeningRecordService {
 
     // Wrap check-then-act + log in transaction to prevent duplicate record race
     const record = await this.prisma.$transaction(async (tx) => {
+      // P3-10（2026-11-20 全链路审查）：记录行锁后复查——原 findFirst 状态门+无条件 upsert 与
+      // 供应商 disputeOpening（条件置「供应商提出异议」）并发时，陈旧读会把异议态覆写回
+      // 「待供应商确认」（objectionReason 残留、供应商卡 DISPUTED、resolve 恒 400）。行锁与
+      // disputeOpening 的 BidProject 行锁共同把两侧窗口收窄为零（锁序：BidProject→Record 一致）。
+      await tx.$queryRaw`SELECT id FROM "BidOpeningRecord" WHERE "projectId" = ${projectId} AND "bidSupplierId" = ${bidSupplier.id} FOR UPDATE`;
       const existing = await tx.bidOpeningRecord.findFirst({
         where: { projectId, bidSupplierId: bidSupplier.id },
       });

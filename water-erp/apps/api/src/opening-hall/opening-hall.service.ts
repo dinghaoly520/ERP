@@ -29,6 +29,16 @@ export class OpeningHallService {
     if (!HOST_ROLES_SET.has(actor.role)) throw new ForbiddenException({ error: '仅主持人可执行此操作', code: 'HOST_ONLY' });
   }
 
+  /** P3-9（2026-11-20）：供应商成员门——须已提交投标的名册家（受邀未投递/已撤回非投标人，
+   *  不得读大厅公聊/收未读/发言；对照 WS 入房门与 checkIn 既有「已提交」闸）。 */
+  private async assertSupplierMember(actor: HallActor, projectId: string) {
+    const member = await this.prisma.bidSupplier.findFirst({
+      where: { projectId, supplierId: actor.supplierId, submitStatus: '已提交' },
+    });
+    if (!member) throw new BadRequestException({ error: '您未参与该项目投标（或投标已撤回）', code: 'NOT_PROJECT_MEMBER' });
+    return member;
+  }
+
   /**
    * P2-1（2026-11-20 全链路审查）：host 面项目域闸——REST 镜像 bid.gateway.assertHostProjectScope
    * （WS join:project host 分支同款）。原裸 assertHost 只查角色，跨公司 leader/staff 可读他司
@@ -81,8 +91,7 @@ export class OpeningHallService {
     if (!isSupplier) {
       await this.assertHostProjectScope(actor, projectId); // P2-1：host 面项目域闸（跨公司 403）
     } else {
-      const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: actor.supplierId } });
-      if (!member) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_MEMBER' });
+      await this.assertSupplierMember(actor, projectId); // P3-9：已提交口径
     }
 
     let supplierId: string | null = null;
@@ -137,6 +146,7 @@ export class OpeningHallService {
 
   async listMessages(actor: HallActor, projectId: string, q: { roomType: OpeningHallRoomType; supplierId?: string; cursor?: string; limit?: number }) {
     if (actor.role !== 'supplier') await this.assertHostProjectScope(actor, projectId); // P2-1 域闸 + 仅主持人可读大厅消息（含私聊转录）
+    else await this.assertSupplierMember(actor, projectId); // P3-9：未投递/已撤回名册家不得读公聊
     // S6：limit 健壮化——NaN/非有限值（limit=abc / Infinity）回落默认 50，再夹取 [1,100]
     const limit = Number.isFinite(q.limit) ? Math.min(Math.max(Math.trunc(q.limit as number), 1), 100) : 50;
     // S6：cursor 先校验再进 Prisma——非法值 400（旧实现让 Invalid Date 进 SQL → 500）。
@@ -183,6 +193,7 @@ export class OpeningHallService {
 
   async unreadCounts(actor: HallActor, projectId: string) {
     if (actor.role !== 'supplier') await this.assertHostProjectScope(actor, projectId); // P2-1 域闸 + 仅主持人可读未读分布
+    else await this.assertSupplierMember(actor, projectId); // P3-9：供应商成员门
     const countSince = async (roomKey: string, where: any) => {
       const cursor = await this.prisma.openingHallReadCursor.findUnique({
         where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },

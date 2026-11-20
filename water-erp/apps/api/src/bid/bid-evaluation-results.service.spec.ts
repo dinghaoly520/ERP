@@ -953,7 +953,7 @@ describe('BidEvaluationResultsService — generateEvaluationResults 保证金软
       bidSupervisionLog: { create: jest.fn() },
       // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
-      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]) }, // P3-15：expertConflicts 组装查询
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
@@ -1098,7 +1098,7 @@ describe('generateEvaluationResults expertRole filter', () => {
       bidSupervisionLog: { create: jest.fn() },
       // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
-      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]) }, // P3-15：expertConflicts 组装
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: jest.fn() },
@@ -1163,7 +1163,7 @@ describe('generateEvaluationResults expertRole filter', () => {
       bidSupervisionLog: { create: jest.fn() },
       // spec §10 闸门/失效联动：无签字包（findUnique null），事务内 delete 不触发
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null), delete: jest.fn().mockResolvedValue({}) },
-      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      bidExpert: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]) }, // P3-15：expertConflicts 组装
       $transaction: jest.fn(async (cb: any) => cb({
         bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING', name: '测试项目' }) },
         bidEvaluationResult: { deleteMany: jest.fn(), createMany: txCreateMany },

@@ -3,6 +3,8 @@ import * as crypto from 'crypto';
 import { evaluateBondCompliance, parseAmountToYuan } from '@water-erp/shared';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
 import { resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
+import { parseConflictedIds } from '../common/scoring/expert.util';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BidGateway } from './bid.gateway';
 import { BidService } from './bid.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
@@ -365,6 +367,15 @@ export class BidEvaluationResultsService {
       // 最高限价：公式引擎与谈判采购超限价判废共用（谈判路径 bidPrices 已含最终轮报价）
       const ceilingPrice = project.ceilingPrice ? Number(project.ceilingPrice) : null;
 
+      // P3-16（2026-11-20 全链路审查）：本轮权威判废家的报价不进价格基准——passFailVerdicts
+      // 已在此前算出（多数票废标+超限价两轨），其（可能最低的）报价若仍作 minPrice/基准价会
+      // 压低其他合格家的价格分。原实现只过滤了 bidValidity 静态标记，本轮新判废家漏滤。
+      // 注意：overCeiling 判废在公式计算之后追加，其价格已参与本轮计算属既有语义（超限价本身
+      // 以全体报价比对限价），此处只回滤多数票判废轨。
+      for (const sid of [...bidPrices.keys()]) {
+        if (passFailVerdicts.get(sid) === true) bidPrices.delete(sid);
+      }
+
       if (priceItems.length > 0 && project.priceFormulaConfig) {
         const config = project.priceFormulaConfig as any;
         // F11：基准价偏离法/比例法的基准=最高限价——缺失时 calculate 会把全供应商
@@ -456,12 +467,23 @@ export class BidEvaluationResultsService {
     // F12：聚合+排序提取为纯函数（bid/aggregate-supplier-scores.ts），与
     // live-official-scores 端点共用——单一事实源，前端预览不再复刻口径。行为与内联版逐行一致。
     const isNegotiation = project.procurementMethod === '谈判采购';
+    // P3-15：回避排除数据——对该供应商申报回避的专家不进聚合（可评集合=聚合集合）
+    const conflictRows = await this.prisma.bidExpert.findMany({
+      where: { projectId, expertRole: '正选', conflictedSupplierIds: { not: Prisma.DbNull } },
+      select: { id: true, conflictedSupplierIds: true },
+    });
+    const expertConflicts = new Map<string, Set<string>>();
+    for (const e of conflictRows) {
+      const ids = parseConflictedIds(e.conflictedSupplierIds);
+      if (ids.length > 0) expertConflicts.set(e.id, new Set(ids));
+    }
     const ranked = aggregateSupplierScores({
       activeSuppliers,
       recordsBySupplier,
       formulaPriceScores,
       priceItemIds,
       passFailItemIds, // bug#140a：聚合层按 (专家,供应商) 对排除资格短路豁免专家
+      expertConflicts, // P3-15：回避专家评分不进聚合
       passFailVerdicts,
       bidPrices,
       isNegotiation,
