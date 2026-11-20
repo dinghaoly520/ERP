@@ -545,7 +545,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 
 ## 谈判采购文件读端口径（2026-10-20 定案）
 
-**谈判采购不发布采购公告（BID_NOTICE），采购邀请书替代公告位**——故 `BidDocument` 表对谈判项目**恒空**，采购文件经 Redis `negotiation-config:{projectId}` 交付（`refFileKeys`=PMI 阶段附件主轨·本地 uploads/ 磁盘，`attachFileIds`/`refFileKeys` 兜底=FileAsset·MinIO）。任何读 `BidDocument` 的消费端对谈判项目都会拿到空——新消费端先判采购方式：
+**谈判采购不发布采购公告（BID_NOTICE），采购邀请书替代公告位**——故 `BidDocument` 表对谈判项目**恒空**，采购文件经 Redis `negotiation-config:{projectId}` 交付（`refFileKeys`=PMI 阶段附件主轨·本地 uploads/ 磁盘 + MinIO 副本双轨——写入即落副本、读取本地→MinIO 回退、双失 404 ATTACHMENT_FILE_MISSING，2026-11-20，spec docs/superpowers/specs/2026-11-20-pmi-attachment-dual-track-design.md；`attachFileIds`/`refFileKeys` 兜底=FileAsset·MinIO）。任何读 `BidDocument` 的消费端对谈判项目都会拿到空——新消费端先判采购方式：
 
 - **供应商端**（:3004 详情页）：已适配（14f55c5f，2026-10-19）——Attachment 主轨 + FileAsset 兼容轨 + 专用流式下载端点。
 - **专家端**（:3006 标书获取「招标/采购文件」卡）：已适配（2026-10-20，SWHI-TP-2026102003 实录）——`resolveTenderDocumentMeta` 公告轨 miss 回退谈判轨（meta 带 `source:'negotiation'` + `files[]`）；下载端点 `GET /expert/projects/:id/negotiation-files/:fileId/download`（闸=评标室口令+专家五项核验+引用集 `FILE_NOT_IN_CONFIG`；docx 统一转 PDF 预览；监督日志「访问谈判采购文件」）。**勿给专家端加供应商获取窗口闸**——窗口面向供应商获取期，评标阶段核对原文是法定需要。
