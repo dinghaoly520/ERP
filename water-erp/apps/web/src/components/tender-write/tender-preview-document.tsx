@@ -521,8 +521,9 @@ function CompetitiveNegotiationPreview({
               三、采购文件获取
             </div>
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
-              {/* 「时　　间」条目已删（2026-11-20 用户裁定）：不再填写文件获取时间，方式为该节唯一条目 */}
-              <p>1.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并在公示期间下载采购文件。</p>
+              {/* 「时　　间」条目已删（2026-11-20 用户裁定）：不再填写文件获取时间；
+                  方式为该节唯一条目，不编号（同日二次裁定） */}
+              <p>方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并在公示期间下载采购文件。</p>
             </div>
           </div>
           <div className="tender-preview-subsection">
