@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, CheckCircle2, CloudUpload, Eye, FileText, PhoneCall, ChevronDown,
 } from 'lucide-react';
-import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn, tenderDocumentLabel } from '@water-erp/shared';
 import {
   createAnnouncement,
   previewBidNoticeChecklist,
@@ -1700,8 +1700,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         ))}
                       </div>
                       <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                        请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
-                        公告附件为公开可下载材料，发布后在信息门户、供应商公告中心及「项目机会」的公告详情页提供下载（采购文件仍仅在「项目机会」获取）。
+                        请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「{tenderDocumentLabel(project?.procurementMethod) === '招标文件' ? '招标公告公示' : '采购公告公示'}」阶段。
+                        公告附件为公开可下载材料，发布后在信息门户、供应商公告中心及「项目机会」的公告详情页提供下载（{tenderDocumentLabel(project?.procurementMethod)}仍仅在「项目机会」获取）。
                       </p>
                     </div>
 
