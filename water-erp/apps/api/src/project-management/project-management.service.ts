@@ -5847,6 +5847,18 @@ ${JSON.stringify(algorithmResult, null, 2)}
    */
   private async buildTerminatedDetail(pmItem: any) {
     const terminatedAt = pmItem.terminatedAt as Date;
+    // 项目简报（2026-11-20 对齐项目管理详情）：AI 全项目简报读 summary-*.json 缓存直出
+    // （同项目管理详情「项目简报」源），有则拼接在终止说明后；无缓存回落终止一句话简报，
+    // 预热补齐后下次打开直出。
+    let aiBrief = '';
+    try {
+      const s = JSON.parse(
+        await readFile(getProjectSummaryCachePath(pmItem.id), 'utf8'),
+      ) as { summary?: string };
+      aiBrief = typeof s.summary === 'string' ? s.summary.trim() : '';
+    } catch {
+      // 无简报缓存
+    }
     const stageStatusLabel = (s: string) => (s === 'COMPLETED' ? '已完成' : s === 'IN_PROGRESS' ? '进行中' : '未开始');
     return {
       projectId: pmItem.id,
@@ -5876,30 +5888,46 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '合同金额': '',
         '经办人': pmItem.createdBy?.displayName ?? '',
       },
-      // 步骤分析缓存直出（2026-11-19 用户裁定「缓存直出+按需生成」）：终止项目没有
-      // 归档 TXT 的逐文件分析链，analyze-step 生成的分析落本地缓存；组装载荷时命中即
-      // 带出（纯文件读、不跑 LLM），未生成过的阶段由前端「生成分析」按需触发、下次打开
-      // 即直出。终止后数据冻结，缓存不会因数据变更失配；缓存键沿 analyzeStep 键位不含
-      // 轮次，多轮项目极端场景下内容仍为本阶段事实，可接受。
-      stages: await Promise.all(pmItem.stages.map(async (stage: any, idx: number) => ({
-        stageKey: stage.stageKey,
-        stageName: stage.stageName,
-        stageDirName: `${idx + 1}.${stage.stageName}`,
-        round: stage.round ?? 1, // 轮次透出（流标再采适配，与 TXT 路径同构）
-        status: stageStatusLabel(stage.status),
-        stageAnalysis: await this.readStepAnalysisCache(pmItem.id, stage.stageKey),
-        attachments: stage.attachments.map((att: any) => ({
-          id: att.id,
-          fileName: att.fileName,
-          mimeType: att.mimeType,
-          fileSize: att.fileSize,
-          filePath: null,
-          analysis: '',
-        })),
-      }))),
+      // 三类分析缓存直出（2026-11-20 对齐项目管理详情）：逐文件「文件分析」读
+      // analysis-*.json（上传/查看时生成的逐文件内容摘要，按 objectKey 匹配——文件本体
+      // 不可变、摘要不过期）；阶段级「步骤分析」读 step-*.json；均为纯文件读不跑 LLM，
+      // 缺缓存的由 warmTerminatedStepAnalysis 后台预热、下次打开直出。
+      stages: await Promise.all(pmItem.stages.map(async (stage: any, idx: number) => {
+        const fileSummaryByObjectKey = new Map<string, string>();
+        try {
+          const cached = JSON.parse(
+            await readFile(getStageAnalysisCachePath(pmItem.id, stage.stageKey), 'utf8'),
+          ) as { files?: Array<{ objectKey: string; contentSummary?: string }> };
+          for (const f of cached.files ?? []) {
+            if (typeof f.contentSummary === 'string' && f.contentSummary.trim()) {
+              fileSummaryByObjectKey.set(f.objectKey, f.contentSummary.trim());
+            }
+          }
+        } catch {
+          // 无逐文件摘要缓存：预热后下次直出
+        }
+        return {
+          stageKey: stage.stageKey,
+          stageName: stage.stageName,
+          stageDirName: `${idx + 1}.${stage.stageName}`,
+          round: stage.round ?? 1, // 轮次透出（流标再采适配，与 TXT 路径同构）
+          status: stageStatusLabel(stage.status),
+          stageAnalysis: await this.readStepAnalysisCache(pmItem.id, stage.stageKey),
+          attachments: stage.attachments.map((att: any) => ({
+            id: att.id,
+            fileName: att.fileName,
+            mimeType: att.mimeType,
+            fileSize: att.fileSize,
+            filePath: null,
+            analysis: fileSummaryByObjectKey.get(att.objectKey) ?? '',
+          })),
+        };
+      })),
       summary: `项目于 ${pmItem.terminatedStage ? `「${pmItem.terminatedStage}」阶段` : ''}终止${
         terminatedAt ? `（${terminatedAt.toISOString().split('T')[0]}）` : ''
-      }。终止原因：${pmItem.terminationReason ?? '未填写'}。终止后项目只读，如需继续采购请重新建立项目。`,
+      }。终止原因：${pmItem.terminationReason ?? '未填写'}。终止后项目只读，如需继续采购请重新建立项目。${
+        aiBrief ? `\n\n${aiBrief}` : ''
+      }`,
     };
   }
 
@@ -6014,34 +6042,86 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
-   * 终止项目步骤分析后台预热（2026-11-20「文件分析内容自动加载」）：fire-and-forget——
-   * 对已完成且有附件但缓存缺失的阶段后台跑 analyze-step。台账界面零分析操作（用户裁定），
-   * 内容由系统侧预生成、下次打开载荷直出。进程内 in-flight 键去重防连开重复打 LLM；
-   * 失败不阻断，下次查看再触发。
+   * 终止项目分析缓存后台预热（2026-11-20「文件分析/项目简报自动加载」）：fire-and-forget——
+   * ①逐文件摘要+项目简报：任一已完成阶段缺逐文件摘要或简报缓存缺失 → 一次全项目
+   * analyzeProject（逐文件按 objectKey 增量生成，已有的直接复用缓存）；
+   * ②阶段级步骤分析：缺缓存的已完成阶段逐个 analyze-step。
+   * 台账界面零分析操作（用户裁定），内容由系统侧预生成、下次打开载荷直出。
+   * 进程内 in-flight 键去重防连开重复打 LLM；失败不阻断，下次查看再触发。
    */
   private stepAnalysisWarming = new Set<string>();
   private warmTerminatedStepAnalysis(
     projectId: string,
-    stages: Array<{ stageKey: string; round: number | null; status: string; attachments: unknown[] }>,
+    stages: Array<{
+      stageKey: string;
+      round: number | null;
+      status: string;
+      attachments: Array<{ objectKey: string }>;
+    }>,
   ): void {
-    for (const st of stages) {
-      if (st.status !== 'COMPLETED' || st.attachments.length === 0) continue;
-      const warmKey = `${projectId}:${st.stageKey}:${st.round ?? 1}`;
-      if (this.stepAnalysisWarming.has(warmKey)) continue;
-      this.stepAnalysisWarming.add(warmKey);
-      void (async () => {
-        try {
-          const cached = await this.readStepAnalysisCache(projectId, st.stageKey);
-          if (!cached) {
-            await this.analyzeStep(projectId, st.stageKey, false, st.round ?? undefined);
+    void (async () => {
+      try {
+        // ①逐文件摘要覆盖检查 + 简报缓存检查 → 全项目 analyzeProject 一次补齐
+        let fileSummaryMissing = false;
+        for (const st of stages) {
+          if (st.status !== 'COMPLETED' || st.attachments.length === 0) continue;
+          try {
+            const cached = JSON.parse(
+              await readFile(getStageAnalysisCachePath(projectId, st.stageKey), 'utf8'),
+            ) as { files?: Array<{ objectKey: string }> };
+            const covered = new Set((cached.files ?? []).map((f) => f.objectKey));
+            if (st.attachments.some((a) => !covered.has(a.objectKey))) {
+              fileSummaryMissing = true;
+              break;
+            }
+          } catch {
+            fileSummaryMissing = true;
+            break;
           }
-        } catch (err) {
-          this.logger.warn(`终止项目步骤分析预热失败 ${warmKey}: ${err instanceof Error ? err.message : String(err)}`);
-        } finally {
-          this.stepAnalysisWarming.delete(warmKey);
         }
-      })();
-    }
+        let summaryMissing = false;
+        try {
+          const s = JSON.parse(
+            await readFile(getProjectSummaryCachePath(projectId), 'utf8'),
+          ) as { summary?: string };
+          summaryMissing = !s.summary?.trim();
+        } catch {
+          summaryMissing = true;
+        }
+        const fullKey = `${projectId}:full`;
+        if ((fileSummaryMissing || summaryMissing) && !this.stepAnalysisWarming.has(fullKey)) {
+          this.stepAnalysisWarming.add(fullKey);
+          try {
+            await this.analyzeProject(projectId);
+          } catch (err) {
+            this.logger.warn(`终止项目文件分析/简报预热失败 ${fullKey}: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            this.stepAnalysisWarming.delete(fullKey);
+          }
+        }
+      } catch {
+        // 覆盖检查自身失败：交给下次查看再试
+      }
+      // ②阶段级步骤分析预热
+      for (const st of stages) {
+        if (st.status !== 'COMPLETED' || st.attachments.length === 0) continue;
+        const warmKey = `${projectId}:${st.stageKey}:${st.round ?? 1}`;
+        if (this.stepAnalysisWarming.has(warmKey)) continue;
+        this.stepAnalysisWarming.add(warmKey);
+        void (async () => {
+          try {
+            const cached = await this.readStepAnalysisCache(projectId, st.stageKey);
+            if (!cached) {
+              await this.analyzeStep(projectId, st.stageKey, false, st.round ?? undefined);
+            }
+          } catch (err) {
+            this.logger.warn(`终止项目步骤分析预热失败 ${warmKey}: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            this.stepAnalysisWarming.delete(warmKey);
+          }
+        })();
+      }
+    })();
   }
 
   /**
