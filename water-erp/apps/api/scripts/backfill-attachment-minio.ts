@@ -50,7 +50,7 @@ export async function minioHas(objectKey: string): Promise<boolean> {
     const code = (err as { code?: string })?.code;
     if (code === 'NoSuchKey' || code === 'NotFound') return false;
     throw new Error(
-      `MinIO statObject 不可达（objectKey=${objectKey}）——先核对 MINIO_* env 与服务状态；判定中止，不把不可达当缺失。原始错误: ${(err as Error)?.message ?? err}`,
+      `MinIO statObject 不可达（objectKey=${objectKey}）——先核对 MINIO_* env 与服务状态；该行按失败计入（不把不可达当缺失，全量失败时汇总非零退出）。原始错误: ${(err as Error)?.message ?? err}`,
     );
   }
 }
@@ -118,10 +118,14 @@ async function main() {
     console.log('──── 不可恢复清单（交业务方找回重传；格式：id | 文件名 | objectKey | 项目）────');
     for (const line of renderUnrecoverableTable(unrecoverable)) console.log(line);
   }
+  return failed.length;
 }
 
 if (require.main === module) {
   main()
+    .then((failedCount) => {
+      if (failedCount > 0) process.exitCode = 1; // 自审 F1：单行失败（如 MinIO 不可达）须让脚本消费方感知
+    })
     .catch((err) => {
       console.error('[backfill-attachment-minio] 致命错误:', err);
       process.exitCode = 1;
