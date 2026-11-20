@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, ForbiddenException, ConflictException, NotFoundException, Optional, Inject, Logger, forwardRef } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
+import { readAttachmentBuffer } from '../common/attachment-object-store';
 import { resolve } from 'node:path';
 import { parseAmountToYuan } from '@water-erp/shared';
 import type Redis from 'ioredis';
@@ -20,6 +21,7 @@ import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/c
 import { isSupplierChangeAllowedField, supplierChangeFieldLabel } from '../supplier/supplier-change-fields';
 import { assertCreditCodeChangeable } from '../supplier/credit-code-change.util';
 import { resolveEnvelopeVersion } from './envelope-version.util';
+import { assertStagedAssetIntact } from './staged-asset-gate.util';
 import { resolveOpeningAmountUnitMap } from '../bid/opening-amount-unit.util';
 import { encryptBuffer, decryptBuffer, streamToBuffer } from '../announcement/bid-document.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
@@ -1941,7 +1943,14 @@ export class SupplierPortalService {
       if (!keys.includes(attachment.objectKey)) {
         throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
       }
-      const buffer = await readFile(resolve(process.cwd(), 'uploads', attachment.objectKey));
+      // 双轨（2026-11-20）：本地 miss 回退 MinIO 副本；两轨皆失 404（此前裸 readFile ENOENT → 500）
+      const buffer = await readAttachmentBuffer(attachment.objectKey);
+      if (!buffer) {
+        throw new NotFoundException({
+          error: '附件文件缺失（本地与对象存储均未找到）',
+          code: 'ATTACHMENT_FILE_MISSING',
+        });
+      }
       res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
       res.setHeader('Content-Length', String(buffer.length));
       res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
@@ -3004,8 +3013,9 @@ export class SupplierPortalService {
     try {
       type V3EntryR = NonNullable<DualV3Envelope['files'][keyof DualV3Envelope['files']]>;
       for (const [role, newEntry] of Object.entries(envelope.files ?? {}) as Array<[string, V3EntryR]>) {
-        const stagedAsset = await this.prisma.fileAsset.findUnique({ where: { id: newEntry.assetId }, select: { id: true, key: true } });
-        if (!stagedAsset) continue;
+        const stagedAsset = await this.prisma.fileAsset.findUnique({ where: { id: newEntry.assetId }, select: { id: true, key: true, sha256: true } });
+        // N13-A（2026-11-20b 复核轮）：行缺失不再静默跳过备份（原 continue 短路 M-2 硬中止）
+        assertStagedAssetIntact(role, newEntry, stagedAsset);
         const staged = await this.bidBackup.stageBackup({
           projectId, supplierId,
           fileRole: role as BackupFileRole,
@@ -3198,7 +3208,9 @@ export class SupplierPortalService {
     try {
       for (const [role, entry] of Object.entries(envelope.files ?? {}) as Array<[string, V3Entry4]>) {
         const stagedAsset = await this.prisma.fileAsset.findUnique({ where: { id: entry.assetId } });
-        if (!stagedAsset) continue;
+        // N12/N13-A（2026-11-20b 复核轮）：首投统一暂存闸——行缺失硬中止（原 continue 短路备份）
+        // + 实算 sha 与信封声明交叉校验（原首投无此闸，不符要到开标 pass1 才炸——补传六闸之六对齐）
+        assertStagedAssetIntact(role, entry, stagedAsset);
         const staged = await this.bidBackup.stageBackup({
           projectId, supplierId,
           fileRole: role as BackupFileRole,
