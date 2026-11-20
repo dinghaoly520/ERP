@@ -50,6 +50,11 @@ docker exec <api> ls /app/apps/api/uploads/project-management | wc -l   # 应与
 按既有发布流程（打包脚本 + `docker compose up -d` recreate api 与 ai-worker 两容器）。
 **部署前确认第 1、2 步已完成**——recreate 之前没挂卷 = 救援白做。
 
+> ⚠️ **提交溯源警示（终审 C1）**：供应商端谈判下载的双轨实现代码物理上位于并行提交
+> `4da7a8365`（非本计划自己的提交 `326ff100d`——后者只含测试）。**任何对 4da7a8365 的
+> revert/cherry-pick 排除操作都会连带撤掉该修复**，使供应商端回到「文件缺失裸 500」。
+> 镜像须从包含 `4da7a8365` 及其后提交的 main HEAD 构建（现行发布流程天然满足）。
+
 ## 4. 存量回填
 
 ⚠️ `tsx` 是 devDependency，生产镜像多半没有——两条路径任选：
