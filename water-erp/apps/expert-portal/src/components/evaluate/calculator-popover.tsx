@@ -1,114 +1,64 @@
 'use client';
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Calculator, Grip, X } from 'lucide-react';
-import {
-  initialCalcState,
-  calcReducer,
-  keyToAction,
-  formatCalcDisplay,
-  calcExprLine,
-  type CalcAction,
-  type CalcDigit,
-} from '@/lib/calculator-core';
+import { evaluateCalc, normalizeExprChars, type AngleMode, type CalcHistoryEntry } from '@/lib/calculator-core';
 
 /**
- * 评标工作台·通用计算器浮窗（2026-11-20 v1.5）——挂 evaluate 页顶部导航「开标消息/澄清答疑」左侧。
- * 浮窗语义：不透明底、标题栏拖拽、右下角限界缩放（MIN/MAX_SIZE）；常驻不随点外/失焦关闭
- * （工具窗叠在工作页上操作，误触关闭反而丢上下文），关闭= X 钮 / Escape（聚焦时）。
- * 状态常驻挂载（开合不丢；切项目重挂载即重置）。定位壳必须内联 position:fixed——globals.css
- * 的 .neu-card-static 是 unlayered position:relative，Tailwind v4 utilities 在 @layer 内恒被压过。
- * 键盘仅在弹窗聚焦时生效（容器 onKeyDown，不挂 window 监听）；Escape 只关计算器，
- * stopPropagation 防同时触发面板全屏退出（requirement-compare-panel 的 window 监听）。
+ * 评标工作台·表达式计算器浮窗（v3，2026-11-20 用户裁定重构）。
+ * 模型：算式是可编辑文本（原生 input——鼠标点击定位/框选/方向键/小键盘全部原生），
+ * 点击 = 才求值，中间不做任何分步计算；键盘 * / - 输入即时归一为 × ÷ −。
+ * 文法/求值在 lib/calculator-core（tokenizer+递归下降，参照 expr-eval 优先级表）。
+ * 浮窗语义（v1.5 起）：不透明底、标题栏拖拽、右下角限界缩放、常驻不随点外/失焦关闭，
+ * 关闭=X 钮/Escape。定位壳必须内联 position:fixed（globals.css 的 .neu-card-static 是
+ * unlayered position:relative，Tailwind v4 utilities 在 @layer 内恒被压过）。
  */
 
 interface CalcKey {
   label: string;
-  act: CalcAction;
+  ins?: string; // 插入光标处的文本（缺省=label）
   cls?: string;
-  /** DEG/RAD 切换键：label 由 state.angleMode 动态渲染 */
-  isAngle?: boolean;
+  isAngle?: boolean; // DEG/RAD 切换键
+  act?: 'backspace' | 'clear' | 'equals';
 }
 
-const digit = (n: CalcDigit): CalcAction => ({ type: 'digit', d: n });
-const opAct = (op: '+' | '-' | '×' | '÷' | '^'): CalcAction => ({ type: 'op', op });
-const un = (fn: 'sin' | 'cos' | 'tan' | 'ln' | 'log' | 'sqrt' | 'sqr' | 'inv'): CalcAction => ({ type: 'unary', fn });
-
-/** v2 科学函数区（4 行：3 行函数 + 1 行括号/编辑键；一元按下即算；xʸ 入运算链；DEG/RAD 切换） */
+const K = (label: string, cls?: string, ins?: string): CalcKey => ({ label, cls, ins });
 const SCI_ROWS: CalcKey[][] = [
-  [
-    { label: 'sin', act: un('sin') },
-    { label: 'cos', act: un('cos') },
-    { label: 'tan', act: un('tan') },
-    { label: 'π', act: { type: 'constant', kind: 'pi' } },
-  ],
-  [
-    { label: 'ln', act: un('ln') },
-    { label: 'log', act: un('log') },
-    { label: '√', act: un('sqrt') },
-    { label: 'x²', act: un('sqr') },
-  ],
-  [
-    { label: '1/x', act: un('inv') },
-    { label: 'xʸ', act: opAct('^'), cls: 'is-info' },
-    { label: '±', act: { type: 'negate' }, cls: 'is-info' },
-    { label: 'DEG', act: { type: 'toggleAngle' }, cls: 'is-info', isAngle: true },
-  ],
-  [
-    { label: '(', act: { type: 'paren', kind: 'open' } },
-    { label: ')', act: { type: 'paren', kind: 'close' } },
-    { label: '⌫', act: { type: 'backspace' }, cls: 'is-warning' },
-    { label: '%', act: { type: 'percent' }, cls: 'is-warning' },
-  ],
+  [K('sin', '', 'sin('), K('cos', '', 'cos('), K('tan', '', 'tan('), K('π')],
+  [K('ln', '', 'ln('), K('log', '', 'log('), K('√', '', '√('), K('x²', '', '^2')],
+  [K('1/x', '', '1÷('), K('xʸ', 'is-info', '^'), K('%'), { label: 'DEG', cls: 'is-info', isAngle: true }],
+  [K('(', 'is-info'), K(')', 'is-info'), { label: '⌫', cls: 'is-warning', act: 'backspace' }, { label: 'C', cls: 'is-danger', act: 'clear' }],
 ];
-
 const KEY_ROWS: CalcKey[][] = [
-  [
-    { label: '7', act: digit('7') },
-    { label: '8', act: digit('8') },
-    { label: '9', act: digit('9') },
-    { label: '×', act: opAct('×'), cls: 'is-info' },
-  ],
-  [
-    { label: '4', act: digit('4') },
-    { label: '5', act: digit('5') },
-    { label: '6', act: digit('6') },
-    { label: '−', act: opAct('-'), cls: 'is-info' },
-  ],
-  [
-    { label: '1', act: digit('1') },
-    { label: '2', act: digit('2') },
-    { label: '3', act: digit('3') },
-    { label: '+', act: opAct('+'), cls: 'is-info' },
-  ],
-  [
-    { label: 'C', act: { type: 'clear' }, cls: 'is-danger' },
-    { label: '0', act: digit('0') },
-    { label: '.', act: { type: 'dot' } },
-    { label: '=', act: { type: 'equals' }, cls: 'is-info font-bold' },
-  ],
+  [K('7'), K('8'), K('9'), K('÷', 'is-info')],
+  [K('4'), K('5'), K('6'), K('×', 'is-info')],
+  [K('1'), K('2'), K('3'), K('−', 'is-info')],
+  [K('+', 'is-info'), K('0'), K('.'), { label: '=', cls: 'is-info font-bold', act: 'equals' }],
 ];
 
-/** v2 窗口尺寸约束（科学键区 8 行 + 纸带显示，整体更高更宽） */
-const INIT_SIZE = { w: 260, h: 540 };
-const MIN_SIZE = { w: 232, h: 470 };
+/** 窗口尺寸约束（右下角 grip 拖拽缩放） */
+const INIT_SIZE = { w: 268, h: 548 };
+const MIN_SIZE = { w: 236, h: 480 };
 const MAX_SIZE = { w: 560, h: 800 };
+const HISTORY_CAP = 12;
 
-/** 视口钳制：标题栏永不移出屏幕（至少留 48px 高度、80px 宽度可抓回） */
+/** 视口钳制：标题栏永不移出屏幕 */
 const clampPos = (left: number, top: number) => ({
   left: Math.max(0, Math.min(left, window.innerWidth - 80)),
   top: Math.max(0, Math.min(top, window.innerHeight - 48)),
 });
 
+const LEADS_OPERATOR = /^[+−×÷^%]/;
+
 export function CalculatorPopover({ className = '' }: { className?: string }) {
   const [open, setOpen] = useState(false);
-  const [state, dispatch] = useReducer(calcReducer, initialCalcState);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [size, setSize] = useState(INIT_SIZE);
   const sizeRef = useRef(size);
   sizeRef.current = size;
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const tapeRef = useRef<HTMLDivElement>(null);
   /** 拖拽/缩放统一手势态（null=无手势；监听器常驻，无手势时 no-op） */
   const gestureRef = useRef<null | {
@@ -121,37 +71,37 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
     origH: number;
   }>(null);
 
-  // 打开：初始位置 = 右缘对齐触发钮（按当前窗宽）向下弹，视口内钳制
+  // ── 计算器状态：表达式文本 + 结果 + 历史 + 角度模式 ──
+  const [expr, setExpr] = useState('');
+  const [result, setResult] = useState<string | null>(null); // 最近一次 = 的结果
+  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<CalcHistoryEntry[]>([]);
+  const [angleMode, setAngleMode] = useState<AngleMode>('DEG');
+  /** 刚求值完：下一个输入若为运算符则接在结果后（Ans 延续），否则重新起式 */
+  const justEvaluatedRef = useRef(false);
+
+  // 打开：初始位置 = 右缘对齐触发钮（按当前窗宽）向下弹；聚焦输入框
   useEffect(() => {
     if (!open) return;
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setPos(clampPos(r.right - sizeRef.current.w, r.bottom + 8));
+    requestAnimationFrame(() => inputRef.current?.focus());
   }, [open]);
 
-  // 视口尺寸变化：浮窗钳回屏内（浮窗常驻，不再直接关）
+  // 视口尺寸变化：浮窗钳回屏内
   useEffect(() => {
     const onResize = () => setPos((p) => (p ? clampPos(p.left, p.top) : p));
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // 打开即聚焦弹窗（吃键盘）
-  useEffect(() => {
-    if (open) popRef.current?.focus();
-  }, [open, pos]);
-
   // 纸带自动滚到底（最新在底部）
   useEffect(() => {
     const el = tapeRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [state.history]);
+  }, [history]);
 
-  const closePopover = () => {
-    setOpen(false);
-    btnRef.current?.focus();
-  };
-
-  // 拖拽（标题栏）/ 缩放（右下角 grip）：pointer 手势，位移自起点增量计算（无 stale state）
+  // 拖拽（标题栏）/ 缩放（右下角 grip）
   useEffect(() => {
     const move = (e: PointerEvent) => {
       const g = gestureRef.current;
@@ -180,7 +130,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
 
   const startGesture = (mode: 'drag' | 'resize') => (e: React.PointerEvent) => {
     if (e.button !== 0 || !pos) return;
-    e.preventDefault(); // 防拖动时选中文字/触发触摸滚动
+    e.preventDefault();
     gestureRef.current = {
       mode,
       startX: e.clientX,
@@ -192,22 +142,122 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
     };
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  const closePopover = () => {
+    setOpen(false);
+    btnRef.current?.focus();
+  };
+
+  // ── 求值（只在 = 时发生）──
+  const doEvaluate = () => {
+    const r = evaluateCalc(expr, angleMode);
+    if (!r.ok) {
+      setError(r.error);
+      setResult(null);
+      return;
+    }
+    setResult(r.text);
+    setError(null);
+    justEvaluatedRef.current = true;
+    setHistory((h) => [{ expr, result: r.text }, ...h].slice(0, HISTORY_CAP));
+  };
+
+  /** 键钮：在光标处插入文本（框选则替换）；刚求值完按运算符=结果延续、其余=重新起式 */
+  const insertToken = (token: string) => {
+    const el = inputRef.current;
+    setError(null);
+    if (justEvaluatedRef.current) {
+      const next = LEADS_OPERATOR.test(token) && result !== null ? result + token : token;
+      justEvaluatedRef.current = false;
+      setExpr(next);
+      requestAnimationFrame(() => {
+        el?.setSelectionRange(next.length, next.length);
+        el?.focus();
+      });
+      return;
+    }
+    if (!el) {
+      setExpr((s) => s + token);
+      return;
+    }
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? start;
+    const next = el.value.slice(0, start) + token + el.value.slice(end);
+    setExpr(next);
+    requestAnimationFrame(() => {
+      el.setSelectionRange(start + token.length, start + token.length);
+      el.focus();
+    });
+  };
+
+  /** ⌫：删除光标前一字符（框选则删选中段） */
+  const doBackspace = () => {
+    const el = inputRef.current;
+    setError(null);
+    justEvaluatedRef.current = false;
+    if (!el) {
+      setExpr((s) => s.slice(0, -1));
+      return;
+    }
+    const s = el.selectionStart ?? el.value.length;
+    const e = el.selectionEnd ?? s;
+    if (s === e && s === 0) return;
+    const next = s === e ? el.value.slice(0, s - 1) + el.value.slice(s) : el.value.slice(0, s) + el.value.slice(e);
+    setExpr(next);
+    const caret = s === e ? s - 1 : s;
+    requestAnimationFrame(() => {
+      el.setSelectionRange(caret, caret);
+      el.focus();
+    });
+  };
+
+  const doClear = () => {
+    setExpr('');
+    setResult(null);
+    setError(null);
+    justEvaluatedRef.current = false;
+    inputRef.current?.focus();
+  };
+
+  /** 历史回填：载入该条算式继续编辑 */
+  const loadHistory = (h: CalcHistoryEntry) => {
+    setExpr(h.expr);
+    setResult(h.result);
+    setError(null);
+    justEvaluatedRef.current = false;
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      el?.setSelectionRange(h.expr.length, h.expr.length);
+      el?.focus();
+    });
+  };
+
+  const onKeyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       e.stopPropagation(); // 只关计算器，不触发面板全屏退出（window 监听）
       closePopover();
       return;
     }
-    const action = keyToAction(e.key);
-    if (action) {
-      e.preventDefault(); // '/' 防 Firefox 快速查找、Backspace 防历史导航
-      e.stopPropagation();
-      dispatch(action);
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      doEvaluate();
     }
+    // 其余按键（数字/运算符/括号/方向键/Home/End/小键盘）全部走 input 原生编辑
   };
 
-  // 待算式行走核心 calcExprLine（acc 经 norm 消浮点噪声，终审 F1 修复）
-  const exprLine = calcExprLine(state);
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 键盘 * / - 即时归一为显示形（1:1 替换不动光标）
+    setExpr(normalizeExprChars(e.target.value));
+    setError(null);
+    justEvaluatedRef.current = false;
+  };
+
+  const onKeyButton = (k: CalcKey) => {
+    if (k.act === 'backspace') return doBackspace();
+    if (k.act === 'clear') return doClear();
+    if (k.act === 'equals') return doEvaluate();
+    if (k.isAngle) return setAngleMode((m) => (m === 'DEG' ? 'RAD' : 'DEG'));
+    return insertToken(k.ins ?? k.label);
+  };
 
   return (
     <>
@@ -231,8 +281,6 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
             ref={popRef}
             role="dialog"
             aria-label="计算器"
-            tabIndex={-1}
-            onKeyDown={onKeyDown}
             className="exp-calc-shell neu-card-static flex select-none flex-col overflow-hidden !rounded-[16px] p-3 focus:outline-none"
             style={{ width: size.w, height: size.h }}
           >
@@ -242,7 +290,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               onPointerDown={startGesture('drag')}
             >
               <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-[var(--muted-foreground)]">
-                <Calculator size={11} strokeWidth={1.5} /> 计算器
+                <Calculator size={11} strokeWidth={1.5} /> 计算器 · 等号求值
               </span>
               <button
                 type="button"
@@ -255,56 +303,61 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               </button>
             </div>
 
-            {/* 纸带显示区（v2 加高）：历史行（可点回填，最新在下）+ 当前算式/主显示固定底部 */}
-            <div className="flex min-h-[120px] flex-1 flex-col overflow-hidden rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)]">
-              <div ref={tapeRef} className="flex-1 overflow-y-auto px-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {[...state.history].reverse().map((h, i) => (
+            {/* 算式输入框（可点击编辑/框选/小键盘原生输入）+ 结果行 */}
+            <div className="flex shrink-0 flex-col gap-1.5 rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={expr}
+                onChange={onInputChange}
+                onKeyDown={onKeyKeyDown}
+                spellCheck={false}
+                autoComplete="off"
+                placeholder="输入算式，如 1500×5% 或 (2+3)×4"
+                aria-label="算式输入"
+                className="w-full bg-transparent !p-0 font-mono text-[15px] leading-6 tracking-tight text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]/60"
+              />
+              <div className="h-5 text-right font-mono text-sm font-bold tabular-nums leading-5">
+                {error ? (
+                  <span className="text-[12px] font-bold text-[var(--danger)]">{error}</span>
+                ) : result !== null ? (
+                  <span className="text-[var(--foreground)]">= {result}</span>
+                ) : (
+                  <span className="text-[var(--muted-foreground)]/50">=</span>
+                )}
+              </div>
+            </div>
+
+            {/* 历史纸带（点击载入该条算式继续编辑） */}
+            {history.length > 0 && (
+              <div
+                ref={tapeRef}
+                className="mt-2 min-h-[36px] flex-1 overflow-y-auto rounded-[10px] bg-[oklch(0.96_0.01_258/0.3)] px-1.5 py-1"
+              >
+                {history.map((h, i) => (
                   <button
                     key={`${h.expr}|${h.result}|${i}`}
                     type="button"
-                    title="点击回填结果"
-                    onClick={() => dispatch({ type: 'useHistory', value: h.result })}
-                    className="block w-full rounded px-1 py-0.5 text-right font-mono text-[11px] tabular-nums text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(0.96_0.04_251/0.25)] hover:text-[var(--foreground)]"
+                    title="点击载入此算式继续编辑"
+                    onClick={() => loadHistory(h)}
+                    className="block w-full truncate rounded px-1.5 py-0.5 text-right font-mono text-[11px] tabular-nums text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(0.96_0.04_251/0.25)] hover:text-[var(--foreground)]"
                   >
                     {h.expr} = {h.result}
                   </button>
                 ))}
               </div>
-              <div className="shrink-0 px-3 pb-2 pt-1 text-right">
-                <div className="flex h-4 items-center gap-2">
-                  {state.parenStack.length > 0 && (
-                    <span className="shrink-0 font-mono text-[10px] font-bold text-[var(--accent)]" title={`未闭合括号 ${state.parenStack.length} 层`}>
-                      ( ×{state.parenStack.length}
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1 truncate text-right font-mono text-[10px] leading-4 text-[var(--muted-foreground)]" title={exprLine}>
-                    {exprLine}
-                  </div>
-                </div>
-                {state.error ? (
-                  <div className="text-[13px] font-bold text-[var(--danger)]">{state.error}</div>
-                ) : (
-                  <div
-                    className="truncate font-mono text-xl font-bold tabular-nums leading-7 text-[var(--foreground)]"
-                    title={`${formatCalcDisplay(state.display)}${state.entryPercent ? '%' : ''}`}
-                  >
-                    {formatCalcDisplay(state.display)}
-                    {state.entryPercent ? '%' : ''}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
 
-            {/* 键区：科学函数 3 行 + 主键区 5 行，auto-rows-fr 随窗口高度拉伸 */}
-            <div className="mt-2 grid shrink-0 auto-rows-fr grid-cols-4 gap-1.5">
+            {/* 键区：科学 4 行 + 主键区 4 行，auto-rows-fr 随窗口高度拉伸 */}
+            <div className={`grid shrink-0 auto-rows-fr grid-cols-4 gap-1.5 ${history.length > 0 ? 'mt-2' : 'mt-2 flex-1'}`}>
               {[...SCI_ROWS, ...KEY_ROWS].flat().map((k) => (
                 <button
                   key={k.label}
                   type="button"
-                  onClick={() => dispatch(k.act)}
+                  onClick={() => onKeyButton(k)}
                   className={`neu-btn-xs !px-0 font-mono !text-[13px] ${k.cls ?? ''}`}
                 >
-                  {k.isAngle ? state.angleMode : k.label}
+                  {k.isAngle ? angleMode : k.label}
                 </button>
               ))}
             </div>
