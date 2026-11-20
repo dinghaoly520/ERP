@@ -913,6 +913,7 @@ export class DashboardService {
         return {
           project: item.project.name,
           department: item.department?.name ?? '未归属部门',
+          company: item.company?.name ?? item.companyName ?? '', // 2026-11-19：节资率排行标注公司
           controlAmount: budget,
           awardAmount: award,
           savings,

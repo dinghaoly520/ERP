@@ -11,6 +11,7 @@ export function mapProcurementMethodToTenderType(
     谈判采购: 'COMPETITIVE_NEGOTIATION',
     竞价采购: 'INTERNAL_BIDDING',
     邀请招标: 'INVITED_BIDDING',
+    公开招标: 'PUBLIC_BIDDING',
     询比采购: 'INQUIRY_PURCHASE',
     直接采购: 'SINGLE_SOURCE',
   };

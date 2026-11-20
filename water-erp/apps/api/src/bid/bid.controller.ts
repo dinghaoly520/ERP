@@ -1034,9 +1034,8 @@ export class BidController {
     return this.bidService.archiveAll(id, userId, dto.scope ?? 'full');
   }
 
-  @Get('projects/:id/winner-notice')
-  @ApiOperation({ summary: '查询项目关联的中标公示（G1，草稿或已发布）' })
-  getWinnerNotice(@Param('id') id: string) { return this.bidService.getWinnerNotice(id); }
+  // GET projects/:id/winner-notice（查询归档自动生成的预成交公示草稿）已删
+  // （2026-11-20 用户裁定：归档不再生成 PRE_WIN 草稿，端点零前端消费方）
 
   // 2026-10-23 评审发现 2：escalated 通知会把该端点放大为跨公司触达向量——
   // 与 pause/decrypt 等现场执行端点同口径挂指派闸（admin 或被指派主持人本人；

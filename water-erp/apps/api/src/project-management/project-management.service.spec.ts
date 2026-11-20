@@ -584,15 +584,16 @@ describe('ProjectManagementService', () => {
       status: 'ACTIVE',
     });
 
-    // 公开招标不在方式模板表（METHOD_STAGE_TEMPLATES）中 → 回落「询比采购」模板（与前端矩阵一致）；
+    // 公开招标（2026-11-20）已有专属方式模板（METHOD_STAGE_TEMPLATES）——不再回落询比：
+    // 03 显法定名「招标文件」、04「招标公告公示」、05「专家抽取」（与邀请招标同构）；
     // 仅立项表 → 需求步骤保留 NOT_STARTED（2026-11-16：未传文件不再裁剪步骤，建项后显示「待补充」），
     // INITIATION is COMPLETED, TENDER_DOCUMENT is the first IN_PROGRESS stage.
     const expectedStages = [
       { key: 'PROCUREMENT_DEMAND', label: '采购需求', status: 'NOT_STARTED' },
       { key: 'INITIATION', label: '采购立项', status: 'COMPLETED' },
-      { key: 'TENDER_DOCUMENT', label: '采购文件', status: 'IN_PROGRESS' },
-      { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示', status: 'NOT_STARTED' },
-      { key: 'EXPERT_SELECTION', label: '专家选取', status: 'NOT_STARTED' },
+      { key: 'TENDER_DOCUMENT', label: '招标文件', status: 'IN_PROGRESS' },
+      { key: 'PUBLIC_ANNOUNCEMENT', label: '招标公告公示', status: 'NOT_STARTED' },
+      { key: 'EXPERT_SELECTION', label: '专家抽取', status: 'NOT_STARTED' },
       { key: 'BID_EVALUATION', label: '开标评标', status: 'NOT_STARTED' },
       { key: 'AWARD_DECISION', label: '定标', status: 'NOT_STARTED' },
       { key: 'CONTRACT', label: '合同', status: 'NOT_STARTED' },
@@ -2072,9 +2073,14 @@ describe('ProjectManagementService', () => {
       // 其余非前置阶段仍 NOT_STARTED（EXPERT_SELECTION 不动）
       const expert = stages.find((x) => x.stageKey === 'EXPERT_SELECTION');
       expect(expert?.status).toBe('NOT_STARTED');
+      // 公开招标（2026-11-20）：公告型直建——公告公示段在场且补记 COMPLETED
+      const notice = stages.find((x) => x.stageKey === 'PUBLIC_ANNOUNCEMENT');
+      expect(notice).toBeDefined();
+      expect(notice?.status).toBe('COMPLETED');
+      expect(notice?.stageName).toBe('招标公告公示');
     });
 
-    it('谈判采购：无 PUBLIC_ANNOUNCEMENT 段，SUPPLIER_INVITATION 记 COMPLETED', async () => {
+    it('谈判采购：含 PUBLIC_ANNOUNCEMENT 段并记 COMPLETED（2026-11-20 修正反转向量——公告型直建补记公告段）', async () => {
       const { service, prisma } = makeService();
       (prisma as any).user = { findUnique: jest.fn().mockResolvedValue(null) };
       prisma.projectManagementItem.create.mockResolvedValue({ id: 'pm-17', projectCode: 'TP-2026081701' });
@@ -2089,9 +2095,12 @@ describe('ProjectManagementService', () => {
       expect(String(createArg.projectCode)).toMatch(/^SW-TP-\d{10}$/);
       const stages = prisma.projectManagementStage.createMany.mock.calls[0][0].data as any[];
       const keys = stages.map((x) => x.stageKey);
-      expect(keys).not.toContain('PUBLIC_ANNOUNCEMENT');
+      // 公告型方式（谈判/询比/竞价/公开招标）公告直建含公告公示段，且以公告为准补记 COMPLETED；
+      // 不带供应商邀请段（公告型不经邀请组织——2026-11-20 随审修正，防幽灵邀请步骤）
+      expect(keys).toContain('PUBLIC_ANNOUNCEMENT');
+      expect(keys).not.toContain('SUPPLIER_INVITATION');
       const completed = new Set(stages.filter((x) => x.status === 'COMPLETED').map((x) => x.stageKey));
-      expect(completed.has('SUPPLIER_INVITATION')).toBe(true);
+      expect(completed.has('PUBLIC_ANNOUNCEMENT')).toBe(true);
     });
   });
 

@@ -48,6 +48,8 @@ export const ANNOUNCEMENT_AVAILABILITY: Record<
   COMPETITIVE_NEGOTIATION: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INQUIRY_PURCHASE: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INTERNAL_BIDDING: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
+  // 公开招标（2026-11-20）：公告公示组织供应商参与——五类公告全开（含采购公告）
+  PUBLIC_BIDDING: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INVITED_BIDDING: ["failed_bid", "winning_bid", "change_notice", "addendum"],
   SINGLE_SOURCE: ["failed_bid", "winning_bid", "change_notice", "addendum"],
 };
@@ -85,6 +87,23 @@ export type InvitedBiddingAnnouncementFieldKey =
 
 export type InvitedBiddingAnnouncementDraft = Record<
   InvitedBiddingAnnouncementFieldKey,
+  string
+>;
+
+// ─── 采购文件公告 (公开招标，2026-11-20 模板适配) ───
+// 法定口吻模板：无「报名方式及条件」，拆为 资格审查方式（资格后审/资格预审）、
+// 资格条件（编号行）、招标文件获取（门户获取句）三字段
+
+export type PublicBiddingAnnouncementFieldKey = Exclude<
+  InvitedBiddingAnnouncementFieldKey,
+  "registrationMethod"
+> |
+  "qualificationReviewMethod"
+  | "qualificationConditions"
+  | "documentAcquisition";
+
+export type PublicBiddingAnnouncementDraft = Record<
+  PublicBiddingAnnouncementFieldKey,
   string
 >;
 
@@ -177,6 +196,7 @@ export type ChangeAddendumAnnouncementFieldKey =
 
 export type AnnouncementFieldKey =
   | InvitedBiddingAnnouncementFieldKey
+  | PublicBiddingAnnouncementFieldKey
   | SingleSourceAnnouncementFieldKey
   | FailedBidAnnouncementFieldKey
   | WinningBidAnnouncementFieldKey
@@ -184,6 +204,7 @@ export type AnnouncementFieldKey =
 
 export type AnnouncementDraft =
   | InvitedBiddingAnnouncementDraft
+  | PublicBiddingAnnouncementDraft
   | SingleSourceAnnouncementDraft
   | FailedBidAnnouncementDraft
   | WinningBidAnnouncementDraft;

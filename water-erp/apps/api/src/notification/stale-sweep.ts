@@ -11,7 +11,8 @@ import type { PrismaClient } from '@prisma/client';
  *    无 id 存量在注册队列空时全消、非空时按 content 不含任何在审者姓名才消
  *  - SUPPLIER_PENDING：link 带 supplierId= 的按供应商消解（status≠PENDING 或已删）；
  *    自创标签通知（link=/supplier 无 id）在注册与标签队列双空时消解
- *  - SUPPLIER_LINK_PENDING：link 无实体 id，加入审批队列整体为空时全量消解
+ *  - SUPPLIER_LINK_PENDING（2026-11-20 逐件对账升级）：按「content 名前缀 × 收件人公司」
+ *    归因，该（供应商,公司）无在审 link 即消解（原「队列整体空才全清」弱兜底已废）
  *  - CATALOG_APPLICATION：审核人通知（link 含 appId=）按申请单消解（status≠PENDING）；
  *    供应商侧结果通知（/catalog-applications）为事件性，不属待办镜像、不消解
  *  - SUPPLIER_CHANGE_PENDING（2026-11-02 直采实录补）：link 恒无 id（/supplier?tab=changes）
@@ -75,14 +76,6 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
     if (!ids.length) return;
     const r = await prisma.notification.updateMany({
       where: { type, resolvedAt: null, id: { in: ids } },
-      data: { resolvedAt: now },
-    });
-    if (r.count > 0) results.push({ type, rule, resolved: r.count });
-  };
-
-  const resolveAll = async (type: string, rule: string) => {
-    const r = await prisma.notification.updateMany({
-      where: { type, resolvedAt: null },
       data: { resolvedAt: now },
     });
     if (r.count > 0) results.push({ type, rule, resolved: r.count });
@@ -200,11 +193,50 @@ export async function sweepStaleActionableNotifications(prisma: SweepPrisma): Pr
     }
   }
 
-  // ── 3) 供应商加入/退库审批（link 无实体 id：队列整体为空才兜底全清；退库件同 type 通知，2026-11-10）──
+  // ── 3) 供应商加入/退库审批·逐件对账（2026-11-20 升级，原「队列整体空才全清」是弱兜底——
+  //  动作侧消解钩子缺失时代的存量僵尸在全库仍有在审 link 时永挂）──
+  //  按「content 名前缀（『 申请』为界）× 收件人公司」归因：该（供应商,公司）已无在审
+  //  link（PENDING/LEAVE_PENDING）即消解；admin 兜底收件（公司无审批账号时曾全员发）在
+  //  该名还有任一在审公司时保守保留；收件人无公司/查无此人也保守保留。前缀同名
+  //  （X公司/X公司分公司）经空格边界天然不互伤。动作侧即时消解见
+  //  supplier-link.service resolveLinkPendingTodos（link 带 linkId 精确轨 + 同口径存量轨）。
   {
-    const pendingLinks = await prisma.supplierCompanyLink.count({ where: { status: { in: ['PENDING', 'LEAVE_PENDING'] } } });
-    if (pendingLinks === 0) {
-      await resolveAll('SUPPLIER_LINK_PENDING', '加入/退库审批队列已空');
+    const rows = await prisma.notification.findMany({
+      where: { type: 'SUPPLIER_LINK_PENDING', resolvedAt: null },
+      select: { id: true, userId: true, content: true },
+    });
+    if (rows.length > 0) {
+      const pendingLinks = await prisma.supplierCompanyLink.findMany({
+        where: { status: { in: ['PENDING', 'LEAVE_PENDING'] } },
+        select: { companyId: true, supplier: { select: { name: true } } },
+      });
+      const companiesByPendingName = new Map<string, Set<string>>();
+      for (const l of pendingLinks) {
+        const name = l.supplier?.name?.trim();
+        if (!name || !l.companyId) continue;
+        const set = companiesByPendingName.get(name) ?? new Set<string>();
+        set.add(l.companyId);
+        companiesByPendingName.set(name, set);
+      }
+      const recipients = await prisma.user.findMany({
+        where: { id: { in: [...new Set(rows.map((n) => n.userId))] } },
+        select: { id: true, role: true, companyId: true },
+      });
+      const userById = new Map(recipients.map((u) => [u.id, u]));
+      const stale: string[] = [];
+      for (const n of rows) {
+        const name = (n.content ?? '').split(' 申请')[0]?.trim();
+        if (!name) continue; // 文案不可解析（非常规来源）→ 保守保留
+        const pendingCompanies = companiesByPendingName.get(name);
+        if (!pendingCompanies) {
+          stale.push(n.id); // 该供应商全库无在审 link → 副本必为僵尸
+          continue;
+        }
+        const u = userById.get(n.userId);
+        if (!u || u.role === 'admin' || !u.companyId) continue; // admin/无归属收件：任一在审即保留
+        if (!pendingCompanies.has(u.companyId)) stale.push(n.id); // 本公司无在审 → 僵尸
+      }
+      await resolveIds('SUPPLIER_LINK_PENDING', '逐件对账：该（供应商,公司）已无在审 link', stale);
     }
   }
 

@@ -7,11 +7,13 @@ export class ImportAutofillDto {
     'INQUIRY_PURCHASE',
     'INTERNAL_BIDDING',
     'INVITED_BIDDING',
+    'PUBLIC_BIDDING',
   ])
   documentType:
     | 'COMPETITIVE_NEGOTIATION'
     | 'SINGLE_SOURCE'
     | 'INQUIRY_PURCHASE'
     | 'INTERNAL_BIDDING'
-    | 'INVITED_BIDDING';
+    | 'INVITED_BIDDING'
+    | 'PUBLIC_BIDDING';
 }

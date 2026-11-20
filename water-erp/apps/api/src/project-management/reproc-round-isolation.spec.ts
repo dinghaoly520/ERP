@@ -81,15 +81,14 @@ describe('流标再采第二轮隔离', () => {
     const prisma = mkReprocPrisma();
     const svc = mkService(prisma);
     await expect(svc.reproc('pmi-1', { startStageKey: 'TENDER_DOCUMENT' } as never)).resolves.toMatchObject({ round: 2 });
-    // 快照：写到旧轮（round:1）项目行。2026-10-30 类型闸修复：PMI 两列是自由文本
+    // 快照：写到旧轮（round:1）项目行。2026-10-30 类型闸修复：PMI 列是自由文本
     // （String?，中文格式「2026年10月20日14:00」），快照列是 DateTime?——直赋字符串在
     // 真实 Prisma 必炸 PrismaClientValidationError（此前 mock prisma + Date 形状测不出）。
-    // parseFlexibleDate 尽力解析；获取时间是区间文本时取首时刻。
+    // parseFlexibleDate 尽力解析。「文件获取时间」快照停写（2026-11-20 字段退役）。
     expect(prisma.__tx.bidProject.updateMany).toHaveBeenCalledWith({
       where: { projectManagementItemId: 'pmi-1', round: 1 },
       data: {
         roundOpeningTime: new Date(2026, 9, 20, 14, 0),
-        roundDocAcquireTime: new Date(2026, 9, 10, 9, 0),
       },
     });
     // 清空：PMI 更新包含两字段置 null（信息不含旧值，仅供合并进 infoData 的确认字段）
@@ -115,7 +114,7 @@ describe('流标再采第二轮隔离', () => {
     await expect(svc.reproc('pmi-1', { startStageKey: 'TENDER_DOCUMENT' } as never)).resolves.toMatchObject({ round: 2 });
     expect(prisma.__tx.bidProject.updateMany).toHaveBeenCalledWith({
       where: { projectManagementItemId: 'pmi-1', round: 1 },
-      data: { roundOpeningTime: null, roundDocAcquireTime: null },
+      data: { roundOpeningTime: null },
     });
   });
 

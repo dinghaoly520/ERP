@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Megaphone, X, Send, Upload, Loader2, ChevronLeft, ChevronRight, CheckCircle2, CloudUpload, Eye, FileText, PhoneCall, ChevronDown,
 } from 'lucide-react';
-import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn } from '@water-erp/shared';
+import { BID_DEADLINE_BEFORE_OPENING_MS, formatDurationCn, tenderDocumentLabel } from '@water-erp/shared';
 import {
   createAnnouncement,
   previewBidNoticeChecklist,
@@ -62,13 +62,16 @@ import { FilePreviewPane } from './file-preview-pane';
 import { openingTimeFromSources, toDatetimeLocalValue as toDatetimeLocal, toDateInputValue as toDateInput } from '@/lib/tender-write/opening-time';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
 
-/** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段） */
+/** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段）
+ *  INQUIRY_PURCHASE 2026-10-29 模板 v2 起与竞价对齐为 responseSubmissionTime（此处曾漏改，
+ *  草稿开标时间回读恒空——2026-11-20 随公开招标接入复查修正，与 tender-write-modal 同口径） */
 const TENDER_OPENING_KEY: Record<TenderDocumentType, string> = {
   COMPETITIVE_NEGOTIATION: 'responseDeadline',
   SINGLE_SOURCE: 'submissionAndNegotiationTime',
-  INQUIRY_PURCHASE: 'bidOpeningTime',
+  INQUIRY_PURCHASE: 'responseSubmissionTime',
   INTERNAL_BIDDING: 'responseSubmissionTime',
   INVITED_BIDDING: 'responseSubmissionTime',
+  PUBLIC_BIDDING: 'responseSubmissionTime',
 };
 
 /** 读取采购文件编写草稿里的开标时间原文（草稿不存在/损坏返回 ''）——按当前轮取键 */
@@ -212,22 +215,8 @@ function buildCanonicalMeta(
       put('downloadDeadline', toChineseDateTime(endIso));
     }
   };
-  // 兜底：项目「采购文件获取时间」区间原文（中文格式不一，统一归一化为「X 至 Y」）
-  const putAcquireFromProject = (): boolean => {
-    const at = project?.documentAcquireTime;
-    if (!at) return false;
-    const sepMatch = at.match(/至|-|~/);
-    const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
-    if (sepIdx > 0) {
-      putDownloadPeriod(
-        toDatetimeLocalValue(at.slice(0, sepIdx).trim()),
-        toDatetimeLocalValue(at.slice(sepIdx + 1).trim()),
-      );
-    } else {
-      put('downloadDeadline', toChineseDateTime(toDatetimeLocalValue(at)));
-    }
-    return true;
-  };
+  // 「采购文件获取时间」PMI 兜底已删（2026-11-20 用户裁定字段退役）——下载窗口唯一来源
+  // = 公示期限起止（「发布时+N 天」快捷件填写；供应商在公示期间下载采购文件）
 
   if (isSingleSource) {
     // ── A3（GB/T 43711 7.2.2.3）：直接采购理由（论证意见）入 canonical meta，随公告同步 BidProject.directSourcingReason ──
@@ -241,15 +230,15 @@ function buildCanonicalMeta(
     }
     put('openTime', procurementTime);
     put('deadline', subtractMs(procurementTime, BID_DEADLINE_BEFORE_OPENING_MS));
-    // 采购文件下载时间：优先 draft 公示起止，兜底项目 documentAcquireTime
+    // 采购文件下载时间 = 公示起止区间（获取窗口即公示期间）
     if (d.announcementStart && d.announcementEnd) {
       putDownloadPeriod(d.announcementStart, d.announcementEnd);
-    } else if (!putAcquireFromProject() && (d.announcementEnd || d.announcementStart)) {
+    } else if (d.announcementEnd || d.announcementStart) {
       putDownloadPeriod(undefined, d.announcementEnd || d.announcementStart);
     }
   } else {
     // ── 其他采购方式：开标时间 = 开标/采购时间；投标截止 = 开标前 10 分钟（BID_DEADLINE_BEFORE_OPENING_MS，
-    // 与关键时间卡同口径），推导失败回退公示止；下载时间 = 公示起止区间，兜底 documentAcquireTime。
+    // 与关键时间卡同口径），推导失败回退公示止；下载时间 = 公示起止区间。
     // 开标来源序：draft → 项目 → 采购时间（procurementTime 存过期推导值——2026-10-12 实录：先于
     // bidOpeningTime 被取用，截止被算成开标−48h/回退公示止）──
     const openingRaw = d.bidOpeningTime || project?.bidOpeningTime || d.procurementTime || '';
@@ -260,8 +249,8 @@ function buildCanonicalMeta(
       : d.announcementEnd);
     if (d.announcementStart && d.announcementEnd) {
       putDownloadPeriod(d.announcementStart, d.announcementEnd);
-    } else {
-      putAcquireFromProject();
+    } else if (d.announcementEnd || d.announcementStart) {
+      putDownloadPeriod(undefined, d.announcementEnd || d.announcementStart);
     }
   }
   put('contact', contact);
@@ -873,34 +862,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // ★ 流标公告：公示期限同款不再默认预填（2026-11-13 与中标公告同裁定——必填+快捷件）
     }
 
-    // 从采购文件获取时间(documentAcquireTime)区间自动填入公示期限起/止（带 HH:MM）。
-    // 仅服务采购文件公告（公示期=获取窗口语义）；中标/流标/变更三类不带入（2026-11-13
-    // 用户裁定「必须填写起止」——公示期从发布起算，与获取窗口无业务关联，带入旧值
-    // 反而顶掉「必填+快捷件」的主动填写；实测曾带入三月旧窗口值）。
-    // documentAcquireTime 格式如 "2026年03月23日09:00至2026年03月26日15:00"
-    // 分隔符可能是 "至" 或 "-"
-    const acquireTime = procCat === 'procurement_document' ? project.documentAcquireTime?.trim() : undefined;
-    if (acquireTime) {
-      const sepMatch = acquireTime.match(/至|-|~/);
-      const sepIdx = sepMatch ? acquireTime.indexOf(sepMatch[0]) : -1;
-      if (sepIdx > 0) {
-        const startRaw = acquireTime.slice(0, sepIdx).trim();
-        const endRaw = acquireTime.slice(sepIdx + 1).trim();
-        const fd = filledDraft as Record<string, string>;
-        // 公示期限（起/止）均为 datetime-local，需带时分（YYYY-MM-DDTHH:MM）
-        if (!fd.announcementStart) fd.announcementStart = toDatetimeLocalValue(startRaw);
-        if (!fd.announcementEnd) fd.announcementEnd = toDatetimeLocalValue(endRaw);
-        // 自动计算天数
-        if (!fd.announcementDays) {
-          try {
-            const startDate = new Date(toDateInputValue(startRaw));
-            const endDate = new Date(toDateInputValue(endRaw));
-            const days = Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-            if (days > 0) fd.announcementDays = String(days);
-          } catch {}
-        }
-      }
-    }
+    // 采购公告公示期限不再从「采购文件获取时间」预填（2026-11-20 用户裁定：字段整体退役，
+    // 与中标/流标/变更同款「必填+快捷件」——起可用「发布时」、止可按天数下拉推算）。
 
     setDraft(filledDraft);
     // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）；开标时间同步源一并
@@ -1135,15 +1098,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('请选择定时发布时间');
       return;
     }
-    // 公示期限（止）必填：采购公告（docx 占位文案防漏）+ 流标/中标公告（2026-11-06 起止
-    // 选择，止点=公开端显示窗口，缺失则窗口无从谈起）
-    // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」）：
-    // 中标/流标/变更三类起止都要（采购文件公告的「公示期限（采购文件获取时间）」仍只查止）
-    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
-      toast.error('公告制作中未填写公示期限（止），请返回填写');
-      return;
-    }
-    if (category === 'winning_bid' || category === 'failed_bid' || category === 'change_notice') {
+    // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
+    // 采购公告——「采购文件获取时间」退役后公示期限即获取窗口）：四类公告起止都要
+    // （起可用「发布时」一键填充，止可按天数下拉推算）
+    if (['procurement_document', 'winning_bid', 'failed_bid', 'change_notice'].includes(category)) {
       const fd = draft as Record<string, string>;
       if (!fd.announcementEnd || !fd.announcementStart) {
         toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
@@ -1239,16 +1197,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         return;
       }
     }
-    // 公示期限（止）空值会让 docx 模板渲染出「请填写公示期限（止）」占位文案并随公告发布
-    // （实测存量公告已出现）——采购公告发布前强制校验。流标/中标公告 2026-11-06 改起止选择
-    // 后同校验：止点直供公开端显示窗口（publicityEnd），缺失即无从起算。
-    // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」）：
-    // 中标/流标/变更三类起止都要（采购文件公告的「公示期限（采购文件获取时间）」仍只查止）
-    if (category === 'procurement_document' && !(draft as Record<string, string>).announcementEnd) {
-      toast.error('公告制作中未填写公示期限（止），请返回填写');
-      return;
-    }
-    if (category === 'winning_bid' || category === 'failed_bid' || category === 'change_notice') {
+    // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
+    // 采购公告——止点直供公开端显示窗口与供应商下载窗口，缺失即无从起算）：四类公告起止都要
+    // （起可用「发布时」一键填充，止可按天数下拉推算）
+    if (['procurement_document', 'winning_bid', 'failed_bid', 'change_notice'].includes(category)) {
       const fd = draft as Record<string, string>;
       if (!fd.announcementEnd || !fd.announcementStart) {
         toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
@@ -1748,8 +1700,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         ))}
                       </div>
                       <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                        请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「采购公告公示」阶段。
-                        公告附件为公开可下载材料，发布后在信息门户、供应商公告中心及「项目机会」的公告详情页提供下载（采购文件仍仅在「项目机会」获取）。
+                        请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「{tenderDocumentLabel(project?.procurementMethod) === '招标文件' ? '招标公告公示' : '采购公告公示'}」阶段。
+                        公告附件为公开可下载材料，发布后在信息门户、供应商公告中心及「项目机会」的公告详情页提供下载（{tenderDocumentLabel(project?.procurementMethod)}仍仅在「项目机会」获取）。
                       </p>
                     </div>
 

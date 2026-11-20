@@ -112,7 +112,8 @@ export class SupplierLinkService {
       type: 'SUPPLIER_LINK_PENDING',
       title: '供应商申请加入贵公司（初审）',
       content: `${supplier.name} 申请加入贵公司供应商库，请前往审批。${note ? `申请说明：${note}` : ''}`,
-      link: `/supplier?tab=company-links`,
+      // linkId=本申请行指针（办结联动消解按 type+link 精确圈定，页面侧仅读 tab、多余参数无感）
+      link: `/supplier?tab=company-links&linkId=${linkId}`,
     });
     return { id: linkId };
   }
@@ -145,7 +146,7 @@ export class SupplierLinkService {
       type: 'SUPPLIER_LINK_PENDING',
       title: '供应商申请退出贵公司供应商库（初审）',
       content: `${supplier.name} 申请退出贵公司供应商库，请前往审批。${note ? `申请说明：${note}` : ''}`,
-      link: `/supplier?tab=company-links`,
+      link: `/supplier?tab=company-links&linkId=${link.id}`,
     });
     return { id: link.id };
   }
@@ -167,6 +168,46 @@ export class SupplierLinkService {
       ids = await pick({ role: 'admin', isActive: true });
     }
     await Promise.allSettled(ids.map((id) => this.notificationService.create({ userId: id, ...payload })));
+  }
+
+  /** 办结联动消解（2026-11-20 用户实录：同公司两账号都收到加入/退库待办，一人审批后
+   *  另一人的待办长期挂着）：本类待办是群发型（同级审批人每人一行），任一人处理后该级
+   *  待办即整体过期——此前 approveLink/rejectLink 零消解钩子，他人副本要等每日 sweep
+   *  且全库 link 队列清空才走。两轨：
+   *  - 新形态（link 带 linkId）：type+link 精确圈定本申请的全部副本，跨收件人一次消解；
+   *  - 存量无 id 形态：按「content 前缀=供应商名 + 收件人属目标公司（或 admin 兜底收件）」
+   *    先查后改——同名供应商并行申请多家公司时他司收件人不受牵连（updateMany 无法 join，
+   *    须显式两步；名称以空格为界，前缀同名「X公司/X公司分公司」不互伤）。 */
+  private async resolveLinkPendingTodos(linkId: string, supplierName: string, companyId: string) {
+    await this.notificationService
+      .resolveActionable('SUPPLIER_LINK_PENDING', `/supplier?tab=company-links&linkId=${linkId}`)
+      .catch(() => {});
+    try {
+      const rows = await this.prisma.notification.findMany({
+        where: { type: 'SUPPLIER_LINK_PENDING', link: '/supplier?tab=company-links', resolvedAt: null },
+        select: { id: true, userId: true, content: true },
+      });
+      if (rows.length === 0) return;
+      const prefix = `${supplierName} `;
+      // 两条件缺一不可：content 前缀锁本供应商的申请，收件人公司域锁本公司副本——
+      // in-scope 用户持有的他名申请（前缀不合）与他名公司的同名申请（收件人不合）都保留
+      const matched = rows.filter((n) => (n.content ?? '').startsWith(prefix));
+      const hitUserIds = [...new Set(matched.map((n) => n.userId))];
+      if (hitUserIds.length === 0) return;
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: hitUserIds } },
+        select: { id: true, role: true, companyId: true },
+      });
+      // 收件人=目标公司审批人；公司无审批账号时曾兜底发全体 admin（notifyStageApprovers 上浮）
+      const inScope = new Set(users.filter((u) => u.role === 'admin' || u.companyId === companyId).map((u) => u.id));
+      const ids = matched.filter((n) => inScope.has(n.userId)).map((n) => n.id);
+      if (ids.length > 0) {
+        await this.prisma.notification.updateMany({
+          where: { id: { in: ids }, resolvedAt: null },
+          data: { resolvedAt: new Date() },
+        });
+      }
+    } catch { /* 消解失败不阻断审批结果（sweep 每日兜底） */ }
   }
 
   // ───────────────────────── 公司侧（仅审批与库内停用——零检索面，用户裁决 2026-10-16） ─────────────────────────
@@ -217,6 +258,7 @@ export class SupplierLinkService {
         });
         if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
         if (userId) await this.audit(userId, 'SUPPLIER_LINK_LEAVE_APPROVED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage });
+        await this.resolveLinkPendingTodos(linkId, link.supplier.name, link.companyId);
         if (link.supplier.companyId === link.companyId) {
           const next = await this.prisma.supplierCompanyLink.findFirst({
             where: { supplierId: link.supplierId, status: 'APPROVED', companyId: { not: link.companyId } },
@@ -245,6 +287,7 @@ export class SupplierLinkService {
       });
       if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
       if (userId) await this.audit(userId, 'SUPPLIER_LINK_APPROVED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage });
+      await this.resolveLinkPendingTodos(linkId, link.supplier.name, link.companyId);
       // 入库完成显式短信（2026-11-10 增补）：站内信+短信双通道（11-05 裁定后 create() 不外发短信，
       // 入库结果是供应商参与该公司采购的前置，须及时知晓——收窄清单内单点放行）
       await this.notificationService.sendToUser(link.supplier.userId, ['in_app', 'sms'], {
@@ -263,11 +306,13 @@ export class SupplierLinkService {
     });
     if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
     if (userId) await this.audit(userId, `SUPPLIER_LINK_${isLeave ? 'LEAVE_' : ''}PASSED_${stage}`, linkId, { supplierId: link.supplierId, companyId: link.companyId, fromStage: stage, nextStage, reason: trimmed });
+    // 先消解本级群发副本（含同公司他人行），再通知下一级——本级待办对全体收件人过期
+    await this.resolveLinkPendingTodos(linkId, link.supplier.name, link.companyId);
     await this.notifyStageApprovers(nextStage, link.companyId, {
       type: 'SUPPLIER_LINK_PENDING',
       title: `供应商${isLeave ? '退库' : '加入'}申请待${SupplierLinkService.STAGE_LABELS[nextStage]}`,
       content: `${link.supplier.name} 申请${isLeave ? '退出' : '加入'}贵公司，已通过${SupplierLinkService.STAGE_LABELS[stage]}（缘由：${trimmed}），请前往审批。`,
-      link: `/supplier?tab=company-links`,
+      link: `/supplier?tab=company-links&linkId=${linkId}`,
     });
     return { success: true as const, stage: nextStage };
   }
@@ -293,6 +338,7 @@ export class SupplierLinkService {
     });
     if (claimed.count === 0) throw new ConflictException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
     if (userId) await this.audit(userId, isLeave ? 'SUPPLIER_LINK_LEAVE_REJECTED' : 'SUPPLIER_LINK_REJECTED', linkId, { supplierId: link.supplierId, companyId: link.companyId, stage: link.reviewStage, reason: trimmed });
+    await this.resolveLinkPendingTodos(linkId, link.supplier.name, link.companyId);
     await this.notificationService.create({
       userId: link.supplier.userId,
       type: 'SUPPLIER_LINK_REJECTED',

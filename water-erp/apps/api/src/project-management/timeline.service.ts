@@ -5,9 +5,9 @@ import { parseFlexibleDate } from '../common/parse-date.util';
 
 /**
  * B3 项目时间信息轴（CTS-EBS01 A-204：项目相关时间信息的建立和维护）。
- * 聚合 PMI / BidProject / BidSignPacket / Contract / Announcement 五域十类时间节点：
- * 采购立项 · 采购文件获取 · 采购公告发布 · 投标截止 · 开标 · 评标结束 · 中标公告发布 ·
- * 流标公告发布 · 合同签订 · 归档。
+ * 聚合 PMI / BidProject / BidSignPacket / Contract / Announcement 五域时间节点：
+ * 采购立项 · 采购公告发布 · 投标截止 · 开标 · 评标结束 · 中标公告发布 ·
+ * 流标公告发布 · 合同签订 · 归档（「采购文件获取」节点已随字段退役删除，2026-11-20）。
  * 输出：固定业务顺序——此前有值节点按时间升序，
  * 时间压缩/回填场景下「归档」会插进中间（实测 6/23 归档排在 9/7 文件获取
  * 之前），阅读割裂；缺值节点原地灰显占位（前端「未登记」）。
@@ -25,7 +25,7 @@ export interface TimelineNode {
   key: string;
   label: string;
   time: string | null; // ISO；null=尚未发生/未登记
-  timeEnd?: string | null; // ISO；区间类节点（采购文件获取）的结束时刻
+  timeEnd?: string | null; // ISO；区间类节点的结束时刻（现无在用节点，结构保留）
   source: string; // 来源模块（展示用）
   tone?: 'danger'; // 红色警示节点（2026-11-13：资料变更）
   /** 组合子项（2026-11-13：供应商参与=拟参与/回执+下载+投递合为一个整体） */
@@ -33,36 +33,17 @@ export interface TimelineNode {
 }
 
 /**
- * String 字段时间（bidOpeningTime/documentAcquireTime）规范化：可解析则转 ISO，否则 null。
- * 用 parseFlexibleDate：AI 提取的值多为中文格式（"2026年3月23日14:00"），且
- * documentAcquireTime 常是区间文本（"2026年03月23日09:00至2026年03月26日15:00"）——
- * 取区间起点；new Date() 直解析不了这类文本（曾致时间轴「采购文件获取 未登记」）。
+ * String 字段时间（bidOpeningTime）规范化：可解析则转 ISO，否则 null。
+ * 用 parseFlexibleDate：AI 提取的值多为中文格式（"2026年3月23日14:00"）——
+ * new Date() 直解析不了这类文本（曾致时间轴节点「未登记」）。
  */
 function normalizeMaybeDate(raw: string | null | undefined): string | null {
   const d = parseFlexibleDate(raw);
   return d ? d.toISOString() : null;
 }
 
-/**
- * 区间文本（"2026年03月23日09:00至2026年03月26日15:00"）→ 起止时刻。
- * 逐段匹配所有"年月日(时分)"片段：首段=起点、末段=终点（同段/单点文本 → 终点 null）。
- * 终点片段缺少年份（如"至03月26日15:00"）时无法独立成 Date，退化为单点。
- * 冒号必须出现（(\d{1,2}):(\d{2})）：可选冒号时纯日期区间"10月10日-2026年10月14日"
- * 会被 \D+ 跨段吞位，把次段年份 2026 的"20""26"误当 20:26 时分（2026-10-12 实录）。
- */
-function parseDateRange(raw: string | null | undefined): { start: string | null; end: string | null } {
-  if (!raw) return { start: null, end: null };
-  const re = /(\d{4})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2}):(\d{2}))?/g;
-  const parts: Date[] = [];
-  for (const m of raw.matchAll(re)) {
-    // 中文口语日期的语义即北京时间：显式 +8 构造（Date.UTC 减 8h），与服务器/CI 时区解耦
-    // （组件构造 new Date(y,m,d) 依赖宿主时区——UTC runner 上本地零点变 00:00Z，时间轴日期漂移）
-    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4] ?? 0), Number(m[5] ?? 0)) - 8 * 3_600_000);
-    if (!Number.isNaN(d.getTime())) parts.push(d);
-  }
-  if (parts.length === 0) return { start: null, end: null };
-  return { start: parts[0].toISOString(), end: parts.length > 1 ? parts[parts.length - 1].toISOString() : null };
-}
+// parseDateRange（区间文本→起止时刻，曾供「采购文件获取」节点解析 documentAcquireTime）
+// 已随该节点删除退役（2026-11-20 用户裁定）。
 
 /**
  * Prisma DateTime（timestamp without time zone）→ ISO：恒等输出。
@@ -88,13 +69,13 @@ export class TimelineService {
 
   /**
    * 按轮次输出（2026-11-03 用户裁定：流标后再次采购不得清掉第一轮时间轴——
-   * 每轮一条完整十节点轴，公告/截止/开标/评标结束按轮归属解析；项目级节点归位：
-   * 采购立项=首轮、合同签订/归档=末轮、采购文件获取（PMI 单值反映当前轮）=末轮）。
+   * 每轮一条完整时间轴，公告/截止/开标/评标结束按轮归属解析；项目级节点归位：
+   * 采购立项=首轮、合同签订/归档=末轮）。
    */
   async getTimeline(pmiId: string): Promise<{ rounds: TimelineRound[]; currentRound: number }> {
     const item = await this.prisma.projectManagementItem.findUnique({
       where: { id: pmiId },
-      select: { id: true, projectCode: true, createdAt: true, initiationDate: true, documentAcquireTime: true, bidOpeningTime: true, archivedAt: true, currentRound: true },
+      select: { id: true, projectCode: true, createdAt: true, initiationDate: true, bidOpeningTime: true, archivedAt: true, currentRound: true },
     });
     if (!item) throw new NotFoundException('未找到对应项目');
 
@@ -328,7 +309,6 @@ export class TimelineService {
       }
     }
 
-    const acquireRange = parseDateRange(item.documentAcquireTime);
     const initiationIso = toIso(item.initiationDate) ?? toIso(item.createdAt);
 
     const rounds: TimelineRound[] = roundList.map((r) => {
@@ -348,9 +328,7 @@ export class TimelineService {
         hasPublicAnnouncementStage
           ? { key: 'bidNoticePublish', label: '采购公告发布', time: publishTimeOf(r, ['BID_NOTICE', 'PREQUAL_NOTICE']), source: '公告' }
           : { key: 'supplierInvitation', label: '供应商邀请', time: supplierInviteOf(r), source: '邀请通知' },
-        ...(isLast
-          ? [{ key: 'documentAcquire', label: '采购文件获取', time: acquireRange.start, timeEnd: acquireRange.end, source: '项目管理' } as TimelineNode]
-          : []),
+        // 「采购文件获取」节点已删（2026-11-20 用户裁定：documentAcquireTime 字段整体退役）
         { key: 'supplierActivity', label: '供应商参与', time: null, source: '供应商参与' } as TimelineNode,
         { key: 'bidDeadline', label: '投标截止', time: deadlineIso, source: deadlineSource },
         { key: 'expertExtraction', label: '专家抽取', time: extractStampByRound.get(r) ?? null, source: '专家抽取' },

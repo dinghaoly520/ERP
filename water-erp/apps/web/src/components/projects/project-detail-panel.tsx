@@ -27,7 +27,7 @@ import {
 import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
 import { isPassFailCategory } from '@water-erp/shared';
 import { getProjectParticipants } from '@/lib/api/announcement';
-import { fmtAcquireTime, zhToDatetimeLocal, zhRangeToDatetimeLocal, datetimeLocalToZh } from '@/lib/utils/format-acquire-time';
+import { zhToDatetimeLocal, datetimeLocalToZh } from '@/lib/utils/format-acquire-time';
 import {
   PROCUREMENT_METHODS,
   PROCUREMENT_CATEGORY_OPTIONS,
@@ -189,7 +189,6 @@ export function ProjectDetailPanel({
         ...item,
         projectOverview: null,
         bidOpeningTime: null,
-        documentAcquireTime: null,
         evaluationMethod: null,
       } : item);
       return;
@@ -315,7 +314,6 @@ export function ProjectDetailPanel({
     contractNumber: '',
     projectOverview: '',
     bidOpeningTime: '',
-    documentAcquireTime: '',
     invitedSuppliers: '',
     paymentPerformance: '',
     requesterName: '',
@@ -764,7 +762,8 @@ export function ProjectDetailPanel({
   };
 
   // 直接采购 03（谈判文件）完成确认弹窗（2026-11-18 用户裁定）：完成前 AI 综合分析
-  // 需求/立项/谈判文件三步骤全部文件 → 项目概况/开标时间供确认可改；采购文件获取时间固定"/"。
+  // 需求/立项/谈判文件三步骤全部文件 → 项目概况/开标时间供确认可改
+  // （「采购文件获取时间」项已随字段退役删除，2026-11-20 用户裁定）。
   // 声明于 completeStageCore 之后、markStageCompleted 之前——react-compiler 前向引用防御
   //（memory：web-react-compiler-forward-ref，useCallback/闭包引用声明在后的绑定曾报 Cannot access）。
   const [directConfirmStage, setDirectConfirmStage] = useState<ProjectManagementStage | null>(null);
@@ -826,7 +825,7 @@ export function ProjectDetailPanel({
   };
 
   /** 确认：确认值随完成调用落库（updateStage 直采轨——PATCH extracted-info 有 CHANGE_ONLY 闸，
-   *  人工直改被拦；完成链是服务端受控写路径），采购文件获取时间服务端固定写"/"；
+   *  人工直改被拦；完成链是服务端受控写路径）；
    *  开标时间选择器值（datetime-local）转中文格式入库，与基本信息编辑同口径 */
   const confirmDirectCompletion = async () => {
     if (!directConfirmStage) return;
@@ -1074,12 +1073,6 @@ export function ProjectDetailPanel({
     } else if (field === 'bidOpeningTime') {
       // 选择器值 → 中文存库格式（与 AI 归一化同口径）；未选则清空
       payload[field] = datetimeLocalToZh(editValues.bidOpeningTime);
-    } else if (field === 'documentAcquireTime') {
-      // 起止选择器 → 区间中文文本「起-止」；只选起点为单点，全空为 null
-      const [s, e] = (editValues.documentAcquireTime || '').split('~');
-      const startZh = datetimeLocalToZh(s);
-      const endZh = datetimeLocalToZh(e);
-      payload[field] = startZh ? (endZh ? `${startZh}-${endZh}` : startZh) : null;
     } else {
       payload[field] = value || null;
     }
@@ -1780,24 +1773,7 @@ export function ProjectDetailPanel({
                       </div>
                     )}
                   </div>
-                  <div>
-                    <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购文件获取时间</span></div>
-                    {editingField === 'documentAcquireTime' ? (
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[0] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${e.target.value}~${parts[1] ?? ''}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Escape') setEditingField(null); }} />
-                        <span className="text-xs text-[color:var(--muted-foreground)]">—</span>
-                        <input type="datetime-local" value={(editValues.documentAcquireTime || '').split('~')[1] ?? ''} onChange={(e) => setEditValues((prev) => { const parts = (prev.documentAcquireTime || '').split('~'); return { ...prev, documentAcquireTime: `${parts[0] ?? ''}~${e.target.value}` }; })} className="workbench-input !h-[28px] !text-xs flex-1" onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('documentAcquireTime'); if (e.key === 'Escape') setEditingField(null); }} />
-                        <button type="button" onClick={() => void handleSaveField('documentAcquireTime')} className="neu-btn-xs"><Save size={13} /></button>
-                      </div>
-                    ) : isPastRound ? (
-                      <span className="mt-0.5 block text-sm text-[color:var(--foreground)]">{roundTimeDisplay(pastRoundBpRef?.roundDocAcquireTime)}</span>
-                    ) : (
-                      <div className="mt-0.5 flex items-center gap-1">
-                        <span className={`text-sm ${(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/50'}`}>{fmtAcquireTime(extractedInfoOverride?.documentAcquireTime ?? localItem.documentAcquireTime) || '待补充'}</span>
-                        <Pencil size={10} className="opacity-0 transition group-hover:opacity-100 text-[color:var(--muted-foreground)]" />
-                      </div>
-                    )}
-                  </div>
+                  {/* 「采购文件获取时间」行已删（2026-11-20 用户裁定）：字段整体退役不再展示 */}
                   <div>
                     <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span></div>
                     {editingField === 'bidOpeningTime' ? (
@@ -1818,7 +1794,7 @@ export function ProjectDetailPanel({
               </div>
 
               {/* 供应商邀请/参与 */}
-              {['谈判采购', '询比采购', '直接采购', '邀请招标', '竞价采购'].includes(item.procurementMethod) && (
+              {['谈判采购', '询比采购', '直接采购', '邀请招标', '竞价采购', '公开招标'].includes(item.procurementMethod) && (
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">
@@ -2104,7 +2080,7 @@ export function ProjectDetailPanel({
                     // 删除采购文件：清空提取信息（DB 持久化）+ 文件分析
                     tenderFileJustDeletedRef.current = true; // 阻止 onUpdated 后 useEffect[item] 恢复提取字段
                     try {
-                      await updateProjectExtractedInfo(item.id, { projectOverview: '', bidOpeningTime: '', documentAcquireTime: '', evaluationMethod: '' });
+                      await updateProjectExtractedInfo(item.id, { projectOverview: '', bidOpeningTime: '', evaluationMethod: '' });
                     } catch (e) {
                       setErrorMessage(e instanceof Error ? e.message : '清空提取信息失败');
                     }
@@ -2113,14 +2089,12 @@ export function ProjectDetailPanel({
                       ...prev,
                       projectOverview: null,
                       bidOpeningTime: null,
-                      documentAcquireTime: null,
                       evaluationMethod: null,
                     } : prev);
                     setExtractedInfoOverride((prev) => prev ? {
                       ...prev,
                       projectOverview: null,
                       bidOpeningTime: null,
-                      documentAcquireTime: null,
                     } : null);
                     setAnalysis(null);
                   }
@@ -2654,7 +2628,8 @@ export function ProjectDetailPanel({
       })()}
 
       {/* 直接采购 03（谈判文件）完成确认弹窗（2026-11-18 用户裁定）：AI 综合分析三步骤
-          全部文件 → 项目概况/开标时间确认可改；采购文件获取时间固定"/"；确认后落基本信息并完成 */}
+          全部文件 → 项目概况/开标时间确认可改；确认后落基本信息并完成
+          （「采购文件获取时间」栏已随字段退役删除，2026-11-20 用户裁定） */}
       {directConfirmStage && (
         <Modal
           open
@@ -2709,22 +2684,16 @@ export function ProjectDetailPanel({
                   className="workbench-input min-h-[96px] w-full resize-none text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">开标时间</div>
-                  <input
-                    type="datetime-local"
-                    value={directOpeningTime}
-                    onChange={(e) => setDirectOpeningTime(e.target.value)}
-                    className="workbench-input w-full text-sm"
-                  />
-                </div>
-                <div>
-                  <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">采购文件获取时间</div>
-                  {/* 2026-11-19 审查⑶：展示已落真实获取时刻（上传即同步/登记提取值），空值才显示不适用"/"——与后端仅空值落"/"同口径 */}
-                  <input value={localItem.documentAcquireTime?.trim() || '/'} readOnly className="workbench-input w-full text-sm opacity-70" />
-                </div>
+              <div>
+                <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">开标时间</div>
+                <input
+                  type="datetime-local"
+                  value={directOpeningTime}
+                  onChange={(e) => setDirectOpeningTime(e.target.value)}
+                  className="workbench-input w-full text-sm"
+                />
               </div>
+              {/* 「采购文件获取时间」栏已删（2026-11-20 用户裁定）：字段整体退役 */}
             </div>
           )}
         </Modal>

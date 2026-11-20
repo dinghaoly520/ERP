@@ -1726,21 +1726,21 @@ export class BidService {
       data: { riskNote: `${original.riskNote || ''}｜已于 ${formatNoteTime(now)} 由 ${(await this.resolveActorLabel(actorId)) ?? '系统'} 重启为新项目 ${newCode}` },
     });
 
-    // 2026-10-28 二轮隔离（与 PMI reproc 同口径）：旧轮 PMI 层开标/获取时间快照到旧轮项目行，
-    // PMI 两字段清空——新轮基本信息不带旧轮时间（历史轮展示改读快照列）。
-    // 2026-10-30 类型闸修复（与 reproc 同源）：PMI 两列是自由文本（String?），快照列是
+    // 2026-10-28 二轮隔离（与 PMI reproc 同口径）：旧轮 PMI 层开标时间快照到旧轮项目行，
+    // PMI 字段清空——新轮基本信息不带旧轮时间（历史轮展示改读快照列）。
+    // 2026-10-30 类型闸修复（与 reproc 同源）：PMI 列是自由文本（String?），快照列是
     // DateTime?——直赋字符串必炸 PrismaClientValidationError。parseFlexibleDate 尽力解析。
+    // 「文件获取时间」快照停写（2026-11-20 用户裁定字段退役；清空保留作存量治理）。
     if (original.projectManagementItemId) {
       const host = await this.prisma.projectManagementItem.findUnique({
         where: { id: original.projectManagementItemId },
-        select: { bidOpeningTime: true, documentAcquireTime: true },
+        select: { bidOpeningTime: true },
       });
-      if (host && (host.bidOpeningTime || host.documentAcquireTime)) {
+      if (host?.bidOpeningTime) {
         await this.prisma.bidProject.update({
           where: { id },
           data: {
             roundOpeningTime: parseFlexibleDate(host.bidOpeningTime),
-            roundDocAcquireTime: parseFlexibleDate(host.documentAcquireTime),
           },
         });
         await this.prisma.projectManagementItem.update({
@@ -4515,21 +4515,9 @@ export class BidService {
     this.gateway?.notifyStageChange(id, project.stage, 'ARCHIVED', 'host');
     this.gateway?.notifySupervisionLog(id, { role: '系统', action: '一键归档', target: project.name, result: `归档 ${result?.archiveItems?.length ?? 0} 项${scope === 'opening' ? '（开标归档）' : ''}`, riskFlag: '无' });
 
-    // G1: 归档成功后自动生成中标公示草稿（事务外；幂等；不阻塞归档主流程）
-    // 2026-10-21：仅完整归档生成预成交公示——开标归档（流标/废标/ABORTED 收尾）无成交方；
-    // N4c「已生成结果后流标」的存量结果仅作废留痕，不得再派生预成交公示
-    try {
-      if (scope === 'full') await this.ensureWinnerNotice(id);
-    } catch (e) {
-      this.logger.error(`中标公示自动生成失败（不阻塞归档）: ${(e as Error).message}`);
-      // 写入监督日志告警
-      await this.prisma.bidSupervisionLog.create({
-        data: { projectId: id, time: new Date(), role: '系统', target: project.name,
-          action: '中标公示生成失败', result: (e as Error).message, riskFlag: '高' },
-      }).catch((dbErr) =>
-        this.logger.warn(`中标公示失败告警的监督日志写入失败: projectId=${id} err=${(dbErr as Error).message}`),
-      );
-    }
+    // G1 预成交公示草稿自动生成已删（2026-11-20 用户裁定：两段式弃用，定标公示唯一载体=
+    // 发布向导「中标公告」WIN_BID_NOTICE）。公示闸（getPublicityStatus）对存量
+    // PRE_WIN/WIN_NOTICE 的兼容查询保留；存量草稿清理见 scripts/cleanup-pre-win-drafts.ts
 
     // 归档=开标移交待办办结（即时消解，sweep 兜底存量）
     this.resolveHandoverTodo(project.projectManagementItemId);
@@ -4537,109 +4525,9 @@ export class BidService {
     return result;
   }
 
-  /**
-   * 归档后自动生成预成交公示草稿（G1→C1，GB/T 43711 7.5.2.2 两段式第一段）。幂等。
-   * 直接写 announcement 表（避免与 AnnouncementService 循环依赖）。
-   * 公示期满无异议后由 AnnouncementService.confirmWinnerNotice 派生成成交公告。
-   */
-  private async ensureWinnerNotice(projectId: string) {
-    const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId },
-      include: {
-        evaluationResults: { orderBy: { rank: 'asc' }, select: { rank: true, supplierName: true, totalScore: true, averageScore: true, recommended: true, bidPrice: true } },
-      },
-    });
-    if (!project) return;
-    if (!project.evaluationResults || project.evaluationResults.length === 0) {
-      this.logger.warn(`项目 ${project.projectCode} 无评标结果，跳过预成交公示生成`);
-      return;
-    }
-
-    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试。
-    // 幂等口径（按轮）：仅当已有公示/成交公告创建于【本轮评标结果生成之后】才跳过——
-    // 多轮采购（round≥2）上一轮的 WIN 不得挡住本轮生成新 PRE（否则第二轮永不公示）
-    const codes = await this.resolveAnnouncementCodes(project);
-    const [existing, latestResult] = await Promise.all([
-      this.prisma.announcement.findFirst({
-        where: { relatedProjectCode: { in: codes }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, createdAt: true },
-      }),
-      this.prisma.bidEvaluationResult.findFirst({
-        where: { projectId },
-        orderBy: { generatedAt: 'desc' },
-        select: { generatedAt: true },
-      }),
-    ]);
-    if (existing && latestResult && existing.createdAt > latestResult.generatedAt) return;
-    if (existing && !latestResult) return; // 无评标结果的登记制场景，保持原幂等
-
-    const winner = project.evaluationResults.find(r => r.rank === 1);
-    const candidates = project.evaluationResults.filter(r => r.recommended);
-    // #151b（#151 评审 F2）：全废标时 rank1 行是废标家——裸取会把废标家写成「预成交供应商」。
-    // 预成交公示的前提是有预成交对象：无合格首名（winner 缺席或未推荐）整份跳过，
-    // 不生成「预成交供应商：—」的无对象公示（同文件其余 rank1 检测点均有 recommended 守卫）。
-    if (!winner?.recommended) {
-      this.logger.warn(`项目 ${project.projectCode} 无合格预成交对象（全废标/首名未推荐），跳过预成交公示草稿`);
-      return;
-    }
-
-    // A4: 中标价格从评标结果直接获取（不再通过 supplierName 模糊匹配开标记录）
-    const winnerPrice = winner?.bidPrice ? String(winner.bidPrice) : null;
-
-    await this.prisma.announcement.create({
-      data: {
-        title: `预成交公示：${project.name}`,
-        content: `项目编号 ${project.projectCode}（${project.name}）已完成评审并归档，现将预成交供应商予以公示。`
-          + `预成交供应商：${winner?.supplierName ?? '—'}。`
-          + `${winnerPrice ? `预成交价格：¥${winnerPrice}元。` : ''}`
-          + `公示期为3个日历日，公示期内如无异议，预成交供应商即为成交供应商。`
-          + `供应商对公示内容有异议的，请在公示期内通过供应商门户公告页向采购人在线提出。`,
-        type: 'PRE_WIN_NOTICE',
-        status: 'DRAFT',
-        relatedProjectCode: project.projectCode,
-        // 归属公司快照（公告管理端按公司硬过滤隔离）：缺省时公司用户在信息发布中心看不到
-        // 自动草稿 → 公示发不出去 → 中标通知书被 PUBLICITY_NOT_ENDED 永久卡死（2026-09-24 验收实测）
-        companyId: project.companyId,
-        companyName: project.companyName,
-        metadata: {
-          projectCode: project.projectCode,
-          winner: winner ? { supplierName: winner.supplierName, totalScore: Number(winner.totalScore), averageScore: Number(winner.averageScore), price: winnerPrice } : null,
-          candidates: candidates.map(c => ({ rank: c.rank, supplierName: c.supplierName, totalScore: Number(c.totalScore), averageScore: Number(c.averageScore) })),
-          publicityPeriod: '3个日历日',
-          objection: '公示期内通过供应商门户向采购人在线提出异议',
-        },
-      },
-    });
-    this.logger.log(`已自动生成预成交公示草稿：${project.projectCode}`);
-  }
-
-  /** 查询项目关联的预成交公示/成交公告（G1→C1，草稿或已发布）；无则返回 null */
-  async getWinnerNotice(projectId: string) {
-    const project = await this.prisma.bidProject.findUnique({
-      where: { id: projectId },
-      select: { projectCode: true, projectManagementItemId: true },
-    });
-    if (!project) return null;
-    // 公告存业务编号、项目内部是 BID-时间戳——两个编号都试；本轮（最近评标结果之后）优先
-    const codes = await this.resolveAnnouncementCodes(project);
-    const latestResult = await this.prisma.bidEvaluationResult.findFirst({
-      where: { projectId },
-      orderBy: { generatedAt: 'desc' },
-      select: { generatedAt: true },
-    });
-    if (latestResult) {
-      const current = await this.prisma.announcement.findFirst({
-        where: { relatedProjectCode: { in: codes }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] }, createdAt: { gt: latestResult.generatedAt } },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (current) return current;
-    }
-    return this.prisma.announcement.findFirst({
-      where: { relatedProjectCode: { in: codes }, type: { in: ['PRE_WIN_NOTICE', 'WIN_NOTICE'] } },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
+  // ensureWinnerNotice（归档自动生成预成交公示草稿）与 getWinnerNotice 查询端点已删
+  // （2026-11-20 用户裁定：两段式弃用，归档不再派生 PRE_WIN 草稿；公示状态统一走
+  //  getPublicityStatus——其存量兼容查询本就覆盖 PRE_WIN/WIN/WIN_BID 三类载体）。
 
   /** A1: 公示状态——是否已公示、公示截止时间、是否可发中标通知书 */
   async getPublicityStatus(projectId: string) {

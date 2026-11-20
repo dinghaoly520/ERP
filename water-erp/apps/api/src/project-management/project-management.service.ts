@@ -8,7 +8,7 @@ import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { BID_DEADLINE_BEFORE_OPENING_MS, STAGE_LABEL } from '@water-erp/shared';
 import { AiService } from '../ai/ai.service';
-import { parseFlexibleDate, parseFlexibleRangeEnd } from '../common/parse-date.util';
+import { parseFlexibleDate } from '../common/parse-date.util';
 import { assertAttachmentRules } from '../upload/attachment-rules';
 import { generateProjectCode, generatePmiProjectCode, resolveHostedProjectCode, stageCodeFor } from '../common/project-code.util';
 import type { AuthenticatedUser } from '../auth/auth.types';
@@ -210,6 +210,18 @@ const METHOD_STAGE_TEMPLATES: Record<string, Array<{ key: string; label: string 
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
   ],
+  // 公开招标（2026-11-20）：邀请招标同构、供应商邀请换招标公告公示（与前端
+  // PROCUREMENT_METHOD_STAGES['公开招标'] 镜像同步；04 法定口吻显「招标公告公示」）
+  公开招标: [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '招标文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '招标公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家抽取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
 };
 
 /** 留痕时间戳：本地时区可读格式（YYYY-MM-DD HH:mm）——裸 ISO 对用户即串码观感（2026-10-27） */
@@ -398,7 +410,7 @@ export class ProjectManagementService {
    * 信息发布中心独立发布 BID_NOTICE 且无既有项目时，BidProject 由 createFromAnnouncement 创建（无 PMI 挂钩），
    * 而 :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主——本方法补齐宿主。
    * 编号复用 create 流程同款规则（procurementMethodPrefix + 当日序号）；阶段集复用 PROJECT_WORKFLOW_STAGES
-   * + 方法过滤（PUBLIC_ANNOUNCEMENT 仅竞价/直接/邀请）；前置阶段以公告为准补记 COMPLETED，
+   * + 方法过滤（公告型=谈判/询比/竞价/公开招标：留公告段、无邀请段；2026-11-20 修正反转向量）；前置阶段以公告为准补记 COMPLETED，
    * currentStage 落 BID_EVALUATION（此后 syncPmStage 恢复正常联动）。
    */
   async createItemFromAnnouncement(
@@ -427,16 +439,29 @@ export class ProjectManagementService {
       const gbProjectCode = await this.gbCode.allocateProjectCode().catch(() => null); // A1（B.4.3.2）
 
     // 阶段集：全套 + 方法过滤（与 create 流程同口径）
-    const needsPublicAnnouncement = ['竞价采购', '直接采购', '邀请招标'].includes(dto.procurementMethod);
+    // 2026-11-20 修正：公告型方式=谈判/询比/竞价/公开招标（2026-11-12 流程互换后口径）
+    // 保留公告公示阶段、不带供应商邀请段（公告型不经邀请组织——直建行集与
+    // METHOD_STAGE_TEMPLATES 对齐，防幽灵「供应商邀请」步骤出现在公告型直建项目）；
+    // 邀请域（邀请招标/直接采购）不发布采购公告、被 announcement 方式闸拦截不可达本路径
+    //（防御性过滤）。原列表 ['竞价','直接','邀请'] 与互换后语义相反——直接/邀请模板本无
+    // 公告阶段，谈判/询比（发公告）反被误剔；公开招标公告直建必须有公告阶段（补记
+    // COMPLETED）而随本修正一并落位
+    const NOTICE_BASED_METHODS = ['谈判采购', '询比采购', '竞价采购', '公开招标'];
+    const needsPublicAnnouncement = NOTICE_BASED_METHODS.includes(dto.procurementMethod);
     const stagesToCreate = PROJECT_WORKFLOW_STAGES.filter(
       (s) =>
         (needsPublicAnnouncement || s.key !== 'PUBLIC_ANNOUNCEMENT')
+        && (!needsPublicAnnouncement || s.key !== 'SUPPLIER_INVITATION')
         // 09 备案表为直接采购专属（2026-09-28）：其余方式不得带入（末阶段归档闸门按最后阶段判定，
         // 带入后该方式将永远无法完成归档）
         && (s.key !== 'DIRECT_PURCHASE_FILING' || dto.procurementMethod === '直接采购'),
     );
     // 公告直建=前置链路（需求/立项/采购文件/公告公示/供应商邀请）以公告为准补记 COMPLETED
     const completedKeys = new Set(['PROCUREMENT_DEMAND', 'INITIATION', 'TENDER_DOCUMENT', 'PUBLIC_ANNOUNCEMENT', 'SUPPLIER_INVITATION']);
+    // 方式模板阶段名覆写表：模板无该键（全集补行）时回退 canon 标签
+    const methodStageNames = new Map(
+      (METHOD_STAGE_TEMPLATES[dto.procurementMethod] ?? []).map((s) => [s.key, s.label]),
+    );
 
     const item = await tx.projectManagementItem.create({
       data: {
@@ -466,7 +491,10 @@ export class ProjectManagementService {
       data: stagesToCreate.map((stage, index) => ({
         projectManagementItemId: item.id,
         stageKey: stage.key,
-        stageName: stage.label,
+        // 阶段名按方式模板覆写（2026-11-20 公开招标随带）：行集沿用全集过滤（含补记
+        // COMPLETED 的邀请/公告段，行为不变），显示名与 create 流程同口径——公开招标
+        // 直建显法定名「招标文件/招标公告公示」而非 canon「采购文件/采购公告公示」
+        stageName: methodStageNames.get(stage.key) ?? stage.label,
         stageOrder: index + 1,
         round: 1,
         stageCode: stageCodeFor(projectCode, stage.key, 1),
@@ -514,7 +542,6 @@ export class ProjectManagementService {
         procurementMethod: true,
         budgetAmount: true,
         bidOpeningTime: true,
-        documentAcquireTime: true,
         initiationDate: true,
         projectOverview: true,
         currentRound: true,
@@ -606,13 +633,9 @@ export class ProjectManagementService {
     if (openTimeIsPureFallback && deadline.getTime() <= Date.now()) {
       deadline = new Date(Date.now() + 24 * 60 * 60 * 1000);
     }
-    // 采购文件下载截止：documentAcquireTime（"起至止"/「起-止」区间）取截止侧（2026-11-13：
-    // 改 parseFlexibleRangeEnd——此前 split('至') 不识别时间段选择器的连字符区间，整串解析
-    // 抓到区间起点被当成截止落列，供应商详情页误报「下载时间已截止」）
-    let downloadDeadline: Date | null = null;
-    if (item.documentAcquireTime) {
-      downloadDeadline = parseFlexibleRangeEnd(String(item.documentAcquireTime));
-    }
+    // 采购文件下载截止：由采购公告发布链按公示期限（止）写入 BidProject.downloadDeadline
+    // （谈判项目由谈判配置确认覆盖）——「采购文件获取时间」字段已删（2026-11-20 用户裁定），
+    // 不再从 PMI 推导（ensureBidProject 懒建行该列留空，公告发布后补）。
 
     const created = await this.prisma.bidProject.create({
       data: {
@@ -631,8 +654,6 @@ export class ProjectManagementService {
         procurementMethod: item.procurementMethod || '公开招标',
         openTime,
         deadline,
-        // 采购文件下载截止（documentAcquireTime 止点；谈判配置确认后由 sendNegotiationConfig 覆盖）
-        downloadDeadline: downloadDeadline ?? undefined,
         budget: item.budgetAmount != null ? Number(item.budgetAmount) : null,
         scope: item.projectOverview || null,
         // 公告已发布，直接进入投标投递期
@@ -701,7 +722,7 @@ export class ProjectManagementService {
         requesterName: true, requesterDepartment: true, title: true, procurementCategory: true,
         budgetAmount: true, projectReason: true, supplierRequirements: true, initiationDate: true,
         procurementOrganizationForm: true, isAnnualBudget: true,
-        bidOpeningTime: true, documentAcquireTime: true,
+        bidOpeningTime: true,
         stages: { orderBy: { stageOrder: 'asc' } },
       },
     });
@@ -838,16 +859,16 @@ export class ProjectManagementService {
           status: i === 0 ? PROJECT_STAGE_STATUS.IN_PROGRESS : PROJECT_STAGE_STATUS.NOT_STARTED,
         })),
       });
-      // 2026-10-28 二轮隔离：旧轮开标/获取时间快照到旧轮 BidProject、PMI 字段清空——语义收窄为
-      // 「当前轮值」（历史轮展示改读快照列）。2026-10-30 类型闸修复：PMI 两列是自由文本（如
+      // 2026-10-28 二轮隔离：旧轮开标时间快照到旧轮 BidProject、PMI 字段清空——语义收窄为
+      // 「当前轮值」（历史轮展示改读快照列）。2026-10-30 类型闸修复：PMI 列是自由文本（如
       // 「2026年4月17日9:00」）、快照列是 DateTime?——直赋字符串必炸 PrismaClientValidationError
-      // （SWHI-ZJ-2026102002 实录）；parseFlexibleDate 尽力解析（区间文本取首时刻），不可解析置 null。
-      if (item.bidOpeningTime || item.documentAcquireTime) {
+      // （SWHI-ZJ-2026102002 实录）；parseFlexibleDate 尽力解析，不可解析置 null。
+      // 「文件获取时间」快照停写（2026-11-20 用户裁定字段退役；清空保留作存量治理）。
+      if (item.bidOpeningTime) {
         await tx.bidProject.updateMany({
           where: { projectManagementItemId: itemId, round: currentRound },
           data: {
             roundOpeningTime: parseFlexibleDate(item.bidOpeningTime),
-            roundDocAcquireTime: parseFlexibleDate(item.documentAcquireTime),
           },
         });
       }
@@ -892,7 +913,7 @@ export class ProjectManagementService {
   }
 
   /**
-   * 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime。
+   * 从已上传的采购文件重新提取 projectOverview / bidOpeningTime。
    * 用于上传时解析失败、用户手动触发重新提取的场景。
    */
   async extractTenderFields(itemId: string, field?: string, dryRun = false) {
@@ -928,12 +949,11 @@ export class ProjectManagementService {
         this.logger.warn(`[extractTenderFields] 文件读取失败，回退 DB: ${(e as Error)?.message}`);
         const item = await this.prisma.projectManagementItem.findUnique({
           where: { id: itemId },
-          select: { projectOverview: true, bidOpeningTime: true, documentAcquireTime: true },
+          select: { projectOverview: true, bidOpeningTime: true },
         });
         const fallback: Record<string, string | null> = {
           projectOverview: item?.projectOverview ?? null,
           bidOpeningTime: item?.bidOpeningTime ?? null,
-          documentAcquireTime: item?.documentAcquireTime ?? null,
         };
         return field ? { [field]: fallback[field] ?? null } : fallback;
       }
@@ -965,20 +985,13 @@ export class ProjectManagementService {
       result.projectOverview = val;
     }
     if (wants('bidOpeningTime')) {
-      // 规则提取落空时 AI 兜底（与 projectOverview/documentAcquireTime 同口径）——
+      // 规则提取落空时 AI 兜底（与 projectOverview 同口径）——
       // 旧版无兜底，直接采购模板改「开标时间」标签后正则不认 → 恒报「未能提取到该字段信息」
       let raw = this.extractBidOpeningTimeFromText(text, procurementMethod);
       if (!raw) raw = await this.aiExtractBidOpeningTime(text);
       const val = raw ? await this.aiNormalizeBidOpeningTime(raw) : null;
       if (val) updateData.bidOpeningTime = val;
       result.bidOpeningTime = val;
-    }
-    if (wants('documentAcquireTime')) {
-      let raw = this.extractDocumentAcquireTimeFromText(text);
-      if (!raw) raw = await this.aiExtractDocumentAcquireTime(text);
-      const val = raw ? await this.aiNormalizeDocumentAcquireTime(raw) : null;
-      if (val) updateData.documentAcquireTime = val;
-      result.documentAcquireTime = val;
     }
 
     // 直接采购「拟定供应商」不再写入 awardedSupplier（2026-10-16 收口）：「中标单位」
@@ -999,7 +1012,7 @@ export class ProjectManagementService {
   /**
    * 直接采购 03（谈判文件）完成前综合分析（2026-11-18 用户裁定）：读取需求/立项/谈判文件
    * 三步骤当轮全部附件，AI 综合写出项目概况与开标时间——只返回不落库，由前端完成确认弹窗
-   * 展示、用户可修改，确认时随 updateExtractedInfo 写入（采购文件获取时间由前端固定写"/"）。
+   * 展示、用户可修改，确认时随 updateExtractedInfo 写入（「采购文件获取时间」项已随字段退役删除）。
    * 开标时间宁空勿假：材料无明确时点则返回空串，严禁编造。
    */
   async analyzeDirectProcurementCompletion(itemId: string, roundParam?: number) {
@@ -1796,24 +1809,7 @@ ${shortlist}
 
     // For TENDER_DOCUMENT stage, extract project overview and bid opening time
     if (stageKey === 'TENDER_DOCUMENT') {
-      // 上传即同步「采购文件获取时间」：文件可获取的时刻先落账，
-      // 时间轴（A-204）立即可见不再"未登记"；随后 AI 从文件提取到更精确的获取时段会覆盖此值
-      try {
-        const cur = await this.prisma.projectManagementItem.findUnique({
-          where: { id: projectId },
-          select: { documentAcquireTime: true },
-        });
-        if (!cur?.documentAcquireTime?.trim()) {
-          const now = new Date();
-          const zh = `${now.getFullYear()}年${String(now.getMonth() + 1).padStart(2, '0')}月${String(now.getDate()).padStart(2, '0')}日${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-          await this.prisma.projectManagementItem.update({
-            where: { id: projectId },
-            data: { documentAcquireTime: zh },
-          });
-        }
-      } catch {
-        /* 同步失败不阻断上传 */
-      }
+      // 「采购文件获取时间」上传即同步/AI 提取已删（2026-11-20 用户裁定：字段整体退役）
       // 仅从"采购文件/招标文件"提取，审批表/公告/合同等附件不提取（避免覆盖已有信息）
       const tdFileName = decodedFileName;
       const isTenderDocFile = isTenderMainFile(tdFileName);
@@ -1852,19 +1848,6 @@ ${shortlist}
 
         // 直接采购：拟定供应商不再写入 awardedSupplier（2026-10-16 收口，同 extractTenderFields）——
         // 公告发布链路由 BidSupplier 参与名单承载拟定供应商（邀请/参与展示不受影响）。
-
-        // 采购文件获取时间：正则优先，失败时用 AI 从文本提取
-        let rawAcquireTime = this.extractDocumentAcquireTimeFromText(text);
-        if (!rawAcquireTime) {
-          rawAcquireTime = await this.aiExtractDocumentAcquireTime(text);
-        }
-        if (rawAcquireTime) {
-          const documentAcquireTime = await this.aiNormalizeDocumentAcquireTime(rawAcquireTime);
-          await this.prisma.projectManagementItem.update({
-            where: { id: projectId },
-            data: { documentAcquireTime },
-          });
-        }
 
         // 缓存 mammoth 文本供 AI 提取按钮复用（绕过 MinIO）
         try {
@@ -2006,7 +1989,6 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
         contractNumber: true,
         projectOverview: true,
         bidOpeningTime: true,
-        documentAcquireTime: true,
       },
     });
 
@@ -2023,7 +2005,6 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
             contractNumber: updatedItem.contractNumber ?? null,
             projectOverview: updatedItem.projectOverview ?? null,
             bidOpeningTime: updatedItem.bidOpeningTime ?? null,
-            documentAcquireTime: updatedItem.documentAcquireTime ?? null,
           }
         : null,
     };
@@ -3616,8 +3597,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     await this.assertPmiMutable(projectId);
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
-      // documentAcquireTime：直接采购完成闸「/」仅空值落（2026-11-19 审查⑶）需读现值
-      select: { currentStage: true, currentRound: true, procurementMethod: true, documentAcquireTime: true },
+      select: { currentStage: true, currentRound: true, procurementMethod: true },
     });
 
     if (!project) {
@@ -3712,13 +3692,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
               code: 'DIRECT_TENDER_FILE_REQUIRED',
             });
           }
-          // 确认值随完成落库：概况/开标时间非空才写；采购文件获取时间"/"=不适用标记**仅空值落**
-          // （2026-11-19 审查⑶）——上传即同步/AI 提取/登记提取值已落真实获取时刻，无条件覆写会把
-          // 真实时刻抹成"/"，且供应商端 resolveDisplayCode 对直接采购以此字段为唯一权威来源、
-          // formatAcquireWindow 解析失败会裸显"/"（对齐 :1795 礼貌回填惯例）。
-          // 开标时间唯一权威口径：写入后同步当前轮开标前 BidProject（无 BP 自然 no-op）。
+          // 确认值随完成落库：概况/开标时间非空才写（「采购文件获取时间」"/"落库已随字段
+          // 退役删除——2026-11-20 用户裁定）。开标时间唯一权威口径：写入后同步当前轮开标前
+          // BidProject（无 BP 自然 no-op）。
           const directInfo: Record<string, string> = {};
-          if (!project.documentAcquireTime?.trim()) directInfo.documentAcquireTime = '/';
           if (dto.directOverview?.trim()) directInfo.projectOverview = dto.directOverview.trim();
           if (dto.directOpeningTime?.trim()) directInfo.bidOpeningTime = dto.directOpeningTime.trim();
           if (Object.keys(directInfo).length > 0) {
@@ -4682,7 +4659,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
       departmentNumber?: string;
       projectOverview?: string;
       bidOpeningTime?: string;
-      documentAcquireTime?: string;
       invitedSuppliers?: string;
       paymentPerformance?: string;
       requesterName?: string;
@@ -4789,10 +4765,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (dto.bidOpeningTime !== undefined) {
       updateData.bidOpeningTime = dto.bidOpeningTime || null;
-    }
-
-    if (dto.documentAcquireTime !== undefined) {
-      updateData.documentAcquireTime = dto.documentAcquireTime || null;
     }
 
     if (dto.invitedSuppliers !== undefined) {
@@ -6720,7 +6692,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
           clearData.evaluationMethod = null;
           clearData.projectOverview = null;
           clearData.bidOpeningTime = null;
-          clearData.documentAcquireTime = null;
         } else if (stage.stageKey === 'EXPERT_SELECTION') {
           clearData.expertInfo = null;
           clearData.biddingUnits = null;
@@ -6900,43 +6871,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return values;
   }
 
-  private extractDocumentAcquireTimeFromText(text: string): string | null {
-    // 策略1：找"采购文件获取"/"文件获取"章节标题 → 后续 300 字内找 "时 间：日期区间"
-    const sectionLabels = ['采购文件获取', '文件获取', '获取采购文件', '获取招标文件'];
-    for (const label of sectionLabels) {
-      const idx = text.indexOf(label);
-      if (idx < 0) continue;
-      const window = text.slice(idx, idx + 300);
-      // 1a. "时 间：日期区间"（mammoth 可能拆分"时 间"）
-      const timeTagMatch = window.match(
-        /时\s*间\s*[：:]\s*((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2})\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2}))/,
-      );
-      if (timeTagMatch) return timeTagMatch[1].replace(/\s+/g, ' ').trim();
-
-      // 1b. 窗口内直接的日期+时分区间（无"时间"标签）
-      const directMatch = window.match(
-        /((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)\s*\d{1,2}[：:]\d{2}\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)\s*\d{1,2}[：:]\d{2})/,
-      );
-      if (directMatch) return directMatch[1].replace(/\s+/g, ' ').trim();
-
-      // 1c. 窗口内的日期区间（无时分）
-      const dateRangeMatch = window.match(
-        /((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日)\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日))/,
-      );
-      if (dateRangeMatch) return dateRangeMatch[1].replace(/\s+/g, ' ').trim();
-    }
-
-    // 策略2：全文搜索 "时 间：日期区间" 或含时分的日期区间（兜底）
-    const fullTextMatch = text.match(
-      /时\s*间\s*[：:]\s*((?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2})\s*[-~至到]\s*(?:\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*\d{1,2}[：:]\d{2}))/,
-    );
-    if (fullTextMatch) return fullTextMatch[1].replace(/\s+/g, ' ').trim();
-
-    return null;
-  }actInlineValue(text: string, label: string) {
-    const match = text.match(new RegExp(`${label}[：:]\\s*([^\n]+)`));
-    return match?.[1]?.trim() ?? '';
-  }
+  // 「采购文件获取时间」提取三件套（正则/AI 提取/AI 归一化）已随字段退役删除
+  // （2026-11-20 用户裁定：采购文件获取时间概念整体下线，公示期限改「发布时+N 天」快捷件）。
+  // 同源孤儿方法 actInlineValue（原 extractInlineValue 被 HEAD 既有编辑损伤截名、零调用方）一并清理。
 
   private findFollowingValue(
     lines: string[],
@@ -7359,53 +7296,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return text; // AI 输出不合格式时回退原文
     } catch {
       return text;
-    }
-  }
-
-  /**
-   * 规范化采购文件获取时间：统一为"YYYY年M月D日"或"YYYY年M月D日-YYYY年M月D日"。
-   * 采购文件获取时间通常是日期或日期区间（不含时分），与单点的开标时间不同；区间以半角"-"分隔。
-   */
-  private async aiNormalizeDocumentAcquireTime(text: string): Promise<string> {
-    if (!text) return text;
-    try {
-      const systemPrompt =
-        '你是采购文件获取时间规范化助手。把输入文本规范化，输出"YYYY年M月D日HH:MM"（单时刻）或"YYYY年M月D日HH:MM-YYYY年M月D日HH:MM"（区间，用半角连字符"-"分隔）。' +
-        '规则：① 识别文本中的日期与时分；② 若为时间段输出"起始日期时分-结束日期时分"；③ 保留原始时分（如09:00、15:00），去掉星期、解释、引号与前后缀；若原始无时分则只输出日期；' +
-        '④ 缺失的年份按上下文推断。' +
-        '示例：输入"2026年03月23日09:00至2026年03月26日15:00"→"2026年3月23日9:00-2026年3月26日15:00"；' +
-        '输入"2026年8月1日至2026年8月5日"→"2026年8月1日-2026年8月5日"；' +
-        '输入"自发布之日起至2026.8.5"→"2026年8月5日"。';
-      const result = await this.aiService.chat(systemPrompt, text, 0.0, undefined, undefined, {
-        maxTokens: 512, timeoutMs: 30_000, retries: 1,
-      });
-      const cleaned = result?.trim().replace(/^["'"，。.\s]+|["'"，。.\s]+$/g, '');
-      if (cleaned && /\d{4}年\d{1,2}月\d{1,2}日/.test(cleaned)) {
-        return cleaned;
-      }
-      return text;
-    } catch {
-      return text;
-    }
-  }
-
-  /** AI 从采购文件文本中提取"采购文件获取时间"（正则失败时的兜底）。 */
-  private async aiExtractDocumentAcquireTime(text: string): Promise<string | null> {
-    try {
-      const systemPrompt =
-        '从以下采购文件文本中提取"采购文件获取时间"（供应商可获取/下载/领取采购文件的时间段或截止时间），' +
-        '必须保留时分（如09:00、15:00）。只输出时间（如"2026年3月23日9:00-2026年3月26日15:00"或"2026年3月25日17:00前"），不要其他说明。' +
-        '如果文本中没有获取时间信息，输出"无"。';
-      const result = await this.aiService.chat(systemPrompt, text.slice(0, 4000), 0.1, undefined, undefined, {
-        maxTokens: 512, timeoutMs: 30_000, retries: 1,
-      });
-      const cleaned = result?.trim();
-      if (cleaned && cleaned !== '无' && /\d{4}年/.test(cleaned)) {
-        return cleaned;
-      }
-      return null;
-    } catch {
-      return null;
     }
   }
 

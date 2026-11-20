@@ -3,6 +3,7 @@ export const PROCUREMENT_METHODS = [
   '竞价采购',
   '直接采购',
   '邀请招标',
+  '公开招标',
   '询比采购',
 ] as const;
 
@@ -73,6 +74,18 @@ export const PROCUREMENT_METHOD_STAGES: Record<ProcurementMethod, StageConfig[]>
     { key: 'TENDER_DOCUMENT', label: '采购文件' },
     { key: 'PUBLIC_ANNOUNCEMENT', label: '采购公告公示' },
     { key: 'EXPERT_SELECTION', label: '专家选取' },
+    { key: 'BID_EVALUATION', label: '开标评标' },
+    { key: 'AWARD_DECISION', label: '定标' },
+    { key: 'CONTRACT', label: '合同' },
+  ],
+  // 公开招标（2026-11-20）：邀请招标同构，供应商邀请换招标公告公示（法定口吻：
+  // 04 显「招标公告公示」、03 显法定名「招标文件」——邀请招标先例）
+  '公开招标': [
+    { key: 'PROCUREMENT_DEMAND', label: '采购需求' },
+    { key: 'INITIATION', label: '采购立项' },
+    { key: 'TENDER_DOCUMENT', label: '招标文件' },
+    { key: 'PUBLIC_ANNOUNCEMENT', label: '招标公告公示' },
+    { key: 'EXPERT_SELECTION', label: '专家抽取' },
     { key: 'BID_EVALUATION', label: '开标评标' },
     { key: 'AWARD_DECISION', label: '定标' },
     { key: 'CONTRACT', label: '合同' },
@@ -243,7 +256,7 @@ export type ProjectManagementItem = {
   initiationDate?: string | null;
   projectOverview?: string | null;
   bidOpeningTime?: string | null;
-  documentAcquireTime?: string | null;
+  // 「采购文件获取时间」字段已删（2026-11-20 用户裁定，概念整体退役）
   // B1（GB/T 43711 7.2.1.2 采购方案要素，选填）
   implementerName?: string | null;
   contractPricingType?: string | null;

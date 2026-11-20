@@ -53,16 +53,20 @@ it('全局概览统计行「招标项目」改「投标项目」（采购口径�
   expect(items).not.toContain('招标项目');
 });
 
-it('「采购项目」行数 PMI（非邀请招标、不含回收站），邀请招标单列「招标项目（邀请招标）」行（2026-11-04 裁定）', async () => {
+it('「采购项目」行数 PMI（非招标两方式、不含回收站），招标两方式分列两行（2026-11-04 裁定；2026-11-20 公开招标入 PMI 扩为分列）', async () => {
   const { prisma, tool } = makeTool();
   const r = await tool.execute({}, { user: { sub: 'u', role: 'admin', companyId: null } });
   const overview = (r.cards as Array<Record<string, unknown>>).find((c) => c.title === '全局概览统计');
   const rows = overview!.rows as Array<Record<string, unknown>>;
   expect(rows.find((x) => x.item === '采购项目')).toEqual({ item: '采购项目', value: 6, note: '其中 6 个在办' });
   expect(rows.find((x) => x.item === '招标项目（邀请招标）')).toEqual({ item: '招标项目（邀请招标）', value: 6, note: '其中 6 个在办' });
-  // 计数来自 PMI 且带方式过滤（mock 恒返 6，断言 where 形状）
+  expect(rows.find((x) => x.item === '招标项目（公开招标）')).toEqual({ item: '招标项目（公开招标）', value: 6, note: '其中 6 个在办' });
+  // 计数来自 PMI 且带方式过滤（mock 恒返 6，断言 where 形状）——采购项目=非招标两方式
   expect(prisma.projectManagementItem.count).toHaveBeenCalledWith(
-    expect.objectContaining({ where: expect.objectContaining({ procurementMethod: { not: '邀请招标' }, status: { not: 'RECYCLED' } }) }),
+    expect.objectContaining({ where: expect.objectContaining({ procurementMethod: { notIn: ['邀请招标', '公开招标'] }, status: { not: 'RECYCLED' } }) }),
+  );
+  expect(prisma.projectManagementItem.count).toHaveBeenCalledWith(
+    expect.objectContaining({ where: expect.objectContaining({ procurementMethod: '公开招标' } ) }),
   );
   expect(prisma.projectManagementItem.count).toHaveBeenCalledWith(
     expect.objectContaining({ where: expect.objectContaining({ procurementMethod: '邀请招标' } ) }),
@@ -82,11 +86,11 @@ it('「采购项目状态分布」卡=PMI 状态聚合（在办/已归档标签 
   expect(rows[0]).toEqual({ status: '在办', count: 20, pct: '87.0%', budget: '¥500' });
   expect(rows[1]).toEqual({ status: '已归档', count: 3, pct: '13.0%', budget: '-' });
   expect(rows[rows.length - 1]).toMatchObject({ _total: true, status: '合计', count: 23, budget: '¥500' });
-  // 状态聚合同样排除邀请招标与回收站
+  // 状态聚合同样排除招标两方式与回收站
   expect(prisma.projectManagementItem.groupBy).toHaveBeenCalledWith(
     expect.objectContaining({
       by: ['status'],
-      where: expect.objectContaining({ procurementMethod: { not: '邀请招标' }, status: { not: 'RECYCLED' } }),
+      where: expect.objectContaining({ procurementMethod: { notIn: ['邀请招标', '公开招标'] }, status: { not: 'RECYCLED' } }),
     }),
   );
 });

@@ -289,10 +289,8 @@ const REGISTRATION_METHOD_FIXED = [
   "4.符合法律、行政法规规定的其他条件；",
 ].join("\n");
 
-/** 公示期限显示名（2026-11-12 用户裁定）：公告制作页面显示为「公示期限（采购文件获取时间）」。
- *  仅显示层改名——字段配置（announcement-templates）被 04 公告向导/直采备案等共用，源 label 不动。 */
-const displayFieldLabel = (label: string) =>
-  label === "公示期限" ? "公示期限（采购文件获取时间）" : label;
+// 「公示期限（采购文件获取时间）」显示名还原为「公示期限」（2026-11-20 用户裁定：
+// 采购文件获取时间概念整体退役，公示期限改「发布时+N 天」快捷件填写，不再挂获取窗口语义）。
 
 /** datetime-local 字段的展示值兼容层（2026-09-21 公示期限（止）统一 datetime 后）：
  *  存量草稿/缓存/.docx 解析可能是旧「公告截止时间」的 date-only 值（YYYY-MM-DD），
@@ -305,11 +303,12 @@ function displayValueForField(field: AnnouncementFieldConfig, value: string): st
   return value;
 }
 
-/** 公示期快捷件适用类别（2026-11-13 用户裁定）：中标/流标/变更三类公告的公示起止必填、
- *  起可一键「发布时」、止可按天数下拉推算——快捷件只是赋值器，落点一律具体时间点
- *  （datetime 落库与展示，不存「N 天」文字）。采购文件公告（procurement_document）的
- *  「公示期限（采购文件获取时间）」语义不同，不加。 */
-const PUBLICITY_QUICK_CATEGORIES = new Set<string>(["winning_bid", "failed_bid", "change_notice"]);
+/** 公示期快捷件适用类别（2026-11-13 用户裁定；2026-11-20 扩类）：中标/流标/变更三类公告
+ *  的公示起止必填、起可一键「发布时」、止可按天数下拉推算——快捷件只是赋值器，落点一律
+ *  具体时间点（datetime 落库与展示，不存「N 天」文字）。2026-11-20 用户裁定：采购文件公告
+ *  （procurement_document）引入同款设计（「采购文件获取时间」概念退役，公示期限=发布起+N 天，
+ *  供应商在公示期间下载采购文件）。 */
+const PUBLICITY_QUICK_CATEGORIES = new Set<string>(["winning_bid", "failed_bid", "change_notice", "procurement_document"]);
 /** 止点快捷天数选项（用户钦定清单） */
 const PUBLICITY_QUICK_DAYS = [1, 2, 3, 4, 5, 10, 20];
 /** 「发布时」模式标记键（2026-11-13 用户二轮裁定）：值为 '1' 表示起点以**实际发布时刻**
@@ -408,7 +407,7 @@ function AnnouncementFieldEditor({
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[color:var(--foreground)]">
-          {displayFieldLabel(field.label)}
+          {field.label}
         </span>
         <div className="flex items-center gap-2">
           {/* 监督人按钮豁免（2026-10-16）：supervisionContact 虽在 FIELDS_WITHOUT_ACTIONS
@@ -557,13 +556,13 @@ function AnnouncementFieldEditor({
       ) : field.type === "datetime-range" ? (
         /* 公示期限（2026-10-21 用户口径）：起/止两个时间选择器同一行形成时间段；起存
             field.key、止存 rangeEndKey，均 ISO（date-only 存量显示时补 23:59 同口径）。
-            快捷件（2026-11-13 用户裁定，仅中标/流标/变更）：起「发布时」一键填当前时刻、
-            止「+N天」下拉按起点推算——赋值落进 datetime 输入即具体时间点（非文字语义），
-            赋值后仍可手改；起点为空时天数下拉禁用（无基线可推）。 */
+            快捷件（2026-11-13 用户裁定；2026-11-20 扩至采购公告）：起「发布时」一键填当前
+            时刻、止「+N天」下拉按起点推算——赋值落进 datetime 输入即具体时间点（非文字
+            语义），赋值后仍可手改；起点为空时天数下拉禁用（无基线可推）。 */
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
             type="datetime-local"
-            aria-label={`${displayFieldLabel(field.label)}（起）`}
+            aria-label={`${field.label}（起）`}
             value={shownValue}
             onChange={(e) => {
               onChange(field.key, e.target.value);
@@ -607,7 +606,7 @@ function AnnouncementFieldEditor({
           <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
           <input
             type="datetime-local"
-            aria-label={`${displayFieldLabel(field.label)}（止）`}
+            aria-label={`${field.label}（止）`}
             value={(() => {
               const endRaw = (field.rangeEndKey ? draftRecord[field.rangeEndKey] : '').trim();
               return /^\d{4}-\d{2}-\d{2}$/.test(endRaw) ? `${endRaw}T23:59` : endRaw;
@@ -1160,49 +1159,13 @@ export function AnnouncementDialog({
         const today = new Date();
         patch.signatureDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
       }
-      // 公示期限起/止 + 天数：从 documentAcquireTime 解析
-      // documentAcquireTime 格式如 "2026年03月23日09:00至2026年03月26日15:00"
-      // 同时修正已有值但格式不符合 datetime-local 的字段
-      const needsStartFix = !draftRecord.announcementStart?.trim()
-        || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(draftRecord.announcementStart);
-      // 公示期限（止）已全模板统一为 datetime-local（2026-09-21）；旧「公告截止时间」的
-      // date-only 存量值（YYYY-MM-DD）补 23:59 升级，否则 datetime-local 框判非法显空
-      const endValueRe = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
-      const needsEndFix = !draftRecord.announcementEnd?.trim()
-        || !endValueRe.test(draftRecord.announcementEnd);
-      const upgradeDateOnly = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T23:59` : iso);
-      if (needsStartFix || needsEndFix) {
-        const at = project.documentAcquireTime?.trim();
-        if (at) {
-          // 支持 "至" / "-" / "~" 作为区间分隔符
-          const sepMatch = at.match(/至|-|~/);
-          const sepIdx = sepMatch ? at.indexOf(sepMatch[0]) : -1;
-          if (sepIdx > 0) {
-            const startRaw = at.slice(0, sepIdx).trim();
-            const endRaw = at.slice(sepIdx + 1).trim();
-            // 解析为 ISO 日期 + 保留时分
-            const toISODate = (s: string) => {
-              const m = s.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-              return m ? `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}` : s;
-            };
-            const toISODatetime = (s: string) => {
-              const m = s.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/);
-              if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}T${m[4].padStart(2,'0')}:${m[5]}`;
-              return toISODate(s);
-            };
-            if (needsStartFix) patch.announcementStart = toISODatetime(startRaw);
-            if (needsEndFix) patch.announcementEnd = upgradeDateOnly(toISODatetime(endRaw));
-            if (!draftRecord.announcementDays?.trim()) {
-              try {
-                const days = Math.round((new Date(toISODate(endRaw)).getTime() - new Date(toISODate(startRaw)).getTime()) / 86400000);
-                if (days > 0) patch.announcementDays = String(days);
-              } catch {}
-            }
-          }
-        } else if (needsEndFix && draftRecord.announcementEnd?.trim()) {
-          // 无 documentAcquireTime 可再解析：旧 date-only 值直接补 23:59
-          patch.announcementEnd = upgradeDateOnly(draftRecord.announcementEnd);
-        }
+      // 公示期限不再从 documentAcquireTime 预填（2026-11-20 用户裁定：「采购文件获取时间」
+      // 概念整体退役，公示期限经「发布时」+ 天数快捷件填写）。仅保留存量兼容升级：
+      // 公示期限（止）已全模板统一为 datetime-local（2026-09-21），旧「公告截止时间」的
+      // date-only 存量值（YYYY-MM-DD）补 23:59，否则 datetime-local 框判非法显空。
+      const endRaw = draftRecord.announcementEnd?.trim() ?? '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(endRaw)) {
+        patch.announcementEnd = `${endRaw}T23:59`;
       }
     }
 

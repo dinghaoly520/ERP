@@ -10,7 +10,7 @@ import { apiFetch } from '@/lib/api/api-fetch';
  * 项目时间轴弹窗（2026-11-13 用户裁定：面板内横条改按钮+窗口展示）。
  * 数据与 ProjectTimelineStrip 同源（/project-management/:id/timeline，按轮十节点）；
  * 视觉为垂直时间轴：已登记节点=品牌色实心圆点+亮色干线，未登记=空心圆点+虚线余段，
- * 区间节点（采购文件获取）整段中文格式；台账详情仍用横条不动。
+ * 区间节点整段中文格式（「采购文件获取」区间节点已删，2026-11-20）；台账详情仍用横条不动。
  */
 
 type TimelineNode = {

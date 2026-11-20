@@ -31,9 +31,14 @@ describe('通知消解覆盖守护', () => {
     'EVAL_DEADLINE_EXPIRED', 'EXPERT_ASSIGNED', 'BID_NUDGE_EXPERT', 'BID_CLARIFICATION_CREATED', 'BID_ROUND_OPEN', // 4e) 评标窗口
   ];
 
-  /** 业务动作侧消解钩子（resolveActionable* 调用点；此处为清单快照防漂移） */
+  /** 业务动作侧消解钩子（resolveActionable* 调用点；此处为清单快照防漂移——
+   *  2026-11-20 实录：本清单曾「预支」声明，SUPPLIER_LINK_PENDING 零钩子、
+   *  SUPPLIER_CHANGE_PENDING 钩子 link 形态脱节恒 miss，守护绿而僵尸在——
+   *  声明 HOOK 前须核实调用点真实存在且 link 与创建侧同形） */
   const HOOK_EXIT = [
-    'SUPPLIER_PENDING', 'SUPPLIER_LINK_PENDING', 'SUPPLIER_CHANGE_PENDING', // 供应商审批流转
+    'SUPPLIER_PENDING', // 注册审批 clearSupplierPendingTodos（approve/reject/return）
+    'SUPPLIER_LINK_PENDING', // 加入/退库 resolveLinkPendingTodos（approveLink/rejectLink，2026-11-20 补）
+    'SUPPLIER_CHANGE_PENDING', // 资料变更 clearSupplierChangeTodos（approve/reject/转正，2026-11-20 修形态）
     'PROFILE_CHANGE_PENDING', 'PASSWORD_CHANGE_PENDING', 'PASSWORD_RESET_PENDING', // password-requests.service
     'CONTRACT_READY_TO_SIGN', 'BID_OPENING_HANDED_OVER', 'BID_DECRYPT_FAILED', // 合同/开标域动作
     'ARCHIVE_READY', 'ARCHIVE_TRANSFER_DUE', 'ARCHIVE_OVERDUE', // archive-flow.service 归档动作

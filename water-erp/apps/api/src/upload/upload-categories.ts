@@ -22,7 +22,7 @@ export const UPLOAD_CATEGORIES = new Set<string>([
   'profile',                        // 个人/企业资料（Swagger 文档保留）
   'commercial',                     // 商务标（供应商分部上传）
   'technical',                      // 技术标（供应商分部上传）
-  'procurement_document',           // 采购文件（documentAcquireTime 流程）
+  'procurement_document',           // 采购文件（03 阶段流程）
   'prequal_document',               // 资格预审文件
   'contract_document',              // 合同草稿、签署版与履约证明
   'framework_document',             // 框架协议文件

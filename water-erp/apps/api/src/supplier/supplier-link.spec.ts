@@ -150,7 +150,7 @@ describe('SupplierLinkService — 退库轨状态机', () => {
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
   });
-  const notification: any = { create: jest.fn().mockResolvedValue({}), sendToUser: jest.fn().mockResolvedValue({}) };
+  const notification: any = { create: jest.fn().mockResolvedValue({}), sendToUser: jest.fn().mockResolvedValue({}), resolveActionable: jest.fn().mockResolvedValue({}) };
   const newSvc = (prisma: any) => new (SupplierLinkService as any)(prisma, notification, null);
 
   it('applyLeave：APPROVED → LEAVE_PENDING（初审级起，乐观锁 where status=APPROVED）+ 通知初审审批人', async () => {

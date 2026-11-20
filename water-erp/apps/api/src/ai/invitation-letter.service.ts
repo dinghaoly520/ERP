@@ -50,7 +50,7 @@ export class InvitationLetterService {
       select: {
         title: true, projectCode: true, requesterName: true, requesterDepartment: true,
         supplierRequirements: true, procurementMethod: true, procurementCategory: true,
-        budgetAmount: true, documentAcquireTime: true, invitedSuppliers: true,
+        budgetAmount: true, invitedSuppliers: true,
       },
     });
     if (!bp && !pmi) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
@@ -66,7 +66,7 @@ export class InvitationLetterService {
         openTime: times.bidAt || bp?.openTime?.toISOString() || '',
         acquireStart: times.acquireStart || '',
         acquireEnd: times.acquireEnd || (bp?.downloadDeadline?.toISOString() ?? ''),
-        acquireNote: pmi?.documentAcquireTime || '',
+        // acquireNote（PMI documentAcquireTime 原文备注）已随字段退役删除（2026-11-20）
         invited: pmi?.invitedSuppliers || '',
       },
       // 采购人只写部门名称（不含经办人姓名）；「工程勘察院/钻探室」式斜杠层级连写

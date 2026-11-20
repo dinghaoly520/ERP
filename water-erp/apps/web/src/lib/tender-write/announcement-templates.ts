@@ -6,6 +6,7 @@ import type {
   AnnouncementFieldConfig,
   AnnouncementFieldKey,
   InvitedBiddingAnnouncementDraft,
+  PublicBiddingAnnouncementDraft,
   SingleSourceAnnouncementDraft,
   FailedBidAnnouncementDraft,
   WinningBidAnnouncementDraft,
@@ -32,6 +33,7 @@ export function getAnnouncementLabel(
 
   if (category === "procurement_document") {
     if (tenderType === "INVITED_BIDDING") return "邀请招标公告";
+    if (tenderType === "PUBLIC_BIDDING") return "招标公告";
     if (tenderType === "INTERNAL_BIDDING") return "竞价采购公告";
     if (tenderType === "SINGLE_SOURCE") return "直接采购公告";
     if (tenderType === "INQUIRY_PURCHASE") return "询比采购公告";
@@ -175,6 +177,57 @@ export const INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldC
     type: "date",
   },
 ];
+
+// ─── 公开招标公告 字段配置（2026-11-20 模板适配） ───
+// 法定口吻模板无「报名方式及条件」——拆为 资格审查方式/资格条件/招标文件获取 三字段，
+// 插在工期及进度要求之后（对应模板 二之 3、三、四 节）；其余字段与邀请招标公告同源
+
+const PUBLIC_QUALIFICATION_REVIEW_FIELD: AnnouncementFieldConfig = {
+  key: "qualificationReviewMethod",
+  label: "资格审查方式",
+  placeholder: "",
+  select: {
+    options: [
+      { value: "资格后审", label: "资格后审" },
+      { value: "资格预审", label: "资格预审" },
+    ],
+  },
+};
+
+const PUBLIC_QUALIFICATION_CONDITIONS_FIELD: AnnouncementFieldConfig = {
+  key: "qualificationConditions",
+  label: "资格条件",
+  placeholder: "请输入资格条件",
+  multiline: true,
+  autoFill: "qualificationRequirements",
+  // 骨架同旧「报名方式及条件」的资格条件编号行（2026-11-12 裁定口径），AI 仅提炼 5/6 两项
+  aiPrompt:
+    "生成招标公告「资格条件」，严格按编号行结构输出、不得增减行序外文字：\n1.持有有效营业执照或事业单位法人证书；\n2.未被“国家企业信用信息公示系统”列入严重违法失信名单；\n3.未被“信用中国”网站列入严重失信名单；\n4.符合法律、行政法规规定的其他条件；\n5.[综合项目基本信息与招标文件的特定资格要求、技术要求，提炼为一句话，以分号结尾；遇“见附件”类引用改写为概括表述，不得编造附件内容]；\n6.[联合体立场：按招标文件表述；无明确表述则写“不接受联合体投标”。]。\n除上述6行外不要输出任何内容；不要使用#、*等符号。",
+};
+
+const PUBLIC_DOCUMENT_ACQUISITION_FIELD: AnnouncementFieldConfig = {
+  key: "documentAcquisition",
+  label: "招标文件获取",
+  placeholder: "请输入招标文件获取方式",
+  multiline: true,
+  aiPrompt:
+    "生成招标公告「招标文件获取」一段话：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目，在招标公告公示期间下载招标文件。一至两句话概括获取渠道与时间口径，不要使用#、*等符号，不要出现空行。",
+};
+
+export const PUBLIC_BIDDING_ANNOUNCEMENT_FIELDS: AnnouncementFieldConfig[] =
+  INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS.filter(
+    (f) => f.key !== "registrationMethod",
+  ).flatMap((f) => {
+    // 字段序对齐模板：资格审查方式在工期及进度要求之前（模板 二 之 3 先于工期），
+    // 资格条件/招标文件获取随后（模板 三/四）
+    if (f.key === "scheduleRequirementsType") {
+      return [PUBLIC_QUALIFICATION_REVIEW_FIELD, f];
+    }
+    if (f.key === "scheduleRequirements") {
+      return [f, PUBLIC_QUALIFICATION_CONDITIONS_FIELD, PUBLIC_DOCUMENT_ACQUISITION_FIELD];
+    }
+    return [f];
+  });
 
 // ─── 直接采购公告 字段配置 ───
 
@@ -436,6 +489,10 @@ export function getAnnouncementFields(
     if (tenderType === "SINGLE_SOURCE") {
       return SINGLE_SOURCE_ANNOUNCEMENT_FIELDS;
     }
+    // 公开招标（2026-11-20 模板适配）：法定口吻三字段替「报名方式及条件」
+    if (tenderType === "PUBLIC_BIDDING") {
+      return PUBLIC_BIDDING_ANNOUNCEMENT_FIELDS;
+    }
     // INVITED_BIDDING / INTERNAL_BIDDING / INQUIRY_PURCHASE share the same fields
     return INVITED_OR_INTERNAL_BIDDING_ANNOUNCEMENT_FIELDS;
   }
@@ -554,6 +611,16 @@ export function createEmptyAnnouncementDraft(
   if (category === "procurement_document") {
     if (tenderType === "SINGLE_SOURCE") {
       return createEmptySingleSourceAnnouncementDraft();
+    }
+    // 公开招标（2026-11-20 模板适配）：同邀请招标草稿 + 法定口吻三字段、无报名方式及条件
+    if (tenderType === "PUBLIC_BIDDING") {
+      return {
+        ...createEmptyInvitedBiddingAnnouncementDraft(),
+        registrationMethod: undefined,
+        qualificationReviewMethod: "",
+        qualificationConditions: "",
+        documentAcquisition: "",
+      } as PublicBiddingAnnouncementDraft;
     }
     // INVITED_BIDDING / INTERNAL_BIDDING / INQUIRY_PURCHASE share the same draft shape
     return createEmptyInvitedBiddingAnnouncementDraft();

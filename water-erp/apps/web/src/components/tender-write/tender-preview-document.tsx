@@ -390,10 +390,10 @@ export function TenderPreviewDocument({
       );
     }
 
-    if (documentType === 'INTERNAL_BIDDING' || documentType === 'INVITED_BIDDING') {
+    if (documentType === 'INTERNAL_BIDDING' || documentType === 'INVITED_BIDDING' || documentType === 'PUBLIC_BIDDING') {
       return (
         <InternalBiddingPreview
-          isInvited={documentType === 'INVITED_BIDDING'}
+          variant={documentType === 'INTERNAL_BIDDING' ? 'internal' : documentType === 'INVITED_BIDDING' ? 'invited' : 'public'}
           draft={draft as InternalBiddingDraft}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
@@ -1594,20 +1594,23 @@ function InternalBiddingPreview({
   onSectionClick,
   onValueChange,
   projectCode,
-  isInvited = false,
+  variant = 'internal',
 }: {
   draft: InternalBiddingDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
-  isInvited?: boolean;
+  /** 术语口径：竞价采购（默认）/ 邀请招标 / 公开招标（2026-11-20） */
+  variant?: 'internal' | 'invited' | 'public';
   /** 项目编号：封面名称下方裸编号（透传自主组件） */
   projectCode?: string;
 }) {
-  // 术语映射：邀请招标 vs 竞价采购
-  const T = isInvited
+  // 术语映射：竞价采购 / 邀请招标 / 公开招标（法定口吻——与 docx 模板同步）
+  const T = variant === 'invited'
     ? { docTitle: '邀请招标文件', party: '投标人', file: '投标文件', chapter: '招标邀请', buyer: '招标人' }
-    : { docTitle: '竞价采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
+    : variant === 'public'
+      ? { docTitle: '招标文件', party: '投标人', file: '投标文件', chapter: '招标公告', buyer: '招标人' }
+      : { docTitle: '竞价采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
 
   return (
     <div className="pb-4">
@@ -1674,7 +1677,7 @@ function InternalBiddingPreview({
               <p className="ml-4">1.3 未被最高人民法院在"信用中国"网站（www.creditchina.gov.cn）列入严重失信名单；</p>
               <p className="ml-4">1.4 符合法律、行政法规规定的其他条件。</p>
               <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={stripTrailingPeriod(draft.qualificationRequirements)} placeholder="{{特定资格要求}}" multiline inline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
-              <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受被邀请的{T.party}以联合体形式参加响应。
+              <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受{variant === 'public' ? `${T.party}以联合体形式参加投标` : `被邀请的${T.party}以联合体形式参加响应`}。
               {!draft.consortiumFormType ? (
                 <span><br />联合体还应满足下列要求：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{联合体形式}}"}</span>。</span>
               ) : draft.consortiumFormType === 'accept' ? (
@@ -1692,7 +1695,7 @@ function InternalBiddingPreview({
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               {/* 「时　　间」条目已删（2026-11-20 用户裁定）：不再填写文件获取时间，其余条目重排号 */}
               <p>1.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
-              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并在公示期间下载采购文件。</p>
+              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并{variant === 'public' ? '在招标公告公示期间下载招标文件' : '在公示期间下载采购文件'}。</p>
               <p>3.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
           </div>
@@ -1948,7 +1951,7 @@ function InternalBiddingPreview({
         <PreviewSection
           sectionKey="requirements"
           chapterLabel="第四章"
-          title={isInvited ? "招标需求" : "采购需求"}
+          title={variant === 'internal' ? '采购需求' : '招标需求'}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
