@@ -1049,7 +1049,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </ZoneRow>
 
             {/* 项目规模分析（归档） */}
-<ZoneRow icon={BarChart3} title="项目规模分析" right={<span className="shrink-0 text-[13px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}>
+<ZoneRow icon={BarChart3} title="项目规模分析">
               {scaleTotal > 0 ? (
                 <div className="space-y-1">
                   {(() => {
