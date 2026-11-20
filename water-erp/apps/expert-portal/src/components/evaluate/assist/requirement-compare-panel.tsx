@@ -8,7 +8,6 @@ import { CATEGORY_COLOR, CATEGORY_LABEL, isPassFailCategory } from '@water-erp/s
 import { api } from '@/lib/api';
 import { buildReqToPointIndex } from '@/lib/requirement-dispute-link';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
-import { CalculatorPopover } from '@/components/evaluate/calculator-popover';
 
 /** 桌面端评分条目态（与 @/lib/score-validation 的 ScoreEntry 对齐，只取 panel 需要的字段） */
 type ScoreVal = { score: number; reason: string; passed?: boolean; points?: Record<string, PointDecisionValue> };
@@ -505,12 +504,11 @@ export function RequirementComparePanel({
         {/* ━━━ 右栏 1/4：响应与标注（cgzxui 重构：三区分隔——专家标注凸起 / AI 判断浅底 / 评分项平铺） ━━━ */}
         <Panel defaultSize={25} minSize={15} className="px-0">
         <aside className="neu-card-static flex h-full flex-col overflow-hidden">
-          {/* 头部：选中条款上下文（类别 chip + 截断内容）+ 计算器入口（v1 通用，2026-11-20） */}
+          {/* 头部：选中条款上下文（类别 chip + 截断内容） */}
           <header className="shrink-0 border-b border-[oklch(0.6_0.04_258/0.12)] px-3 py-2.5">
             <div className="flex items-center gap-1.5">
               <FileText size={13} strokeWidth={1.5} className="shrink-0 text-[var(--accent-strong)]" />
               <span className="text-sm font-bold text-[var(--foreground)]">响应与标注</span>
-              <CalculatorPopover className="ml-auto" />
             </div>
           </header>
 

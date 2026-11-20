@@ -13,8 +13,8 @@ import {
 } from '@/lib/calculator-core';
 
 /**
- * 条款响应核对右栏·通用计算器（2026-11-20 v1）。
- * 常驻挂载（开合不丢状态/历史；面板因切供应商重挂载时整体重置）。
+ * 评标工作台·通用计算器（2026-11-20 v1）——挂 evaluate 页顶部导航「开标消息/澄清答疑」左侧。
+ * 常驻挂载（开合不丢状态/历史；切项目/重挂载时整体重置）。
  * 弹层 createPortal + fixed：右栏 aside overflow-hidden 且可缩至 15%，就地 absolute
  * 会被裁切（cgzxui SearchSelect 先例——portal 挂 body 摆脱窄列/overflow 裁切）。
  * 键盘仅在弹层聚焦时生效（容器 onKeyDown，不挂 window 监听）；Escape 只关计算器，
@@ -129,12 +129,11 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
         ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        title="计算器"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className={`neu-btn-xs is-square !h-8 !w-8 shrink-0 ${className}`}
+        className={`neu-btn-xs is-info shrink-0 ${className}`}
       >
-        <Calculator size={15} strokeWidth={1.5} />
+        <Calculator size={13} strokeWidth={1.5} /> 计算器
       </button>
 
       {open &&
