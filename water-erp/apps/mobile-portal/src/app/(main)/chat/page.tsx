@@ -498,7 +498,7 @@ export default function ChatPage() {
             <button
               type="button"
               onClick={() => void confirmDeleteHistory()}
-              className="neu-btn-primary h-11 flex-1 rounded-[12px] text-[14px] font-semibold !bg-[var(--danger)] active:scale-95"
+              className="neu-btn-primary is-water h-11 flex-1 rounded-[12px] text-[14px] font-semibold !text-[var(--danger)] active:scale-95"
             >
               删除
             </button>

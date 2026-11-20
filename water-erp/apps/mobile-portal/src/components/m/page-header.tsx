@@ -36,7 +36,7 @@ export function PageHeader({
         >
           <Icon size={15} strokeWidth={1.5} />
         </span>
-        <span className="truncate text-[17px] font-bold tracking-[-0.02em] text-[var(--foreground)]">{title}</span>
+        <span className="truncate text-[16px] font-bold tracking-[-0.02em] text-[var(--foreground)]">{title}</span>
       </span>
       <span aria-hidden />
     </div>

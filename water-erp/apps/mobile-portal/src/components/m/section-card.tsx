@@ -27,7 +27,7 @@ export function SectionCard({
   const header = (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       {Icon ? <Icon size={17} className="shrink-0 text-[var(--accent)]" /> : null}
-      <h2 className="min-w-0 flex-1 truncate text-[17px] font-bold tracking-[-0.02em] text-[var(--foreground)]">{title}</h2>
+      <h2 className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-[-0.02em] text-[var(--foreground)]">{title}</h2>
       {right}
       {collapsible ? (
         <ChevronDown size={15} className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${open ? "rotate-180" : ""}`} />

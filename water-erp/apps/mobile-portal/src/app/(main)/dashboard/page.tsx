@@ -1045,7 +1045,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5" style={{ background: "color-mix(in oklch, var(--gold) 6%, transparent)" }}>
                     <span className="text-[13px] text-[var(--muted-foreground)]">Top3 集中度</span>
-                    <span className="ml-auto text-[17px] font-black tabular-nums text-[var(--gold)]">{(supplierConc.cr3 * 100).toFixed(1)}%</span>
+                    <span className="ml-auto text-[18px] font-black tabular-nums text-[var(--gold)]">{(supplierConc.cr3 * 100).toFixed(1)}%</span>
                   </div>
                   {supplierConc.top10.map((x, i) => (
                     <button
@@ -1266,7 +1266,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                             <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
                               <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(r.awardAmount / max) * 100}%`, background: i === 0 ? "var(--gold)" : DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
                             </span>
-                            <span className="shrink-0 text-[10px] tabular-nums text-[var(--muted-foreground)]">{((r.awardAmount / (totalSav > 0 ? (ranking.rows ?? []).reduce((s, x) => s + x.awardAmount, 0) : 1)) * 100).toFixed(1)}%</span>
+                            <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">{((r.awardAmount / (totalSav > 0 ? (ranking.rows ?? []).reduce((s, x) => s + x.awardAmount, 0) : 1)) * 100).toFixed(1)}%</span>
                           </div>
                         </div>
                       );
@@ -1914,7 +1914,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   </div>
                   <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
                   {queryRange.startDate ? (
-                    <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                    <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] font-bold leading-none tabular-nums">
                       <span className={ratioCls(m.yoy)}>同比 {ratioTxt(m.yoy)}</span>
                       <span className={ratioCls(m.hb)}>环比 {ratioTxt(m.hb)}</span>
                     </div>
@@ -2037,7 +2037,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         {BID_BUCKET_LABELS[k]}
                       </div>
                       {queryBidRange.startDate ? (
-                        <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
+                        <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] font-bold leading-none tabular-nums">
                           <span className={ratioCls(st.yoy)}>同比 {ratioTxt(st.yoy)}</span>
                           <span className={ratioCls(st.hb)}>环比 {ratioTxt(st.hb)}</span>
                         </div>
