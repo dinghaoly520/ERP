@@ -913,8 +913,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               )}
             </SectionCard>
 
-              </>
-            ) : null}
             {/* ── 节资趋势（月度节资柱 + 节资率线，双纵轴+动效）── */}
             {savingsTrend ? (
               <SectionCard
@@ -993,6 +991,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               </SectionCard>
             ) : null}
 
+              </>
+            ) : null}
             {analysisOpen === "company" ? (
               <>
             {/* ══ 公司对比（2026-11-19 设计落地：排行 → 五维对比图 → 双企 PK）══ */}
