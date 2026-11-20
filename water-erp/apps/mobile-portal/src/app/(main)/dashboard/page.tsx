@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
+import { fetchAnnouncements, ANNOUNCEMENT_TYPE_LABELS, type AnnouncementItem, type AnnouncementItemType } from "@/lib/api/announcement";
 import { ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
   AlertTriangle,
@@ -568,6 +569,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   /* 公司对比页（2026-11-19 设计落地）：维度切换 + 双企 PK 选择——数据复用
    * 公司龙虎榜 ranking（admin 全榜）；leader 无榜时退单企卡 */
   const [cmpDim, setCmpDim] = useState<"amount" | "rounds" | "savings" | "rate" | "abnormal">("amount");
+  /* 公告公示（2026-11-19 板块优化）：类型 Chip + 公告列表，懒取 */
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[] | null>(null);
+  const [annType, setAnnType] = useState<AnnouncementItemType | "all">("all");
+  useEffect(() => {
+    if (analysisOpen !== "risk" || announcements) return;
+    let active = true;
+    fetchAnnouncements({ pageSize: 30 })
+      .then((r) => { if (active) setAnnouncements(r.items); })
+      .catch(() => { if (active) setAnnouncements([]); });
+    return () => { active = false; };
+  }, [analysisOpen, announcements]);
   const [cmpA, setCmpA] = useState<string | null>(null);
   const [cmpB, setCmpB] = useState<string | null>(null);
 
@@ -1368,183 +1380,187 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
             {analysisOpen === "risk" ? (
               <>
-
-            {/* ── 风险项目预警 ── */}
-            {data.riskProjects.length ? (
-              <SectionCard
-                icon={AlertCircle}
-                title="风险项目预警"
-                index={8}
-                right={
-                  <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[13px] font-bold text-[var(--danger)]">
-                    {data.riskProjects.length} 项
-                  </span>
-                }
-              >
-                <div className="space-y-2">
-                  {data.riskProjects.map((p, i) => (
-                    <div key={i} className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => router.push(`/ledger?q=${encodeURIComponent(p.project)}`)}
-                        aria-label={`查看 ${p.project} 台账`}
-                        className="min-w-0 flex-1 rounded-[12px] border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_4%,transparent)] px-3 py-2.5 text-left active:scale-[0.99]"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.severity === "high" ? "var(--danger)" : "var(--warning)" }} />
-                          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[var(--foreground)]">{p.project}</span>
-                          <span className="shrink-0 text-[13px] font-bold text-[var(--danger)]">滞留 {p.pendingDays} 天</span>
-                        </div>
-                        <p className="mt-1 line-clamp-2 pl-4 text-[14px] leading-snug text-[var(--muted-foreground)]">{p.reason}</p>
-                      </button>
-                      {/* 一键转发（2026-11-03 用户裁定：允许转发类）：riskShared 状态与要报转发同款反馈 */}
-                      <button
-                        type="button"
-                        aria-label={`转发 ${p.project} 风险提示`}
-                        onClick={() => shareRisk(p)}
-                        className="neu-btn-soft h-10 w-10 shrink-0 rounded-[10px] p-0 active:scale-95"
-                      >
-                        <Share2 size={13} />
-                      </button>
-                    </div>
-                  ))}
-                  {riskShared !== "idle" ? (
-                    <div className="px-1 text-[12px] text-[var(--muted-foreground)]">
-                      {riskShared === "ok" ? "已复制转发文案" : riskShared === "shared" ? "已调起系统分享" : "复制失败"}
-                    </div>
-                  ) : null}
-                </div>
-              </SectionCard>
-            ) : null}
-
-            {/* ── 资源告警（/alerts/overview——项目风险之外的第二雷达：资质临期/专家过载；
-                口径=登录人视野，不随公司选择器——副注明示防误读（评审 F4）── */}
-            {alerts ? (
-              <SectionCard
-                icon={Radar}
-                title="资源告警"
-                index={8.5}
-                right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">不随公司筛选</span>}
-              >
-                <div className="space-y-2">
-                  {[
-                    { label: "供应商资质 90 天内到期", n: alerts.expiringQualifications },
-                    { label: "在编专家项目过载", n: alerts.overloadedExperts },
-                  ].map((a) => (
-                    <div
-                      key={a.label}
-                      className="flex items-center justify-between rounded-[12px] border border-[color-mix(in_oklch,var(--warning)_18%,transparent)] bg-[color-mix(in_oklch,var(--warning)_4%,transparent)] px-3 py-2.5"
-                    >
-                      <span className="text-[14px] text-[var(--foreground)]">{a.label}</span>
-                      <span className={`text-[16px] font-black tabular-nums ${a.n > 0 ? "text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>
-                        {a.n}
-                      </span>
-                    </div>
+            {/* ══ 公告公示（2026-11-19 板块优化）：类型筛选 + 公告列表 ══ */}
+            {announcements ? (
+              <AnalysisZone icon={Megaphone} title="公告公示" count={`${announcements.length} 条`} color="var(--danger)">
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {(["all", "BID_NOTICE", "WIN_RESULT", "POLICY", "NEWS"] as const).map((k) => (
+                    <Chip key={k} active={annType === k} onClick={() => setAnnType(k)}>
+                      {k === "all" ? "全部" : ANNOUNCEMENT_TYPE_LABELS[k]}
+                    </Chip>
                   ))}
                 </div>
-              </SectionCard>
-            ) : null}
-
+                {(() => {
+                  const filtered = annType === "all" ? announcements : announcements.filter((a) => a.type === annType);
+                  return filtered.length ? (
+                    <div className="space-y-1.5">
+                      {filtered.map((a) => {
+                        const isBid = a.type === "BID_NOTICE";
+                        const isWin = a.type === "WIN_RESULT";
+                        const isPolicy = a.type === "POLICY";
+                        return (
+                          <div key={a.id} className="rounded-[12px] m-tile px-3 py-2.5">
+                            <div className="flex items-start gap-2.5">
+                              <span
+                                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${
+                                  isBid ? "bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] text-[var(--accent)]"
+                                  : isWin ? "bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-[var(--success)]"
+                                  : isPolicy ? "bg-[color-mix(in_oklch,var(--gold)_12%,transparent)] text-[var(--gold)]"
+                                  : "bg-[color-mix(in_oklch,var(--warning)_12%,transparent)] text-[var(--warning)]"
+                                }`}
+                              >
+                                {isBid ? "公" : isWin ? "结" : isPolicy ? "法" : "闻"}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className={`block line-clamp-2 text-[14px] font-semibold leading-snug ${a.metadata?.titleOnly ? "text-[var(--muted-foreground)]" : "text-[var(--foreground)]"}`}>
+                                  {a.title}
+                                </span>
+                                <span className="mt-0.5 flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+                                  <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] px-1.5 py-0.5 font-medium">
+                                    {ANNOUNCEMENT_TYPE_LABELS[a.type] ?? a.type}
+                                  </span>
+                                  <span className="tabular-nums">{a.publishedAt?.slice(0, 10) ?? "—"}</span>
+                                </span>
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState text="该类型暂无公告" />
+                  );
+                })()}
+              </AnalysisZone>
+            ) : (
+              <div className="py-2"><Skeleton lines={6} height={40} /></div>
+            )}
               </>
             ) : null}
             {analysisOpen === "supplier" ? (
               <>
-
-            {/* ── 重点供应商动态 ── */}
-            <SectionCard icon={FolderKanban} title="重点供应商动态"
-              index={9}
-            >
-              {data.supplierStats.length ? (
-                <div className="space-y-2">
-                  {data.supplierStats.map((s, i) => (
+            {/* ══ 供应商（2026-11-19 板块优化）：排名卡+中标率+参与度 ══ */}
+            {data?.supplierStats?.length ? (
+              <AnalysisZone icon={Handshake} title="重点供应商" count={`${data.supplierStats.length} 家`} color="var(--success)">
+                <div className="space-y-1.5">
+                  {data.supplierStats.map((sp, i) => (
                     <button
                       key={i}
                       type="button"
-                      onClick={() => setActiveSupplier(s)}
-                      className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
+                      onClick={() => setActiveSupplier(sp)}
+                      className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
                     >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] text-[14px] font-bold text-[var(--accent)]">
-                        {s.name.slice(0, 2)}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{s.name}</span>
-                        <span className="mt-0.5 block text-[13px] text-[var(--muted-foreground)]">
-                          中标 <span className="font-bold text-[var(--success)]">{s.winCount}</span>/{s.participatedCount} · 中标率 {s.hitRate}% · {s.awardAmountLabel}
+                      <div className="flex items-center gap-2.5">
+                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold ${i === 0 ? "bg-[color-mix(in_oklch,var(--success)_14%,transparent)] text-[var(--success)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]"}`}>
+                          {sp.name.slice(0, 2)}
                         </span>
-                      </span>
-                      <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{sp.name}</span>
+                          <span className="mt-0.5 block text-[12px] text-[var(--muted-foreground)]">
+                            中标 <b className="text-[var(--success)]">{sp.winCount}</b>/{sp.participatedCount} · 中标率 <b className="text-[var(--success)]">{sp.hitRate}%</b> · {sp.awardAmountLabel}
+                          </span>
+                        </span>
+                        {/* 中标率环形进度 */}
+                        <span className="relative flex h-[2.75rem] w-[2.75rem] shrink-0 items-center justify-center">
+                          <svg viewBox="0 0 40 40" className="absolute inset-0">
+                            <circle cx="20" cy="20" r="17" fill="none" stroke="var(--muted-foreground)" strokeOpacity={0.12} strokeWidth="3.5" />
+                            <circle
+                              cx="20" cy="20" r="17" fill="none"
+                              stroke={sp.hitRate >= 50 ? "var(--success)" : sp.hitRate >= 25 ? "var(--accent)" : "var(--warning)"}
+                              strokeWidth="3.5" strokeLinecap="round"
+                              strokeDasharray={`${(sp.hitRate / 100) * 106.8} 106.8`}
+                              transform="rotate(-90 20 20)"
+                            />
+                          </svg>
+                          <span className="relative text-[11px] font-black tabular-nums text-[var(--foreground)]">{sp.hitRate}%</span>
+                        </span>
+                        <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
+                      </div>
                     </button>
                   ))}
                 </div>
-              ) : (
-                <EmptyState text="暂无供应商动态" />
-              )}
-            </SectionCard>
-
+              </AnalysisZone>
+            ) : (
+              <EmptyState text="暂无供应商动态" />
+            )}
               </>
             ) : null}
             {analysisOpen === "experts" ? (
               <>
-            {/* ── 专家库（2026-11-19 用户裁定：AI 分析入口换专家库；开层懒取）── */}
-            <SectionCard icon={GraduationCap} title="专家库总览" index={0}>
-              {expertStats ? (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2">
-                    <MetricCard label="在库专家" value={String(expertStats.total)} tone="accent" />
-                    <MetricCard label="可抽取" value={String(expertStats.availability.available)} tone="success" />
-                    <MetricCard label="评标占用" value={String(expertStats.availability.occupied)} tone="warning" />
-                    <MetricCard label="已退库" value={String(expertStats.availability.disabled)} />
-                  </div>
-                  <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
-                    <div className="flex justify-between gap-3">
-                      <span className="text-[var(--muted-foreground)]">可抽取率</span>
-                      <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.availability.availableRate}%</span>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <span className="text-[var(--muted-foreground)]">履职优良率（A/B 占比）</span>
-                      <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.excellentRatio}%</span>
-                    </div>
-                    <div className="flex justify-between gap-3">
-                      <span className="text-[var(--muted-foreground)]">平均评分偏离度</span>
-                      <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.avgScoreDeviation}</span>
-                    </div>
-                  </div>
-                  {expertStats.specialties.length ? (
-                    <div>
-                      <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">专业分布 Top</div>
-                      <div className="space-y-1.5">
-                        {expertStats.specialties.map((sp) => (
-                          <div key={sp.name ?? "未填"} className="flex items-center gap-2">
-                            <span className="w-[7.5rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{sp.name ?? "未填"}</span>
-                            <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                              <span className="block h-full rounded-[5px] bg-[var(--gold)] opacity-80" style={{ width: `${sp.pct}%` }} />
-                            </span>
-                            <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
-                          </div>
-                        ))}
+            {/* ══ 专家库（2026-11-19 板块优化）：总览+专业+公司 ══ */}
+            {expertStats ? (
+              <>
+                <AnalysisZone icon={GraduationCap} title="专家库总览" count={`${expertStats.total} 人`} color="var(--gold)">
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="rounded-[10px] m-tile px-3 py-2.5 text-center">
+                        <div className="text-[18px] font-black tabular-nums text-[var(--success)]">{expertStats.availability.available}</div>
+                        <div className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">可抽取</div>
+                      </div>
+                      <div className="rounded-[10px] m-tile px-3 py-2.5 text-center">
+                        <div className="text-[18px] font-black tabular-nums text-[var(--warning)]">{expertStats.availability.occupied}</div>
+                        <div className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">评标占用</div>
                       </div>
                     </div>
-                  ) : null}
-                  {expertCompanies?.length ? (
-                    <div>
-                      <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">各公司在库（全库口径）</div>
-                      <div className="space-y-1.5">
-                        {expertCompanies.map((c) => (
-                          <div key={c.name} className="flex items-center justify-between gap-2 rounded-[10px] m-tile px-3 py-2">
-                            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{c.name}</span>
-                            <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
-                          </div>
-                        ))}
+                    <div className="space-y-0.5 rounded-[10px] m-tile px-3 py-2 text-[13px]">
+                      <div className="flex justify-between gap-3">
+                        <span className="text-[var(--muted-foreground)]">可抽取率</span>
+                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.availability.availableRate}%</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-[var(--muted-foreground)]">履职优良率（A/B 占比）</span>
+                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.excellentRatio}%</span>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <span className="text-[var(--muted-foreground)]">平均评分偏离度</span>
+                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.avgScoreDeviation}</span>
                       </div>
                     </div>
-                  ) : null}
-                </div>
-              ) : (
-                <Skeleton lines={5} height={40} />
-              )}
-            </SectionCard>
+                  </div>
+                </AnalysisZone>
 
+                {expertStats.specialties.length ? (
+                  <AnalysisZone icon={BarChart3} title="专业分布" count={`Top ${expertStats.specialties.length}`} color="var(--gold)">
+                    <div className="space-y-1.5">
+                      {expertStats.specialties.map((sp, i) => (
+                        <div key={sp.name ?? "未填"} className="rounded-[12px] m-tile px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{sp.name ?? "未填"}</span>
+                            <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
+                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{sp.pct}%</span>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                              <span className="block h-full rounded-full bg-[var(--gold)] opacity-75" style={{ width: `${sp.pct}%` }} />
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </AnalysisZone>
+                ) : null}
+
+                {expertCompanies?.length ? (
+                  <AnalysisZone icon={Building2} title="各公司在库" count={`${expertCompanies.length} 家`} color="var(--accent)">
+                    <div className="space-y-1.5">
+                      {expertCompanies.map((c, i) => (
+                        <div key={c.name} className="flex items-center justify-between gap-2 rounded-[10px] m-tile px-3 py-2">
+                          <span className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className={`shrink-0 text-[11px] font-black ${i === 0 ? "text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{c.name}</span>
+                          </span>
+                          <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
+                        </div>
+                      ))}
+                    </div>
+                  </AnalysisZone>
+                ) : null}
               </>
+            ) : (
+              <div className="py-2"><Skeleton lines={6} height={40} /></div>
+            )}
+          </>
             ) : null}
           </>
         ) : null}
