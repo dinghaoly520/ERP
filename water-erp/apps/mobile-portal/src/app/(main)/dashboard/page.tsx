@@ -536,6 +536,27 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   ] : [];
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
 
+  /* 节资趋势（2026-11-19 恢复）：月度节资（AWARDED 且 budget>=award>0）柱 + 节资率线 */
+  const savingsTrend = useMemo(() => {
+    const series = (data?.trendSeries ?? []).map((t) => {
+      let savings = 0;
+      let budget = 0;
+      (t.projects ?? []).forEach((p) => {
+        const b = parseBudgetLabel(p.budgetLabel);
+        const a = parseBudgetLabel(p.awardLabel || "");
+        if (a > 0 && b >= a) {
+          savings += b - a;
+          budget += b;
+        }
+      });
+      const rate = budget > 0 ? (savings / budget) * 100 : 0;
+      return { label: t.label, count: t.count, savings: savings / 10000, rate, raw: t };
+    });
+    const total = series.reduce((sum, x) => sum + x.savings, 0);
+    if (!total) return null;
+    return { series, total };
+  }, [data]);
+
   const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
 
   /* 趋势图几何 */
@@ -894,6 +915,84 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
               </>
             ) : null}
+            {/* ── 节资趋势（月度节资柱 + 节资率线，双纵轴+动效）── */}
+            {savingsTrend ? (
+              <SectionCard
+                icon={TrendingUp}
+                title="节资趋势"
+                index={1.5}
+                right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=节资 · 线=节资率</span>}
+              >
+                {(() => {
+                  const st = savingsTrend;
+                  const n = st.series.length;
+                  const W = 340;
+                  const H = 150;
+                  const padL = 34;
+                  const padR = 26;
+                  const padT = 16;
+                  const padB = 22;
+                  const plotW = W - padL - padR;
+                  const plotH = H - padT - padB;
+                  const maxSav = Math.max(...st.series.map((x) => x.savings), 1);
+                  const maxRate = Math.max(...st.series.map((x) => x.rate), 1);
+                  const x = (i: number) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+                  const colW = n > 0 ? plotW / n : plotW;
+                  const colX = (i: number) => padL + i * colW;
+                  const barW = Math.min(Math.round(colW * 0.42), 26);
+                  const savY = (v: number) => padT + plotH - (v / maxSav) * plotH;
+                  const rateY = (v: number) => padT + plotH - (v / maxRate) * plotH * 0.85;
+                  const pts = st.series.map((t, i) => [x(i), rateY(t.rate)] as const);
+                  const line = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"} ${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
+                  const labelStep = Math.max(1, Math.ceil(n / 5));
+                  return (
+                    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="节资趋势图">
+                      <defs>
+                        <linearGradient id="savBarFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="var(--success)" stopOpacity="0.34" />
+                          <stop offset="100%" stopColor="var(--success)" stopOpacity="0.08" />
+                        </linearGradient>
+                      </defs>
+                      <text x={padL - 5} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资</text>
+                      <text x={W - 2} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资率</text>
+                      {[maxSav, maxSav / 2].map((v, i) => (
+                        <g key={`st-${i}`}>
+                          <line x1={padL} y1={savY(v)} x2={W - padR} y2={savY(v)} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
+                          <text x={padL - 5} y={savY(v) + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
+                            {v >= 10000 ? `${Math.round(v / 1000) / 10}亿` : v >= 100 ? Math.round(v) : Math.round(v * 10) / 10}
+                          </text>
+                        </g>
+                      ))}
+                      {[maxRate, maxRate / 2].map((v, i) => (
+                        <text key={`sr-${i}`} x={W - 2} y={rateY(v) + 3} textAnchor="end" fontSize={8.5} fontWeight={600} fill="var(--gold)">
+                          {`${Math.round(v)}%`}
+                        </text>
+                      ))}
+                      <line x1={padL} y1={padT + plotH} x2={W - padR} y2={padT + plotH} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
+                      {st.series.map((t, i) => {
+                        const barH = (t.savings / maxSav) * plotH;
+                        return barH > 0 ? (
+                          <rect key={`sb-${i}`} x={x(i) - barW / 2} y={padT + plotH - barH} width={barW} height={Math.max(barH, 2)} rx={3} fill="url(#savBarFill)" className="m-bar" style={{ animationDelay: `${i * 40}ms` }} />
+                        ) : null;
+                      })}
+                      <path d={line} fill="none" stroke="var(--gold)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="m-draw-line" style={{ ["--m-path-len" as string]: "800" }} />
+                      {st.series.map((t, i) => (
+                        <g key={`sp-${i}`}>
+                          <circle cx={x(i)} cy={rateY(t.rate)} r={3} fill="var(--gold)" stroke="white" strokeWidth={1.2} />
+                          {i % labelStep === 0 ? (
+                            <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10.5} fill="var(--muted-foreground)">{t.label.slice(-5)}</text>
+                          ) : null}
+                        </g>
+                      ))}
+                      {st.series.map((t, i) => (
+                        <rect key={`sh-${i}`} x={colX(i)} y={padT - 4} width={colW} height={plotH + 4} fill="transparent" style={{ cursor: "pointer" }} onClick={() => setActiveTrend(t.raw)} />
+                      ))}
+                    </svg>
+                  );
+                })()}
+              </SectionCard>
+            ) : null}
+
             {analysisOpen === "company" ? (
               <>
             {/* ══ 公司对比（2026-11-19 设计落地：排行 → 五维对比图 → 双企 PK）══ */}
