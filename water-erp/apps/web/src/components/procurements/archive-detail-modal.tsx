@@ -20,7 +20,7 @@ import {
 import Folder from "@/components/Folder";
 import { Modal } from "@/components/workbench";
 import { ScoreSnapshotSection } from "@/components/projects/bid-confirm/handover-preview";
-import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
+import { fmtAcquireRangeISO } from '@/lib/utils/format-acquire-time';
 import { apiFetch } from '@/lib/api/api-fetch';
 
 // Animation utilities
@@ -198,12 +198,53 @@ type ArchiveDetailModalProps = {
   onClose: () => void;
 };
 
+/* 项目时间轴（表格排版，2026-11-20 用户裁定）：与 project-timeline-strip 同接口同格式化，
+   本弹窗内以「节点 | 时间」两列表格呈现（横条为项目管理详情专用形态，互不影响） */
+type TimelineNodeT = {
+  key: string; label: string; time: string | null; timeEnd?: string | null; source: string;
+  tone?: 'danger';
+  group?: { label: string; count: number; time: string | null; detail?: string[] }[];
+};
+type TimelineDataT = { rounds: { round: number; nodes: TimelineNodeT[] }[]; currentRound?: number };
+
+function timelineFmt(iso: string | null): string {
+  if (!iso) return '未登记';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '未登记';
+  const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+  const hm = hasTime ? ` ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}${hm}`;
+}
+function timelineFmtNode(n: TimelineNodeT): string {
+  if (!n.time) return '未登记';
+  if (!n.timeEnd) return timelineFmt(n.time);
+  return fmtAcquireRangeISO(n.time, n.timeEnd);
+}
+
 export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetailModalProps) {
   const reducedMotion = useReducedMotion() ?? false;
   const [data, setData] = useState<ArchiveDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStageKey, setSelectedStageKey] = useState<string | null>(null);
+  // 项目时间轴（表格版）：详情载荷就绪后按 projectId 拉取，失败静默（卡片不渲染数据行）
+  const [timeline, setTimeline] = useState<TimelineDataT | null>(null);
+  const timelinePmiId = data?.projectId ?? null;
+  useEffect(() => {
+    if (!timelinePmiId) {
+      setTimeline(null);
+      return;
+    }
+    let alive = true;
+    setTimeline(null);
+    apiFetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/project-management/${timelinePmiId}/timeline`, {
+      credentials: 'include',
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('加载失败'))))
+      .then((d: TimelineDataT) => { if (alive) setTimeline(d); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [timelinePmiId]);
 
   // File preview state
   const [previewFile, setPreviewFile] = useState<{
@@ -585,8 +626,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                     </div>
                   </motion.div>
 
-                  {/* 项目时间轴（2026-11-19 用户裁定「两端都接」）：复用项目详情同款横向条
-                      （按轮十节点；只读场景不传 refreshKey，挂载拉取一次） */}
+                  {/* 项目时间轴（2026-11-20 用户裁定表格排版）：节点 | 时间 两列，hairline 分隔；
+                      未登记灰显、警示节点红显、组合节点（供应商参与）显家数 */}
                   <motion.div
                     {...fadeIn(2, reducedMotion)}
                     className="wb-note p-5"
@@ -595,9 +636,54 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <CalendarClock size={16} className="text-[var(--accent)]" />
                       <h3 className="text-base font-semibold">项目时间轴</h3>
                     </div>
-                    <div className="overflow-x-auto">
-                      <ProjectTimelineStrip pmiId={data.projectId} />
-                    </div>
+                    {timeline && timeline.rounds.length > 0 ? (
+                      <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] overflow-hidden">
+                        {timeline.rounds.map((r, ri) => (
+                          <div key={r.round}>
+                            {timeline.rounds.length > 1 && (
+                              <div className={`px-4 py-1.5 text-[11px] font-bold ${ri > 0 ? 'border-t border-[oklch(0.6_0.04_258_/_0.16)]' : ''} bg-[color-mix(in_oklch,var(--warning)_6%,transparent)] text-[color-mix(in_oklch,var(--warning)_80%,black)]`}>
+                                第 {r.round} 轮
+                              </div>
+                            )}
+                            <table className="w-full">
+                              <tbody>
+                                {r.nodes.map((n, ni) => (
+                                  <tr
+                                    key={n.key}
+                                    className={ni > 0 ? 'border-t border-[oklch(0.6_0.04_258_/_0.12)]' : ''}
+                                    title={[`${n.label}（来源：${n.source}）`, ...(n.group ?? []).flatMap((g) => [`${g.label} · ${g.count} 家`, ...(g.detail ?? [])])].join('\n')}
+                                  >
+                                    <td className="px-4 py-[7px]">
+                                      <span className="flex items-center gap-2 text-[0.82rem]">
+                                        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${n.tone === 'danger' ? 'bg-[var(--danger)]' : n.time ? 'bg-[var(--accent)]' : 'bg-[color-mix(in_oklch,var(--muted-foreground)_40%,transparent)]'}`} />
+                                        <span className={n.tone === 'danger' ? 'font-semibold text-[var(--danger)]' : n.time ? 'text-[color:var(--foreground)]' : 'text-[color:var(--muted-foreground)]/70'}>
+                                          {n.label}
+                                        </span>
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-[7px] text-right">
+                                      {n.group ? (
+                                        <span className="font-mono text-[0.78rem] tabular-nums text-[color:var(--foreground)]">
+                                          {n.group.map((g) => g.count).join('/')} 家
+                                        </span>
+                                      ) : (
+                                        <span className={`font-mono text-[0.78rem] tabular-nums ${n.time ? (n.tone === 'danger' ? 'text-[var(--danger)]' : 'text-[color:var(--foreground)]') : 'text-[color:var(--muted-foreground)]/60'}`}>
+                                          {timelineFmtNode(n)}
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-4 py-3 text-xs text-[color:var(--muted-foreground)]">
+                        暂无时间节点
+                      </div>
+                    )}
                   </motion.div>
 
                   {/* #121②：评分明细卡（关联投标项目有评标结果时才下发；复用回流包查验的快照组件——数值+通过性双形态） */}
