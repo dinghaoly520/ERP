@@ -367,6 +367,28 @@ describe('ExpertService', () => {
       );
     });
 
+    it('N5：回避后该供应商有效评审正选 <5 人 → 高风险留痕（不硬拦申报）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: ['s-old'] });
+      prisma.bidSupplier.findMany.mockImplementation((a: any) =>
+        a.where?.id
+          ? Promise.resolve([{ id: 'c', supplierName: '丙公司' }])
+          : Promise.resolve([{ id: 'a' }, { id: 'b' }, { id: 'c' }]));
+      prisma.bidScoreItem.findMany.mockResolvedValue([]);
+      prisma.bidScoreRecord.count.mockResolvedValue(0);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, avoidanceConfirmed: true });
+      prisma.bidExpert.count.mockResolvedValue(4); // N5：回避者之外仅 4 名正选 confirmed
+
+      await service.confirmAvoidance('user-1', 'proj-1', ['c']);
+
+      const warn = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '有效评审人数提示');
+      expect(warn).toBeTruthy();
+      expect(warn?.[0].data.riskFlag).toBe('高');
+      expect(warn?.[0].data.target).toContain('丙公司');
+      expect(warn?.[0].data.result).toContain('4 人');
+    });
+
     it('P1-5（中断审查）：回避申报变更后重算本专家 progress（分母即时收缩，不再依赖下次提交）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: ['s-old'] });
