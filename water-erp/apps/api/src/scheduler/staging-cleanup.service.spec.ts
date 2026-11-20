@@ -29,6 +29,8 @@ const mkPrisma = (over: Record<string, any> = {}) => ({
       { envelope: { files: { technical: { assetId: 'fa-kept' } } } },
     ]),
   },
+  // N13-B：冻结载荷引用集查询（默认无冻结操作）
+  caOperation: { findMany: jest.fn().mockResolvedValue(over.frozenOps ?? []) },
   bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
 });
 
@@ -80,17 +82,15 @@ describe('StagingCleanupService（T7）', () => {
   });
 
   test('N13-B：CaOperation 冻结载荷（submit/reupload PAYLOAD_READY）引用的暂存不删', async () => {
-    const prisma = mkPrisma({ versions: [] });
-    const caFindMany = jest.fn().mockResolvedValue([
+    const prisma = mkPrisma({ frozenOps: [
       { result: { files: { technical: { assetId: 'fa-stale' } } } },
       { result: { files: { business: { assetId: 'fa-other' } } } },
       { result: 'not-an-object' },
-    ]);
-    (prisma as any).caOperation = { findMany: caFindMany };
+    ] });
     const r = await new StagingCleanupService(prisma as any).cleanupOnce();
     expect(r.removed).toBe(0);
     expect(minioClient.removeObject).not.toHaveBeenCalled();
-    expect(caFindMany).toHaveBeenCalledWith(
+    expect(prisma.caOperation.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ purpose: { in: ['submit', 'reupload'] }, status: 'PAYLOAD_READY' }) }),
     );
   });
