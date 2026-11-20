@@ -877,7 +877,7 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                   <div className="rc-section">
                     <div className="rc-section-label">业务标签</div>
                     {tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1.5">{tags.map(t => <span key={t} className="biz-tag">{t}</span>)}</div>
+                      <div className="flex flex-wrap gap-1.5">{tags.map((t, i) => <span key={`${t}-${i}`} className="biz-tag">{t}</span>)}</div>
                     ) : <span className="text-[10px] text-[var(--muted-foreground)]">未选择业务标签</span>}
                   </div>
 
@@ -945,12 +945,14 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                                 </span>
                               )}
                             </div>
-                            <div className="mt-2 flex flex-wrap gap-2.5">
-                              {q.fileUrl && <MediaThumb url={q.fileUrl} name={q.name} caption="证照原件" />}
-                              {(q.attachments ?? []).filter(a => a?.url).map((a, ai) => (
-                                <MediaThumb key={`${q.id}-att-${ai}`} url={a.url} name={a.name || `附加材料${ai + 1}`} />
-                              ))}
-                            </div>
+                            {(q.fileUrl || (q.attachments ?? []).some(a => a?.url)) && (
+                              <div className="mt-2 flex flex-wrap gap-2.5">
+                                {q.fileUrl && <MediaThumb url={q.fileUrl} name={q.name} caption="证照原件" />}
+                                {(q.attachments ?? []).filter(a => a?.url).map((a, ai) => (
+                                  <MediaThumb key={`${q.id}-att-${ai}`} url={a.url} name={a.name || `附加材料${ai + 1}`} />
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

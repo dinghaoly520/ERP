@@ -17,6 +17,12 @@ import { FilePreviewModal, kindFromName, type FilePreviewTarget } from './file-p
 
 export type PhotoTarget = { src: string; name: string } | null;
 
+/** 名称可判定即返回 image/pdf；须探测（loading）由 effect 内 HEAD 探测落型 */
+function directKind(name: string): 'image' | 'pdf' | 'loading' {
+  const d = kindFromName(name);
+  return d === 'image' || d === 'pdf' ? d : 'loading';
+}
+
 /* ── 灯箱：旋转 + 缩放（布局盒随「旋转包围盒 × 缩放」预留滚动范围——
  *    transform 不改变布局尺寸，须由包裹层撑出 overflow 滚动区）── */
 export function PhotoViewer({ target, onClose }: { target: PhotoTarget; onClose: () => void }) {
@@ -25,6 +31,8 @@ export function PhotoViewer({ target, onClose }: { target: PhotoTarget; onClose:
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [failed, setFailed] = useState(false);
 
+  // 灯箱重开（target 变更）即重置查看状态——一次性派生，无级联渲染
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setRotate(0); setScale(1); setNatural(null); setFailed(false); }, [target]);
 
   if (!target) return null;
@@ -72,7 +80,13 @@ export function PhotoViewer({ target, onClose }: { target: PhotoTarget; onClose:
             <div className="flex shrink-0 items-center justify-center" style={box ? { width: box.w, height: box.h, margin: 'auto' } : undefined}>
               {/* eslint-disable-next-line @next/next/no-img-element -- 受控下载代理 URL，非静态资源 */}
               <img src={target.src} alt={target.name}
-                onLoad={e => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+                onLoad={e => {
+                  // SVG 等无固有尺寸图 naturalWidth=0——除零会算出 0×0 布局盒（图片不可见），
+                  // 此时保持 CSS 自适应模式（fit=null 分支）即可
+                  const nw = e.currentTarget.naturalWidth;
+                  const nh = e.currentTarget.naturalHeight;
+                  if (nw > 0 && nh > 0) setNatural({ w: nw, h: nh });
+                }}
                 onError={() => setFailed(true)}
                 onDoubleClick={() => setScale(s => (s === 1 ? 2 : 1))}
                 style={{
@@ -96,14 +110,17 @@ export function PhotoViewer({ target, onClose }: { target: PhotoTarget; onClose:
 type MediaKindState = 'loading' | 'image' | 'pdf' | 'file';
 
 export function MediaThumb({ url, name, caption }: { url: string; name: string; caption?: string }) {
-  const [kind, setKind] = useState<MediaKindState>('loading');
+  // 初始值同步判型（名称带扩展名的多数场景零骨架屏闪烁）；探测型挂载后由 effect 落型
+  const [kind, setKind] = useState<MediaKindState>(() => directKind(name));
   const [photo, setPhoto] = useState<PhotoTarget>(null);
   const [doc, setDoc] = useState<FilePreviewTarget>(null);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- url/name 变更即重判型：名称可判定路径
+     同步落型、探测路径异步落型——均为一次性派生状态，无级联渲染
+     （与 review-center-modal 弹窗数据加载同款豁免） */
   useEffect(() => {
-    // kindFromName 返回类型含 iframe/unsupported（声明宽于实际返回），此处只认 image/pdf 两态
-    const direct = kindFromName(name);
-    if (direct === 'image' || direct === 'pdf') { setKind(direct); return; }
+    const direct = directKind(name);
+    if (direct !== 'loading') { setKind(direct); return; }
     let alive = true;
     setKind('loading');
     fetch(url, { method: 'HEAD' })
@@ -117,6 +134,7 @@ export function MediaThumb({ url, name, caption }: { url: string; name: string; 
       .catch(() => { if (alive) setKind('image'); }); // 探测失败按图片试渲染；img 加载失败再回退 chip
     return () => { alive = false; };
   }, [url, name]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const label = caption ?? name;
 

@@ -937,8 +937,8 @@ export default function SupplierDetailPage() {
                             图片缩略图点击放大（支持旋转/缩放），PDF 走窗口内预览。
                             修复：原实现主文件（身份证人像面/营业执照）整段漏渲染、附加材料只有
                             裸链接无图可看 */}
-                        {(q.fileUrl || (q.attachments ?? []).some(a => a?.url)) && (
-                          <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+                        <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+                          {(q.fileUrl || (q.attachments ?? []).some(a => a?.url)) ? (
                             <div className="flex flex-wrap gap-2.5">
                               {q.fileUrl && (
                                 <MediaThumb url={q.fileUrl} name={q.name}
@@ -949,8 +949,10 @@ export default function SupplierDetailPage() {
                                   caption={q.type === '法定代表人身份证' && i === 0 ? '反面 · 国徽面' : (att.name || `附件 ${i + 1}`)} />
                               ))}
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <p className="text-[10px] text-[var(--muted-foreground)]">未上传材料文件</p>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
