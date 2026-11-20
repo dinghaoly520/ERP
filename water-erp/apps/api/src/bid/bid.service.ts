@@ -6829,6 +6829,40 @@ export class BidService {
         },
       });
     });
+    // PMI「专家信息」快照同步（2026-11-20 用户实录修复）：互换此前只改 BidExpert 两行，
+    // 快照停留在旧名册——替换转正的专家从快照消失（显示 4正选1候补，库内实为 5正选1候补）。
+    // 全量名册重建，与抽取确认回写同构（需求方代表/候补/正选·组长 角色标记；字段内换行折空格）。
+    try {
+      const bp = await this.prisma.bidProject.findUnique({
+        where: { id: projectId },
+        select: { projectManagementItemId: true },
+      });
+      if (bp?.projectManagementItemId) {
+        const roster = await this.prisma.bidExpert.findMany({
+          where: { projectId },
+          select: {
+            expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
+            user: { select: { department: { select: { name: true } }, expertProfile: { select: { title: true } } } },
+          },
+        });
+        if (roster.length > 0) {
+          const flat = (v: string | null | undefined) => (v ?? '').replace(/[\r\n]+/g, ' ').trim();
+          const lines = roster.map((e) => [
+            flat(e.expertName),
+            flat(e.user?.department?.name),
+            flat(e.major),
+            flat(e.user?.expertProfile?.title),
+            e.isPurchaserRepresentative ? '需求方代表' : e.expertRole === '候补' ? '候补' : e.isLead ? '正选·组长' : '正选',
+          ].join('|'));
+          await this.prisma.projectManagementItem.update({
+            where: { id: bp.projectManagementItemId },
+            data: { expertInfo: lines.join('\n') },
+          });
+        }
+      }
+    } catch (err) {
+      this.logger?.warn?.(`互换后 expertInfo 快照同步失败（不阻塞互换）: ${err instanceof Error ? err.message : err}`);
+    }
     // P3（2026-09-21 审查）：委员会组成变更必须留痕——此前零日志（与延期/核验/解锁/签字留痕口径不一）
     await this.prisma.bidSupervisionLog.create({
       data: {
