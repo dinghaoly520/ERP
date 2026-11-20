@@ -842,7 +842,9 @@ export class DashboardService {
         }
         return right.awardAmount - left.awardAmount;
       })
-      .slice(0, 6)
+      /* 2026-11-19：6→12——:3011 供应商集中度 Top10 需更全名单（:3005 客户端
+       * 自 slice(0,6) 展示面不变） */
+      .slice(0, 12)
       .map((item) => {
         const topMethod = topEntries(item.methodCount)[0] ?? '未知';
         const topDepartment = topEntries(item.deptCount)[0] ?? '未知部门';

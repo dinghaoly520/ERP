@@ -594,10 +594,12 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .map((x) => ({ name: x.name, amount: parseBudgetLabel(x.awardAmountLabel), wins: x.winCount }))
       .filter((x) => x.amount > 0)
       .sort((a, b) => b.amount - a.amount);
-    const total = rows.reduce((sum, x) => sum + x.amount, 0);
+    /* 分母=总成交额（2026-11-19 用户裁定）——此前用名单内合计，Top6 截断
+     * 使 CR3 虚高（实录 68.8%）；率与行占比一律对 summary.totalAward */
+    const totalAward = data?.summary?.totalAward ?? 0;
     const top10 = rows.slice(0, 10);
-    const cr3 = total > 0 ? rows.slice(0, 3).reduce((s, x) => s + x.amount, 0) / total : 0;
-    return { top10, cr3, total };
+    const cr3 = totalAward > 0 ? rows.slice(0, 3).reduce((s, x) => s + x.amount, 0) / totalAward : 0;
+    return { top10, cr3, total: totalAward || rows.reduce((sum, x) => sum + x.amount, 0) };
   }, [data]);
 
   /* 进行中区派生（PMI）：部门/阶段/方式/规模/归属项目 */
