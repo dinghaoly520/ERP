@@ -303,7 +303,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
   const selectedStage = data?.stages.find((s) => stageKeyOf(s) === selectedStageKey);
   const hasMultiRounds = !!data && new Set(data.stages.map((st) => st.round ?? 1)).size > 1;
   // 专家解析（2026-11-20 修复 + 布局裁定）：权威格式为竖线「姓名|部门|专业|职称|角色」
-  // （抽取确认/互换回写同构），旧「姓名 - 部门 / 专业 / 职称」格式兼容；逐行解析
+  // （抽取确认/互换回写同构），旧「姓名 - 部门 / 专业 / 职称」格式兼容；逐行解析。
+  // 排序（2026-11-20 用户裁定）：正选在前、候补殿后（组内保持名册顺序）——互换后
+  // 名册行序仍为落库序，直接平铺会把候补插在正选中间
   const experts = data?.extractedInfo['专家信息']
     ? data.extractedInfo['专家信息'].split('\n').filter(Boolean).map((line) => {
         const normalizedLine = line.replace(/^\s*\d+[、.．]\s*/, '');
@@ -314,7 +316,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
         const [namePart, detailPart = ''] = normalizedLine.split(' - ');
         const [department = '', specialty = '', title = ''] = detailPart.split(' / ');
         return { name: namePart.trim(), department: department.trim(), specialty: specialty.trim(), title: title.trim(), role: '' };
-      })
+      }).sort((a, b) => Number(a.role.includes('候补')) - Number(b.role.includes('候补')))
     : [];
   const biddingUnits = data?.extractedInfo['投标单位']
     ? data.extractedInfo['投标单位'].split(/[、,\n]/).map((unit) => unit.trim()).filter(Boolean)
