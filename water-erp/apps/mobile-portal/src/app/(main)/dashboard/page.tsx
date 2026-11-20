@@ -1663,16 +1663,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             {/* ══ 供应商（2026-11-19 用户裁定：真供应商库列表——搜索+排名卡+状态色）══ */}
             {supplierLib ? (
               <AnalysisZone icon={Handshake} title="供应商库" count={`${supplierTotal} 家`} color="var(--success)">
-                <div className="relative mb-2.5">
-                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
-                  <input
-                    value={supplierSearch}
-                    onChange={(e) => setSupplierSearch(e.target.value)}
-                    placeholder="搜索供应商名称"
-                    aria-label="搜索供应商名称"
-                    className="m-input h-10 w-full pl-9 pr-3"
-                  />
-                </div>
+
                 {(() => {
                   const kw = supplierSearch.trim();
                   const filtered = kw ? supplierLib.filter((sp) => sp.name.includes(kw) || (sp.shortName ?? "").includes(kw)) : supplierLib;
@@ -2152,6 +2143,23 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             />
           ) : null}
         </div>
+        {panel === "supplier" ? (
+          <div className="m-tile mb-3 flex h-10 items-center gap-2 rounded-full px-3.5">
+            <Search size={14} className="shrink-0 text-[var(--muted-foreground)]" />
+            <input
+              value={supplierSearch}
+              onChange={(e) => setSupplierSearch(e.target.value)}
+              placeholder="搜索供应商名称"
+              aria-label="搜索供应商名称"
+              className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+            />
+            {supplierSearch ? (
+              <button type="button" onClick={() => setSupplierSearch("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">
+                清除
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {analysisGroups}
         {drillSheets}
         {annDetailSheet}
