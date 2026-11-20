@@ -736,7 +736,7 @@ export default function LedgerPage() {
             {archiveDetail.summary ? (
               <div>
                 <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">项目简报</div>
-                <div className={`rounded-[12px] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] ${archiveDetail.kind === "terminated" ? "border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_5%,transparent)]" : "m-tile"}`}>
+                <div className={`rounded-[12px] px-3 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] whitespace-pre-line ${archiveDetail.kind === "terminated" ? "border border-[color-mix(in_oklch,var(--danger)_18%,transparent)] bg-[color-mix(in_oklch,var(--danger)_5%,transparent)]" : "m-tile"}`}>
                   {archiveDetail.summary}
                 </div>
               </div>

@@ -579,7 +579,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <h3 className="text-base font-semibold">项目简报</h3>
                     </div>
                     <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-4 py-3 max-h-[200px] overflow-y-auto">
-                      <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">
+                      <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">
                         {data.summary || '暂无项目简报信息。'}
                       </p>
                     </div>
