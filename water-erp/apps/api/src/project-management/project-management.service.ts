@@ -5848,8 +5848,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
   private async buildTerminatedDetail(pmItem: any) {
     const terminatedAt = pmItem.terminatedAt as Date;
     // 项目简报（2026-11-20 对齐项目管理详情）：AI 全项目简报读 summary-*.json 缓存直出
-    // （同项目管理详情「项目简报」源），有则拼接在终止说明后；无缓存回落终止一句话简报，
-    // 预热补齐后下次打开直出。
+    // （同项目管理详情「项目简报」源）；排序为 AI 简报在前、终止说明换行写在末尾，
+    // 无缓存回落终止一句话简报，预热补齐后下次打开直出。
     let aiBrief = '';
     try {
       const s = JSON.parse(
@@ -5859,6 +5859,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
     } catch {
       // 无简报缓存
     }
+    const terminatedLine = `项目于 ${pmItem.terminatedStage ? `「${pmItem.terminatedStage}」阶段` : ''}终止${
+      terminatedAt ? `（${terminatedAt.toISOString().split('T')[0]}）` : ''
+    }。终止原因：${pmItem.terminationReason ?? '未填写'}。终止后项目只读，如需继续采购请重新建立项目。`;
     const stageStatusLabel = (s: string) => (s === 'COMPLETED' ? '已完成' : s === 'IN_PROGRESS' ? '进行中' : '未开始');
     return {
       projectId: pmItem.id,
@@ -5923,11 +5926,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
           })),
         };
       })),
-      summary: `项目于 ${pmItem.terminatedStage ? `「${pmItem.terminatedStage}」阶段` : ''}终止${
-        terminatedAt ? `（${terminatedAt.toISOString().split('T')[0]}）` : ''
-      }。终止原因：${pmItem.terminationReason ?? '未填写'}。终止后项目只读，如需继续采购请重新建立项目。${
-        aiBrief ? `\n\n${aiBrief}` : ''
-      }`,
+      // 简报排序（2026-11-20 用户裁定）：AI 全项目简报在前，终止说明换行写在末尾
+      summary: aiBrief ? `${aiBrief}\n\n${terminatedLine}` : terminatedLine,
     };
   }
 
