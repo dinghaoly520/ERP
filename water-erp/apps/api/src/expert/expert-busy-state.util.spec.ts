@@ -169,6 +169,13 @@ describe('deriveBusyCounts E10 入口守卫（userWhere 禁传 expertProfile—�
     await expect(deriveBusyCounts(prisma as never, maliciousNull)).rejects.toThrow('EXPERT_PROFILE_KEY_FORBIDDEN');
   });
 
+  it('Omit 类型闸测试锁（评审低置信加固）：字面量直传 expertProfile 编译期即拒——@ts-expect-error 回退 Omit 后变「未使用指令」红', async () => {
+    const prisma = mkGuardPrisma();
+    // 不加 as never：类型层由 Omit 拦（ts-jest 开诊断）；运行时守卫接住 cast 绕过者——双闸各锁各的
+    // @ts-expect-error Omit<UserWhereInput,'expertProfile'> 不含 expertProfile 键——回退 Omit 本行不再报错、此指令变 unused 即红
+    await expect(deriveBusyCounts(prisma as never, { role: 'bid_expert', expertProfile: { specialty: '水文' } })).rejects.toThrow('EXPERT_PROFILE_KEY_FORBIDDEN');
+  });
+
   it('显式 undefined 与键缺席等价（无操作形态放行）', async () => {
     const prisma = mkGuardPrisma();
     prisma.expertProfile.groupBy.mockResolvedValue([{ availability: '可用', _count: 3 }]);
