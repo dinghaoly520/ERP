@@ -153,11 +153,14 @@ function donutPath(cx: number, cy: number, r: number, ir: number, a0: number, a1
 
 type ScaleSegment = { label: string; range: string; min: number; max: number; count: number; amount: number; amountLabel: string; share: number; color: string };
 
+/* 规模六档（2026-11-17 :3005 用户裁定同源：10/30/50/100/200 万切分，六色互异） */
 const SCALE_SEGS: Array<Pick<ScaleSegment, "label" | "range" | "min" | "max" | "color">> = [
-  { label: "小额", range: "<10万", min: 0, max: 100000, color: "var(--accent)" },
-  { label: "中小", range: "10-50万", min: 100000, max: 500000, color: "var(--success)" },
-  { label: "中型", range: "50-200万", min: 500000, max: 2000000, color: "var(--warning)" },
-  { label: "大型", range: ">200万", min: 2000000, max: Infinity, color: "var(--danger)" },
+  { label: "极小", range: "<10万", min: 0, max: 100000, color: "oklch(0.55 0.13 258)" },
+  { label: "小额", range: "10-30万", min: 100000, max: 300000, color: "oklch(0.55 0.11 168)" },
+  { label: "中小", range: "30-50万", min: 300000, max: 500000, color: "oklch(0.62 0.12 85)" },
+  { label: "中型", range: "50-100万", min: 500000, max: 1000000, color: "oklch(0.55 0.14 285)" },
+  { label: "中大", range: "100-200万", min: 1000000, max: 2000000, color: "oklch(0.58 0.16 25)" },
+  { label: "大型", range: ">200万", min: 2000000, max: Infinity, color: "oklch(0.55 0.12 228)" },
 ];
 
 /** budgetLabel 字面值（“123.4万”/“1,234,567元”）解析为元数值 */
