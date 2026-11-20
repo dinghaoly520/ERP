@@ -38,7 +38,7 @@ describe('shouldExclude', () => {
   it('高频轮询 GET 排除（通知角标/驾驶舱统计/审查任务轮询）', () => {
     expect(shouldExclude('GET', '/api/notifications/unread-count', DEFAULT_EXCLUDE_PATHS)).toBe(true);
     expect(shouldExclude('GET', '/api/supplier/stats', DEFAULT_EXCLUDE_PATHS)).toBe(true);
-    expect(shouldExclude('GET', '/api/catalog/admin/stats', DEFAULT_EXCLUDE_PATHS)).toBe(true);
+    expect(shouldExclude('GET', '/api/alerts/overview', DEFAULT_EXCLUDE_PATHS)).toBe(true); // :3011 告警卡轮询（catalog/admin/stats 死条目已随模块删除清理）
     expect(shouldExclude('GET', '/api/alerts/overview', DEFAULT_EXCLUDE_PATHS)).toBe(true);
     expect(shouldExclude('GET', '/api/tender-review/review/tasks/abc123', DEFAULT_EXCLUDE_PATHS)).toBe(true);
     expect(shouldExclude('GET', '/api/tender-review/rules/extract/tasks/t1', DEFAULT_EXCLUDE_PATHS)).toBe(true);
