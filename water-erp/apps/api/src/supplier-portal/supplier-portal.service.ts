@@ -2290,9 +2290,21 @@ export class SupplierPortalService {
     // 检查是否已上传招标文件
     const bidDoc = await this.prisma.bidDocument.findUnique({
       where: { announcementId: announcement.id },
-      select: { id: true },
+      select: { id: true, supersededByAnnouncementId: true },
     });
     if (!bidDoc) return null;
+
+    // 变更采购文件换源（2026-11-20 用户裁定）：原采购公告文件已被变更公告替换 →
+    // 项目机会直接取变更公告上的新文件（下载走同一链路，getForSupplier 已放开 CHANGE_NOTICE）
+    if (bidDoc.supersededByAnnouncementId) {
+      const supersededDoc = await this.prisma.bidDocument.findUnique({
+        where: { announcementId: bidDoc.supersededByAnnouncementId },
+        select: { announcement: { select: { status: true, type: true } } },
+      });
+      if (supersededDoc?.announcement.status === 'PUBLISHED') {
+        return this.bidDocumentService.getForSupplier(bidDoc.supersededByAnnouncementId, supplierId);
+      }
+    }
 
     // 委托 BidDocumentService 处理权限/付费/下载状态
     return this.bidDocumentService.getForSupplier(announcement.id, supplierId);

@@ -88,6 +88,26 @@ export class ProjectChangeService {
         // 现值与目标值归一比对（开标时间统一中文格式；数值统一 Number）
         let from: string;
         let to: string;
+        if (field === 'tenderDocument') {
+          // 变更采购文件（2026-11-20 用户裁定）：值=「采购文件」阶段附件 id；不写 PMI 标量——
+          // 换文件联动发生在变更公告发布时（建新 BidDocument + 旧采购公告文件禁下载 +
+          // 项目机会换源 + 03 步正式文件指针切换），登记仅留痕并强制发布公告
+          const attachmentId = String(raw ?? '');
+          const stage = await this.prisma.projectManagementStage.findFirst({
+            where: { projectManagementItemId: projectId, stageKey: 'TENDER_DOCUMENT' },
+            orderBy: { round: 'desc' },
+            select: { officialTenderAttachmentId: true, attachments: { select: { id: true, fileName: true } } },
+          });
+          const target = stage?.attachments.find((a) => a.id === attachmentId);
+          if (!target) {
+            throw new BadRequestException({ error: '新采购文件不存在——请先在「采购文件」阶段上传', code: 'BAD_FIELD_VALUE' });
+          }
+          if (stage?.officialTenderAttachmentId === attachmentId) continue; // 与当前正式文件同值跳过
+          const current = stage?.attachments.find((a) => a.id === stage.officialTenderAttachmentId);
+          diffs.push({ field, label: def.label, from: current?.fileName ?? '', to: target.fileName, stageKey: group.stageKey });
+          needsAnnouncement = true;
+          continue;
+        }
         if (field === 'bidOpeningTime') {
           const d = new Date(String(raw));
           if (Number.isNaN(d.getTime())) {

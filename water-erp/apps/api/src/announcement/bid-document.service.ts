@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, ConflictException, Logger } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
@@ -112,8 +112,10 @@ export class BidDocumentService {
   ) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id: announcementId } });
     if (!announcement) throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
-    if (announcement.type !== 'BID_NOTICE') {
-      throw new BadRequestException({ error: '仅招标公示可创建招标文件', code: 'NOT_BID_NOTICE' });
+    // 变更公告可建采购文件（2026-11-20 变更采购文件）：新文件挂变更公告，旧采购公告
+    // 文件由发布联动置 superseded（见 announcement.service syncChangeDocument）
+    if (announcement.type !== 'BID_NOTICE' && announcement.type !== 'CHANGE_NOTICE') {
+      throw new BadRequestException({ error: '仅招标公示与变更公告可创建采购文件', code: 'NOT_BID_NOTICE' });
     }
     const existing = await this.prisma.bidDocument.findUnique({ where: { announcementId } });
     if (existing) {
@@ -355,8 +357,19 @@ export class BidDocumentService {
       where: { announcementId },
       include: { announcement: { select: { id: true, title: true, type: true, status: true, metadata: true } } },
     });
-    // 补遗公告引用的采购文件同链可取（2026-11-06）：公告中心补遗详情的下载卡走此端点
-    if (!doc || (doc.announcement.type !== 'BID_NOTICE' && doc.announcement.type !== 'ADDENDUM')) return null;
+    // 补遗公告引用的采购文件同链可取（2026-11-06）：公告中心补遗详情的下载卡走此端点；
+    // 变更公告的采购文件同链（2026-11-20 变更采购文件）
+    if (!doc || !['BID_NOTICE', 'ADDENDUM', 'CHANGE_NOTICE'].includes(doc.announcement.type)) return null;
+
+    // 旧文件已被变更公告替换（2026-11-20）：不可下载，提示去变更公告下载新文件
+    let supersededBy: { announcementId: string; title: string } | null = null;
+    if (doc.supersededByAnnouncementId) {
+      const ann = await this.prisma.announcement.findUnique({
+        where: { id: doc.supersededByAnnouncementId },
+        select: { id: true, title: true },
+      });
+      supersededBy = ann ? { announcementId: ann.id, title: ann.title } : { announcementId: doc.supersededByAnnouncementId, title: '' };
+    }
 
     const eligibility = await this.checkEligibility(doc, supplierId);
     const access = await this.prisma.bidDocumentAccess.findUnique({
@@ -379,12 +392,14 @@ export class BidDocumentService {
       fileSize: doc.fileAssetId ? (await this.prisma.fileAsset.findUnique({ where: { id: doc.fileAssetId }, select: { size: true } }))?.size : null,
       // 供应商可见的权限结论（不暴露内部白名单）
       eligible: eligibility.eligible,
-      reason: eligibility.reason,
+      reason: supersededBy ? '本采购文件已变更，请前往变更公告下载新文件' : eligibility.reason,
       paid: access?.paid ?? false,
-      canDownload: eligibility.eligible && (!doc.requirePayment || access?.paid === true) && !needPassword,
+      canDownload: !supersededBy && eligibility.eligible && (!doc.requirePayment || access?.paid === true) && !needPassword,
       needPassword,
       needPayment: doc.requirePayment && !access?.paid,
       downloadCount: access?.downloadCount ?? 0,
+      /** 被变更公告替换时的指引（2026-11-20）：前端据此提示「去 xx 变更公告中下载」 */
+      supersededBy,
     };
   }
 
@@ -439,6 +454,15 @@ export class BidDocumentService {
   async downloadForSupplier(announcementId: string, supplierId: string, password?: string): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
     const doc = await this.prisma.bidDocument.findUnique({ where: { announcementId }, include: { fileAsset: true, announcement: { select: { metadata: true } } } });
     if (!doc) throw new NotFoundException({ error: '招标文件不存在', code: 'NOT_FOUND' });
+
+    // 旧采购文件已被变更公告替换（2026-11-20 变更采购文件）：禁下载，指引去变更公告
+    if (doc.supersededByAnnouncementId) {
+      const ann = await this.prisma.announcement.findUnique({ where: { id: doc.supersededByAnnouncementId }, select: { title: true } });
+      throw new ConflictException({
+        error: `本采购文件已变更，请前往变更公告${ann?.title ? `「${ann.title}」` : ''}下载新文件`,
+        code: 'DOC_SUPERSEDED',
+      });
+    }
 
     const elig = await this.checkEligibility(doc, supplierId);
     if (!elig.eligible) throw new ForbiddenException({ error: elig.reason, code: 'NOT_ELIGIBLE' });

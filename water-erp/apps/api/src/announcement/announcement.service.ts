@@ -249,6 +249,16 @@ export class AnnouncementService {
           : `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
       }
     }
+    // 变更采购文件（2026-11-20 用户裁定）：变更公告发布且引用新采购文件 → 换源联动
+    //（建新 BidDocument + 旧采购公告文件禁下载 + PMI 正式文件指针切换），best-effort
+    if (dto.type === 'CHANGE_NOTICE' && status === 'PUBLISHED') {
+      const meta = (result.metadata as Record<string, any>) || {};
+      try {
+        await this.syncChangeDocument(result.id, meta, authorId);
+      } catch (e) {
+        this.logger.warn(`变更公告 ${result.id} 采购文件换源联动失败 (create): ${(e as Error).message}`);
+      }
+    }
     // 发布即通知（所有类型，不仅 BID_NOTICE）：按可见范围向供应商发站内信
     if (status === 'PUBLISHED') {
       const meta = (result.metadata as Record<string, any>) || {};
@@ -892,6 +902,15 @@ export class AnnouncementService {
         (result as any).projectSyncWarning = isFailedBidPublish
           ? `流标公告已发布，但联动流标未完成（${(e as Error).message}）——项目仍为活动态，收尾决策与再次采购将受阻，请联系管理员处理`
           : `公告已发布，但联动创建招标项目失败（${(e as Error).message}）——请检查元数据时间并重试或联系管理员`;
+      }
+    }
+    // 变更采购文件（2026-11-20）：定时/编辑发布同联动（create 路径同款，best-effort）
+    if (isPublishTransition && result.type === 'CHANGE_NOTICE') {
+      const meta = (result.metadata as Record<string, any>) || {};
+      try {
+        await this.syncChangeDocument(result.id, meta, result.authorId);
+      } catch (e) {
+        this.logger.warn(`变更公告 ${result.id} 采购文件换源联动失败 (update): ${(e as Error).message}`);
       }
     }
     // 发布即通知（所有类型）：按可见范围向供应商发站内信
@@ -1542,6 +1561,77 @@ export class AnnouncementService {
         code: 'OFFICIAL_TENDER_MISMATCH',
       });
     }
+  }
+
+  /** 变更采购文件发布联动（2026-11-20 用户裁定）：变更公告引用了新采购文件（meta.
+   *  selectedTenderObjectKey）时——①新文件挂变更公告建 BidDocument（attachFromObject 幂等）；
+   *  ②项目原采购公告（BID_NOTICE，双编号匹配同 resolveOwnAnnouncement 口径）的采购文件置
+   *  supersededByAnnouncementId → 供应商端禁下载并提示来本公告下载；③PMI「采购文件」阶段
+   *  正式文件指针切到新附件。best-effort：调用方捕获，单项失败留 warn 不阻塞发布 */
+  private async syncChangeDocument(changeAnnouncementId: string, meta: Record<string, any>, authorId?: string | null) {
+    const sourceKey: string | undefined = meta.selectedTenderObjectKey;
+    if (!sourceKey || !this.bidDocumentService) return;
+
+    // ①新文件挂变更公告
+    await this.bidDocumentService.attachFromObject(changeAnnouncementId, {
+      objectKey: sourceKey,
+      fileName: meta.selectedTenderFileName,
+      mimeType: meta.selectedTenderMimeType,
+      title: meta.selectedTenderFileName,
+      uploaderId: authorId ?? null,
+    });
+
+    // ②项目编号（变更公告 relatedProjectCode / metadata.projectCode / 变更登记链路兜底）
+    const changeAnn = await this.prisma.announcement.findUnique({
+      where: { id: changeAnnouncementId },
+      select: { relatedProjectCode: true, metadata: true },
+    });
+    const code =
+      changeAnn?.relatedProjectCode ||
+      ((changeAnn?.metadata as Record<string, any> | null)?.projectCode as string | undefined) ||
+      (meta.projectCode as string | undefined);
+    if (!code) return;
+
+    // 旧采购公告的采购文件置 superseded（多候选全置——撞号场景宁多勿漏；已置者不动）
+    const candidates = await this.prisma.announcement.findMany({
+      where: {
+        type: 'BID_NOTICE',
+        status: 'PUBLISHED',
+        OR: [
+          { relatedProjectCode: code },
+          { metadata: { path: ['projectCode'], equals: code } },
+        ],
+      },
+      select: { id: true },
+    });
+    for (const cand of candidates) {
+      await this.prisma.bidDocument.updateMany({
+        where: { announcementId: cand.id, supersededByAnnouncementId: null },
+        data: { supersededByAnnouncementId: changeAnnouncementId },
+      });
+    }
+
+    // ③PMI 03 步正式文件指针切换：附件 id 优先（变更登记链路写入 meta.tenderDocumentAttachmentId），
+    //    缺失时按 objectKey 反查该 PMI「采购文件」阶段附件
+    const pmi = await this.prisma.projectManagementItem.findFirst({
+      where: { projectCode: code },
+      select: { id: true },
+    });
+    if (!pmi) return;
+    const stage = await this.prisma.projectManagementStage.findFirst({
+      where: { projectManagementItemId: pmi.id, stageKey: 'TENDER_DOCUMENT' },
+      orderBy: { round: 'desc' },
+      select: { id: true, attachments: { select: { id: true, objectKey: true } } },
+    });
+    if (!stage) return;
+    const targetAtt =
+      (meta.tenderDocumentAttachmentId && stage.attachments.find((a) => a.id === meta.tenderDocumentAttachmentId)) ||
+      stage.attachments.find((a) => a.objectKey === sourceKey);
+    if (!targetAtt) return;
+    await this.prisma.projectManagementStage.update({
+      where: { id: stage.id },
+      data: { officialTenderAttachmentId: targetAtt.id },
+    });
   }
 
   private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null; companyId?: string | null; companyName?: string | null; type?: string | null }) {

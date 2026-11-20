@@ -170,7 +170,7 @@ export default function AnnouncementDetailPage() {
       const a = await announcementApi.getPublic(id);
       setAnnouncement(a);
       // 补遗公告引用的采购文件（2026-11-06）：公告维度元信息（免费/解密下载）
-      if (a?.type === "ADDENDUM" && a?.titleOnly !== true) {
+      if (["ADDENDUM", "CHANGE_NOTICE"].includes(a?.type ?? "") && a?.titleOnly !== true) {
         try { setRefDoc(await announcementApi.getAnnouncementBidDocument(id)); } catch { setRefDoc(undefined); }
       }
     } catch (e: any) {
@@ -348,7 +348,7 @@ export default function AnnouncementDetailPage() {
 
           {/* 补遗公告引用的采购文件（2026-11-06 用户裁定）：补遗自带下载通道（免费/解密/付费暂不支持），
               与其他引用采购文件处同链——元信息/下载走公告维度端点，资格校验同口径 */}
-          {announcement.type === "ADDENDUM" && !offlined && refDoc && (
+          {["ADDENDUM", "CHANGE_NOTICE"].includes(announcement.type ?? "") && !offlined && refDoc && (
             <>
               <hr className="ann-divider" />
               <div className="bid-doc-section">

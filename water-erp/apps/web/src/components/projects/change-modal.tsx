@@ -40,6 +40,7 @@ export function ChangeModal({
   currentValues,
   currentStage,
   bidOpened,
+  tenderDocOptions,
   onRegistered,
 }: {
   isOpen: boolean;
@@ -50,6 +51,9 @@ export function ChangeModal({
   currentStage: string | null;
   /** 开标确认（BidProject 进入 OPENING 起）——标段分区闸：开标后标前锁死、标后解锁 */
   bidOpened: boolean;
+  /** 「采购文件」阶段附件清单（2026-11-20 变更采购文件）：tenderDocument 字段单选源；
+   *  isCurrent=当前正式盖章版（选它=无变化跳过） */
+  tenderDocOptions?: Array<{ id: string; fileName: string; objectKey: string; mimeType?: string | null; isCurrent?: boolean }>;
   onRegistered: (
     result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string; publishStart?: string; publishEnd?: string; patchExtra?: Record<string, string> },
     publish: boolean,
@@ -188,6 +192,14 @@ export function ChangeModal({
       const changeContent = cs.length > 0
         ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
         : (values.changeContent ?? payload.reason);
+      // 变更采购文件（2026-11-20）：登记路径同样带文件引用键（后续发布公告时向导可直取）
+      const tenderAttReg = (tenderDocOptions ?? []).find(o => o.id === payload.fields.tenderDocument);
+      const patchExtraReg: Record<string, string> = tenderAttReg ? {
+        selectedTenderObjectKey: tenderAttReg.objectKey,
+        selectedTenderFileName: tenderAttReg.fileName,
+        selectedTenderMimeType: tenderAttReg.mimeType ?? '',
+        tenderDocumentAttachmentId: tenderAttReg.id,
+      } : {};
       onRegistered({
         needsAnnouncement: r.needsAnnouncement,
         recordId: r.record.id,
@@ -195,6 +207,7 @@ export function ChangeModal({
         round: r.record.round,
         reason: payload.reason,
         changeContent,
+        patchExtra: patchExtraReg,
       }, false);
       onClose();
     } catch (e) {
@@ -223,8 +236,17 @@ export function ChangeModal({
       const patchExtra: Record<string, string> = payload.type === 'ADDENDUM' ? {
         changeContent: values.changeContent ?? '',
       } : {};
+      // 变更采购文件（2026-11-20）：新文件引用键随 patch 注入公告向导（changeTender 消费）
+      const tenderAtt = (tenderDocOptions ?? []).find(o => o.id === payload.fields.tenderDocument);
+      if (payload.type === 'CHANGE' && tenderAtt) {
+        patchExtra.selectedTenderObjectKey = tenderAtt.objectKey;
+        patchExtra.selectedTenderFileName = tenderAtt.fileName;
+        patchExtra.selectedTenderMimeType = tenderAtt.mimeType ?? '';
+        patchExtra.tenderDocumentAttachmentId = tenderAtt.id;
+      }
       onRegistered({
-        needsAnnouncement: 'bidOpeningTime' in payload.fields,
+        // 开标时间与采购文件变更必须发公告（2026-11-20：tenderDocument 同入强制集）
+        needsAnnouncement: 'bidOpeningTime' in payload.fields || 'tenderDocument' in payload.fields,
         recordId: '',
         category: payload.type === 'CHANGE' ? 'change_notice' : 'addendum',
         round: nextRound,
@@ -395,7 +417,24 @@ export function ChangeModal({
                             value={values[f.field] ?? ''}
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
-                        /* datetime-range 区间控件（曾用于文件获取时间）已随字段退役删除（2026-11-20） */
+                        /* 变更采购文件（2026-11-20）：从「采购文件」阶段附件单选新文件——
+                           当前正式版标注且不可选（选它=无变化）；无附件时提示先去 03 步上传 */
+                        ) : f.widget === 'tender-doc' ? (
+                          <select
+                            className="workbench-input"
+                            disabled={!g.unlocked}
+                            value={values[f.field] ?? ''}
+                            onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
+                          >
+                            <option value="">
+                              {tenderDocOptions && tenderDocOptions.length > 0
+                                ? `选择新采购文件（当前正式版：${tenderDocOptions.find(o => o.isCurrent)?.fileName ?? '未标记'}）`
+                                : '「采购文件」阶段暂无附件——请先在采购文件步骤上传'}
+                            </option>
+                            {(tenderDocOptions ?? []).filter(o => !o.isCurrent).map(o => (
+                              <option key={o.id} value={o.id}>{o.fileName}</option>
+                            ))}
+                          </select>
                         ) : f.widget === 'search-select' ? (
                           <SearchSelect
                             options={projectOptions}

@@ -682,6 +682,25 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     [tenderStage],
   );
 
+  // 变更采购文件（2026-11-20 用户裁定）：变更公告引用的新采购文件——由变更弹窗经
+  // initialDraftPatch 注入（selectedTenderObjectKey/FileName/MimeType + 附件 id）；
+  // 仅变更采购文件的登记带这些键（仅改开标时间等不带 → 不引用文件、不换源）
+  const changeTender = useMemo<{ objectKey: string; fileName: string; mimeType: string; attachmentId: string } | null>(
+    () => {
+      const p = initialDraftPatch as Record<string, string | undefined> | undefined;
+      if (p?.selectedTenderObjectKey) {
+        return {
+          objectKey: p.selectedTenderObjectKey,
+          fileName: p.selectedTenderFileName ?? '',
+          mimeType: p.selectedTenderMimeType ?? '',
+          attachmentId: p.tenderDocumentAttachmentId ?? '',
+        };
+      }
+      return null;
+    },
+    [initialDraftPatch],
+  );
+
   // 打开时：确定 tenderType + 构造预填 draft + 解析 .docx
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时重置表单值，符合模态惯例 */
   useEffect(() => {
@@ -1298,6 +1317,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         meta.selectedTenderFileName = officialTender.fileName;
         meta.selectedTenderMimeType = officialTender.mimeType;
       }
+      // 变更采购文件（2026-11-20 用户裁定）：变更公告引用新采购文件——后端发布联动
+      //（syncChangeDocument）据此建变更公告 BidDocument、旧采购公告文件置禁下载、
+      // PMI 03 步正式指针切换；仅变更采购文件的登记注入这些键
+      if (category === 'change_notice' && changeTender) {
+        meta.selectedTenderObjectKey = changeTender.objectKey;
+        meta.selectedTenderFileName = changeTender.fileName;
+        meta.selectedTenderMimeType = changeTender.mimeType;
+        if (changeTender.attachmentId) meta.tenderDocumentAttachmentId = changeTender.attachmentId;
+      }
       // 投递截止（bid deadline）—— 由当前开标时间直接推导（开标前 BID_DEADLINE_BEFORE_OPENING_MS 毫秒=10 分钟），
       // 与关键时间卡展示口径一致；无开标时间时兜底 init 时算的值，再兜底公告截止。
       // 直接采购：deadline/downloadDeadline 已在 buildCanonicalMeta 中按「采购时间前间隔（10 分钟）/ 公示区间」算好，勿覆盖
@@ -1621,6 +1649,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               }
               if (category === 'procurement_document') {
                 summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
+              }
+              // 变更采购文件（2026-11-20）：变更公告的文件引用行（发布后旧文件禁下载并指回本公告）
+              if (category === 'change_notice') {
+                summaryRows.push(['引用采购文件', changeTender ? `${changeTender.fileName}（替换原采购文件）` : '不涉及采购文件变更']);
               }
               // 公告附件：芯片清单可点预览（2026-09-27 用户反馈：只显计数看不到传了什么，
               // 再反馈要能预览）——附件为公开下载材料，发布后信息门户/公告中心/项目机会

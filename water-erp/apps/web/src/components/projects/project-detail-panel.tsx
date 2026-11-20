@@ -35,6 +35,7 @@ import {
   PROJECT_WORKFLOW_STAGES,
   isPendingSupplementStage,
   type ProjectDetailAnalysis,
+  type ProjectManagementAttachment,
   type ProjectManagementItem,
   type ProjectManagementStage,
   type ProjectWorkflowStageKey,
@@ -299,6 +300,21 @@ export function ProjectDetailPanel({
     ...(item as unknown as Record<string, string | number | null>),
     ...Object.fromEntries(Object.entries(extractedInfoOverride ?? {}).filter(([, v]) => v != null && (v as string) !== '')),
   }), [item, extractedInfoOverride]);
+
+  // 变更采购文件（2026-11-20 用户裁定）：「采购文件」阶段（最新轮）附件清单——变更弹窗
+  // tenderDocument 字段单选源；当前正式盖章版标注 isCurrent（选它=无变化）
+  const tenderDocOptions = useMemo(() => {
+    const stages = item.stages ?? [];
+    const tender = [...stages].filter((s) => s.stageKey === 'TENDER_DOCUMENT').sort((a, b) => (b.round ?? 1) - (a.round ?? 1))[0];
+    if (!tender) return [];
+    return (tender.attachments ?? []).filter((a): a is ProjectManagementAttachment & { id: string } => !!a.id).map((a) => ({
+      id: a.id,
+      fileName: a.fileName,
+      objectKey: a.objectKey,
+      mimeType: a.mimeType,
+      isCurrent: a.id === tender.officialTenderAttachmentId,
+    }));
+  }, [item.stages]);
 
   // 变更/补遗公告发布上下文（2026-11-11）：登记成功 → 拉起向导并发布后回填记录
   const [changeWizardCtx, setChangeWizardCtx] = useState<{ category: 'change_notice' | 'addendum'; patch: Record<string, string>; recordId: string; /** 发布优先（2026-11-12）：公告成功后补登记的载荷；空=已登记只需回填 */ pendingRegister?: { type: 'CHANGE' | 'ADDENDUM'; reason: string; fields: Record<string, string> } } | null>(null);
@@ -2477,6 +2493,7 @@ export function ProjectDetailPanel({
         currentStage={item.currentStage}
         bidOpened={isBidLocked}
         currentValues={changeCurrentValues}
+        tenderDocOptions={tenderDocOptions}
         onRegistered={async (ctx, publish, pending) => {
           if (publish && pending) {
             // 发布优先（2026-11-12 裁定）：信息尚未登记——公告发布成功才补登记；

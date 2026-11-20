@@ -2097,6 +2097,10 @@ model BidDocument {
   decryptKey     String // AES-256-GCM 密钥:iv:authTag (hex)
   bidProjectId   String? // INVITED 时关联招标项目
   addendumNo     Int      @default(0) // C5（7.2.6）：补遗序号——每发布一条补遗公告 +1，供应商侧显示"补遗 N 次"
+  /** 被变更公告替换（2026-11-20 变更采购文件）：指向替换本文件的变更公告 id——
+   *  非空=旧采购文件禁下载，供应商端提示去该变更公告下载新文件；松引用列（不建
+   *  FK，公告删除不级联扰动本行，置空由业务维护） */
+  supersededByAnnouncementId String?
   downloadCount  Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

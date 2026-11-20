@@ -6,8 +6,10 @@ export type ChangeFieldDef = {
   field: string;
   label: string;
   kind: 'text' | 'number' | 'datetime';
-  /** 写入目标：PMI=ProjectManagementItem（2026-11-11 用户裁定：变更范围=项目基本信息，采购文件域字段不入白名单） */
-  target: 'PMI';
+  /** 写入目标：PMI=ProjectManagementItem（2026-11-11 用户裁定：变更范围=项目基本信息，采购文件域字段不入白名单）；
+   *  DOC=采购文件本体（2026-11-20 变更采购文件）——值为「采购文件」阶段附件 id，
+   *  不写 PMI 标量；实际换文件在变更公告发布时联动（建新 BidDocument + 旧文件禁下载） */
+  target: 'PMI' | 'DOC';
 };
 
 /** 禁入白名单的字段（点名字段+提示去向；新名单字段加入这里） */
@@ -42,6 +44,9 @@ export const CHANGE_FIELD_GROUPS = [
     stageKey: 'TENDER_DOCUMENT',
     fields: [
       { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI' },
+      // 变更采购文件（2026-11-20 用户裁定）：值=「采购文件」阶段附件 id；发布变更公告时
+      // 换源联动（新建变更公告 BidDocument、旧采购公告文件禁下载、项目机会取新文件）
+      { field: 'tenderDocument', label: '采购文件', kind: 'text', target: 'DOC' },
     ],
   },
   {

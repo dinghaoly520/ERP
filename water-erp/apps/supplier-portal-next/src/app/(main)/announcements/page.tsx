@@ -30,6 +30,7 @@ const typeOptions: Array<{ label: string; value: string; icon: typeof Inbox }> =
   { label: "流标公告", value: "FAILED_BID_NOTICE", icon: FileX },
   { label: "中标公告", value: "WIN_BID_NOTICE,PRE_WIN_NOTICE", icon: Trophy },
   { label: "补遗公告", value: "ADDENDUM", icon: FilePen },
+  { label: "变更公告", value: "CHANGE_NOTICE", icon: FilePen },
   { label: "资格预审", value: "PREQUAL_NOTICE", icon: ListChecks },
   { label: "政策法规", value: "POLICY", icon: Scale },
   { label: "平台通知", value: "PLATFORM", icon: Bell },
@@ -37,6 +38,7 @@ const typeOptions: Array<{ label: string; value: string; icon: typeof Inbox }> =
 const typeTagMap: Record<string, { label: string; type: string }> = {
   BID_NOTICE: { label: "采购公告", type: "primary" },
   ADDENDUM: { label: "补遗公告", type: "warning" },
+  CHANGE_NOTICE: { label: "变更公告", type: "warning" },
   PREQUAL_NOTICE: { label: "资格预审公告", type: "primary" },
   PRE_WIN_NOTICE: { label: "中标公告", type: "success" },
   WIN_NOTICE: { label: "成交公告", type: "success" },

@@ -9,12 +9,13 @@ export type ChangeFieldDef = {
   field: string;
   label: string;
   kind: 'text' | 'number' | 'datetime';
-  target: 'PMI' | 'BID';
+  target: 'PMI' | 'BID' | 'DOC';
   /** 下拉选项（2026-11-11 用户裁定：采购类别用下拉）——仅前端表单渲染用，后端闸不感知 */
   options?: string[];
   /** 实体名单选择器（归属项目=项目清单，2026-11-11）：渲染走 SearchSelect，后端闸不感知。
-   *  datetime-range（曾用于文件获取时间）已随字段退役移除（2026-11-20）。 */
-  widget?: 'search-select';
+   *  datetime-range（曾用于文件获取时间）已随字段退役移除（2026-11-20）。
+   *  tender-doc（2026-11-20 变更采购文件）：从「采购文件」阶段附件单选新文件。 */
+  widget?: 'search-select' | 'tender-doc';
   /** 多行文本（长段落字段如项目概况）——渲染为加高文本域 */
   multiline?: boolean;
   /** 整行占位（2 列栅格跨双列，长段落字段） */
@@ -63,6 +64,9 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
     stageLabel: '采购文件',
     fields: [
       { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI', aiAssist: 'tender-overview' },
+      // 变更采购文件（2026-11-20 用户裁定，与后端注册表同步）：从「采购文件」阶段附件单选
+      // 新文件；登记后强制走变更公告（发布优先），发布时自动换源联动
+      { field: 'tenderDocument', label: '采购文件', kind: 'text', target: 'DOC', widget: 'tender-doc', fullRow: true },
     ],
   },
   {
