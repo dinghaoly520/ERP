@@ -595,9 +595,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .filter((x) => x.amount > 0)
       .sort((a, b) => b.amount - a.amount);
     const total = rows.reduce((sum, x) => sum + x.amount, 0);
-    const top5 = rows.slice(0, 5);
+    const top10 = rows.slice(0, 10);
     const cr3 = total > 0 ? rows.slice(0, 3).reduce((s, x) => s + x.amount, 0) / total : 0;
-    return { top5, cr3, total };
+    return { top10, cr3, total };
   }, [data]);
 
   /* 进行中区派生（PMI）：部门/阶段/方式/规模/归属项目 */
@@ -1006,28 +1006,46 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{scaleTotal} 项已成交</span>
             </div>
 
-            {/* 供应商集中度：Top5 中标金额横条 + CR3 结论 */}
-            <SectionCard icon={Handshake} title="供应商集中度" index={0}>
-              {supplierConc.top5.length ? (
-                <div className="space-y-2">
-                  {(() => {
-                    const max = supplierConc.top5[0].amount;
-                    return supplierConc.top5.map((x, i) => (
-                      <div key={x.name} className="flex items-center gap-2">
-                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                        <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.name}</span>
-                        <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-[5px] bg-[var(--gold)] opacity-80" style={{ width: `${(x.amount / max) * 100}%` }} />
-                        </span>
-                        <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{x.amount >= 10000 ? `${(x.amount / 10000).toFixed(1)}万` : `${Math.round(x.amount)}元`}</span>
-                        <span className="w-[2.75rem] shrink-0 text-right text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{x.wins} 次</span>
-                      </div>
-                    ));
-                  })()}
-                  <div className="pt-1 text-[12px] text-[var(--muted-foreground)]">
-                    Top3 供应商占已成交总额 <b className="tabular-nums text-[var(--gold)]">{(supplierConc.cr3 * 100).toFixed(1)}%</b>
-                    {supplierConc.cr3 >= 0.5 ? "——集中度偏高，建议扩充竞争面" : ""}
+            {/* 供应商集中度（2026-11-19 用户裁定）：Top10 瓷片行点击展开下钻——
+                金额/中标次数随行直列，细进度条内嵌，不再长条并排 */}
+            <SectionCard icon={Handshake} title="供应商集中度" index={0} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>}>
+              {supplierConc.top10.length ? (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5" style={{ background: "color-mix(in oklch, var(--gold) 6%, transparent)" }}>
+                    <span className="text-[13px] text-[var(--muted-foreground)]">Top3 集中度</span>
+                    <span className="ml-auto text-[17px] font-black tabular-nums text-[var(--gold)]">{(supplierConc.cr3 * 100).toFixed(1)}%</span>
                   </div>
+                  {supplierConc.top10.map((x, i) => {
+                    const pct = (x.amount / (supplierConc.total || 1)) * 100;
+                    return (
+                      <button
+                        key={x.name}
+                        type="button"
+                        onClick={() => {
+                          const hit = (data?.supplierStats ?? []).find((sp) => sp.name === x.name);
+                          if (hit) setActiveSupplier(hit);
+                        }}
+                        className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{x.name}</span>
+                          <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{x.amount >= 10000 ? `${(x.amount / 10000).toFixed(1)}万` : `${Math.round(x.amount)}元`}</span>
+                          <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{x.wins} 次</span>
+                          <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                            <span className="block h-full rounded-full bg-[var(--gold)] opacity-75" style={{ width: `${pct}%` }} />
+                          </span>
+                          <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">占比 {pct.toFixed(1)}%</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {supplierConc.cr3 >= 0.5 ? (
+                    <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">Top3 占比过半——集中度偏高，建议扩充竞争面</div>
+                  ) : null}
                 </div>
               ) : (
                 <EmptyState text="暂无成交供应商数据" />
