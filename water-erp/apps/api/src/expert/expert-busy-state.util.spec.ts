@@ -145,3 +145,34 @@ describe('lifecycleStateOf（E5/E7 2026-11-19：池外呈现态单源——已�
     expect(lifecycleStateOf({ entryStatus: null, availability: null }, inflight)).toBe('已被抽取');
   });
 });
+
+describe('deriveBusyCounts E10 入口守卫（userWhere 禁传 expertProfile——spread 覆盖陷阱双闸）', () => {
+  // 本地工厂（mkPrisma 作用域在上一个 describe 内，此处自建轻量版——守卫用例只需断言零查询）
+  const mkGuardPrisma = () => ({
+    expertProfile: { groupBy: jest.fn().mockResolvedValue([]) },
+    bidExpert: { findMany: jest.fn().mockResolvedValue([]) },
+  });
+
+  it('传 expertProfile 键 → 抛 EXPERT_PROFILE_KEY_FORBIDDEN，且入口即炸零查询（消息文案是引导面一并锁）', async () => {
+    const prisma = mkGuardPrisma();
+    // 参数类型已 Omit<…,'expertProfile'>——类型只拦字面量直写，spread/动态构造/as 断言全绕过，
+    // 故须 cast 构造恶意入参；运行时守卫正是为这些类型盲区存在的第二道闸
+    const malicious = { role: 'bid_expert', expertProfile: { specialty: '水文' } } as never;
+    await expect(deriveBusyCounts(prisma as never, malicious)).rejects.toThrow(/EXPERT_PROFILE_KEY_FORBIDDEN|单源|扩展本函数/);
+    expect(prisma.expertProfile.groupBy).not.toHaveBeenCalled(); // 入口守卫（非查询后校验）
+    expect(prisma.bidExpert.findMany).not.toHaveBeenCalled();
+  });
+
+  it('null 是有语义的 Prisma 过滤（关系为空）——同样拒绝（!== undefined 判据，truthy 会放行 null 造病理态）', async () => {
+    const prisma = mkGuardPrisma();
+    const maliciousNull = { role: 'bid_expert', expertProfile: null } as never;
+    await expect(deriveBusyCounts(prisma as never, maliciousNull)).rejects.toThrow('EXPERT_PROFILE_KEY_FORBIDDEN');
+  });
+
+  it('显式 undefined 与键缺席等价（无操作形态放行）', async () => {
+    const prisma = mkGuardPrisma();
+    prisma.expertProfile.groupBy.mockResolvedValue([{ availability: '可用', _count: 3 }]);
+    const r = await deriveBusyCounts(prisma as never, { role: 'bid_expert', expertProfile: undefined } as never);
+    expect(r.inLibraryActive).toBe(3);
+  });
+});

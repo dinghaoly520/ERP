@@ -14,6 +14,7 @@ import type { Prisma, PrismaClient } from '@prisma/client';
  *  - ExpertAdminService.getStatistics（:3005 统计页）
  *  - ExpertAdminService.getBigscreenStats（:3010 大屏，公开全库）
  *  - assistant/tools/expert.tool（水叮当 stats 概览 + search/list 状态列）
+ *  - assistant/assistant.service getQuickStats（水叮当首页磁贴，E6 新增——deriveBusyCounts 第 4 调用方）
  *  - expert-ai-evaluation collectExpertFacts（AI 综合评价输入）
  *
  * 纯函数文件（仿 expert-ai-evaluation.ts）：不依赖 Nest DI，直调可测。
@@ -111,11 +112,23 @@ export interface BusyCounts {
 /** 库况数字派生：分母 groupBy（ACTIVE+非停用）与在途并集查询**两侧同人口过滤**
  *  （2026-11-19 裁定⑴——临时需求方代表经 BidExpert 绑定项目但非库内可抽取人口，单侧
  *  过滤会让 idle 被 Math.max 静默钳低、idle+occupied 不再还原分母）。
- *  userWhere = 视野过滤片段（专家库公司隔离 f / 水叮当 companyWhere / 大屏空视野）。 */
+ *  userWhere = 视野过滤片段（专家库公司隔离 f / 水叮当 companyWhere / 大屏空视野）。
+ *  **契约（E10 2026-11-20）**：userWhere 禁传 `expertProfile` 键（类型已 Omit；传了抛错）——
+ *  人口过滤由本函数单源注入并同注两侧；需收窄库内人口请扩展本函数 API，勿调用方自带。 */
 export async function deriveBusyCounts(
   prisma: BusyPrisma,
-  userWhere: Prisma.UserWhereInput,
+  userWhere: Omit<Prisma.UserWhereInput, 'expertProfile'>,
 ): Promise<BusyCounts> {
+  // E10 入口守卫（与 Omit 类型互补——Omit 只拦字面量直写，spread/动态构造/as 断言全绕过，
+  // 运行时守卫是第二道闸，勿以「类型已禁」为由删除）。判据用 !== undefined 而非 truthy：
+  // null 是有语义的 Prisma 过滤（关系为空），放行 null 会造成分母 0 而 occupied>0 的病理态。
+  // 嵌套走私（AND/OR/NOT 数组内 expertProfile）两侧对称良性，不深遍历。
+  if ((userWhere as { expertProfile?: unknown }).expertProfile !== undefined) {
+    throw new Error(
+      'EXPERT_PROFILE_KEY_FORBIDDEN: deriveBusyCounts 的 userWhere 不接受 expertProfile 键——' +
+      '人口过滤（ACTIVE+非停用）由本函数单源注入并同注两侧（裁定⑴）；需收窄库内人口请扩展本函数 API',
+    );
+  }
   const [availGroups, busyRows] = await Promise.all([
     prisma.expertProfile.groupBy({
       by: ['availability'],
@@ -128,6 +141,8 @@ export async function deriveBusyCounts(
         project: { stage: { in: [...IN_FLIGHT_STAGES] } },
         user: {
           ...userWhere,
+          // 单源注入人口过滤（spread 后本键覆盖 userWhere 同名键——入口守卫已禁传入，
+          // 此处覆盖即安全；裁定⑴两侧同滤保证 idle+occupied 还原分母）
           expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } },
         },
       },
