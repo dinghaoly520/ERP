@@ -43,7 +43,8 @@ export default function ExpertStatisticsPage() {
   );
 
   const maxSpec = Math.max(...data.specialtyDistribution.map(s => s.count), 1);
-  const availRate = data.totalExperts > 0 ? Math.round((data.available / data.totalExperts) * 100) : 0;
+  // E9（2026-11-20 B 案）：可用率=库内空闲占比（分母=可用+占用，与后端 availableRate 同口径）
+  const availRate = data.available + data.occupied > 0 ? Math.round((data.available / (data.available + data.occupied)) * 100) : 0;
   const trendTotal = data.monthlyEvalTrend.counts.reduce((s, c) => s + c, 0);
   const trendMax = Math.max(...data.monthlyEvalTrend.counts, 1);
   const GRADE_COLORS: Record<string, string> = { A: 'var(--success)', B: 'var(--accent)', C: 'var(--warning)', D: '#ca8a04', E: 'var(--danger)' };
@@ -68,7 +69,7 @@ export default function ExpertStatisticsPage() {
               ['专家总数', data.totalExperts, '入库总量'],
               ['可用', data.available, `占比 ${availRate}%`],
               ['占用中', data.occupied, '在途评审任务'], // 2026-11-19 裁定⑸：occupied=正选在途(含未开评)+正在评标+候补待命并集，非「正参与评审」
-              ['已停用', data.disabled, '退库/停用'],
+              ['未在池', data.disabled, '退库/停用/待审等池外'],
               ['近7日分配', data.recentAssigns7d, '专家被分配至项目'],
               ['近30日抽取', data.recentExtractions30d, '专家组组建次数'],
             ].map(([label, value, sub]) => (

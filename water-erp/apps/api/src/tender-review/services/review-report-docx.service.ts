@@ -96,7 +96,9 @@ ${(report.extractedFields ?? []).length > 0 ? `
     .map((f) => {
       const def = REVIEW_FIELD_VOCAB.find((d) => d.value === f.field);
       const label = def ? def.label : `${f.field}（词表外）`;
-      return `<tr><td>${esc(label)}</td><td>${esc(String(f.value))}</td></tr>`;
+      const value =
+        typeof f.value === 'boolean' ? (f.value ? '有' : '无') : String(f.value);
+      return `<tr><td>${esc(label)}</td><td>${esc(value)}</td></tr>`;
     })
     .join('')}
 </table>` : ''}

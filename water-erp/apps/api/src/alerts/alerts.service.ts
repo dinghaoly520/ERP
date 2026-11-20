@@ -28,10 +28,13 @@ export class AlertsService {
     });
 
     // 过载专家：同时参与 > 3 个未归档项目（内存聚合，避免 groupBy having 类型复杂度）
-    // 2026-10-28：人口限在编评标专家（role+isActive）——与负荷分布 getLoadDistribution 同口径，
-    // 退库/停用账号的存量分配不再计入过载
+    // 2026-10-28：人口限在编评标专家（role+isActive）；E8 跟进票（2026-11-20）补 expertProfile
+    // 人口过滤——与负荷分布 getLoadDistribution 同口径（人口过滤逐字同；视野源不同：本端点
+    // 穿 portalSource 随门户裁定走 :3011 总数据，getLoadDistribution 恒登录人公司——两数字
+    // 不同页消费无对照面）：退库/停用-ACTIVE（临时需求代表）/待审/停账号的存量分配不再计入
+    // 过载；declined 行保留=负荷语义（同 getLoadDistribution）
     const activeAssignments = await this.prisma.bidExpert.findMany({
-      where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...(ids !== null ? { companyId: { in: ids } } : {}) } },
+      where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...(ids !== null ? { companyId: { in: ids } } : {}), expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } } },
       select: { userId: true },
     });
     const perExpert = new Map<string, number>();

@@ -20,8 +20,7 @@ export const DEFAULT_EXCLUDE_PATHS: ExcludePattern[] = [
   // ── 高频轮询（30s/数秒级心跳式请求，记录只会制造日志膨胀）──
   '/api/notifications/unread-count', // 30s ×3 门户（web/bid-portal/supplier-portal）
   '/api/supplier/stats', // web 驾驶舱 30s
-  '/api/catalog/admin/stats', // web 驾驶舱 30s
-  '/api/alerts/overview', // web 驾驶舱 30s
+  '/api/alerts/overview', // :3011 移动驾驶舱资源告警卡轮询（2026-11-20 核实：web 已无消费——注释曾张冠李戴）
   '/api/tender-review/rules/extract/tasks/', // 3s 轮询（该前缀下只有 GET，前缀安全）
   // 以下前缀下有写端点（DELETE/stop/resolve、POST confirm/decline），用方法限定只排除轮询 GET、保留写审计
   { method: 'GET', path: '/api/auth/heartbeat' }, // 15s 单设备登录心跳（AuthGuard 实际校验）

@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import type { LlmService } from '../local-ai/llm.service';
-import { busyStateOf } from './expert-busy-state.util';
+import { lifecycleStateOf } from './expert-busy-state.util';
 
 /**
  * 专家 AI 综合评价（2026-11-04）：详情页「履职备注」区块改为 AI 综合评价——
@@ -86,17 +86,14 @@ export async function collectExpertFacts(prisma: EvalPrisma, userId: string): Pr
     specialty: p.specialty,
     title: p.title,
     education: p.education,
-    // 呈现态（E5 2026-11-19 第二波）：池外优先——已退库/已停用 ＞ 四态派生
-    //（四态按在途参评派生、不读 availability 镜像；退库/停用专家不参与抽取，
-    //  其在途行只是历史残留，不得冒充「正在评标/空闲」）
-    lifecycleState:
-      p.entryStatus === 'RETIRED' ? '已退库'
-      : p.availability === '停用' ? '已停用'
-      : busyStateOf(
-          memberships
-            .filter((m) => m.invitationStatus !== 'declined')
-            .map((m) => ({ expertRole: m.expertRole, project: { stage: m.project.stage } })),
-        ),
+    // 呈现态（E5 2026-11-19）：lifecycleStateOf 单源（E7 收口：util 共享 helper——
+    // 已退库＞已停用＞四态；web stateBadgeOf 为跨端镜像见 util 注释）
+    lifecycleState: lifecycleStateOf(
+      { entryStatus: p.entryStatus, availability: p.availability },
+      memberships
+        .filter((m) => m.invitationStatus !== 'declined')
+        .map((m) => ({ expertRole: m.expertRole, project: { stage: m.project.stage } })),
+    ),
     expertLevel: p.expertLevel,
     projects: memberships.map(m => ({
       name: m.project.name,

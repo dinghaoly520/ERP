@@ -3,6 +3,7 @@ import {
   busyStateLabel,
   busyStateOf,
   deriveBusyCounts,
+  lifecycleStateOf,
   BusyRow,
 } from './expert-busy-state.util';
 
@@ -123,5 +124,62 @@ describe('expert-busy-state.util', () => {
         user: { role: 'bid_expert', isActive: true, companyId: 'co-1' },
       });
     });
+  });
+});
+
+describe('lifecycleStateOf（E5/E7 2026-11-19：池外呈现态单源——已退库＞已停用＞四态）', () => {
+  const inflight = [{ expertRole: '正选' as const, project: { stage: 'SUBMIT' as const } }];
+
+  it('RETIRED 优先（退库正门并存形态：RETIRED+停用 → 已退库）', () => {
+    expect(lifecycleStateOf({ entryStatus: 'RETIRED', availability: '停用' }, inflight)).toBe('已退库');
+  });
+  it('停用-ACTIVE（临时需求代表等）+ 在途绑定 → 已停用（不冒充已被抽取）', () => {
+    expect(lifecycleStateOf({ entryStatus: 'ACTIVE', availability: '停用' }, inflight)).toBe('已停用');
+  });
+  it('ACTIVE+非停用 → 四态穿透（SUBMIT 正选在途 → 已被抽取）', () => {
+    expect(lifecycleStateOf({ entryStatus: 'ACTIVE', availability: '可用' }, inflight)).toBe('已被抽取');
+    expect(lifecycleStateOf({ entryStatus: 'ACTIVE', availability: '可用' }, [])).toBe('空闲');
+  });
+  it('字段缺省（旧行形态/mock 未带）→ 落四态（与 busyStateOf 等价，不崩）', () => {
+    expect(lifecycleStateOf({}, [])).toBe('空闲');
+    expect(lifecycleStateOf({ entryStatus: null, availability: null }, inflight)).toBe('已被抽取');
+  });
+});
+
+describe('deriveBusyCounts E10 入口守卫（userWhere 禁传 expertProfile——spread 覆盖陷阱双闸）', () => {
+  // 本地工厂（mkPrisma 作用域在上一个 describe 内，此处自建轻量版——守卫用例只需断言零查询）
+  const mkGuardPrisma = () => ({
+    expertProfile: { groupBy: jest.fn().mockResolvedValue([]) },
+    bidExpert: { findMany: jest.fn().mockResolvedValue([]) },
+  });
+
+  it('传 expertProfile 键 → 抛 EXPERT_PROFILE_KEY_FORBIDDEN，且入口即炸零查询（消息文案是引导面一并锁）', async () => {
+    const prisma = mkGuardPrisma();
+    // 参数类型已 Omit<…,'expertProfile'>——类型只拦字面量直写，spread/动态构造/as 断言全绕过，
+    // 故须 cast 构造恶意入参；运行时守卫正是为这些类型盲区存在的第二道闸
+    const malicious = { role: 'bid_expert', expertProfile: { specialty: '水文' } } as never;
+    await expect(deriveBusyCounts(prisma as never, malicious)).rejects.toThrow(/EXPERT_PROFILE_KEY_FORBIDDEN|单源|扩展本函数/);
+    expect(prisma.expertProfile.groupBy).not.toHaveBeenCalled(); // 入口守卫（非查询后校验）
+    expect(prisma.bidExpert.findMany).not.toHaveBeenCalled();
+  });
+
+  it('null 是有语义的 Prisma 过滤（关系为空）——同样拒绝（!== undefined 判据，truthy 会放行 null 造病理态）', async () => {
+    const prisma = mkGuardPrisma();
+    const maliciousNull = { role: 'bid_expert', expertProfile: null } as never;
+    await expect(deriveBusyCounts(prisma as never, maliciousNull)).rejects.toThrow('EXPERT_PROFILE_KEY_FORBIDDEN');
+  });
+
+  it('Omit 类型闸测试锁（评审低置信加固）：字面量直传 expertProfile 编译期即拒——@ts-expect-error 回退 Omit 后变「未使用指令」红', async () => {
+    const prisma = mkGuardPrisma();
+    // 不加 as never：类型层由 Omit 拦（ts-jest 开诊断）；运行时守卫接住 cast 绕过者——双闸各锁各的
+    // @ts-expect-error Omit<UserWhereInput,'expertProfile'> 不含 expertProfile 键——回退 Omit 本行不再报错、此指令变 unused 即红
+    await expect(deriveBusyCounts(prisma as never, { role: 'bid_expert', expertProfile: { specialty: '水文' } })).rejects.toThrow('EXPERT_PROFILE_KEY_FORBIDDEN');
+  });
+
+  it('显式 undefined 与键缺席等价（无操作形态放行）', async () => {
+    const prisma = mkGuardPrisma();
+    prisma.expertProfile.groupBy.mockResolvedValue([{ availability: '可用', _count: 3 }]);
+    const r = await deriveBusyCounts(prisma as never, { role: 'bid_expert', expertProfile: undefined } as never);
+    expect(r.inLibraryActive).toBe(3);
   });
 });
