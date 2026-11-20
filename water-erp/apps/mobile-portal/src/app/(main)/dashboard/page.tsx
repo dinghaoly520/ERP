@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
-import { fetchAnnouncements, ANNOUNCEMENT_TABS, typeOf, matchesTab, type AnnouncementItem } from "@/lib/api/announcement";
+import { fetchAnnouncements, fetchAnnouncementDetail, ANNOUNCEMENT_TABS, typeOf, matchesTab, type AnnouncementItem, type AnnouncementDetail } from "@/lib/api/announcement";
 import { fetchSupplierLibrary, SUPPLIER_STATUS_LABELS, type SupplierItem } from "@/lib/api/supplier";
 import { Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
@@ -594,6 +594,16 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   const [cmpDim, setCmpDim] = useState<"amount" | "rounds" | "savings" | "rate" | "abnormal">("amount");
   /* 公告公示（2026-11-19 板块优化）：类型 Chip + 公告列表，懒取 */
   const [announcements, setAnnouncements] = useState<AnnouncementItem[] | null>(null);
+  const [annDetail, setAnnDetail] = useState<AnnouncementDetail | null>(null);
+  const [annDetailLoading, setAnnDetailLoading] = useState(false);
+  const openAnnDetail = (id: string) => {
+    setAnnDetail(null);
+    setAnnDetailLoading(true);
+    fetchAnnouncementDetail(id)
+      .then((d) => setAnnDetail(d))
+      .catch(() => setAnnDetail(null))
+      .finally(() => setAnnDetailLoading(false));
+  };
   /* 供应商库（2026-11-19 用户裁定：放真供应商库——非 dashboard 成交统计） */
   const [supplierLib, setSupplierLib] = useState<SupplierItem[] | null>(null);
   const [supplierTotal, setSupplierTotal] = useState(0);
@@ -1615,7 +1625,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       {filtered.map((a) => {
                         const meta = typeOf(a.type);
                         return (
-                          <div key={a.id} className="rounded-[12px] m-tile px-3 py-2.5">
+                          <button key={a.id} type="button" onClick={() => openAnnDetail(a.id)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
                             <div className="flex items-start gap-2.5">
                               <span
                                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black"
@@ -1631,12 +1641,13 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                   <span className="rounded-full px-1.5 py-0.5 font-semibold" style={{ background: `color-mix(in oklch, ${meta.color} 8%, transparent)`, color: meta.color }}>
                                     {meta.label}
                                   </span>
+                                  {a.companyName ? <span className="truncate font-medium">{a.companyName}</span> : null}
                                   {a.relatedProjectCode ? <span className="tabular-nums">{a.relatedProjectCode}</span> : null}
-                                  <span className="tabular-nums">{a.publishedAt?.slice(0, 10) ?? "—"}</span>
+                                  <span className="shrink-0 tabular-nums">{a.publishedAt?.slice(0, 10) ?? "—"}</span>
                                 </span>
                               </span>
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -1792,6 +1803,56 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
           </>
         ) : null}
     </>
+  );
+
+  /* 公告详情弹层（2026-11-20） */
+  const annDetailSheet = (
+    <BottomSheet
+      open={!!annDetail || annDetailLoading}
+      onClose={() => { setAnnDetail(null); setAnnDetailLoading(false); }}
+      title={<span className="line-clamp-2">{annDetail?.title ?? "公告详情"}</span>}
+    >
+      {annDetailLoading ? (
+        <div className="py-2"><Skeleton lines={6} height={40} /></div>
+      ) : annDetail ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(() => {
+              const meta = typeOf(annDetail.type);
+              return (
+                <span className="rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ background: `color-mix(in oklch, ${meta.color} 10%, transparent)`, color: meta.color }}>
+                  {meta.label}
+                </span>
+              );
+            })()}
+            {annDetail.companyName ? <span className="text-[12px] text-[var(--muted-foreground)]">{annDetail.companyName}</span> : null}
+            {annDetail.relatedProjectCode ? <span className="text-[12px] tabular-nums text-[var(--muted-foreground)]">{annDetail.relatedProjectCode}</span> : null}
+            <span className="ml-auto text-[12px] tabular-nums text-[var(--muted-foreground)]">{annDetail.publishedAt?.slice(0, 10)}</span>
+          </div>
+          {annDetail.content ? (
+            <div className="rounded-[12px] m-tile px-3.5 py-3">
+              <p className="whitespace-pre-line text-[14px] leading-relaxed text-[var(--foreground)]">{annDetail.content}</p>
+            </div>
+          ) : (
+            <EmptyState text="该公告暂无正文内容" />
+          )}
+          {annDetail.attachments?.length ? (
+            <div>
+              <div className="mb-1.5 text-[12px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">附件（{annDetail.attachments.length}）</div>
+              <div className="space-y-1">
+                {annDetail.attachments.map((att) => (
+                  <div key={att.id} className="flex items-center gap-2 rounded-[10px] m-tile px-3 py-2 text-[13px] text-[var(--muted-foreground)]">
+                    <FolderKanban size={12} className="shrink-0" />
+                    <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{att.fileAsset?.originalName ?? "附件"}</span>
+                    <span className="shrink-0 tabular-nums">{att.fileAsset?.size ? `${Math.max(1, Math.round(att.fileAsset.size / 1024))} KB` : ""}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </BottomSheet>
   );
 
   /* 下钻弹层（两模式共用） */
@@ -2084,6 +2145,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
         <div className="mb-3 flex items-center justify-end gap-2">{scopeSelectors}</div>
         {analysisGroups}
         {drillSheets}
+        {annDetailSheet}
       </div>
     );
   }

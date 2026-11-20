@@ -38,6 +38,7 @@ export type AnnouncementItem = {
   dataClass?: string;
   metadata?: { visibility?: string; titleOnly?: boolean };
   relatedProjectCode?: string | null;
+  companyName?: string | null;
   content?: string;
 };
 
@@ -72,4 +73,17 @@ export function matchesTab(type: string, tab: string): boolean {
   if (tab === 'all') return true;
   const entry = ANNOUNCEMENT_TABS.find((t) => t.key === tab);
   return entry?.types?.includes(type) ?? type === tab;
+}
+
+/** 公告详情（管理端 GET /announcements/:id——含正文/附件/采购文件） */
+export type AnnouncementDetail = AnnouncementItem & {
+  content: string | null;
+  summary: string | null;
+  attachments: Array<{ id: string; fileAsset?: { id: string; originalName: string; size: number; mimeType: string } }>;
+  bidDocument?: { id: string; title: string; accessScope: string } | null;
+  publicityEnd: string | null;
+};
+
+export async function fetchAnnouncementDetail(id: string): Promise<AnnouncementDetail> {
+  return api.get<AnnouncementDetail>(`/announcements/${id}`);
 }
