@@ -1613,16 +1613,35 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             {/* ══ 公告公示（2026-11-20 业务对齐 :3002/:3005）：真实类型树 + 公司口径 + 项目关联 ══ */}
             {announcements ? (
               <AnalysisZone icon={Megaphone} title="公告公示" count={`${announcements.length} 条`} color="var(--danger)">
-                <div className="mb-2 flex justify-end">
+
+                <div className="mb-3 flex flex-wrap items-center gap-2">
                   <InlineSelect
-                    label={ANNOUNCEMENT_TABS.find((t) => t.key === annType)?.label ?? "全部"}
+                    label={ANNOUNCEMENT_TABS.find((t) => t.key === annType)?.label ?? "全部类型"}
                     active={annType !== "all"}
                     options={ANNOUNCEMENT_TABS.map((t) => ({ value: t.key, label: t.label }))}
                     selected={[annType]}
                     onSelect={(next) => setAnnType(next[0] ?? "all")}
                     ariaLabel="公告类型筛选"
                   />
+                  <div className="ml-auto flex items-center gap-2">
+                    {role === "admin" ? (
+                      <InlineSelect
+                        multiple
+                        label={companyLabel}
+                        active={companyIds.length > 0}
+                        options={[{ value: "all", label: "全部公司" }, ...(companies ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+                        selected={companyIds.length === 0 ? ["all"] : companyIds}
+                        onSelect={(next) => {
+                          const hadAll = companyIds.length === 0;
+                          if (next.includes("all") && !hadAll) setCompanyIds([]);
+                          else setCompanyIds(next.filter((x) => x !== "all"));
+                        }}
+                        ariaLabel={`公司口径：${companyLabel}`}
+                      />
+                    ) : null}
+                  </div>
                 </div>
+
                 {(() => {
                   const filtered = announcements.filter((a) => matchesTab(a.type, annType));
                   return filtered.length ? (
