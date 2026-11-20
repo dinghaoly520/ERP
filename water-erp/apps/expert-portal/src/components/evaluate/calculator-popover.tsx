@@ -7,6 +7,7 @@ import {
   calcReducer,
   keyToAction,
   formatCalcDisplay,
+  calcExprLine,
   type CalcAction,
   type CalcDigit,
 } from '@/lib/calculator-core';
@@ -115,10 +116,8 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
     }
   };
 
-  const exprLine =
-    state.acc !== null && state.pendingOp
-      ? `${formatCalcDisplay(String(state.acc))} ${state.pendingOp}`
-      : '';
+  // 待算式行走核心 calcExprLine（acc 经 norm 消浮点噪声，终审 F1 修复）
+  const exprLine = calcExprLine(state);
 
   return (
     <>

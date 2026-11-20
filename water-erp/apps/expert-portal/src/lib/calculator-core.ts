@@ -236,3 +236,10 @@ export function formatCalcDisplay(raw: string): string {
   const out = dec === undefined ? grouped : `${grouped}.${dec}`;
   return neg ? `-${out}` : out;
 }
+
+/** 待算式行（组件显示用）：acc 必须经 norm 消浮点噪声（终审 F1——acc 是原始双精度，
+ *  0.1+0.2 链式挂 op 后为 0.30000000000000004，裸 String 会把噪声漏到待算式行） */
+export function calcExprLine(state: CalcState): string {
+  if (state.acc === null || !state.pendingOp) return '';
+  return `${formatCalcDisplay(norm(state.acc))} ${state.pendingOp}`;
+}

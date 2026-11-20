@@ -5,6 +5,7 @@ import {
   calcReducer,
   keyToAction,
   formatCalcDisplay,
+  calcExprLine,
   type CalcAction,
   type CalcOp,
 } from '../calculator-core.ts';
@@ -132,6 +133,17 @@ test('keyToAction：数字/./四则/Enter/=/Backspace/c/C/% 全映射，Escape �
   assert.equal(keyToAction('Escape'), null);
   assert.equal(keyToAction('a'), null);
   assert.equal(keyToAction(' '), null);
+});
+
+test('calcExprLine：待算式行 acc 经 norm 消浮点噪声（终审 F1）', () => {
+  // 0.1+0.2 后链式按 × → acc 原始双精度 0.30000000000000004，显示必须走 norm
+  const s = run(d('0'), dot(), d('1'), op('+'), d('0'), dot(), d('2'), op('×'));
+  assert.equal(s.acc, 0.30000000000000004); // 前置：确认 acc 确为噪声值
+  assert.equal(calcExprLine(s), '0.3 ×');
+  // 基本形态 + 空态
+  assert.equal(calcExprLine(run(d('2'), op('+'))), '2 +');
+  assert.equal(calcExprLine(run(d('2'), op('+'), d('3'), eq())), '');
+  assert.equal(calcExprLine(run(d('1'), d('2'), d('3'), d('4'), d('5'), d('6'), d('7'), op('×'))), '1,234,567 ×');
 });
 
 test('formatCalcDisplay：千分位与负号原样', () => {
