@@ -5,7 +5,7 @@ import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { getTenderTextCachePath } from './docx/file-utils';
 import { ProjectManagementService } from './project-management.service';
 import { writeAttachmentCopy, readAttachmentBuffer, removeAttachmentCopy } from '../common/attachment-object-store';
-import { stat } from 'node:fs/promises';
+import { stat, rename } from 'node:fs/promises';
 
 jest.mock('../common/attachment-object-store', () => ({
   readAttachmentBuffer: jest.fn(),
@@ -382,12 +382,16 @@ const SAMPLE_DEMAND_TEXT_CHEN = `采购需求申请表
 2026-03-23 16:34:23 [申请人 / 提交]`;
 
 
+// M5 基建：requireActual 摊开——未被显式 mock 的 fs 函数（copyFile/access 等）走真实实现，
+// 不再是 undefined（此前新 describe 踩到即 TypeError 崩溃而非干净失败）
 jest.mock('node:fs/promises', () => ({
+  ...jest.requireActual('node:fs/promises'),
   mkdir: jest.fn(),
   readFile: jest.fn(),
   writeFile: jest.fn(),
   unlink: jest.fn(),
   stat: jest.fn(),
+  rename: jest.fn(),
 }));
 
 // 终审 I2：parseAnnouncementFields 正路径经 mammoth——mock 掉避免依赖真实 docx
@@ -3091,6 +3095,45 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
 
       expect(out).not.toBeNull();
       expect(out!.extractedText).toBe('公告提取文本');
+    });
+  });
+
+  describe('终审 Minor 修复（2026-11-20 review）', () => {
+    const readBufferMock = readAttachmentBuffer as unknown as jest.Mock;
+    const statMock = stat as unknown as jest.Mock;
+    const renameMock = rename as unknown as jest.Mock;
+
+    beforeEach(() => {
+      readBufferMock.mockReset();
+      statMock.mockReset();
+      renameMock.mockReset();
+    });
+
+    it('M1: 物化走临时文件+rename 原子落位——writeFile 不直接写终路径（并发防半文件）', async () => {
+      const { service, writeFileMock, mkdirMock } = makeService();
+      statMock.mockResolvedValue(null);
+      readBufferMock.mockResolvedValue(Buffer.from('m1-bytes'));
+
+      const out = await (service as unknown as { ensureAttachmentLocal: (k: string) => Promise<string | null> }).ensureAttachmentLocal('project-management/m1.pdf');
+
+      expect(out).toContain('project-management/m1.pdf');
+      expect(writeFileMock).toHaveBeenCalledWith(expect.stringMatching(/m1\.pdf\.tmp-/), Buffer.from('m1-bytes'));
+      expect(writeFileMock).not.toHaveBeenCalledWith(expect.stringMatching(/^.*m1\.pdf$/), expect.any(Buffer));
+      expect(renameMock).toHaveBeenCalledWith(
+        expect.stringMatching(/m1\.pdf\.tmp-/),
+        expect.stringContaining('project-management/m1.pdf'),
+      );
+      expect(mkdirMock).toHaveBeenCalled();
+    });
+
+    it('M5: stat 未显式配置（工厂默认）→ ensureAttachmentLocal 干净返 null 不崩', async () => {
+      const { service } = makeService();
+      readBufferMock.mockResolvedValue(null);
+      // 故意不设 statMock——工厂默认须安全（此前 undefined.catch 会 TypeError）
+
+      const out = await (service as unknown as { ensureAttachmentLocal: (k: string) => Promise<string | null> }).ensureAttachmentLocal('project-management/m5.pdf');
+
+      expect(out).toBeNull();
     });
   });
 });

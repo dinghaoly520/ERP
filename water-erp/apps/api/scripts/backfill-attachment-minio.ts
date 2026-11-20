@@ -27,6 +27,18 @@ import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
 const prisma = new PrismaClient();
 const execute = process.argv.includes('--execute');
 
+/** M4：不可恢复清单行格式（含项目 id，供业务方按项目对账找回原件） */
+export type UnrecoverableRow = {
+  id: string;
+  fileName: string;
+  objectKey: string;
+  projectManagementItemId: string | null;
+};
+
+export function renderUnrecoverableTable(rows: UnrecoverableRow[]): string[] {
+  return rows.map((u) => `  ${u.id} | ${u.fileName} | ${u.objectKey} | 项目 ${u.projectManagementItemId ?? '-'}`);
+}
+
 export async function minioHas(objectKey: string): Promise<boolean> {
   try {
     await minioClient.statObject(MINIO_BUCKET, objectKey);
@@ -59,7 +71,7 @@ async function main() {
   let backfilled = 0;
   let skipped = 0;
   let healthy = 0;
-  const unrecoverable: Array<{ id: string; fileName: string; objectKey: string }> = [];
+  const unrecoverable: UnrecoverableRow[] = [];
   const failed: Array<{ objectKey: string; err: unknown }> = [];
 
   for (const row of rows) {
@@ -82,8 +94,13 @@ async function main() {
       } else if (!st?.isFile() && inMinio) {
         healthy += 1;
       } else {
-        unrecoverable.push({ id: row.id, fileName: row.fileName, objectKey: row.objectKey });
-        console.log(`✗ 不可恢复: ${row.objectKey}（${row.fileName}，项目 ${row.projectManagementItemId ?? '-'}）`);
+        // M4：不在循环内重复打印——汇总清单（含项目 id）是唯一输出口径
+        unrecoverable.push({
+          id: row.id,
+          fileName: row.fileName,
+          objectKey: row.objectKey,
+          projectManagementItemId: row.projectManagementItemId,
+        });
       }
     } catch (err) {
       failed.push({ objectKey: row.objectKey, err });
@@ -98,8 +115,8 @@ async function main() {
   console.log(`不可恢复: ${unrecoverable.length}（两轨皆无——需找回原始文件走 UI 重传）`);
   console.log(`单行失败: ${failed.length}`);
   if (unrecoverable.length > 0) {
-    console.log('──── 不可恢复清单（交业务方找回重传）────');
-    for (const u of unrecoverable) console.log(`  ${u.id} | ${u.fileName} | ${u.objectKey}`);
+    console.log('──── 不可恢复清单（交业务方找回重传；格式：id | 文件名 | objectKey | 项目）────');
+    for (const line of renderUnrecoverableTable(unrecoverable)) console.log(line);
   }
 }
 

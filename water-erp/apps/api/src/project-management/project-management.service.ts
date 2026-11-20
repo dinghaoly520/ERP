@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { mkdir, readFile, unlink, writeFile, copyFile, access, stat } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile, copyFile, access, stat, rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { createReadStream } from 'node:fs';
@@ -7992,19 +7992,30 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return prefixRatio * 0.6 + charRatio * 0.4;
   }
 
-  /** 直接返回附件原始文件（供 iframe 查看模式使用）。 */
   /** 双轨读（2026-11-20）：本地优先；miss 则从 MinIO 副本物化回本地后返回路径；两轨皆失返 null。 */
   private async ensureAttachmentLocal(objectKey: string): Promise<string | null> {
     const localPath = resolve(process.cwd(), 'uploads', objectKey);
-    const st = await stat(localPath).catch(() => null);
-    if (st?.isFile()) return localPath;
+    // M5 防御：stat 抛错或返回非 Promise（测试桩未配置）都按 miss 走，不炸 TypeError
+    const st = await Promise.resolve(stat(localPath)).catch(() => null);
+    if (st && typeof (st as { isFile?: () => boolean }).isFile === 'function' && (st as { isFile: () => boolean }).isFile()) {
+      return localPath;
+    }
     const buffer = await readAttachmentBuffer(objectKey); // 内部会再探本地（廉价），miss 探 MinIO 副本
     if (!buffer) return null;
     await mkdir(dirname(localPath), { recursive: true });
-    await writeFile(localPath, buffer);
+    // M1：临时文件 + 原子 rename 落位——并发物化同一附件时读端不可能读到半文件
+    const tmpPath = `${localPath}.tmp-${process.pid}-${Date.now()}`;
+    try {
+      await writeFile(tmpPath, buffer);
+      await rename(tmpPath, localPath);
+    } catch (err) {
+      await unlink(tmpPath).catch(() => undefined);
+      throw err;
+    }
     return localPath;
   }
 
+  /** 直接返回附件原始文件（供 iframe 查看模式使用）。 */
   async getAttachmentFile(attachmentId: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
