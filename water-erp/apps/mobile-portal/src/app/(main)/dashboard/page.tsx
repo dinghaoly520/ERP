@@ -1181,7 +1181,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </ZoneRow>
 
             {/* 归属项目分布（归档，按轮次 Top6） */}
-<ZoneRow icon={FolderKanban} title="归属项目分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按轮次</span>}>
+<ZoneRow icon={FolderKanban} title="归属项目分布">
               {arcProjectDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
