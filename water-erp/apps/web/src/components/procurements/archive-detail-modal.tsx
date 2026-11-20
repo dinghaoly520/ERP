@@ -619,7 +619,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <FileText size={16} className="text-[var(--accent)]" />
                       <h3 className="text-base font-semibold">项目简报</h3>
                     </div>
-                    <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-4 py-3 max-h-[200px] overflow-y-auto">
+                    <div className="rounded-[12px] bg-[oklch(0.975_0.01_248_/_0.6)] px-4 py-3 max-h-[200px] overflow-y-auto">
                       <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">
                         {data.summary || '暂无项目简报信息。'}
                       </p>
@@ -637,7 +637,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <h3 className="text-base font-semibold">项目时间轴</h3>
                     </div>
                     {timeline && timeline.rounds.length > 0 ? (
-                      <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] overflow-hidden">
+                      <div className="rounded-[12px] bg-[oklch(0.975_0.01_248_/_0.6)] overflow-hidden">
                         {timeline.rounds.map((r, ri) => (
                           <div key={r.round}>
                             {timeline.rounds.length > 1 && (
@@ -680,7 +680,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         ))}
                       </div>
                     ) : (
-                      <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-4 py-3 text-xs text-[color:var(--muted-foreground)]">
+                      <div className="rounded-[12px] bg-[oklch(0.975_0.01_248_/_0.6)] px-4 py-3 text-xs text-[color:var(--muted-foreground)]">
                         暂无时间节点
                       </div>
                     )}
@@ -735,7 +735,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           <motion.div
                             key={file.id}
                             {...fadeIn(i, reducedMotion, 0.03)}
-                            className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] overflow-hidden"
+                            className="rounded-[12px] bg-[oklch(0.975_0.01_248_/_0.6)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] overflow-hidden"
                           >
                             {/* File Header */}
                             <div className="px-3 py-2 bg-[color-mix(in_oklch,var(--success)_6%,transparent)] border-b border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
@@ -800,7 +800,7 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           同样直出；未生成不显示任何占位；分析生成归项目管理详情链路 */}
                       {data.kind === 'terminated' && selectedStage.stageAnalysis ? (
                         <div className="px-3 pb-3 pt-0">
-                          <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] px-3 py-2.5">
+                          <div className="rounded-[12px] bg-[oklch(0.975_0.01_248_/_0.6)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] px-3 py-2.5">
                             <div className="text-xs font-semibold uppercase tracking-wide text-[color-mix(in_oklch,var(--accent)_70%,black)] mb-1.5">
                               步骤分析
                             </div>
