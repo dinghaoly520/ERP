@@ -46,7 +46,7 @@ import { BID_TAIL_STAGE_KEYS, LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './p
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { stripMojibake } from '../common/text-clean.util';
-import { writeAttachmentCopy } from '../common/attachment-object-store';
+import { writeAttachmentCopy, readAttachmentBuffer } from '../common/attachment-object-store';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -7968,13 +7968,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /** 直接返回附件原始文件（供 iframe 查看模式使用）。 */
+  /** 双轨读（2026-11-20）：本地优先；miss 则从 MinIO 副本物化回本地后返回路径；两轨皆失返 null。 */
+  private async ensureAttachmentLocal(objectKey: string): Promise<string | null> {
+    const localPath = resolve(process.cwd(), 'uploads', objectKey);
+    const st = await stat(localPath).catch(() => null);
+    if (st?.isFile()) return localPath;
+    const buffer = await readAttachmentBuffer(objectKey); // 内部会再探本地（廉价），miss 探 MinIO 副本
+    if (!buffer) return null;
+    await mkdir(dirname(localPath), { recursive: true });
+    await writeFile(localPath, buffer);
+    return localPath;
+  }
+
   async getAttachmentFile(attachmentId: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
     const attachment = await this.prisma.attachment.findUnique({
       where: { id: attachmentId },
       select: { id: true, fileName: true, objectKey: true, mimeType: true },
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到），请重新上传',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
     return { buffer, mimeType: attachment.mimeType, fileName: attachment.fileName };
   }
@@ -7987,7 +8005,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
 
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到），请重新上传',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     let text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
 
     // Fallback: 若 documentParser 解析 DOCX 失败，直接用 JSZip 提取 word/document.xml 的原始文本

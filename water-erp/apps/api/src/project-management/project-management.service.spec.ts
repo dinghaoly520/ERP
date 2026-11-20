@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { getTenderTextCachePath } from './docx/file-utils';
 import { ProjectManagementService } from './project-management.service';
-import { writeAttachmentCopy } from '../common/attachment-object-store';
+import { writeAttachmentCopy, readAttachmentBuffer } from '../common/attachment-object-store';
+import { stat } from 'node:fs/promises';
 
 jest.mock('../common/attachment-object-store', () => ({
   readAttachmentBuffer: jest.fn(),
@@ -386,6 +387,7 @@ jest.mock('node:fs/promises', () => ({
   readFile: jest.fn(),
   writeFile: jest.fn(),
   unlink: jest.fn(),
+  stat: jest.fn(),
 }));
 
 describe('ProjectManagementService', () => {
@@ -2876,6 +2878,73 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
 
       expect(result.attachment.objectKey).toMatch(/^project-management\//);
       expect(result.absolutePath).toContain('uploads');
+    });
+  });
+
+  describe('附件读取本地→MinIO 回退', () => {
+    const readBufferMock = readAttachmentBuffer as unknown as jest.Mock;
+    const statMock = stat as unknown as jest.Mock;
+    const ATT_ROW = {
+      id: 'att-1',
+      fileName: '谈判文件.pdf',
+      objectKey: 'project-management/100-x-谈判文件.pdf',
+      mimeType: 'application/pdf',
+    };
+
+    beforeEach(() => {
+      readBufferMock.mockReset();
+      statMock.mockReset();
+      statMock.mockResolvedValue(null); // 默认本地 miss → 走 MinIO 回退
+    });
+
+    it('getAttachmentFile 双轨皆失 → 404 带 ATTACHMENT_FILE_MISSING', async () => {
+      readBufferMock.mockResolvedValue(null);
+      const { service, prisma } = makeService();
+      prisma.attachment.findUnique.mockResolvedValue(ATT_ROW);
+
+      await expect(
+        (service as unknown as { getAttachmentFile: (id: string) => Promise<unknown> }).getAttachmentFile('att-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'ATTACHMENT_FILE_MISSING', error: expect.stringContaining('附件文件缺失') },
+      });
+    });
+
+    it('getAttachmentFile 本地 miss + MinIO 命中 → 物化后返回 buffer', async () => {
+      readBufferMock.mockResolvedValue(Buffer.from('from-minio'));
+      const { service, prisma, writeFileMock, readFileMock, mkdirMock } = makeService();
+      prisma.attachment.findUnique.mockResolvedValue(ATT_ROW);
+      readFileMock.mockResolvedValue(Buffer.from('from-minio'));
+
+      const result = await (service as unknown as {
+        getAttachmentFile: (id: string) => Promise<{ buffer: Buffer; mimeType: string; fileName: string }>;
+      }).getAttachmentFile('att-1');
+
+      expect(result.buffer.toString()).toBe('from-minio');
+      expect(result.mimeType).toBe('application/pdf');
+      expect(result.fileName).toBe('谈判文件.pdf');
+      expect(writeFileMock).toHaveBeenCalledWith(
+        expect.stringContaining(ATT_ROW.objectKey),
+        Buffer.from('from-minio'),
+      );
+      expect(mkdirMock).toHaveBeenCalled();
+    });
+
+    it('ensureAttachmentLocal：本地命中 → 直返路径且不触 MinIO；双失 → null 且不写盘', async () => {
+      const { service, writeFileMock } = makeService();
+
+      // 本地命中快路径
+      statMock.mockResolvedValue({ isFile: () => true });
+      const hit = await (service as unknown as { ensureAttachmentLocal: (k: string) => Promise<string | null> }).ensureAttachmentLocal(ATT_ROW.objectKey);
+      expect(hit).toContain(ATT_ROW.objectKey);
+      expect(readBufferMock).not.toHaveBeenCalled();
+      expect(writeFileMock).not.toHaveBeenCalled();
+
+      // 双失
+      statMock.mockResolvedValue(null);
+      readBufferMock.mockResolvedValue(null);
+      const miss = await (service as unknown as { ensureAttachmentLocal: (k: string) => Promise<string | null> }).ensureAttachmentLocal(ATT_ROW.objectKey);
+      expect(miss).toBeNull();
+      expect(writeFileMock).not.toHaveBeenCalled();
     });
   });
 });
