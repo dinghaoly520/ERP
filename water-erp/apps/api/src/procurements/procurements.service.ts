@@ -387,9 +387,14 @@ export class ProcurementsService {
     // 公司隔离：按公司划归取代原个人/全局分野——非 admin 只见本公司
     Object.assign(where, companyFilter);
 
+    // 多类型搜索（2026-11-19 用户裁定）：项目名称/编号/采购单位/部门名/供应商/经办人
     if (searchKeyword) {
       where.OR = [
         { project: { name: { contains: searchKeyword, mode: 'insensitive' } } },
+        { project: { projectCode: { contains: searchKeyword, mode: 'insensitive' } } },
+        { createdBy: { company: { contains: searchKeyword, mode: 'insensitive' } } },
+        { createdBy: { displayName: { contains: searchKeyword, mode: 'insensitive' } } },
+        { department: { name: { contains: searchKeyword, mode: 'insensitive' } } },
         {
           awardedSupplier: {
             name: { contains: searchKeyword, mode: 'insensitive' },

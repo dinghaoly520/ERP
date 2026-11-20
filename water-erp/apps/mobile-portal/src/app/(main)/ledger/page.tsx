@@ -353,8 +353,8 @@ export default function LedgerPage() {
         <input
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="搜索项目名称 / 编号"
-          aria-label="搜索项目名称或编号"
+          placeholder="搜索项目名称/编号/公司/部门/供应商/经办人"
+          aria-label="搜索项目名称编号公司部门供应商经办人"
           className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
         />
         {searchInput ? (
