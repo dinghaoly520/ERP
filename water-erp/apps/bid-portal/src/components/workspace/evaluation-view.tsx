@@ -641,6 +641,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   if (!openingDone) startBlockers.push(`开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 尚未完成解密或异常处置`);
   if (!committeeOk) startBlockers.push(`已确认正选专家 ${confirmedRegular} 人，须 5 人以上单数（小项目可为 3 人单数；水利项目 7 人以上单数）`);
   if (!biddersOk) startBlockers.push(`有效投标（解密成功且未撤回）仅 ${evaluableCount} 家，不足法定 ${minBidders} 家`);
+  // N9（2026-11-20b 复核轮）：G11 限价前置镜像——benchmark_deviation/ratio 公式无有效限价时
+  // 后端 400 CEILING_PRICE_REQUIRED（startEvaluation :2450-2459），数据已在详情下发，提前亮 blocker。
+  const formulaCfg = (project.priceFormulaConfig ?? null) as { formulaType?: string } | null;
+  const ceilingRequired = formulaCfg?.formulaType === 'benchmark_deviation' || formulaCfg?.formulaType === 'ratio';
+  const ceilingMissing = ceilingRequired && !(project.ceilingPrice != null && Number(project.ceilingPrice) > 0);
+  if (ceilingMissing) startBlockers.push('价格分公式为基准价偏离法/比例法，须先在采购管理工作台（:3005）设置最高限价');
 
   // F9：生成向导第 0 步清单补全——镜像 generateEvaluationResults 其余前置闸门（旧清单只有专家报告确认）
   const openDisputeCount = (project.expertDisputes ?? []).filter(d => d.status === 'open').length;
@@ -846,13 +852,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         <AiAnalysisCard projectId={projectId} stage={stage} />
       </div>
 
-      {/* 启动评标横幅（OPENING 阶段） */}
-      {stage === 'OPENING' && (
+      {/* 启动评标横幅（OPENING 阶段；N9：仅被指派主持人/admin 可见——canHost 与后端 AssignedHostGuard 同口径） */}
+      {stage === 'OPENING' && canHost && (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-4 py-3">
           <div className="flex items-center gap-2.5 text-xs">
             <Play size={15} className="shrink-0 text-[var(--accent)]" />
             <span className="font-bold text-[var(--accent-strong)]">当前阶段：在线开标</span>
-            <span className="text-[var(--muted-foreground)]">— 开标完成后可启动专家评标（须已抽取专家、存在可评供应商且评分标准完整）</span>
+            <span className="text-[var(--muted-foreground)]">— 开标完成后可启动专家评标（须已抽取专家、存在可评供应商）</span>
             {!openingDone && notReadySuppliers.length > 0 && (
               <span className="text-[var(--warning)]">开标未完成：{notReadySuppliers.map(s => s.supplierName).join('、')} 待解密/确认</span>
             )}
