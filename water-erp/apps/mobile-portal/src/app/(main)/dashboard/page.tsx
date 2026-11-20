@@ -575,7 +575,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   /* 各部门采购分布（2026-11-19 用户裁定）：全部公司=「公司·部门」复合键标公司名；
    * 选中公司=纯部门键（同公司不重复标） */
   const arcDeptDist = useMemo(() => {
-    const multi = companyIds.length === 0;
+    const multi = companyIds.length !== 1; // 全部或多选都标公司名；仅选一家不标
     const m = new Map<string, number>();
     (data?.trendSeries ?? []).forEach((t) =>
       (t.projects ?? []).forEach((p) => {
@@ -1114,14 +1114,11 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               {arcDeptDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
-                    const max = arcDeptDist[0].amount;
                     return arcDeptDist.map((d) => (
-                      <div key={d.name} className="flex items-center gap-2">
-                        <span className="w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
-                        <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-[5px] bg-[var(--accent)] opacity-80" style={{ width: `${(d.amount / max) * 100}%` }} />
-                        </span>
-                        <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.label}</span>
+                      /* 2026-11-19 用户裁定：删比例条——名称左+金额右两端对齐 */
+                      <div key={d.name} className="flex items-center gap-2 rounded-[10px] m-tile px-3 py-2">
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
+                        <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.label}</span>
                       </div>
                     ));
                   })()}
