@@ -2671,8 +2671,8 @@ describe('BidService — inviteSuppliers (邀请供应商)', () => {
   });
 });
 
-/* ── G1→C1：归档后自动生成预成交公示草稿（两段式第一段）── */
-describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => {
+/* ── G1 已删（2026-11-20 用户裁定）：归档不再自动生成预成交公示草稿 ── */
+describe('BidService.archiveAll — 不再生成预成交公示草稿（2026-11-20 用户裁定）', () => {
   let service: BidService;
   let prisma: any;
 
@@ -2714,7 +2714,6 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
       }),
     };
 
-    // archiveAll 入口查询 / ensureWinnerNotice 内部查询共用 findUnique
     prisma.bidProject.findUnique.mockImplementation(({ where }: any) => {
       if (where?.id === 'p1') {
         return Promise.resolve({
@@ -2736,12 +2735,12 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
     prisma.bidProject.update.mockResolvedValue({ stage: 'ARCHIVED' });
     prisma.bidSupervisionLog.create.mockResolvedValue({});
     prisma.auditLog.create.mockResolvedValue({});
-    prisma.announcement.findFirst.mockResolvedValue(null); // 不存在
+    prisma.announcement.findFirst.mockResolvedValue(null);
     prisma.announcement.create.mockResolvedValue({ id: 'wn1' });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMax: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
+        { provide: ScoreStandardValidator, useValue: { assertPassFailMaxScore: jest.fn(), assertPointsSumWithinMaxScore: jest.fn().mockResolvedValue(undefined), assertScoreStandardComplete: jest.fn().mockResolvedValue(undefined) } },
         { provide: PriceFormulaService, useValue: { calculate: jest.fn().mockReturnValue(new Map()), getOverCeilingSuppliers: jest.fn().mockReturnValue([]) } },
         BidService,
         BidOpeningRecordService,
@@ -2755,51 +2754,14 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
     service = module.get<BidService>(BidService);
   });
 
-  it('开标归档（scope=opening）不生成预成交公示——流标/废标收尾无成交方（2026-10-21）', async () => {
-    // N4c 场景：已生成评标结果后流标（存量结果仅作废留痕），开标归档只封存开标材料，
-    // 不得派生「预成交公示」草稿误导公示链（预成交公示只属于完整归档）
+  it('完整归档（scope=full）不派生任何公告草稿——定标公示唯一载体=发布向导「中标公告」', async () => {
+    await service.archiveAll('p1', 'u1');
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('开标归档（scope=opening）同样不生成（流标/废标收尾无成交方）', async () => {
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: 'fa-handover' });
     await service.archiveAll('p1', 'u1', 'opening');
-    expect(prisma.announcement.create).not.toHaveBeenCalled();
-  });
-
-  it('归档后自动创建 PRE_WIN_NOTICE 预成交公示草稿', async () => {
-    await service.archiveAll('p1', 'u1');
-    expect(prisma.announcement.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          type: 'PRE_WIN_NOTICE',
-          status: 'DRAFT',
-          relatedProjectCode: 'BID-1',
-        }),
-      }),
-    );
-  });
-
-  it('已存在预成交公示或成交公告时不重复创建（幂等）', async () => {
-    // 幂等口径（按轮）：已有公示创建时间晚于本轮评标结果生成时间 → 跳过
-    prisma.announcement.findFirst.mockResolvedValue({ id: 'wn1', createdAt: new Date() });
-    await service.archiveAll('p1', 'u1');
-    expect(prisma.announcement.create).not.toHaveBeenCalled();
-  });
-
-  it('预成交公示创建失败时不阻塞归档', async () => {
-    prisma.announcement.create.mockRejectedValue(new Error('DB down'));
-    await expect(service.archiveAll('p1', 'u1')).resolves.toBeDefined();
-  });
-
-  it('#151b 全员废标（rank1 行废标未推荐）→ 跳过预成交公示草稿——不得把废标家写成预成交供应商', async () => {
-    prisma.bidProject.findUnique.mockImplementation(({ where }: any) =>
-      where?.id === 'p1'
-        ? Promise.resolve({
-            id: 'p1', projectCode: 'BID-1', stage: 'EVALUATING', name: '项目',
-            evaluationResults: [
-              { rank: 1, supplierName: '废标家甲', totalScore: 40, averageScore: 40, recommended: false },
-              { rank: 2, supplierName: '废标家乙', totalScore: 30, averageScore: 30, recommended: false },
-            ],
-          })
-        : Promise.resolve(null));
-    await service.archiveAll('p1', 'u1');
     expect(prisma.announcement.create).not.toHaveBeenCalled();
   });
 });

@@ -45,7 +45,9 @@ export async function buildArchiveTemplate(
       : null,
     db.announcement.findFirst({ where: { relatedProjectCode: project.projectCode, type: 'BID_NOTICE' }, select: { id: true } }),
     db.announcement.findFirst({ where: { relatedProjectCode: project.projectCode, type: 'PRE_WIN_NOTICE' }, select: { id: true } }),
-    db.announcement.findFirst({ where: { relatedProjectCode: project.projectCode, type: { in: ['WIN_NOTICE', 'PRE_WIN_NOTICE'] } }, select: { id: true } }),
+    // 公示/成交载体（2026-11-20 口径）：现行唯一公示载体=发布向导「中标公告」WIN_BID_NOTICE
+    //（归档自动派生 PRE_WIN 草稿已停），存量 WIN_NOTICE/PRE_WIN 兼容计入
+    db.announcement.findFirst({ where: { relatedProjectCode: project.projectCode, type: { in: ['WIN_BID_NOTICE', 'WIN_NOTICE', 'PRE_WIN_NOTICE'] } }, select: { id: true } }),
     db.bidDocument.findFirst({ where: { bidProjectId: project.id }, select: { title: true } }),
     db.supplierBidSubmission.findMany({ where: { projectId: project.id }, select: { id: true }, take: 1 }),
     db.awardLetterDelivery.findMany({ where: { projectId: project.id }, select: { supplierName: true }, take: 1 }),
@@ -66,7 +68,7 @@ export async function buildArchiveTemplate(
     response: { ok: submissions.length > 0, detail: submissions.length > 0 ? '响应文件已递交' : undefined },
     opening: { ok: itemNames.has('开标记录表') },
     evaluation: { ok: itemNames.has('评标结果汇总') || itemNames.has('评标签字包') },
-    pre_win: { ok: !!preWin || !!win, detail: preWin ? '预成交公示已生成' : win ? '存量公示/成交公告' : undefined },
+    pre_win: { ok: !!win || !!preWin, detail: win ? '公示/成交公告已发布' : preWin ? '存量预成交公示' : undefined },
     win: { ok: !!win, detail: win ? '成交公告已发布' : undefined },
     award_letter: { ok: letters.length > 0, detail: letters[0]?.supplierName },
     contract: { ok: contracts.length > 0, detail: contracts[0]?.contractCode },
