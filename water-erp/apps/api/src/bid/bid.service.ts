@@ -32,7 +32,7 @@ import { getMinBiddersForMethod } from './decrypt-quorum.util';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
-import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
+import { assertArchiveScopeStage, assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, type BidStage } from './bid-state';
 import { resolveProjectCreatorId, resolveActiveUserId } from './bid-project-notify.util';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { openField } from '../common/crypto/field-crypto';
@@ -4319,26 +4319,21 @@ export class BidService {
       });
     }
 
-    // F3: 阶段下限守卫——棘轮只拒回退，下限由各端点业务前置负责。
-    // 防止对截标未到、供应商仍可投递的前阶段项目误归档（不可逆终局）。
-    if (scope === 'opening' && !stageAtLeast(project.stage, 'OPENING')) {
-      throw new ConflictException({
-        error: '开标归档要求项目已进入开标阶段',
-        code: 'ARCHIVE_NOT_OPENED',
-      });
-    }
-    if (scope === 'full' && !stageAtLeast(project.stage, 'EVALUATING')) {
-      throw new ConflictException({
-        error: '完整归档要求项目已进入评标阶段；开标后不评标请改用开标归档（scope=opening）',
-        code: 'ARCHIVE_NOT_EVALUATING',
-      });
-    }
+    // P1-1（2026-11-20 全链路审查，用户裁定）：scope×stage 严格匹配收口——
+    // 旧「阶段下限」（stageAtLeast）只防误归未开标项目，放行了 EVALUATING+opening
+    // （评标中项目绕过签字/回流/结果三闸直接终局）与 ABORTED+full（流标项目从已作废
+    // 结果派生公示/定标）两条反向绕过。矩阵：opening∈{OPENING,ABORTED}、full∈{EVALUATING}。
+    assertArchiveScopeStage(scope, project.stage);
 
     // Wrap ALL reads + writes in a single transaction to prevent race conditions.
     // The ensureArchiveItems, counts check, item fetch, and all updates happen atomically.
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
-      await lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
+      const locked = await lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
+      // P1-1：行锁后在锁内用新鲜阶段复查 scope×stage——外层检查与取锁之间 startEvaluation
+      // （OPENING→EVALUATING）/abortBidProject（→ABORTED）可并发推进，陈旧读会放行错配组合
+      //（ARCHIVED 由 assertArchiveScopeStage 幂等放行——并发第二笔归档不误炸）。
+      assertArchiveScopeStage(scope, locked.stage);
       // 开标归档必须已完成移交（生成开标文件包），否则归档材料不完整。
       // P1-1 例外（2026-11-19 三门户审查）：ABORTED（流标收尾）免移交闸——开标前流标项目
       // 从未组建会话、completeOpening 又仅限 OPENING 态，移交包无生成路径 → 恒 409 死链

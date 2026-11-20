@@ -1439,7 +1439,7 @@ describe('BidService — stage transitions', () => {
       expect(created).toHaveLength(8); // 标准 8 项（5 通用 + 3 评标）
     });
 
-    it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；opening 跳过该守卫（开标归档路径）', async () => {
+    it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；P1-1 后 EVALUATING+opening 在移交闸之前即被矩阵拦截', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目' });
       prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs1', supplierName: '甲' }]);
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
@@ -1448,10 +1448,32 @@ describe('BidService — stage transitions', () => {
       await expect(service.archiveAll('p1'))
         .rejects.toMatchObject({ response: { code: 'EVALUATION_RESULTS_REQUIRED' } });
 
-      // opening → 阶段下限通过（EVALUATING ≥ OPENING）、跳过评标守卫，但必须先完成移交
-      prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: null });
+      // P1-1（2026-11-20）：EVALUATING+opening 旧口径放行到移交闸（OPENING_HANDOVER_REQUIRED）
+      // ——现被 scope×stage 矩阵直接拦截（评标中项目不得绕过签字/回流/结果三闸开标归档）
       await expect(service.archiveAll('p1', undefined, 'opening'))
-        .rejects.toMatchObject({ response: { code: 'OPENING_HANDOVER_REQUIRED' } });
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_EVALUATING_NOT_OPENING' } });
+    });
+
+    it('P1-1 场景B：ABORTED + scope=full → 409 ARCHIVE_ABORTED_NOT_FULL（流标项目不得从已作废结果派生公示/定标）', async () => {
+      // N4c 组合：已出结果+签字闭环+回流包后流标——三闸本可全过，唯 stage 收口拦住
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'ABORTED', name: '流标项目', projectManagementItemId: 'pm1', round: 1 });
+
+      await expect(service.archiveAll('p1', undefined, 'full'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_ABORTED_NOT_FULL' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled(); // 不可逆终局未被写入
+      expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalled(); // PM 未被推进定标
+    });
+
+    it('P1-1 事务内复查：外层读 OPENING、行锁后阶段已并发推进 EVALUATING → 开标归档被拦', async () => {
+      // 竞态：外层检查通过（OPENING+opening 合法）→ 并发 startEvaluation 推进 EVALUATING
+      // → 事务内行锁后的新鲜阶段复查拦截（陈旧读会放行错配组合）
+      prisma.bidProject.findUnique
+        .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目', projectManagementItemId: 'pm1', round: 1 })
+        .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目' }); // lockAndReassertStage 行锁后读
+
+      await expect(service.archiveAll('p1', undefined, 'opening'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_EVALUATING_NOT_OPENING' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
     });
 
     it('F3 阶段下限：DOWNLOAD + scope=opening → 409 ARCHIVE_NOT_OPENED', async () => {
@@ -2757,7 +2779,25 @@ describe('BidService.archiveAll — 预成交公示自动生成 (G1/C1)', () => 
 
   it('开标归档（scope=opening）不生成预成交公示——流标/废标收尾无成交方（2026-10-21）', async () => {
     // N4c 场景：已生成评标结果后流标（存量结果仅作废留痕），开标归档只封存开标材料，
-    // 不得派生「预成交公示」草稿误导公示链（预成交公示只属于完整归档）
+    // 不得派生「预成交公示」草稿误导公示链（预成交公示只属于完整归档）。
+    // P1-1（2026-11-20）：mock stage 由 EVALUATING 纠正为 ABORTED——与注释的「已流标」
+    // 语义一致；旧值靠宽松下限判定碰巧放行，现被 scope×stage 矩阵拦截（EVALUATING+opening 409）。
+    prisma.bidProject.findUnique.mockImplementation(({ where }: any) => {
+      if (where?.id === 'p1') {
+        return Promise.resolve({
+          id: 'p1',
+          projectCode: 'BID-1',
+          stage: 'ABORTED',
+          name: '项目',
+          projectManagementItemId: 'pm1',
+          round: 1,
+          evaluationResults: [
+            { rank: 1, supplierName: '甲', totalScore: 90, averageScore: 30, recommended: true },
+          ],
+        });
+      }
+      return Promise.resolve(null);
+    });
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: 'fa-handover' });
     await service.archiveAll('p1', 'u1', 'opening');
     expect(prisma.announcement.create).not.toHaveBeenCalled();
