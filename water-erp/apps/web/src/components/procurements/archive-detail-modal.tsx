@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   CalendarClock,
+  OctagonX,
   FolderOpen,
   Loader2,
   Eye,
@@ -433,7 +434,27 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
               <div className="flex min-h-0 flex-1 overflow-hidden">
                 {/* Left Panel - Basic Info & Summary */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                  {/* 中标单位 - 单独一行 */}
+                  {/* 顶部状态横幅：归档=中标单位；终止=终止状态一览（2026-11-20 排版重构：
+                      终止项目无中标结果，原「中标单位 -」横幅与三项空指标属噪声） */}
+                  {data.kind === 'terminated' ? (
+                    <motion.div
+                      {...fadeIn(0, reducedMotion)}
+                      className="wb-tone-banner wb-tone-banner--danger"
+                    >
+                      <div
+                        className="wb-icon-well wb-icon-well--sm"
+                        style={{ '--well-bg': 'color-mix(in oklch, var(--danger) 15%, transparent)', '--well-fg': 'var(--danger)' } as CSSProperties}
+                      >
+                        <OctagonX size={16} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs opacity-70">项目已终止{data.archivedAt ? ` · ${data.archivedAt}` : ''}</div>
+                        <div className="text-[0.9rem] font-semibold">
+                          终止于「{data.basicInfo['终止时所在阶段'] || '—'}」阶段 · {data.basicInfo['终止人'] || '—'}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
                   <motion.div
                     {...fadeIn(0, reducedMotion)}
                     className="wb-tone-banner wb-tone-banner--success"
@@ -451,11 +472,13 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       </div>
                     </div>
                   </motion.div>
+                  )}
 
-                  {/* 预算金额、合同金额、节约资金、节资率 - 四个指标一行 */}
+                  {/* 指标行：归档=预算/合同/节约/节资率四卡；终止=仅预算金额（其余三项
+                      对终止项目恒为空，2026-11-20 排版重构） */}
                   <motion.div
                     {...fadeIn(1, reducedMotion)}
-                    className="grid grid-cols-2 md:grid-cols-4 gap-2"
+                    className={`grid grid-cols-2 gap-2 ${data.kind !== 'terminated' ? 'md:grid-cols-4' : ''}`}
                   >
                     <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.6)] px-3 py-2 text-center">
                       <div className="text-xs text-[color-mix(in_oklch,var(--accent)_70%,black)]">预算金额</div>
@@ -463,6 +486,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         {data.basicInfo['预算金额'] || '-'}
                       </div>
                     </div>
+                    {data.kind !== 'terminated' && (
+                    <>
                     <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.6)] px-3 py-2 text-center">
                       <div className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,black)]">合同金额</div>
                       <div className="mt-0.5 text-[0.85rem] font-bold text-[color-mix(in_oklch,var(--warning)_85%,black)]">
@@ -491,6 +516,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           : '-'}
                       </div>
                     </div>
+                    </>
+                    )}
                   </motion.div>
 
                   {/* Basic Info Card - All fields merged */}
@@ -535,11 +562,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         </div>
                       </div>
                       {data.kind === 'terminated' && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] p-3">
-                          <div className="space-y-1">
-                            <div className="text-xs text-[color:var(--muted-foreground)]">项目编号</div>
-                            <div className="text-[0.85rem] font-mono">{data.basicInfo['项目编号'] || '-'}</div>
-                          </div>
+                        /* 终止三件套（2026-11-20 排版重构：项目编号已在上主网格，撤重复项） */
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] p-3">
                           <div className="space-y-1">
                             <div className="text-xs text-[color:var(--muted-foreground)]">终止日期</div>
                             <div className="text-[0.85rem] font-semibold text-[var(--danger)]">{data.basicInfo['终止日期'] || '-'}</div>
@@ -554,6 +578,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           </div>
                         </div>
                       )}
+                      {/* 专家信息/投标单位/立项事由/供方要求（2026-11-20 排版重构）：
+                          有内容才渲染——空值时整段隐藏，不再占行显 "-" 噪声 */}
+                      {experts.length > 0 && (
                       <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">专家信息</div>
                         {experts.length > 0 ? (
@@ -579,34 +606,37 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           <span className="text-[0.85rem] text-[var(--danger)]">暂缺</span>
                         )}
                       </div>
+                      )}
 
                       {/* Row 5: 投标单位 */}
+                      {biddingUnits.length > 0 && (
                       <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">投标单位</div>
-                        {biddingUnits.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
-                            {biddingUnits.map((unit, i) => (
-                              <span key={i} className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
-                                {unit}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-[0.85rem] text-[color:var(--muted-foreground)]">-</span>
-                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {biddingUnits.map((unit, i) => (
+                            <span key={i} className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
+                              {unit}
+                            </span>
+                          ))}
+                        </div>
                       </div>
+                      )}
 
                       {/* Row 6: 申请立项事由 */}
+                      {data.basicInfo['申请立项事由'] && (
                       <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">申请立项事由</div>
-                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['申请立项事由'] || '-'}</p>
+                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['申请立项事由']}</p>
                       </div>
+                      )}
 
                       {/* Row 7: 对供方主要要求 */}
+                      {data.basicInfo['对供方主要要求'] && (
                       <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">对供方主要要求</div>
-                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['对供方主要要求'] || '-'}</p>
+                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['对供方主要要求']}</p>
                       </div>
+                      )}
                     </div>
                   </motion.div>
 
