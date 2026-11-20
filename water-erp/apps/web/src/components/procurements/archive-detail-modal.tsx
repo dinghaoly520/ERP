@@ -8,7 +8,6 @@ import {
   Files,
   Building2,
   Calendar,
-  Trophy,
   CheckCircle2,
   Clock,
   CalendarClock,
@@ -324,14 +323,6 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
         : data.stages)
     : [];
   const completedStages = roundStages.filter((stage) => stage.status === '已完成' || stage.status === 'COMPLETED').length;
-  const savingsLabel = data?.basicInfo['预算金额'] && data?.extractedInfo['合同金额']
-    ? (() => {
-        const budget = parseFloat(data.basicInfo['预算金额'].replace(/[^\d.]/g, ''));
-        const contract = parseFloat(data.extractedInfo['合同金额'].replace(/[^\d.]/g, ''));
-        const saved = budget - contract;
-        return saved > 0 ? `${saved.toLocaleString()}元` : '-';
-      })()
-    : '-';
 
   return (
     <>
@@ -433,33 +424,11 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
               <div className="flex min-h-0 flex-1 overflow-hidden">
                 {/* Left Panel - Basic Info & Summary */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                  {/* 顶部横幅：仅归档=中标单位。终止项目不出横幅（2026-11-20 二次重构）——
-                      标题栏已有「已终止」徽标与终止日期，终止事实归基本信息红框，避免三处重复 */}
-                  {data.kind !== 'terminated' && (
+                  {/* 关键指标四格组件（2026-11-20 用户裁定统一）：预算金额/成交金额/节资率/
+                      中标单位 归一组件，归档与终止同构展示（终止项目无成交项显 -，不再分形） */}
                   <motion.div
                     {...fadeIn(0, reducedMotion)}
-                    className="wb-tone-banner wb-tone-banner--success"
-                  >
-                    <div
-                      className="wb-icon-well wb-icon-well--sm"
-                      style={{ '--well-bg': 'color-mix(in oklch, var(--success) 15%, transparent)', '--well-fg': 'var(--success)' } as CSSProperties}
-                    >
-                      <Trophy size={16} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-xs opacity-70">中标单位</div>
-                      <div className="text-[0.9rem] font-semibold">
-                        {data.extractedInfo['中标单位'] || '-'}
-                      </div>
-                    </div>
-                  </motion.div>
-                  )}
-
-                  {/* 指标行：归档=预算/合同/节约/节资率四卡；终止=仅预算金额（其余三项
-                      对终止项目恒为空，2026-11-20 排版重构） */}
-                  <motion.div
-                    {...fadeIn(1, reducedMotion)}
-                    className={`grid grid-cols-2 gap-2 ${data.kind !== 'terminated' ? 'md:grid-cols-4' : ''}`}
+                    className="grid grid-cols-2 md:grid-cols-4 gap-2"
                   >
                     <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.6)] px-3 py-2 text-center">
                       <div className="text-xs text-[color-mix(in_oklch,var(--accent)_70%,black)]">预算金额</div>
@@ -467,18 +436,10 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         {data.basicInfo['预算金额'] || '-'}
                       </div>
                     </div>
-                    {data.kind !== 'terminated' && (
-                    <>
                     <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.6)] px-3 py-2 text-center">
-                      <div className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,black)]">合同金额</div>
+                      <div className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,black)]">成交金额</div>
                       <div className="mt-0.5 text-[0.85rem] font-bold text-[color-mix(in_oklch,var(--warning)_85%,black)]">
                         {data.extractedInfo['合同金额'] || '-'}
-                      </div>
-                    </div>
-                    <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.6)] px-3 py-2 text-center">
-                      <div className="text-xs text-[color-mix(in_oklch,var(--success)_70%,black)]">节约资金</div>
-                      <div className="mt-0.5 text-[0.85rem] font-bold text-[color-mix(in_oklch,var(--success)_85%,black)]">
-                        {savingsLabel}
                       </div>
                     </div>
                     <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.6)] px-3 py-2 text-center">
@@ -497,8 +458,12 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           : '-'}
                       </div>
                     </div>
-                    </>
-                    )}
+                    <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.6)] px-3 py-2 text-center">
+                      <div className="text-xs text-[color-mix(in_oklch,var(--accent)_70%,black)]">中标单位</div>
+                      <div className="mt-0.5 truncate text-[0.85rem] font-bold text-[color-mix(in_oklch,var(--accent)_85%,black)]" title={data.extractedInfo['中标单位'] || ''}>
+                        {data.extractedInfo['中标单位'] || '-'}
+                      </div>
+                    </div>
                   </motion.div>
 
                   {/* Basic Info Card - All fields merged */}
