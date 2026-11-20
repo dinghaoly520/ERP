@@ -889,7 +889,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   }
                 >
                   <div className="space-y-1.5">
-                    {ranking.rows.slice(0, 8).map((r, i) => (
+                    {(ranking.rows ?? []).slice(0, 8).map((r, i) => (
                       <div key={r.companyId} className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2">
                         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
                         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
@@ -1377,109 +1377,153 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "ranking" ? (
               <>
+            {/* ══ 节资排行（2026-11-19 丰富化）：公司排行+节资额排行+节资率排行 ══ */}
+            {ranking?.rows?.length ? (
+              <>
+                {/* ── 公司排行（月/年切换，瓷面容器排名卡+节资列+金额条）── */}
+                {(() => { const rows = ranking.rows!; return null; })()}
+                <AnalysisZone
+                  icon={Trophy}
+                  title={`公司排行 · ${rankingRange === "month" ? "本月" : "本年"}`}
+                  count={`${ranking.rows.length} 家`}
+                  color="var(--gold)"
+                >
+                  <div className="mb-2 flex justify-end gap-1.5">
+                    {(["month", "year"] as const).map((k) => (
+                      <Chip key={k} active={rankingRange === k} onClick={() => setRankingRange(k)}>
+                        {k === "month" ? "本月" : "本年"}
+                      </Chip>
+                    ))}
+                  </div>
+                  <div className="space-y-1.5">
+                    {(ranking.rows ?? []).slice(0, 8).map((r, i) => {
+                      const max = (ranking.rows ?? [])[0]?.awardAmount ?? 1;
+                      const totalSav = (ranking.rows ?? []).reduce((s, x) => s + x.savings, 0) || 1;
+                      return (
+                        <div key={r.companyId} className="rounded-[12px] m-tile px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_18%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
+                            <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{fmtWan(r.awardAmount)}</span>
+                            <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{r.totalCount} 轮</span>
+                            {r.savings > 0 ? <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-[var(--success)]">节资 {fmtWan(r.savings)}</span> : null}
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                              <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(r.awardAmount / max) * 100}%`, background: i === 0 ? "var(--gold)" : DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                            </span>
+                            <span className="shrink-0 text-[10px] tabular-nums text-[var(--muted-foreground)]">{((r.awardAmount / (totalSav > 0 ? (ranking.rows ?? []).reduce((s, x) => s + x.awardAmount, 0) : 1)) * 100).toFixed(1)}%</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </AnalysisZone>
 
-            {/* ── 公司龙虎榜（admin 全榜 / leader 排位卡+集团均值；跨公司榜单不受公司选择器影响）── */}
-            <SectionCard
-              icon={Trophy}
-              title="公司龙虎榜"
-              index={6.5}
-              right={
-                <div className="flex gap-1.5">
-                  {(["month", "year"] as const).map((k) => (
-                    <Chip key={k} active={rankingRange === k} onClick={() => setRankingRange(k)}>
-                      {k === "month" ? "本月" : "本年"}
-                    </Chip>
-                  ))}
-                </div>
-              }
-            >
-              {ranking?.rows?.length ? (
-                <div className="space-y-1.5">
-                  {ranking.rows.slice(0, 8).map((r, i) => (
-                    <div key={r.companyId} className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2">
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
-                      <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{fmtWan(r.awardAmount)}</span>
-                      <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{r.totalCount} 轮</span>
-                    </div>
-                  ))}
-                </div>
-              ) : ranking?.self ? (
+                {/* ── 节资额排行（按节约金额绝对值排序，Top10 排名卡）── */}
+                {(() => {
+                  const bySavings = [...(ranking.rows ?? [])].sort((a, b) => b.savings - a.savings).filter((r) => r.savings > 0);
+                  if (!bySavings.length) return null;
+                  const max = bySavings[0].savings;
+                  return (
+                    <AnalysisZone icon={TrendingUp} title="节资额排行" count={`Top ${Math.min(bySavings.length, 10)}`} color="var(--success)">
+                      <div className="space-y-1.5">
+                        {bySavings.slice(0, 10).map((r, i) => (
+                          <div key={r.companyId} className="rounded-[12px] m-tile px-3 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--success)_18%,transparent)] text-[var(--success)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
+                              <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--success)]">+{fmtWan(r.savings)}</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                <span className="block h-full rounded-full bg-[var(--success)] opacity-75 transition-[width] duration-300" style={{ width: `${(r.savings / max) * 100}%` }} />
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </AnalysisZone>
+                  );
+                })()}
+
+                {/* ── 节资率项目排行 Top10（金环+排名卡，点开项目详情）── */}
+                <AnalysisZone icon={Trophy} title="节资率项目排行" count={`Top ${Math.min(savingsTop.length, 10)}`} color="var(--gold)">
+                  {savingsTop.length ? (
+                    (() => {
+                      const top10 = [...savingsTop].sort((a, b) => b.savingsRate - a.savingsRate).slice(0, 10);
+                      return (
+                        <div className="space-y-1.5">
+                          {top10.map((item, idx) => {
+                            const rc = item.savingsRate >= 15 ? "var(--success)" : item.savingsRate >= 8 ? "var(--accent)" : "var(--warning)";
+                            const maxRate = top10[0].savingsRate;
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setActiveSaving(item)}
+                                className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <span
+                                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black leading-none ${idx < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}
+                                  >
+                                    {idx + 1}
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--foreground)]">{item.project}</span>
+                                    <span className="mt-0.5 flex items-center gap-1.5">
+                                      {item.department && item.department !== "未归属部门" ? (
+                                        <span className="max-w-[7rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">{item.department}</span>
+                                      ) : null}
+                                      <span className="truncate text-[11px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
+                                    </span>
+                                  </span>
+                                  {/* 节资率环 */}
+                                  <span className="relative flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center">
+                                    <svg viewBox="0 0 44 44" className="absolute inset-0">
+                                      <circle cx="22" cy="22" r="19" fill="none" stroke="var(--muted-foreground)" strokeOpacity={0.12} strokeWidth="4" />
+                                      <circle
+                                        cx="22" cy="22" r="19" fill="none"
+                                        stroke={rc} strokeWidth="4" strokeLinecap="round"
+                                        strokeDasharray={`${(item.savingsRate / 100) * 119.4} 119.4`}
+                                        transform="rotate(-90 22 22)"
+                                        className="transition-all duration-500"
+                                      />
+                                    </svg>
+                                    <span className="relative text-[12px] font-black tabular-nums" style={{ color: rc }}>{item.savingsRate}%</span>
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <EmptyState text="暂无已成交项目数据" />
+                  )}
+                </AnalysisZone>
+              </>
+            ) : ranking?.self ? (
+              <SectionCard icon={Trophy} title="本公司 · 集团排位" index={0}>
                 <div className="rounded-[12px] m-tile px-3.5 py-3">
                   <div className="text-[14px] font-bold text-[var(--foreground)]">{ranking.self.companyName} · 集团第 {ranking.self.rank} 位</div>
                   <div className="mt-1 text-[13px] text-[var(--muted-foreground)]">
                     本公司成交 {fmtWan(ranking.self.awardAmount)} · 集团均值 {fmtWan(ranking.groupAvg?.awardAmount ?? 0)}
                   </div>
                 </div>
-              ) : rankingError ? (
-                <button
-                  type="button"
-                  onClick={() => setRetryTick((t) => t + 1)}
-                  className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]"
-                >
-                  龙虎榜加载失败，点击重试
-                </button>
-              ) : (
-                <EmptyState text="暂无可排名的公司数据" />
-              )}
-            </SectionCard>
-
-            {/* ── 节资率排行 Top5 ── */}
-            <SectionCard
-              icon={TrendingUp}
-              title="节资率项目排行"
-              index={7}
-              right={
-                <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[13px] font-bold text-[var(--success)]">
-                  Top 5
-                </span>
-              }
-            >
-              {savingsTop.length ? (
-                <div className="space-y-2">
-                  {savingsTop.map((item, idx) => {
-                    const rc = item.savingsRate >= 15 ? "var(--success)" : item.savingsRate >= 8 ? "var(--accent)" : "var(--warning)";
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setActiveSaving(item)}
-                        className="flex w-full items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
-                      >
-                        <span
-                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-black leading-none ${
-                            idx < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"
-                          }`}
-                        >
-                          {idx + 1}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="line-clamp-2 text-[15px] font-semibold leading-snug text-[var(--foreground)]">{item.project}</span>
-                          <span className="mt-1 flex items-center gap-1.5">
-                            {item.department && item.department !== "未归属部门" ? (
-                              <span className="max-w-[7rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[13px] text-[var(--accent)]">
-                                {item.department}
-                              </span>
-                            ) : null}
-                            <span className="truncate text-[13px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
-                          </span>
-                        </span>
-                        <span className="shrink-0 text-right leading-tight" style={{ color: rc }}>
-                          <span className="block text-[12px] font-semibold text-[var(--muted-foreground)]">节资率</span>
-                          <span className="mt-0.5 block text-[18px] font-black tabular-nums tracking-[-0.02em]">{item.savingsRate}%</span>
-                        </span>
-                        <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <EmptyState text="暂无已成交项目数据" />
-              )}
-            </SectionCard>
-
+              </SectionCard>
+            ) : rankingError ? (
+              <button type="button" onClick={() => setRetryTick((t) => t + 1)} className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]">
+                龙虎榜加载失败，点击重试
+              </button>
+            ) : (
+              <EmptyState text="暂无可排名的公司数据" />
+            )}
               </>
             ) : null}
+
             {analysisOpen === "risk" ? (
               <>
 
