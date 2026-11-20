@@ -135,6 +135,7 @@ export class UploadController {
   }
 
   @Delete(':key')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // P1-3：删除属破坏性动作——防脚本化穷举 key 删件
   @ApiOperation({ summary: '删除文件' })
   async delete(@Param('key') key: string, @Request() req: any) {
     return this.uploadService.delete(key, req.user);

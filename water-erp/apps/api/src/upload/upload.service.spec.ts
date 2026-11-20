@@ -16,6 +16,16 @@ describe('UploadService — download permission', () => {
     mimeType: 'application/pdf', size: 100, sha256: 'hash', category: 'bid_document', uploaderId: 'u-supplier',
   };
 
+  /**
+   * P1-3 查询形状分流：
+   * - SEALED/删件保护的 dual 外层查询 = OR[0] 是 {AND:[{envelopeVersion…},…]}（v2 四列组）或顶层 {AND:[…]}（v3Filter 单查）；
+   * - canAccessFile 授权反查 = OR[0] 是列条件（technicalFileAssetId 等），v3Filter 只作为 OR 末元素混入。
+   */
+  const isDualOuterQuery = (where: any) =>
+    Array.isArray(where?.OR) && Array.isArray(where.OR[0]?.AND);
+  const isV3OnlyQuery = (where: any) =>
+    Array.isArray(where?.AND) && where.AND[0]?.envelopeVersion === 'dual-v3';
+
   beforeEach(async () => {
     prisma = {
       fileAsset: { findUnique: jest.fn(), create: jest.fn(), delete: jest.fn() },
@@ -26,6 +36,7 @@ describe('UploadService — download permission', () => {
       bidSupervisionLog: { create: jest.fn() },
       bidOpeningSession: { findFirst: jest.fn() },
       bidSignPacket: { findFirst: jest.fn() },
+      bidFileBackup: { findFirst: jest.fn().mockResolvedValue(null) }, // P1-3：v3 删件保护引用反查
       awardLetterDelivery: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       contract: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       contractFulfillment: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -307,7 +318,7 @@ describe('UploadService — download permission', () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     // where-aware：旧轨 submission（envelopeVersion 非 dual-v2）→ 不触发 SEALED_NO_DOWNLOAD
     prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
-      where?.envelopeVersion === 'dual-v2' ? null : { supplierId: 's1', projectId: 'p1' });
+      isDualOuterQuery(where) ? null : { supplierId: 's1', projectId: 'p1' }); // P1-3：形状分流（dual 外层判定不误伤授权反查）
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', decryptStatus: 'SUCCESS' });
     await service.streamFile('fa-1', { sub: 'u-admin', role: 'admin' }, res);
     expect(minioClient.getObject).toHaveBeenCalled();
@@ -385,7 +396,7 @@ describe('UploadService — download permission', () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     // where-aware：旧轨 submission（envelopeVersion 非 dual-v2）→ 不触发 SEALED_NO_DOWNLOAD
     prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
-      where?.envelopeVersion === 'dual-v2' ? null : { supplierId: 's1', projectId: 'p1' });
+      isDualOuterQuery(where) ? null : { supplierId: 's1', projectId: 'p1' }); // P1-3：形状分流（dual 外层判定不误伤授权反查）
     prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p1' });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '测试供应商' });
 
@@ -411,7 +422,7 @@ describe('UploadService — download permission', () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     // where-aware：旧轨 submission（envelopeVersion 非 dual-v2）→ 不触发 SEALED_NO_DOWNLOAD
     prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
-      where?.envelopeVersion === 'dual-v2' ? null : { supplierId: 's1', projectId: 'p2' });
+      isDualOuterQuery(where) ? null : { supplierId: 's1', projectId: 'p2' }); // P1-3：同上形状分流
     prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p2' });
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '测试供应商' });
 
@@ -447,11 +458,20 @@ describe('UploadService — download permission', () => {
   });
 
   describe('H7 — delete 引用检查', () => {
+    /** P1-3 查询形状分流：v2=AND[0].envelopeVersion、v3=AND[0].envelopeVersion、四列=顶层 OR 含列键 */
+    const isV2Query = (where: any) => where?.AND?.[0]?.envelopeVersion === 'dual-v2' || where?.envelopeVersion === 'dual-v2';
+    const isV3Query = (where: any) => where?.AND?.[0]?.envelopeVersion === 'dual-v3';
+    const isFourColQuery = (where: any) =>
+      Array.isArray(where?.OR) && where.OR.some((c: any) => c?.technicalFileAssetId || c?.bidBondAssetId);
+
     it('文件已被 SupplierBidSubmission 引用时拒绝删除', async () => {
       prisma.fileAsset.findUnique.mockResolvedValue(asset);
-      // where-aware：dual-v2 C_outer 查询无命中 → 走旧轨四列引用保护
-      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) =>
-        where?.envelopeVersion === 'dual-v2' ? null : { id: 'sub1' });
+      // where-aware：v2/v3 C_outer 查询无命中 → 走旧轨四列引用保护
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) => {
+        if (isV2Query(where) || isV3Query(where)) return null;
+        if (isFourColQuery(where)) return { id: 'sub1' };
+        return null;
+      });
       jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
 
       await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
@@ -470,6 +490,28 @@ describe('UploadService — download permission', () => {
         .resolves.toMatchObject({ deleted: true });
       expect(minioClient.removeObject).toHaveBeenCalled();
       expect(prisma.fileAsset.delete).toHaveBeenCalledWith({ where: { key: 'uploads/x.pdf' } });
+    });
+
+    it('P1-3：已被 dual-v3 信封引用的 C_outer（ uploader 本人删）→ 409 FILE_REFERENCED——防截标后删件毁解密链', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(asset);
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) =>
+        isV3Query(where) ? { id: 'sub-v3' } : null);
+      jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
+
+      await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } }); // category=bid_document 先吃 FILE_PROTECTED（更强的语义）
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+
+    it('P1-3：非 bid_document 类目但被 BidFileBackup 备份引用（v3 补传历史版本资产）→ 409 FILE_REFERENCED', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...asset, category: 'general' });
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue(null);
+      prisma.bidFileBackup.findFirst.mockResolvedValue({ id: 'bk-1' });
+      jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
+
+      await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_REFERENCED' } });
+      expect(prisma.fileAsset.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -493,18 +535,46 @@ describe('UploadService — download permission', () => {
       prisma.fileAsset.findUnique.mockResolvedValue({
         ...asset, id: 'fa-outer', category: 'bid_document', uploaderId: 'u-supplier',
       });
+      // P1-3 查询形状：v2 判定迁移至 AND[0].envelopeVersion（顶层 envelopeVersion 键不复存在）
       prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) =>
-        where?.envelopeVersion === 'dual-v2' ? { id: 'sub-1' } : null);
+        where?.AND?.[0]?.envelopeVersion === 'dual-v2' ? { id: 'sub-1' } : null);
 
       await expect(service.delete('uploads/outer.enc', { sub: 'u-admin', role: 'admin' }))
         .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
       expect(minioClient.removeObject).not.toHaveBeenCalled();
     });
 
-    it('旧轨四列引用仍 409 FILE_REFERENCED（dual-v2 判定先行不吞旧轨保护）', async () => {
-      prisma.fileAsset.findUnique.mockResolvedValue(asset);
+    it('P1-3：被 dual-v3 信封引用的 bid_document（C_outer）→ 409 FILE_PROTECTED（v3 不写四列，按信封 path 反查）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        ...asset, id: 'fa-outer-v3', category: 'bid_document', uploaderId: 'u-supplier',
+      });
       prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) =>
-        where?.envelopeVersion === 'dual-v2' ? null : { id: 'sub-legacy' });
+        where?.AND?.[0]?.envelopeVersion === 'dual-v3' ? { id: 'sub-v3' } : null);
+
+      await expect(service.delete('uploads/outer-v3.enc', { sub: 'u-admin', role: 'admin' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+
+    it('P1-3：仅被 BidFileBackup 备份引用（补传后历史版本 C_outer）→ 409 FILE_PROTECTED（证据件不丢）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        ...asset, id: 'fa-outer-old', category: 'bid_document', uploaderId: 'u-supplier',
+      });
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue(null); // 当前信封/四列均已不引用（补传替换）
+      prisma.bidFileBackup.findFirst.mockResolvedValue({ id: 'bk-old' });
+
+      await expect(service.delete('uploads/outer-old.enc', { sub: 'u-admin', role: 'admin' }))
+        .rejects.toMatchObject({ response: { code: 'FILE_PROTECTED' } });
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+    });
+
+    it('旧轨四列引用仍 409 FILE_REFERENCED（dual 判定先行不吞旧轨保护）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(asset);
+      // P1-3 查询形状：四列查询为顶层 OR（无 envelopeVersion 前缀）
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }: any) => {
+        if (where?.AND?.[0]?.envelopeVersion) return null; // dual-v2/v3 判定不命中
+        return { id: 'sub-legacy' }; // 旧轨四列命中
+      });
 
       await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
         .rejects.toMatchObject({ response: { code: 'FILE_REFERENCED' } });
@@ -576,9 +646,13 @@ describe('UploadService — download permission', () => {
     });
   });
 
-  describe('§5.4a dual-v2 下载分派', () => {
+  describe('§5.4a dual 家下载分派（P1-3 起含 v3）', () => {
     const dualOuter = {
       ...asset, id: 'fa-outer', category: 'bid_document', clientEncrypted: true, uploaderId: 'u-supplier',
+    };
+    /** P1-3：v3 C_outer 暂存资产——无 clientEncrypted/encrypted/sealedKey 任何标志（四加密分支全不命中） */
+    const v3Outer = {
+      ...asset, id: 'fa-outer-v3', category: 'bid_document', clientEncrypted: false, encrypted: false, sealedKey: null, uploaderId: 'u-supplier',
     };
     const cInner = {
       ...asset, id: 'fa-inner', category: 'bid_inner_ciphertext', clientEncrypted: false, uploaderId: 'u-host',
@@ -589,11 +663,36 @@ describe('UploadService — download permission', () => {
 
     it('供应商本人下载 dual-v2 C_outer → 400 SEALED_NO_DOWNLOAD', async () => {
       prisma.fileAsset.findUnique.mockResolvedValue(dualOuter);
+      // P1-3 查询形状：OR[0].AND[0].envelopeVersion（顶层 envelopeVersion 键已迁入 AND）
       prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
-        where?.envelopeVersion === 'dual-v2' ? { id: 'sub-1' } : null);
+        where?.OR?.[0]?.AND?.[0]?.envelopeVersion === 'dual-v2' ? { id: 'sub-1' } : null);
 
       await expect(service.streamFile('fa-outer', { sub: 'u-supplier', role: 'supplier' }, res))
         .rejects.toMatchObject({ response: { code: 'SEALED_NO_DOWNLOAD' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('P1-3：供应商本人下载 dual-v3 C_outer → 400 SEALED_NO_DOWNLOAD（原走兜底分支直出密文）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(v3Outer);
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
+        isDualOuterQuery(where) ? { id: 'sub-v3' } : null); // SEALED 段外层查询命中（v3Filter 在 OR[1]）
+
+      await expect(service.streamFile('fa-outer-v3', { sub: 'u-supplier', role: 'supplier' }, res))
+        .rejects.toMatchObject({ response: { code: 'SEALED_NO_DOWNLOAD' } });
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('P1-3：管理角色（staff）下载 dual-v3 C_outer（解密前）→ 403 FILE_FORBIDDEN（v3 信封命中 SUCCESS 闸，不再兜底放行）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(v3Outer);
+      // canAccessFile 管理角色分支（OR[0]=列条件+v3Filter 混入）：命中 → 查 bidSupplier SUCCESS → null → 拒绝
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
+        !isDualOuterQuery(where) && !isV3OnlyQuery(where)
+          ? { supplierId: 'sys-1', projectId: 'p1' }
+          : null);
+      prisma.bidSupplier.findFirst.mockResolvedValue(null); // 解密未成功
+
+      await expect(service.streamFile('fa-outer-v3', { sub: 'u-staff', role: 'staff' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
       expect(minioClient.getObject).not.toHaveBeenCalled();
     });
 
@@ -684,8 +783,8 @@ describe('UploadService — download permission', () => {
     it('旧轨密封资产从 sealedPath 读取并解密输出（key 明文对象已清理）', async () => {
       prisma.fileAsset.findUnique.mockResolvedValue(sealedAsset);
       prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
-        where?.envelopeVersion === 'dual-v2' ? null
-          : { id: 'sub-1', technicalFileAssetId: 'fa-sealed', technicalSealedKey: DUMMY_RAW_KEY });
+        isDualOuterQuery(where) ? null
+          : { id: 'sub-1', technicalFileAssetId: 'fa-sealed', technicalSealedKey: DUMMY_RAW_KEY }); // P1-3：形状分流
       // 链式 pipe（生产 MinIO 流 pipe 返回自身；mock 需同形）
       (minioClient.getObject as jest.Mock).mockResolvedValue({ pipe: jest.fn(() => ({ pipe: jest.fn() })) } as any);
 
@@ -698,7 +797,7 @@ describe('UploadService — download permission', () => {
     it('旧轨密封资产缺 sealedKey → 400 MISSING_SEALED_KEY', async () => {
       prisma.fileAsset.findUnique.mockResolvedValue(sealedAsset);
       prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
-        where?.envelopeVersion === 'dual-v2' ? null : { id: 'sub-1', technicalFileAssetId: 'fa-sealed', technicalSealedKey: null });
+        isDualOuterQuery(where) ? null : { id: 'sub-1', technicalFileAssetId: 'fa-sealed', technicalSealedKey: null }); // P1-3：形状分流
 
       await expect(service.streamFile('fa-sealed', { sub: 'u-supplier', role: 'supplier' }, res))
         .rejects.toMatchObject({ response: { code: 'MISSING_SEALED_KEY' } });

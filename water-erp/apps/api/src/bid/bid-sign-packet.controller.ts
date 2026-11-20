@@ -6,6 +6,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { AssignedHostGuard } from './assigned-host.guard';
 import { BidCompanyScopeGuard } from './bid-company-scope.guard';
 import { BidSignPacketService } from './bid-sign-packet.service';
+import { normalizeMultipartFilename } from '../common/filename-encoding.util';
 import { RegisterSignDto, ReopenSignPacketDto } from './dto/bid-sign-packet.dto';
 
 @ApiTags('开评标管理·评标签字')
@@ -44,7 +45,8 @@ export class BidSignPacketController {
     @CurrentUser('sub') userId: string,
   ) {
     if (!file) throw new BadRequestException({ error: '缺少上传文件（multipart field=file）', code: 'SIGN_SCAN_REQUIRED' });
-    return this.service.uploadExpertScan(id, expertId, { buffer: file.buffer, mimetype: file.mimetype, originalname: file.originalname }, userId);
+    // P3-21（2026-11-13 latin1 铁律漏网点）：中文扫描件名入库/入 evidence-zip 前归一化
+    return this.service.uploadExpertScan(id, expertId, { buffer: file.buffer, mimetype: file.mimetype, originalname: normalizeMultipartFilename(file.originalname) }, userId);
   }
 
   @Post('signature-page/scan')
@@ -58,7 +60,8 @@ export class BidSignPacketController {
     @CurrentUser('sub') userId: string,
   ) {
     if (!file) throw new BadRequestException({ error: '缺少上传文件（multipart field=file）', code: 'SIGN_SCAN_REQUIRED' });
-    return this.service.uploadSignaturePageScan(id, { buffer: file.buffer, mimetype: file.mimetype, originalname: file.originalname }, userId);
+    // P3-21：同上——multipart 文件名 latin1 归一化
+    return this.service.uploadSignaturePageScan(id, { buffer: file.buffer, mimetype: file.mimetype, originalname: normalizeMultipartFilename(file.originalname) }, userId);
   }
 
   @Post('experts/:expertId/register')
