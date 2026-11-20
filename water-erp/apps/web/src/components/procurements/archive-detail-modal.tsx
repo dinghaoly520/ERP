@@ -549,22 +549,23 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           )}
                         </div>
                       )}
-                      {/* 参与供应商/专家信息/立项事由/供方要求（2026-11-20 排版重构）：
-                          参与供应商居专家信息之前；有内容才渲染——空值整段隐藏不占行 */}
-                      {biddingUnits.length > 0 && (
+                      {/* 参与供应商/专家信息/立项事由/供方要求（2026-11-20 用户裁定）：
+                          参与供应商居专家信息之前；恒渲染，无内容统一显 "-" */}
                       <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">参与供应商</div>
-                        <div className="flex flex-wrap gap-2">
-                          {biddingUnits.map((unit, i) => (
-                            <span key={i} className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
-                              {unit}
-                            </span>
-                          ))}
-                        </div>
+                        {biddingUnits.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {biddingUnits.map((unit, i) => (
+                              <span key={i} className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
+                                {unit}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-[0.85rem] text-[color:var(--muted-foreground)]">-</span>
+                        )}
                       </div>
-                      )}
 
-                      {experts.length > 0 && (
                       <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">专家信息</div>
                         {experts.length > 0 ? (
@@ -587,26 +588,21 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                             })}
                           </div>
                         ) : (
-                          <span className="text-[0.85rem] text-[var(--danger)]">暂缺</span>
+                          <span className="text-[0.85rem] text-[color:var(--muted-foreground)]">-</span>
                         )}
                       </div>
-                      )}
 
                       {/* Row 6: 申请立项事由 */}
-                      {data.basicInfo['申请立项事由'] && (
                       <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">申请立项事由</div>
-                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['申请立项事由']}</p>
+                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['申请立项事由'] || '-'}</p>
                       </div>
-                      )}
 
                       {/* Row 7: 对供方主要要求 */}
-                      {data.basicInfo['对供方主要要求'] && (
                       <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">对供方主要要求</div>
-                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['对供方主要要求']}</p>
+                        <p className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)] whitespace-pre-line">{data.basicInfo['对供方主要要求'] || '-'}</p>
                       </div>
-                      )}
                     </div>
                   </motion.div>
 
