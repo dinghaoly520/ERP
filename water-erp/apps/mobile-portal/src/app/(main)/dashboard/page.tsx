@@ -59,6 +59,7 @@ import {
   type ExpertLibraryStats,
   type PerformanceMetrics,
 } from "@/lib/api/cockpit";
+import { fetchExpertList, type ExpertListItem } from "@/lib/api/expert";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, type ProgressStats } from "@/lib/api/progress";
 import { RANGES, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
@@ -376,6 +377,22 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .catch(() => { if (active) setRankingError(true); }); // 失败≠空数据——区分重试态（P2，2026-11-03）
     return () => { active = false; };
   }, [rankingRange, retryTick]);
+
+
+  /* 专家搜索+列表（2026-11-20 用户裁定：可搜索全部专家+点开看信息） */
+  const [expertSearch, setExpertSearch] = useState("");
+  const [expertList, setExpertList] = useState<ExpertListItem[] | null>(null);
+  const [expertTotal, setExpertTotal] = useState(0);
+  const [expertPick, setExpertPick] = useState<ExpertListItem | null>(null);
+  useEffect(() => {
+    if (analysisOpen !== "experts") return;
+    let active = true;
+    setExpertList(null);
+    fetchExpertList({ pageSize: 50, companyId: companyIds.length ? companyIds.join(",") : undefined })
+      .then((r) => { if (active) { setExpertList(r.items); setExpertTotal(r.total); } })
+      .catch(() => { if (active) setExpertList([]); });
+    return () => { active = false; };
+  }, [analysisOpen, companyIds]);
 
   /* 口径窗（置于消费方 effect 之前——依赖数组渲染期取值不可前向引用） */
   const queryRange = useMemo<{ startDate?: string; endDate?: string }>(
@@ -1841,6 +1858,57 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   </AnalysisZone>
                 ) : null}
 
+                {/* 专家名录：搜索+点击开详情 */}
+                <AnalysisZone icon={Users} title="专家名录" count={`${expertTotal} 人`} color="var(--accent)">
+                  {expertList ? (
+                    (() => {
+                      const kw = expertSearch.trim();
+                      const filtered = kw ? expertList.filter((e) =>
+                        e.displayName.includes(kw) ||
+                        (e.expertProfile?.specialty ?? "").includes(kw) ||
+                        (e.expertProfile?.employer ?? "").includes(kw) ||
+                        (e.expertProfile?.title ?? "").includes(kw)
+                      ) : expertList;
+                      return filtered.length ? (
+                        <div className="space-y-1.5">
+                          {filtered.slice(0, 20).map((e, i) => {
+                            const profile = e.expertProfile;
+                            const grade = e.avgGrade ?? e.latestEval?.level;
+                            const gradeColor = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : grade ? 'var(--warning)' : 'var(--muted-foreground)';
+                            return (
+                              <button key={e.id} type="button" onClick={() => setExpertPick(e)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
+                                <div className="flex items-center gap-2.5">
+                                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]"}`}>
+                                    {e.displayName.slice(0, 1)}
+                                  </span>
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{e.displayName}</span>
+                                    <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                      {profile?.specialty ? <span className="max-w-[6rem] truncate">{profile.specialty}</span> : null}
+                                      {profile?.title ? <span className="truncate">{profile.title}</span> : null}
+                                    </span>
+                                  </span>
+                                  {grade ? (
+                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ background: `color-mix(in oklch, ${gradeColor} 12%, transparent)`, color: gradeColor }}>
+                                      {grade}
+                                    </span>
+                                  ) : null}
+                                  <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+                                </div>
+                              </button>
+                            );
+                          })}
+                          {filtered.length > 20 ? <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 20 · 共 {filtered.length} 人</div> : null}
+                        </div>
+                      ) : (
+                        <EmptyState text={kw ? `无匹配「${kw}」的专家` : "暂无专家"} />
+                      );
+                    })()
+                  ) : (
+                    <div className="py-2"><Skeleton lines={4} height={40} /></div>
+                  )}
+                </AnalysisZone>
+
                 {/* 履职评价等级分布：柱状排名卡 */}
                 {expertStats.evaluation?.levelCounts && expertStats.evaluation.total > 0 ? (
                   <AnalysisZone icon={Gauge} title="履职评价等级" count={`${expertStats.evaluation.total} 次`} color="var(--success)">
@@ -1882,6 +1950,50 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
           </>
         ) : null}
     </>
+  );
+
+  /* 专家详情弹层（2026-11-20） */
+  const expertDetailSheet = (
+    <BottomSheet open={!!expertPick} onClose={() => setExpertPick(null)} title={<span>{expertPick?.displayName ?? ""}</span>}>
+      {expertPick ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {expertPick.expertProfile?.specialty ? (
+              <span className="rounded-full bg-[color-mix(in_oklch,var(--gold)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--gold)]">{expertPick.expertProfile.specialty}</span>
+            ) : null}
+            {expertPick.expertProfile?.title ? (
+              <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent)]">{expertPick.expertProfile.title}</span>
+            ) : null}
+            {expertPick.avgGrade || expertPick.latestEval?.level ? (
+              <span className="rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--success)]">
+                评价 {expertPick.avgGrade ?? expertPick.latestEval?.level}
+              </span>
+            ) : null}
+            {!expertPick.isActive ? (
+              <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--danger)]">已停用</span>
+            ) : null}
+          </div>
+          <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
+            {expertPick.expertProfile?.employer ? (
+              <div className="flex justify-between gap-3">
+                <span className="text-[var(--muted-foreground)]">工作单位</span>
+                <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile.employer}</span>
+              </div>
+            ) : null}
+            <div className="flex justify-between gap-3">
+              <span className="text-[var(--muted-foreground)]">库内状态</span>
+              <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile?.availability ?? "在库"}</span>
+            </div>
+            {expertPick.latestEval ? (
+              <div className="flex justify-between gap-3">
+                <span className="text-[var(--muted-foreground)]">最新评价</span>
+                <span className="font-medium tabular-nums text-[var(--foreground)]">{expertPick.latestEval.level} · {expertPick.latestEval.createdAt.slice(0, 10)}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </BottomSheet>
   );
 
   /* 公告详情弹层（2026-11-20） */
@@ -2234,6 +2346,21 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             />
           ) : null}
         </div>
+        {panel === "experts" ? (
+          <div className="m-tile mb-3 flex h-10 items-center gap-2 rounded-full px-3.5">
+            <Search size={14} className="shrink-0 text-[var(--muted-foreground)]" />
+            <input
+              value={expertSearch}
+              onChange={(e) => setExpertSearch(e.target.value)}
+              placeholder="搜索专家姓名/专业/单位"
+              aria-label="搜索专家"
+              className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+            />
+            {expertSearch ? (
+              <button type="button" onClick={() => setExpertSearch("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">清除</button>
+            ) : null}
+          </div>
+        ) : null}
         {panel === "supplier" ? (
           <div className="m-tile mb-3 flex h-10 items-center gap-2 rounded-full px-3.5">
             <Search size={14} className="shrink-0 text-[var(--muted-foreground)]" />
@@ -2254,6 +2381,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
         {analysisGroups}
         {drillSheets}
         {annDetailSheet}
+        {expertDetailSheet}
       </div>
     );
   }
