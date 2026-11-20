@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** C3 非招标方式三类（CTS-EBS01 A-199：变更为非招标方式后记录其他交易方式和成交结果） */
@@ -50,6 +50,21 @@ export class NonTenderDealService {
     if (dto.fileAssetId && project.projectManagementItemId) {
       const fa = await this.prisma.fileAsset.findUnique({ where: { id: dto.fileAssetId } });
       if (!fa) throw new BadRequestException({ error: '成交文件不存在', code: 'FILE_NOT_FOUND' });
+      // P2-6（2026-11-20）：资产归属闸——原实现只查存在性，任意资产（含供应商上传件）的
+      // objectKey 可被复制挂入 PMI 定标附件（证据链混淆）。口径对齐 upload.service canAccessFile
+      // 管理角色白名单：成交文件须为操作人本人或内部角色上传（供应商/专家上传件拒收）。
+      if (fa.uploaderId && fa.uploaderId !== actorId) {
+        const uploader = await this.prisma.user.findUnique({
+          where: { id: fa.uploaderId },
+          select: { role: true },
+        });
+        if (!uploader || !['admin', 'leader', 'staff', 'bid_host'].includes(uploader.role)) {
+          throw new ForbiddenException({
+            error: '成交文件须为采购管理端上传的文件，不可引用供应商/专家上传件',
+            code: 'FILE_UPLOADER_FORBIDDEN',
+          });
+        }
+      }
       const stage = await this.prisma.projectManagementStage.findFirst({
         where: {
           projectManagementItemId: project.projectManagementItemId,

@@ -58,4 +58,25 @@ describe('NonTenderDealService（C3 A-199）', () => {
     expect(r.attachmentId).toBeNull();
     expect(prisma.attachment.create).not.toHaveBeenCalled();
   });
+
+  // P2-6（2026-11-20）：资产归属闸——供应商/专家上传件不可挂入 PMI 定标附件
+  it('P2-6：成交文件为供应商上传件 → 403 FILE_UPLOADER_FORBIDDEN（防 objectKey 复制挂入证据链）', async () => {
+    const prisma = mk({
+      fileAsset: { findUnique: jest.fn().mockResolvedValue({ id: 'fa-x', key: 'uploads/sup.pdf', originalName: 'x.pdf', mimeType: 'application/pdf', size: 10, uploaderId: 'u-supplier' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'supplier' }) },
+    });
+    await expect(new NonTenderDealService(prisma as any).register('bp-1', { ...dto, fileAssetId: 'fa-x' } as any, 'u-staff'))
+      .rejects.toMatchObject({ response: { code: 'FILE_UPLOADER_FORBIDDEN' } });
+    expect(prisma.attachment.create).not.toHaveBeenCalled();
+    expect(prisma.nonTenderDealRecord.create).not.toHaveBeenCalled();
+  });
+
+  it('P2-6：成交文件为他人（内部角色）上传 → 放行（管理端代传口径，对齐 canAccessFile 白名单）', async () => {
+    const prisma = mk({
+      fileAsset: { findUnique: jest.fn().mockResolvedValue({ id: 'fa-1', key: 'uploads/x.pdf', originalName: '成交记录.pdf', mimeType: 'application/pdf', size: 1024, uploaderId: 'u-other-staff' }) },
+      user: { findUnique: jest.fn().mockResolvedValue({ role: 'staff' }) },
+    });
+    const r = await new NonTenderDealService(prisma as any).register('bp-1', { ...dto, fileAssetId: 'fa-1' } as any, 'u-1');
+    expect(r.attachmentId).toBe('att-1');
+  });
 });
