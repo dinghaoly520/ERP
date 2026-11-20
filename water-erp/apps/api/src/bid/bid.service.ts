@@ -33,6 +33,7 @@ import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from 
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
 import { assertArchiveScopeStage, assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, type BidStage } from './bid-state';
+import { signLoopExpertScope } from './sign-loop.util';
 import { resolveProjectCreatorId, resolveActiveUserId } from './bid-project-notify.util';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { openField } from '../common/crypto/field-crypto';
@@ -90,7 +91,6 @@ function formatNoteTime(d: Date): string {
 @Injectable()
 export class BidService {
   /** P2-5（第四波）：开标主持人操作权 TTL——超时未刷新即可被他人接管（惰性判定） */
-  private static readonly ACTIVE_HOST_TTL_MS = 15 * 60 * 1000;
 
   constructor(
     private prisma: PrismaService,
@@ -3063,38 +3063,10 @@ export class BidService {
     return this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
   }
 
-  /** 注册主持人为当前操作者（并发检测）。原子抢占——与 releaseActiveHost 同模式。 */
-  async claimActiveHost(projectId: string, userId: string, userName: string): Promise<{ claimed: boolean; existingHost?: string }> {
-    // #10: 原子 updateMany 防止 TOCTOU 竞态（旧实现 findUnique+update 可并发双抢）
-    // P2-5（第四波）：操作权 TTL——他人占用超时（activeHostClaimedAt 早于 now-15min）视同已释放，
-    // 会话死亡残留不再恒占（惰性判定免 cron）。存量行无戳（null）保守不视为过期（旧行为保持，
-    // 避免升级即全量放行）；本人重复 claim 幂等刷新时戳。
-    const res = await this.prisma.bidOpeningSession.updateMany({
-      where: {
-        projectId,
-        OR: [
-          { activeHostId: null },
-          { activeHostId: userId },
-          { activeHostClaimedAt: { lt: new Date(Date.now() - BidService.ACTIVE_HOST_TTL_MS) } },
-        ],
-      },
-      data: { activeHostId: userId, activeHostName: userName, activeHostClaimedAt: new Date() },
-    });
-    if (res.count > 0) return { claimed: true };
-    // 被他人占用 → 回读占用者
-    const session = await this.prisma.bidOpeningSession.findUnique({
-      where: { projectId }, select: { activeHostId: true, activeHostName: true },
-    });
-    return { claimed: false, existingHost: session?.activeHostName ?? session?.activeHostId ?? undefined };
-  }
-
-  /** 释放主持人操作者身份。仅当调用者是当前 activeHost 时才清除。 */
-  async releaseActiveHost(projectId: string, userId: string): Promise<void> {
-    await this.prisma.bidOpeningSession.updateMany({
-      where: { projectId, activeHostId: userId },
-      data: { activeHostId: null, activeHostName: null, activeHostClaimedAt: null },
-    });
-  }
+  // P3-28（2026-11-20 用户裁定删除）：claimActiveHost/releaseActiveHost「主持人操作权互斥」
+  // 机制整体移除——2026-07-29（892b64616）引入后前端从未接线、activeHostId 不被任何业务
+  // 写路径检查（从不锁门的锁）；数据层并发防护（解密原子抢占/唱标 LOCKED/结果行锁）独立完备。
+  // 未来若需主持端互斥提示，走 WS presence 方案，勿复活 DB 锁。
 
   /** 暂停开标：冻结解密窗口倒计时，暂停期间拒绝解密。 */
   async pauseOpening(projectId: string, actorId?: string, reason?: string) {
@@ -4413,8 +4385,9 @@ export class BidService {
         });
         const pendingExperts = signPacket && !signPacket.closedAt
           ? await tx.bidExpert.findMany({
-              // 名册除名口径（2026-10-27）：婉拒正选不算未签字——否则归档闸永久卡死
-              where: { projectId: id, expertRole: '正选', signStatus: 'PENDING', invitationStatus: { not: 'declined' } },
+              // 名册除名口径（declined 2026-10-27 / pending P2-4 2026-11-20）：
+              // 婉拒与从未确认邀请的正选不算未签字——否则归档闸永久卡死
+              where: { ...signLoopExpertScope(id), signStatus: 'PENDING' },
               select: { expertName: true },
             })
           : [];

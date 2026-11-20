@@ -1060,23 +1060,6 @@ export class BidController {
     return this.bidService.listSupervisionAnnotations(id);
   }
 
-  @Post('projects/:id/claim-host')
-  @Roles('admin', 'bid_host', 'leader', 'staff')
-  @UseGuards(AssignedHostGuard)
-  @ApiOperation({ summary: '声明主持操作者身份（并发检测）' })
-  claimActiveHost(
-    @Param('id') id: string,
-    @CurrentUser('sub') userId: string,
-    @CurrentUser('username') userName: string,
-  ) { return this.bidService.claimActiveHost(id, userId, userName); }
-
-  @Post('projects/:id/release-host')
-  @Roles('admin', 'bid_host', 'leader', 'staff')
-  @UseGuards(AssignedHostGuard)
-  @ApiOperation({ summary: '释放主持操作者身份' })
-  releaseActiveHost(@Param('id') id: string, @CurrentUser('sub') userId: string) {
-    return this.bidService.releaseActiveHost(id, userId);
-  }
 
   @Get('projects/:id/opening-session/time')
   @ApiOperation({ summary: '获取服务器当前时间及解密窗口剩余秒数' })

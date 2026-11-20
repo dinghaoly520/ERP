@@ -4216,6 +4216,22 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const archivedAt = new Date();
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // P2-5（2026-11-20 全链路审查）：BID_IN_PROGRESS 闸事务内复查——原事务前
+      // check-then-act，并发 archiveAll/abortBidProject 在检查与提交间推进阶段时，
+      // 闸判定与落库状态脱节（PMI 已归档而投标侧中途进入活动态的窗口）。事务内重查收窄窗口；
+      // 单向棘轮保证终局不回退，重查读到终局即安全。
+      const activeCountInTx = await tx.bidProject.count({
+        where: {
+          projectManagementItemId: projectId,
+          stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] },
+        },
+      });
+      if (activeCountInTx > 0) {
+        throw new ConflictException({
+          error: '关联招标项目仍在开评标流程中（并发状态变更），请刷新后重试',
+          code: 'BID_IN_PROGRESS',
+        });
+      }
       const deptFound = await tx.department.findFirst({ where: { name: project.requesterDepartment }, select: { id: true } });
       const department = deptFound
         ? deptFound
@@ -4492,14 +4508,19 @@ ${JSON.stringify(algorithmResult, null, 2)}
       // 下游联动①：关联招标项目流标（2026-09-21 拍板：终止必须闭环下游）
       // ABORTED 后供应商端「可投标项目」（stage∈DOWNLOAD/SUBMIT）自动排除；
       // ARCHIVED 终态跳过（归档数据不可扰动）；监督时间线留痕联动原因。
+      // P2-5（2026-11-20 全链路审查）：条件写防并发覆盖——事务前名单读取到取锁提交之间，
+      // 并发 archiveAll 可能把项目推到 ARCHIVED；原无条件 update 会把不可逆终态覆盖回
+      // ABORTED（违反 bid-state ARCHIVED 守卫、归档证据链分裂）。改为仅在活动态上落 ABORTED
+      //（updateMany 原子条件写），已被并发处置的家静默跳过（无重复留痕）。
       for (const bp of activeBidProjects) {
         // 2026-10-27 串码修复：操作人此前嵌裸 userId、时间裸 ISO——改姓名快照+本地可读时间
         // （前缀「项目终止联动流标（」勿动：:3007 归档端「已终止」判定依赖此前缀）
         const note = `项目终止联动流标（${formatNoteTimestamp(terminatedAt)}${terminatorLabel ? `，操作人 ${terminatorLabel}` : ''}，终止原因：${reason}）`;
-        await tx.bidProject.update({
-          where: { id: bp.id },
+        const aborted = await tx.bidProject.updateMany({
+          where: { id: bp.id, stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } },
           data: { stage: 'ABORTED', riskNote: note, abortedAt: terminatedAt },
         });
+        if (aborted.count === 0) continue; // 并发已终局（归档/流标先行）——不覆盖、不重复留痕
         await tx.bidSupervisionLog.create({
           data: {
             projectId: bp.id, time: terminatedAt, role: '系统', target: bp.name,

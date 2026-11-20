@@ -6,7 +6,7 @@ import { StorageService } from '../storage/storage.service';
 import { BidSignPacketDocxService } from './bid-sign-packet-docx.service';
 import type { SignPacketSnapshot, OperationTrace } from './bid-sign-packet-docx.service';
 import { lockAndReassertStage } from './bid-state';
-import { closeSignLoopIfDone } from './sign-loop.util';
+import { closeSignLoopIfDone, signLoopExpertScope } from './sign-loop.util';
 import { stripExpertEsignature } from '../expert/expert-esign.util';
 import type { RegisterSignDto, ReopenSignPacketDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
@@ -151,6 +151,16 @@ export class BidSignPacketService {
     const expert = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId } });
     if (!expert) throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' }); // 与 bid.service.ts:3341 现有约定一致（400 非 404）
     if (expert.expertRole !== '正选') throw new BadRequestException({ error: '候补专家不参与签字', code: 'SIGN_EXPERT_NOT_FORMAL' });
+    // P2-4：非实际评委（婉拒/从未确认邀请）不入签字名册——register 亦不得代签，
+    // 否则委员会快照不含此人却落 SIGNED 状态（矛盾证据入归档链）
+    if (expert.invitationStatus === 'pending' || expert.invitationStatus === 'declined') {
+      throw new BadRequestException({
+        error: expert.invitationStatus === 'pending'
+          ? '该正选专家从未确认邀请（非实际评委），不入签字名册；如需其参评须先完成邀请确认并重新生成签字包'
+          : '已婉拒正选不入签字名册（2026-10-27 名册除名口径）',
+        code: 'SIGN_EXPERT_NOT_CONFIRMED',
+      });
+    }
 
     // §43：拒绝签字须书面陈述不同意见；拒绝且不陈述理由 = 视为同意
     let opinion = dto.dissentingOpinion?.trim() || null;
@@ -278,6 +288,16 @@ export class BidSignPacketService {
     const expert = await this.prisma.bidExpert.findFirst({ where: { id: expertId, projectId } });
     if (!expert) throw new BadRequestException({ error: '该专家不属于此项目', code: 'EXPERT_NOT_IN_PROJECT' }); // 与 bid.service.ts:3341 现有约定一致（400 非 404）
     if (expert.expertRole !== '正选') throw new BadRequestException({ error: '候补专家不参与签字', code: 'SIGN_EXPERT_NOT_FORMAL' });
+    // P2-4：非实际评委（婉拒/从未确认邀请）不入签字名册——register 亦不得代签，
+    // 否则委员会快照不含此人却落 SIGNED 状态（矛盾证据入归档链）
+    if (expert.invitationStatus === 'pending' || expert.invitationStatus === 'declined') {
+      throw new BadRequestException({
+        error: expert.invitationStatus === 'pending'
+          ? '该正选专家从未确认邀请（非实际评委），不入签字名册；如需其参评须先完成邀请确认并重新生成签字包'
+          : '已婉拒正选不入签字名册（2026-10-27 名册除名口径）',
+        code: 'SIGN_EXPERT_NOT_CONFIRMED',
+      });
+    }
 
     const assetId = await this.storeScan(projectId, `expert-${expertId}`, file, 'expert_sign_scan', actorId);
     await this.prisma.$transaction(async (tx) => {
@@ -655,8 +675,9 @@ export class BidSignPacketService {
           select: { name: true, projectCode: true, procurementMethod: true, evaluationMethod: true, openTime: true, deadline: true, scope: true, qualification: true, budget: true, leaderCoSignedAt: true, reportNotes: true },
         }),
         this.prisma.bidExpert.findMany({
-          // 名册除名口径（2026-10-27）：婉拒正选不进签字页/确认表
-          where: { projectId, expertRole: '正选', invitationStatus: { not: 'declined' } },
+          // 名册除名口径（declined 2026-10-27 / pending P2-4 2026-11-20）：
+          // 婉拒与从未确认邀请的正选不进签字页/确认表（非实际评委）
+          where: signLoopExpertScope(projectId),
           orderBy: [{ isLead: 'desc' }, { createdAt: 'asc' }],
           select: { id: true, expertName: true, major: true, expertRole: true, isLead: true, reviewGroup: true, dutyRole: true, isPurchaserRepresentative: true, signInIp: true, signInMeta: true, confidentialityAgreedAt: true, disciplineAgreedAt: true, reportConfirmedAt: true, signedIn: true, aiConsentConfirmed: true, aiConsentAt: true, avoidanceConfirmed: true, transferPhotoAssetId: true, transferPhotoAt: true, transferPhotoOcclusion: true },
         }),

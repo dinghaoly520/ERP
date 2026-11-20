@@ -462,6 +462,10 @@ describe('ProjectManagementService', () => {
       bidProject: {
         findMany: jest.fn().mockResolvedValue([]),
         findFirst: jest.fn().mockResolvedValue(null),
+        // P2-5：completeProject 事务内 BID_IN_PROGRESS 复查闸（默认无活动项目=放行）
+        count: jest.fn().mockResolvedValue(0),
+        // P2-5：terminateProject 联动条件写（默认命中一家）
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       invitationRsvp: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -2705,6 +2709,72 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
 
 
   describe('项目终止·关联公告回收站联动（2026-11-16 用户裁定：终止→公告移入回收站）', () => {
+    it('P2-5：联动流标条件写——并发已终局（updateMany count=0）不覆盖 ARCHIVED、不写重复监督日志', async () => {
+      const { service, prisma } = makeService();
+      Object.assign(prisma, {
+        project: { ...prisma.project, upsert: jest.fn().mockResolvedValue({ id: 'proj-1' }) },
+        announcement: { ...prisma.announcement, update: jest.fn().mockResolvedValue({}), updateMany: jest.fn() },
+        announcementHistory: { create: jest.fn().mockResolvedValue({}) },
+        workArrangement: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+        bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+        // P2-5 核心：条件写命中 0 行（stage in 活动态 不满足——并发 archiveAll 已终局）
+        bidProject: { ...prisma.bidProject, updateMany: jest.fn().mockResolvedValue({ count: 0 }), update: jest.fn() },
+        procurementRound: { ...prisma.procurementRound, findFirst: jest.fn().mockResolvedValue(null) },
+      });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01', title: '并发终止测试', projectCode: 'TEST-01',
+        procurementMethod: '竞价采购', procurementCategory: '货物', projectReason: '测试',
+        budgetAmount: 100, requesterDepartment: '采购中心', companyId: 'co-1', companyName: '测试公司',
+        currentStage: 'BID_EVALUATION', status: 'ACTIVE', createdById: 'u-1',
+      });
+      prisma.projectManagementStage.findMany.mockResolvedValue([]);
+      prisma.bidProject.findMany.mockResolvedValue([
+        { id: 'bp-01', name: '已归档项目', stage: 'EVALUATING', projectCode: 'SWHI-X', procurementMethod: '竞价采购', assignedHostUserId: null },
+      ]);
+      prisma.department.findFirst.mockResolvedValue({ id: 'dept-1' });
+      prisma.procurementRound.create.mockResolvedValue({ id: 'round-1' });
+      prisma.projectManagementItem.update.mockResolvedValue({ id: 'pm-01', status: 'TERMINATED' });
+      prisma.user.findUnique.mockResolvedValue({ displayName: 'op', username: 'op' });
+      prisma.announcement.findMany.mockResolvedValue([]);
+
+      await service.terminateProject('pm-01', { reason: '并发测试' }, 'u-1');
+
+      // 条件写形状：where 含活动态白名单（防退化为无条件覆盖）
+      expect(prisma.bidProject.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'bp-01', stage: { in: ['DOWNLOAD', 'SUBMIT', 'OPENING', 'EVALUATING'] } }),
+          data: expect.objectContaining({ stage: 'ABORTED' }),
+        }),
+      );
+      expect(prisma.bidProject.update).not.toHaveBeenCalled(); // 不得回退无条件 update
+      // count=0 → 无流标监督日志（该家已被并发处置）
+      const abortLogs = prisma.bidSupervisionLog.create.mock.calls
+        .map((c: any[]) => c[0].data)
+        .filter((d: any) => d.action === '流标');
+      expect(abortLogs).toHaveLength(0);
+    });
+
+    it('P2-5：completeProject 事务内复查 BID_IN_PROGRESS——并发使活动项目复活 → 409', async () => {
+      const { service, prisma } = makeService();
+      // 事务前闸通过（无活动项目）、事务内复查发现活动项目（并发窗口）
+      prisma.bidProject.findMany.mockResolvedValue([]);
+      prisma.bidProject.count.mockResolvedValue(1); // 事务内复查命中
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-02', title: '归档测试', projectCode: 'TEST-02',
+        procurementMethod: '竞价采购', procurementCategory: '货物', projectReason: '测试',
+        budgetAmount: 100, requesterDepartment: '采购中心', companyId: 'co-1', companyName: '测试公司',
+        currentStage: 'CONTRACT', status: 'ACTIVE', createdById: 'u-1',
+      });
+      prisma.projectManagementStage.findMany.mockResolvedValue([
+        { stageName: '合同', stageOrder: 9, status: 'COMPLETED' },
+      ]);
+      prisma.procurementDateOf?.mockResolvedValue?.(null);
+
+      await expect(service.completeProject('pm-02', { confirmedCompleted: true } as any, 'u-1'))
+        .rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+    });
+
+
     it('终止时关联已发布公告移入回收站：HIDDEN + metadata.recycle 快照 + 历史 HIDE（按操作人姓名）', async () => {
       const { service, prisma } = makeService();
       // 终止链路独有模型 mock（harness 默认未挂）：Object.assign 本地补齐
