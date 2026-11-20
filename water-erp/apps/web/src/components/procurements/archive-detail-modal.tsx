@@ -316,7 +316,11 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
         const [namePart, detailPart = ''] = normalizedLine.split(' - ');
         const [department = '', specialty = '', title = ''] = detailPart.split(' / ');
         return { name: namePart.trim(), department: department.trim(), specialty: specialty.trim(), title: title.trim(), role: '' };
-      }).sort((a, b) => Number(a.role.includes('候补')) - Number(b.role.includes('候补')))
+      }).sort((a, b) => {
+        // 排序（2026-11-20 用户裁定）：组长第一位 → 正选 → 候补殿后（组内保持名册序）
+        const rank = (r: string) => (r.includes('组长') ? 0 : r.includes('候补') ? 2 : 1);
+        return rank(a.role) - rank(b.role);
+      })
     : [];
   const biddingUnits = data?.extractedInfo['投标单位']
     ? data.extractedInfo['投标单位'].split(/[、,\n]/).map((unit) => unit.trim()).filter(Boolean)
