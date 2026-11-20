@@ -153,17 +153,16 @@ export class SupplierLinkService {
 
   // ───────────────────────── 内部：通知（与注册审批同口径） ─────────────────────────
 
-  /** 按级解析审批待办收件人（staff→无则 leader→无则 admin 上浮），与 SupplierService.resolveStageApprovers 同口径 */
+  /** 按级解析审批待办收件人（staff→无则 leader，止于此），与 SupplierService.resolveStageApprovers 同口径
+   *  （2026-11-20 裁定：admin 禁代审，不再上浮 admin——发了待办也不能办；在编探测排除冻结账号） */
   private async notifyStageApprovers(stage: string, companyId: string | null, payload: { type: string; title: string; content: string; link: string }) {
     const pick = async (where: object) => (await this.prisma.user.findMany({ where, select: { id: true } })).map((u) => u.id);
     let ids: string[] = [];
     if (stage === 'STAFF' && companyId) {
-      ids = await pick({ role: 'staff', isActive: true, companyId });
-      if (ids.length === 0) ids = await pick({ role: 'leader', isActive: true, companyId });
-      if (ids.length === 0) ids = await pick({ role: 'admin', isActive: true });
+      ids = await pick({ role: 'staff', isActive: true, isFrozen: false, companyId });
+      if (ids.length === 0) ids = await pick({ role: 'leader', isActive: true, isFrozen: false, companyId });
     } else if (stage === 'LEADER' && companyId) {
-      ids = await pick({ role: 'leader', isActive: true, companyId });
-      if (ids.length === 0) ids = await pick({ role: 'admin', isActive: true });
+      ids = await pick({ role: 'leader', isActive: true, isFrozen: false, companyId });
     } else {
       ids = await pick({ role: 'admin', isActive: true });
     }
@@ -390,7 +389,9 @@ export class SupplierLinkService {
     return { success: true as const };
   }
 
-  /** 三级级权限断言（与 SupplierService.assertStageApprover 同口径；复制避免跨 4k 行服务耦合） */
+  /** 三级级权限断言（与 SupplierService.assertStageApprover 同口径；复制避免跨 4k 行服务耦合）。
+   *  2026-11-20 裁定：admin 禁代审（link.companyId 必填外键，无孤儿分支）——STAFF=同公司 staff
+   *  （无 staff 时同公司 leader 代初审），LEADER=同公司 leader，ADMIN=admin。在编探测排除冻结账号。 */
   private async assertStageApprover(
     stage: string | null,
     reviewer: { id: string; role: string; companyId: string | null } | null,
@@ -399,15 +400,13 @@ export class SupplierLinkService {
     if (!reviewer) return;
     const sameCompany = reviewer.role !== 'admin' && !!linkCompanyId && reviewer.companyId === linkCompanyId;
     const hasRole = async (role: 'staff' | 'leader') => linkCompanyId
-      ? (await this.prisma.user.count({ where: { role, isActive: true, companyId: linkCompanyId } })) > 0
+      ? (await this.prisma.user.count({ where: { role, isActive: true, isFrozen: false, companyId: linkCompanyId } })) > 0
       : false;
     if (stage === 'STAFF') {
       if (reviewer.role === 'staff' && sameCompany) return;
       if (reviewer.role === 'leader' && sameCompany && !(await hasRole('staff'))) return;
-      if (reviewer.role === 'admin' && !(await hasRole('staff')) && !(await hasRole('leader'))) return;
     } else if (stage === 'LEADER') {
       if (reviewer.role === 'leader' && sameCompany) return;
-      if (reviewer.role === 'admin' && !(await hasRole('leader'))) return;
     } else if (stage === 'ADMIN') {
       if (reviewer.role === 'admin') return;
     }

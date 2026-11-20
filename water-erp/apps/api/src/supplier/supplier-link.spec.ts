@@ -102,21 +102,16 @@ describe('myPendingReviewCount — joins 计数（多公司归属）', () => {
     }));
   });
 
-  it('admin：终审件 + 无 leader 公司 LEADER 级 + 无 staff/leader 公司 STAFF 级（代审口径同注册审批 A 方案）', async () => {
+  it('admin：仅终审件（2026-11-20 禁代审——推翻 A 方案三批口径；LEAVE_PENDING 一并计入）', async () => {
     const prisma = mkPrisma({ joins: 7 });
     const svc = newService(prisma);
     const r = await svc.myPendingReviewCount({ sub: 'adm', role: 'admin', username: 'a' } as any);
     expect(r).toEqual({ registration: 0, changes: 0, resets: 0, joins: 7 });
     expect(prisma.supplierCompanyLink.count).toHaveBeenCalledTimes(1);
-    // 三批口径锁定在 where 结构上（link.companyId 非空，无「未归属公司」分支；
-    // 退库轨 2026-11-10：LEAVE_PENDING 一并计入待办）
     const where = (prisma.supplierCompanyLink.count as jest.Mock).mock.calls[0][0].where;
     expect(where.status).toEqual({ in: ['PENDING', 'LEAVE_PENDING'] });
-    expect(where.AND[0].OR).toEqual([
-      { reviewStage: 'ADMIN' },
-      { reviewStage: 'LEADER', company: { users: { none: { role: 'leader', isActive: true } } } },
-      { reviewStage: 'STAFF', company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } },
-    ]);
+    expect(where.reviewStage).toBe('ADMIN');
+    expect(where.AND).toBeUndefined();
   });
 });
 
@@ -139,7 +134,7 @@ describe('SupplierLinkService — 退库轨状态机', () => {
     user: {
       findUnique: jest.fn().mockResolvedValue(over.reviewer ?? { id: 'rev', role: 'admin', companyId: null }),
       findMany: jest.fn().mockResolvedValue([{ id: 'approver-1' }]), // 初审审批人（通知收件人）
-      count: jest.fn().mockResolvedValue(0), // admin 代审判定：公司无在编 staff/leader
+      count: jest.fn().mockResolvedValue(0), // 在编探测（leader 代初审判定：公司无在编 staff）
     },
     auditLog: { create: jest.fn().mockResolvedValue({}) },
     supplierCompanyLink: {
@@ -202,7 +197,10 @@ describe('SupplierLinkService — 退库轨状态机', () => {
   });
 
   it('rejectLink（退库驳回）：状态回 APPROVED、reviewStage 清空、通知「仍在库」', async () => {
-    const prisma = mkPrisma({ link: mkLink({ status: 'LEAVE_PENDING', reviewStage: 'STAFF' }) });
+    const prisma = mkPrisma({
+      link: mkLink({ status: 'LEAVE_PENDING', reviewStage: 'STAFF' }),
+      reviewer: { id: 'rev', role: 'staff', companyId: 'co-b' }, // 初审级驳回归同公司 staff（2026-11-20 admin 禁代审）
+    });
     const svc = newSvc(prisma);
     await svc.rejectLink('l1', 'rev', '业务未结算');
     expect(prisma.supplierCompanyLink.updateMany).toHaveBeenCalledWith(expect.objectContaining({

@@ -459,9 +459,10 @@ describe('SupplierService 补正回填（request/verify/draft/submit）', () => 
 
     await service.submitCorrection({ ...submitDto, companyId: 'c2', companyName: '新测试集团', name: '测试公司更名后' });
 
-    // 待办收件人按新归属公司解析（resolveStageApprovers 的 where.companyId=companyRef.id，非旧 supplier.companyId）
+    // 待办收件人按新归属公司解析（resolveStageApprovers 的 where.companyId=companyRef.id，非旧 supplier.companyId；
+    // 2026-11-20 起在编探测排除冻结账号 isFrozen:false）
     expect(prisma.user.findMany).toHaveBeenCalledWith({
-      where: { role: 'staff', isActive: true, companyId: 'c2' },
+      where: { role: 'staff', isActive: true, isFrozen: false, companyId: 'c2' },
       select: { id: true },
     });
 

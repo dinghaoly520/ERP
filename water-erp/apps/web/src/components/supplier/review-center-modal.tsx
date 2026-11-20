@@ -40,9 +40,9 @@ import { fetchCurrentUser } from '@/lib/api/auth';
 type SupplierWithParts = Supplier & {
   contacts?: Array<{ id: string; name: string; phone: string; position?: string | null; isPrimary?: boolean }>;
   qualifications?: Array<{ id: string; type: string; name: string; fileUrl?: string | null; validFrom?: string | null; validTo?: string | null; attachments?: Array<{ name?: string; url: string } | null> | null }>;
-  /** 代审件标记（A 方案 2026-10-08；2026-10-09 扩 STAFF 孤儿 + leader 代初审）：后端展开查询时
-   *  落标——admin 展开（ADMIN 级 OR 无 leader 公司的 LEADER 级 OR 无办公账号公司的 STAFF 级）对
-   *  LEADER/STAFF 级落标；leader 展开（LEADER 级 OR 本公司无 staff 的 STAFF 级）仅对 STAFF 级落标 */
+  /** 代审件标记（2026-11-20 admin 禁代审后仅两源）：后端展开查询时落标——
+   *  admin 展开（ADMIN 级 OR 未归属孤儿件）对 LEADER/STAFF 级孤儿落标；leader 展开
+   *  （LEADER 级 OR 本公司无 staff 的 STAFF 级）仅对 STAFF 级落标 */
   delegatedReview?: boolean;
 };
 
@@ -240,12 +240,12 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
 
   /** 操作可见性（后端 assertStageApprover 为准，前端只做本级预亮）：
    *  staff=初审级；leader=复审级+初审级（公司无在编 staff 时代初审，后端放行）；
-   *  admin=各级（终审+无在编审批人公司的代审件，后端放行）。非本级点击后端 403 拦截。 */
+   *  admin=仅终审级（2026-11-20 裁定：admin 禁代初审/代复审）。非本级点击后端 403 拦截。 */
   const canAct = (row: CompanyLinkRow): boolean => {
     const st = row.reviewStage ?? '';
     if (myRole === 'staff') return st === 'STAFF';
     if (myRole === 'leader') return st === 'LEADER' || st === 'STAFF';
-    if (myRole === 'admin') return st === 'ADMIN' || st === 'LEADER' || st === 'STAFF';
+    if (myRole === 'admin') return st === 'ADMIN';
     return false;
   };
   const isMyStrictStage = (row: CompanyLinkRow): boolean =>
@@ -556,11 +556,10 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
 
   /** 严格本级判定（2026-09-30 用户裁定）：「待我审」标记与操作区只对我本人的级亮起——
    *  admin=终审(ADMIN)、leader=复审(LEADER)、staff=初审(STAFF)。
-   *  代审兜底（公司无 staff/leader）由后端 assertStageApprover 放行，前端不预亮，防错位标记——
-   *  例外一（2026-10-08 A 方案；扩 STAFF 孤儿）：admin 对代审件亮起（无 leader 公司的
-   *  LEADER 级=代复审、无办公账号公司的 STAFF 级=代初审）；例外二（2026-10-09 用户报告）：
-   *  leader 对本公司 STAFF 代审件亮起（公司无在编 staff 时 leader 代初审）。均依据后端
-   *  delegatedReview 标记（列表/角标已同口径展开），对齐「能审就可见」。 */
+   *  例外一（2026-11-20 admin 禁代审后仅剩孤儿）：admin 对未归属孤儿件（delegatedReview 标记）
+   *  亮起——无公司可路由的平台兜底件；例外二（2026-10-09，代审保留）：leader 对本公司
+   *  STAFF 代审件亮起（公司无在编 staff 时 leader 代初审）。均依据后端 delegatedReview
+   *  标记（列表/角标已同口径展开），对齐「能审就可见」。 */
   const isMyStage = (s: Supplier): boolean => {
     const st = (s.reviewStage ?? 'STAFF') as string;
     if (myRole === 'admin') return st === 'ADMIN' || !!(s as SupplierWithParts).delegatedReview;
@@ -671,8 +670,8 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                       <span className="rc-stage-chip" style={{ '--rc-accent': meta.color } as React.CSSProperties}
                         title={(s as SupplierWithParts).delegatedReview
                           ? (st === 'STAFF'
-                            ? (myRole === 'leader' ? '归属公司无在编 staff，由您（同公司 leader）代初审' : '归属公司无在编办公账号，平台 admin 代初审')
-                            : '归属公司无在编 leader，平台 admin 代复审')
+                            ? (myRole === 'leader' ? '归属公司无在编 staff，由您（同公司 leader）代初审' : '未归属公司的申请件，平台 admin 兜底审批')
+                            : '未归属公司的申请件，平台 admin 兜底审批')
                           : undefined}>
                         {(s as SupplierWithParts).delegatedReview ? (st === 'STAFF' ? '初审·代审' : '复审·代审') : meta.short}
                       </span>

@@ -8,30 +8,25 @@ import { SupplierService } from './supplier.service';
 import { CompanyScopeService } from '../company/company-scope';
 
 /**
- * admin 代审可见性与权限（2026-10-08 A 方案；2026-10-09 扩 STAFF 级孤儿件）：
- * assertStageApprover 放行「归属公司无在编 leader 时 admin 代复审」+「公司无在编
- * staff 且无在编 leader 时 admin 代初审」，但角标/审批中心列表口径此前只算
- * reviewStage=ADMIN——admin「能审却看不见」（STAFF 孤儿件更是「收得到待办却 403」死锁）。
+ * admin 禁代审（2026-11-20 用户裁定，推翻 2026-10-08 A 方案的 admin 分支）：
+ * admin 只审终审级；唯一例外=未归属公司（companyId=null）孤儿件归平台 admin 兜底。
  * 本 spec 锁定：
- * 1) myPendingReviewCount：admin 待办 = ADMIN 级 OR（LEADER 级且公司无 leader）
- *    OR（STAFF 级且公司无 staff 无 leader）
+ * 1) myPendingReviewCount：admin 待办 = ADMIN 级 OR 孤儿件（companyId=null）
  * 2) list()：admin 查 reviewStage=ADMIN 时同口径展开（ORM + raw completeness 两路径），
- *    命中的 LEADER/STAFF 级项带 delegatedReview 标记（前端亮「待我审」）
- * 3) assertStageApprover：STAFF 级 admin 代初审仅在「公司完全无办公账号」时放行
+ *    结果中 LEADER/STAFF 级项（=孤儿）带 delegatedReview 标记（前端亮「待我审」）
+ * 3) assertStageApprover：admin 对有归属公司的 STAFF/LEADER 级一律 403（无论该公司有无在编），
+ *    对 companyId=null 孤儿件放行
+ * 4) resolveStageApprovers：不再上浮 admin；在编探测排除冻结账号
  */
-describe('SupplierService — admin 代审可见性（A 方案）', () => {
+describe('SupplierService — admin 禁代审（终审+孤儿兜底）', () => {
   let service: SupplierService;
   let prisma: any;
 
   const ACTOR_ADMIN = { sub: 'admin-1', role: 'admin', username: 'Swhi-CGZX-admin' };
   const ACTOR_LEADER = { sub: 'leader-1', role: 'leader', username: 'Swhi-CGZX-01' };
-  const DELEGATED_OR = [
+  const ORPHAN_OR = [
     { reviewStage: 'ADMIN' },
-    // companyId=null（未归属公司）显式分支：ORM 对 null to-one 关系的 none 不命中，
-    // 须与 raw（NOT EXISTS 恒真）/ assertStageApprover（companyHasActiveRole(null)=false 放行）同口径
-    { reviewStage: 'LEADER', OR: [{ companyId: null }, { company: { users: { none: { role: 'leader', isActive: true } } } }] },
-    // STAFF 孤儿件（2026-10-09）：未归属公司，或公司既无 staff 也无 leader，admin 代初审
-    { reviewStage: 'STAFF', OR: [{ companyId: null }, { company: { users: { none: { OR: [{ role: 'staff' }, { role: 'leader' }], isActive: true } } } }] },
+    { companyId: null },
   ];
 
   beforeEach(async () => {
@@ -41,10 +36,10 @@ describe('SupplierService — admin 代审可见性（A 方案）', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       supplierChangeRecord: { count: jest.fn().mockResolvedValue(0) },
-      supplierCompanyLink: { count: jest.fn().mockResolvedValue(0) }, // 多公司归属 joins 角标（2026-10-16）
-      passwordResetRequest: { count: jest.fn().mockResolvedValue(0) }, // 2026-10-15 resets 角标
+      supplierCompanyLink: { count: jest.fn().mockResolvedValue(0) },
+      passwordResetRequest: { count: jest.fn().mockResolvedValue(0) },
       supplierEvaluation: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]) },
-      user: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null) },
+      user: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) },
       $queryRaw: jest.fn().mockResolvedValue([]),
     };
     const module = await Test.createTestingModule({
@@ -61,14 +56,17 @@ describe('SupplierService — admin 代审可见性（A 方案）', () => {
     service = module.get(SupplierService);
   });
 
-  it('myPendingReviewCount：admin 待办展开为 ADMIN 级 OR（无 leader 公司的 LEADER 级）OR（无办公账号公司的 STAFF 级）', async () => {
+  it('myPendingReviewCount：admin 待办 = ADMIN 级 OR 孤儿件（companyId=null），joins 仅 ADMIN 级', async () => {
     await service.myPendingReviewCount(ACTOR_ADMIN as any);
     const where = prisma.supplier.count.mock.calls[0][0].where;
-    expect(where.reviewStage).toBeUndefined(); // 不再是单级标量（旧口径漏计代审件）
-    expect(where.AND?.[0]?.OR).toEqual(DELEGATED_OR);
+    expect(where.reviewStage).toBeUndefined();
+    expect(where.AND?.[0]?.OR).toEqual(ORPHAN_OR);
+    expect(prisma.supplierCompanyLink.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ reviewStage: 'ADMIN' }),
+    }));
   });
 
-  it('list()：admin 查 reviewStage=ADMIN 走 ORM 路径时展开，且 LEADER/STAFF 孤儿级项带 delegatedReview 标记', async () => {
+  it('list()：admin 查 reviewStage=ADMIN 走 ORM 路径时展开为 ADMIN OR 孤儿，LEADER/STAFF 项（=孤儿）带 delegatedReview', async () => {
     prisma.supplier.findMany.mockResolvedValue([
       { id: 's1', reviewStage: 'ADMIN', status: 'PENDING' },
       { id: 's2', reviewStage: 'LEADER', status: 'PENDING' },
@@ -78,26 +76,20 @@ describe('SupplierService — admin 代审可见性（A 方案）', () => {
 
     const where = prisma.supplier.count.mock.calls[0][0].where;
     expect(where.reviewStage).toBeUndefined();
-    expect(where.AND?.[0]?.OR).toEqual(DELEGATED_OR);
-    expect(where.__delegatedExpand).toBeUndefined(); // 内部标记不得泄入 Prisma 参数
+    expect(where.AND?.[0]?.OR).toEqual(ORPHAN_OR);
+    expect(where.__orphanExpand).toBeUndefined(); // 内部标记不得泄入 Prisma 参数
     expect(res.items.find((i: any) => i.id === 's1').delegatedReview).toBeUndefined();
     expect(res.items.find((i: any) => i.id === 's2').delegatedReview).toBe(true);
     expect(res.items.find((i: any) => i.id === 's3').delegatedReview).toBe(true);
   });
 
-  it('list()：completeness 默认路径（raw SQL）生成同口径 NOT EXISTS 代审条件（LEADER/STAFF 孤儿）', async () => {
+  it('list()：completeness 默认路径（raw SQL）生成「ADMIN OR companyId IS NULL」孤儿条件（不再有 NOT EXISTS 在编探测）', async () => {
     await service.list({ reviewStage: 'ADMIN', actor: ACTOR_ADMIN as any }); // sort 缺省 completeness
     expect(prisma.$queryRaw).toHaveBeenCalled();
-    // $queryRaw 为 tagged template：mock 的 calls[0][1] 是 whereSql（Prisma.Sql，含全部条件文本）
-    // JSON 序列化会转义双引号，断言取不含引号的片段
     const sql = JSON.stringify(prisma.$queryRaw.mock.calls[0][1]);
-    expect(sql).toContain(`= 'ADMIN' OR (s.`);
-    expect(sql).toContain(`NOT EXISTS (SELECT 1 FROM `);
-    expect(sql).toContain(`= 'leader' AND u.`);
-    // STAFF 孤儿：无 staff 且无 leader（一条 NOT EXISTS 内 OR 两角色；断言避开 JSON 转义的双引号）
-    expect(sql).toContain(`= 'STAFF' AND NOT EXISTS`);
-    expect(sql.toLowerCase()).toContain(`= 'staff' or `);
-    expect(sql.toLowerCase()).toContain(`= 'leader'))`);
+    expect(sql).toContain(`= 'ADMIN' OR s.`);
+    expect(sql).toContain(`IS NULL`);
+    expect(sql).not.toContain(`NOT EXISTS`);
   });
 
   it('list()：非 admin 查 reviewStage 不展开（严格单级标量）', async () => {
@@ -107,40 +99,68 @@ describe('SupplierService — admin 代审可见性（A 方案）', () => {
     expect(where.AND).toBeUndefined();
   });
 
-  // ── assertStageApprover：STAFF 级 admin 代初审的放行边界（2026-10-09 方案 A）──
+  // ── assertStageApprover：admin 禁代审边界 ──
 
   const assertStage = (stage: string, reviewer: any, companyId: string | null) =>
     (service as any).assertStageApprover(stage, reviewer, companyId);
 
-  it('STAFF 级：公司无 staff 无 leader → 平台 admin 代初审放行', async () => {
-    prisma.user.count.mockResolvedValue(0); // companyHasActiveRole(staff/leader) 均为 false
+  it('STAFF 级：公司无 staff 无 leader → admin 仍 403（禁代初审，须建 staff/leader 账号）', async () => {
+    prisma.user.count.mockResolvedValue(0);
     await expect(assertStage('STAFF', { id: 'admin-1', role: 'admin', companyId: null }, 'co-x'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('LEADER 级：公司无 leader → admin 仍 403（禁代复审）', async () => {
+    await expect(assertStage('LEADER', { id: 'admin-1', role: 'admin', companyId: null }, 'co-x'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('孤儿件（companyId=null）：admin 任意级放行（平台兜底）', async () => {
+    await expect(assertStage('STAFF', { id: 'admin-1', role: 'admin', companyId: null }, null))
+      .resolves.toBeUndefined();
+    await expect(assertStage('LEADER', { id: 'admin-1', role: 'admin', companyId: null }, null))
       .resolves.toBeUndefined();
   });
 
-  it('STAFF 级：公司有 staff → admin 不得代初审（初审归同公司 staff）', async () => {
-    prisma.user.count.mockImplementation(({ where }: any) =>
-      Promise.resolve(where.role === 'staff' ? 1 : 0));
-    await expect(assertStage('STAFF', { id: 'admin-1', role: 'admin', companyId: null }, 'co-x'))
-      .rejects.toBeInstanceOf(ForbiddenException);
+  it('ADMIN 级：admin 照常放行', async () => {
+    await expect(assertStage('ADMIN', { id: 'admin-1', role: 'admin', companyId: null }, 'co-x'))
+      .resolves.toBeUndefined();
   });
 
-  it('STAFF 级：公司无 staff 但有 leader → admin 不得代初审（代初审归同公司 leader）', async () => {
-    prisma.user.count.mockImplementation(({ where }: any) =>
-      Promise.resolve(where.role === 'leader' ? 1 : 0));
-    await expect(assertStage('STAFF', { id: 'admin-1', role: 'admin', companyId: null }, 'co-x'))
-      .rejects.toBeInstanceOf(ForbiddenException);
+  it('STAFF 级：公司无 staff → 同公司 leader 代初审放行（代审保留），且在编探测排除冻结账号', async () => {
+    prisma.user.count.mockResolvedValue(0);
+    await expect(assertStage('STAFF', { id: 'leader-1', role: 'leader', companyId: 'co-x' }, 'co-x'))
+      .resolves.toBeUndefined();
+    // 稳健性（2026-11-20）：唯一 staff 被冻结不算在编——探测 where 须带 isFrozen:false
+    expect(prisma.user.count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ role: 'staff', isFrozen: false }),
+    }));
+  });
+
+  it('resolveStageApprovers：STAFF 级止于 leader（不再上浮 admin）；companyId=null → admin 兜底', async () => {
+    const resolve = (stage: string, companyId: string | null) =>
+      (service as any).resolveStageApprovers(stage, companyId);
+    // co-x：无 staff、有 leader；co-y：无 staff 无 leader
+    prisma.user.findMany.mockImplementation(({ where }: any) => {
+      if (where.role === 'admin') return Promise.resolve([{ id: 'admin-9' }]);
+      if (where.companyId === 'co-y') return Promise.resolve([]);
+      return Promise.resolve(where.role === 'leader' ? [{ id: 'leader-9' }] : []);
+    });
+    await expect(resolve('STAFF', 'co-x')).resolves.toEqual(['leader-9']); // 无 staff → leader 代初审，止于此
+    await expect(resolve('STAFF', 'co-y')).resolves.toEqual([]);          // 无 staff 无 leader → 空（原上浮 admin，2026-11-20 废）
+    await expect(resolve('LEADER', 'co-y')).resolves.toEqual([]);         // 无 leader → 空（原上浮 admin）
+    await expect(resolve('STAFF', null)).resolves.toEqual(['admin-9']);   // 孤儿 → 平台 admin 兜底
   });
 });
 
-describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的直接证明）', () => {
+describe('SupplierService.approve — 孤儿件（companyId=null）admin 兜底全链路', () => {
   let service: SupplierService;
   let prisma: any;
   let notificationService: any;
 
   const SUPPLIER = {
-    id: 'sup-1', userId: 'sup-user-1', name: '无办公账号公司供应商',
-    status: 'PENDING', reviewStage: 'STAFF', companyId: 'co-none',
+    id: 'sup-1', userId: 'sup-user-1', name: '未归属公司供应商',
+    status: 'PENDING', reviewStage: 'STAFF', companyId: null,
   };
 
   beforeEach(async () => {
@@ -160,7 +180,7 @@ describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的
       },
       user: {
         findUnique: jest.fn().mockResolvedValue({ id: 'admin-1', role: 'admin', companyId: null }), // admin 审批人
-        count: jest.fn().mockResolvedValue(0), // companyHasActiveRole(staff/leader) 均无 → STAFF 孤儿
+        count: jest.fn().mockResolvedValue(0), // 在编探测（孤儿件 companyId=null 恒无在编）
         findMany: jest.fn().mockResolvedValue([{ id: 'admin-9' }]), // 下一级收件人回退平台 admin
       },
       auditLog: { create: jest.fn().mockResolvedValue(undefined) },
@@ -194,8 +214,8 @@ describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的
     service = module.get(SupplierService);
   });
 
-  it('公司无 staff 无 leader：admin 可初审通过，推进至 LEADER 且留痕 stage=STAFF', async () => {
-    const res = await service.approve('sup-1', 'admin-1', '证照齐全，平台管理员代为初审');
+  it('孤儿件（companyId=null）：admin 可初审通过，推进至 LEADER 且留痕 stage=STAFF', async () => {
+    const res = await service.approve('sup-1', 'admin-1', '证照齐全，平台管理员兜底初审');
     expect(res).toEqual({ success: true, stage: 'LEADER' });
     // 乐观锁推进：仅升级 reviewStage，不落终态
     expect(prisma.supplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
@@ -206,10 +226,10 @@ describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的
     expect(prisma.supplierApprovalRecord.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         supplierId: 'sup-1', action: 'APPROVED', stage: 'STAFF',
-        reviewerUserId: 'admin-1', reason: '证照齐全，平台管理员代为初审',
+        reviewerUserId: 'admin-1', reason: '证照齐全，平台管理员兜底初审',
       }),
     }));
-    // 下一级（LEADER）待办照常逐级流转（公司无 leader → 回退平台 admin）
+    // 下一级（LEADER）待办：孤儿件无公司可路由 → 平台 admin（companyId=null 兜底分支）
     expect(notificationService.create).toHaveBeenCalledWith(expect.objectContaining({
       type: 'SUPPLIER_PENDING', title: '供应商注册待复审',
     }));
@@ -223,6 +243,17 @@ describe('SupplierService.approve — STAFF 孤儿件全链路（死锁解除的
     expect(prisma.supplierApprovalRecord.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ action: 'REJECTED', stage: 'STAFF', reviewerUserId: 'admin-1' }),
     }));
+  });
+
+  it('有归属公司但无办公账号（companyId 非空）：admin 初审 403——禁代审（推翻 2026-10-09 方案 A）', async () => {
+    prisma.supplier.findUnique.mockResolvedValue({
+      ...SUPPLIER, companyId: 'co-none',
+      user: { id: 'sup-user-1', username: 'u', displayName: 'd', email: null },
+      contacts: [], qualifications: [], bankAccounts: [], performances: [],
+    });
+    await expect(service.approve('sup-1', 'admin-1', '证照齐全')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.supplier.updateMany).not.toHaveBeenCalled();
+    expect(prisma.supplierApprovalRecord.create).not.toHaveBeenCalled();
   });
 });
 
