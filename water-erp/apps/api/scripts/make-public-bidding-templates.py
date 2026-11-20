@@ -5,8 +5,13 @@
 单节点替换必漏——先例见 apps/api/src/tender-write/tenant-tokens.ts 注释）。
 占位符 token（{{采购人名称}} 等）全部保持不变，替换计划引擎零改动复用。
 
-用法：python3 apps/api/scripts/make-public-bidding-templates.py [--dry-run]
-（默认写 apps/api/模板文件/ 下两个新文件；--dry-run 只打印替换计数不落盘）
+⚠ 公开招标公告模板.docx 已于 2026-11-20 起人工维护（法定口吻八节版：资格审查方式/
+  资格条件/招标文件获取三占位符由人工添加，系统侧配套见 buildInvitedBiddingAnnouncementPlan
+  与 web PUBLIC_BIDDING_ANNOUNCEMENT_FIELDS）——重跑本脚本会覆盖人工改动，公告模板
+  默认跳过，仅 --force-announcement 显式要求时才再生成。
+
+用法：python3 apps/api/scripts/make-public-bidding-templates.py [--dry-run] [--force-announcement]
+（默认只写 公开招标文件模板.docx；--dry-run 只打印替换计数不落盘）
 """
 import re
 import sys
@@ -15,6 +20,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 TPL_DIR = ROOT / "模板文件"
+
+# 段落边界哨兵：拼合全文时在跨段落（两 w:t 之间隔 </w:p>）的接缝插入，防替换串
+# 跨段落误命中（如上段末「采」+下段首「购人」被拼成一个匹配——哨兵字符永不等于
+# 正文，匹配区间一旦跨接缝即被切断）
+PARA_SENTINEL = "\x00"
 
 # (正则, 替换) —— 顺序敏感：长串在前，防短串先替换破坏长串匹配
 DOC_REPLACEMENTS = [
@@ -67,10 +77,17 @@ def build_index(xml: str):
     for m in W_T.finditer(xml):
         entries.append((m.start(1), m.end(1), m.start(2), m.end(2)))
     parts, index = [], []
+    prev_end = None
     for i, (_, _, s, e) in enumerate(entries):
+        # 跨段落接缝（两 w:t 之间出现 </w:p>）插哨兵：哨兵字符计入 index 但不指向任何
+        # 节点（node=-1）——若替换区间命中哨兵位即视为非法匹配，交由调用方跳过
+        if prev_end is not None and "</w:p>" in xml[prev_end:s]:
+            parts.append(PARA_SENTINEL)
+            index.append((-1, 0))
         seg = xml[s:e]
         parts.append(seg)
         index.extend((i, off) for off in range(len(seg)))
+        prev_end = e
     return entries, "".join(parts), index
 
 
@@ -137,10 +154,14 @@ def clone(src: Path, dst: Path, replacements, label: str, dry: bool):
 
 def main():
     dry = "--dry-run" in sys.argv
+    force_ann = "--force-announcement" in sys.argv
     print("公开招标文件模板 ← 邀请招标文件模板")
     clone(TPL_DIR / "邀请招标文件模板.docx", TPL_DIR / "公开招标文件模板.docx", DOC_REPLACEMENTS, "文件", dry)
-    print("公开招标公告模板 ← 邀请招标公告模板")
-    clone(TPL_DIR / "邀请招标公告模板.docx", TPL_DIR / "公开招标公告模板.docx", ANN_REPLACEMENTS, "公告", dry)
+    if force_ann:
+        print("公开招标公告模板 ← 邀请招标公告模板（--force-announcement：覆盖人工维护版！）")
+        clone(TPL_DIR / "邀请招标公告模板.docx", TPL_DIR / "公开招标公告模板.docx", ANN_REPLACEMENTS, "公告", dry)
+    else:
+        print("公开招标公告模板：已人工维护（法定口吻八节版），默认跳过——确需再生成加 --force-announcement")
 
 
 if __name__ == "__main__":

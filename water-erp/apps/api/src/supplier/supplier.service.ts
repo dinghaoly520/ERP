@@ -2342,6 +2342,29 @@ export class SupplierService {
     await this.notificationService.resolveActionable('SUPPLIER_PENDING', `/supplier/approval?supplierId=${id}`).catch(() => {});
   }
 
+  /** 消解该供应商的资料变更审批待办（2026-11-20 修复「办结联动」：同公司两账号都收到
+   *  变更待办，一人审批后另一人的待办仍挂——根因是创建/消解两侧 link 形态脱节，动作侧
+   *  消解从未生效、全靠每日 sweep）。两轨：带 id 深链（2026-11-03 起创建形态）按
+   *  type+link+供应商名精确消解；裸形态保留消 11-03 前存量。跨收件人一次办结。 */
+  private async clearSupplierChangeTodos(supplierId: string) {
+    try {
+      const sup = await this.prisma.supplier.findUnique({
+        where: { id: supplierId },
+        select: { name: true },
+      });
+      await this.notificationService.resolveActionableBySupplierName(
+        'SUPPLIER_CHANGE_PENDING',
+        `/supplier/${supplierId}?tab=changes`,
+        sup?.name,
+      ).catch(() => {});
+      await this.notificationService.resolveActionableBySupplierName(
+        'SUPPLIER_CHANGE_PENDING',
+        '/supplier?tab=changes',
+        sup?.name,
+      ).catch(() => {});
+    } catch { /* 消解失败不阻塞审批结果（sweep 每日按 content 名单兜底） */ }
+  }
+
   async reject(id: string, reason: string, userId?: string, attachmentIds: string[] = []) {
     const supplier = await this.prisma.supplier.findUnique({ where: { id } });
     if (!supplier) {
@@ -2792,12 +2815,14 @@ export class SupplierService {
     });
 
     // 通知采购管理员：供应商变更申请待审核（待办型，审批后 resolve；此前提交变更无任何通知，
-    // 管理员无感知。link 指向供应商详情页，其内有变更审批动作 approveChange/rejectChange）。
+    // 管理员无感知。type/link 与门户轨（supplier-portal notifyChangeReviewers）同型——
+    // 2026-11-20 修正：原 SUPPLIER_PENDING + 裸路径段是类型/link 双错配，审批侧消解
+    // （SUPPLIER_CHANGE_PENDING + ?tab=changes）永不命中）。
     void this.notifyCompanyApprovers(supplier.companyId, {
-      type: 'SUPPLIER_PENDING',
+      type: 'SUPPLIER_CHANGE_PENDING',
       title: '供应商变更申请待审核',
       content: `${supplier.name} 提交了变更申请（${supplierChangeFieldLabel(dto.fieldName, dto.fieldLabel)}），请前往审核。`,
-      link: `/supplier/${supplierId}`,
+      link: `/supplier/${supplierId}?tab=changes`,
     });
 
     return record;
@@ -2974,20 +2999,9 @@ export class SupplierService {
     // 变更审批（敏感操作）补审计留痕。
     await this.audit(reviewerId, 'SUPPLIER_CHANGE_APPROVED', change.supplierId, { field: change.fieldName });
 
-    // 待办清零（2026-11-02 评审修正）：变更审批通知为广播型（本公司全体审批人，
-    // link 恒 /supplier?tab=changes），按供应商名精确消解——甲办结不牵连并行在审的乙
-    // （原句 resolve SUPPLIER_PENDING /supplier/{id} 为类型笔误从未生效）。
-    try {
-      const sup = await this.prisma.supplier.findUnique({
-        where: { id: change.supplierId },
-        select: { name: true },
-      });
-      await this.notificationService.resolveActionableBySupplierName(
-        'SUPPLIER_CHANGE_PENDING',
-        '/supplier?tab=changes',
-        sup?.name,
-      );
-    } catch { /* 消解失败不阻塞审批结果（sweep 每日按 content 名单兜底） */ }
+    // 待办清零（2026-11-20 修正）：变更审批通知为广播型（本公司全体审批人），按供应商名
+    // 精确消解——甲办结不牵连并行在审的乙；带 id 深链（11-03 起创建形态）精确轨同查。
+    await this.clearSupplierChangeTodos(change.supplierId);
 
     return { success: true };
   }
@@ -3130,20 +3144,9 @@ export class SupplierService {
       }
     });
 
-    // resolve 待办（转正亦为变更审批）：按供应商名精确消解（2026-11-02 评审 P2：
-    // 广播全清会误杀并行在审者的待办；原句 SUPPLIER_PENDING 为类型笔误从未生效）
+    // resolve 待办（转正亦为变更审批，2026-11-20 修正消解形态见 clearSupplierChangeTodos）
     // + 站内通知供应商转正成功
-    try {
-      const supForResolve = await this.prisma.supplier.findUnique({
-        where: { id: change.supplierId },
-        select: { name: true },
-      });
-      await this.notificationService.resolveActionableBySupplierName(
-        'SUPPLIER_CHANGE_PENDING',
-        '/supplier?tab=changes',
-        supForResolve?.name,
-      );
-    } catch { /* 消解失败不阻塞转正结果（sweep 兜底） */ }
+    await this.clearSupplierChangeTodos(change.supplierId);
     const supplier = await this.prisma.supplier.findUnique({
       where: { id: change.supplierId },
       select: { userId: true, name: true },
@@ -3188,18 +3191,8 @@ export class SupplierService {
     // 变更拒绝补审计。
     await this.audit(reviewerId, 'SUPPLIER_CHANGE_REJECTED', change.supplierId, { field: change.fieldName, reason });
 
-    // 待办清零（2026-11-02 评审修正）：按供应商名精确消解广播变更待办（同 approveChange 口径）
-    try {
-      const sup = await this.prisma.supplier.findUnique({
-        where: { id: change.supplierId },
-        select: { name: true },
-      });
-      await this.notificationService.resolveActionableBySupplierName(
-        'SUPPLIER_CHANGE_PENDING',
-        '/supplier?tab=changes',
-        sup?.name,
-      );
-    } catch { /* 消解失败不阻塞审批结果（sweep 兜底） */ }
+    // 待办清零（同 approveChange 口径，2026-11-20 修正消解形态）
+    await this.clearSupplierChangeTodos(change.supplierId);
 
     return { success: true };
   }

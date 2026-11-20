@@ -86,6 +86,10 @@ function announcementFixture(): Record<string, string> {
     maxPriceChinese: '壹万元',
     maxPriceNumeric: '10000',
     registrationMethod: '在供应商门户注册后报名',
+    // 2026-11-20 模板适配三字段（法定口吻模板替「报名方式及条件」）
+    qualificationReviewMethod: '资格后审',
+    qualificationConditions: '1.持有有效营业执照或事业单位法人证书；',
+    documentAcquisition: '访问供应商门户在招标公告公示期间下载招标文件。',
     announcementStart: '2026年11月20日',
     announcementEnd: '2026年11月27日',
     bidOpeningTime: '2026年12月10日',

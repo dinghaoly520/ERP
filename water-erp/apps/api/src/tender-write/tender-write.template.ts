@@ -2370,6 +2370,12 @@ export type AnnouncementDraft = {
   maxPriceNumeric?: string;
   scheduleRequirements?: string;
   registrationMethod?: string;
+  // 公开招标公告（2026-11-20 模板适配）：三个新占位符——仅公开招标模板含
+  // {{资格审查方式}}/{{资格条件}}/{{招标文件获取}}，其余方式模板无此目标文本
+  // （多出的计划项不命中即无操作，共享计划引擎可安全扩展）
+  qualificationReviewMethod?: string;
+  qualificationConditions?: string;
+  documentAcquisition?: string;
   announcementStart?: string;
   announcementEnd?: string;
   announcementDays?: string;
@@ -2476,6 +2482,12 @@ export function buildInvitedBiddingAnnouncementPlan(
       shouldDeleteLine: answers.scheduleRequirementsType === 'none',
     },
     { targetText: '报名方式及条件', ...buildReplacement('报名方式及条件', answers.registrationMethod), isHierarchicalText: true },
+    // 公开招标公告三占位符（2026-11-20 模板适配）：资格审查方式（短句，非层级）、
+    // 资格条件/招标文件获取（多行层级文本）；标签文字同名（如「3、资格审查方式：」）
+    // 不受影响——renderTemplateXml 仅匹配 {{…}} 包裹文本
+    { targetText: '资格审查方式', ...buildReplacement('资格审查方式', answers.qualificationReviewMethod) },
+    { targetText: '资格条件', ...buildReplacement('资格条件', answers.qualificationConditions), isHierarchicalText: true },
+    { targetText: '招标文件获取', ...buildReplacement('招标文件获取', answers.documentAcquisition), isHierarchicalText: true },
     // 模板占位符为编号式：{{公示期限1}}（起）/ {{公示期限2}}（止）
     { targetText: '公示期限1', ...buildReplacement('公示期限（起）', formatAnnouncementDateToChinese(answers.announcementStart || '')) },
     { targetText: '公示期限2', ...buildReplacement('公示期限（止）', formatAnnouncementDateToChinese(answers.announcementEnd || '')) },

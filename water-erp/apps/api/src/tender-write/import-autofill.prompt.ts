@@ -509,6 +509,36 @@ const PROCUREMENT_BIDDING_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
   },
 ];
 
+// 公开招标公告（2026-11-20 模板适配）：法定口吻三字段替「报名方式及条件」——
+// key/label 与 web 端 PUBLIC_BIDDING_ANNOUNCEMENT_FIELDS 逐一对应
+const PROCUREMENT_PUBLIC_BIDDING_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
+  {
+    key: 'content',
+    title: '公告内容',
+    fields: [
+      { key: 'projectName', label: '项目名称' },
+      { key: 'projectOverview', label: '招标内容包括' },
+      { key: 'maxPriceNumeric', label: '最高限价（小写）' },
+      { key: 'qualificationReviewMethod', label: '资格审查方式' },
+      { key: 'scheduleRequirementsType', label: '工期及进度要求' },
+      { key: 'scheduleRequirements', label: '工期及进度要求内容' },
+      { key: 'qualificationConditions', label: '资格条件' },
+      { key: 'documentAcquisition', label: '招标文件获取' },
+      { key: 'announcementStart', label: '公示期限（起始日）' },
+      { key: 'bidOpeningTime', label: '开标时间' },
+      { key: 'openingLocation', label: '开标地点' },
+      { key: 'contactName', label: '联系人' },
+      { key: 'contactPhone', label: '联系电话' },
+      { key: 'contactEmail', label: '联系邮箱' },
+      { key: 'supervisionContact', label: '监督人' },
+      { key: 'supervisionDepartment', label: '监督部门' },
+      { key: 'supervisionAddress', label: '监督地址' },
+      { key: 'supervisionPhone', label: '监督电话' },
+      { key: 'signatureDate', label: '落款日期' },
+    ],
+  },
+];
+
 const PROCUREMENT_SINGLE_SOURCE_ANNOUNCEMENT_SECTIONS: TenderSectionDef[] = [
   {
     key: 'content',
@@ -586,7 +616,9 @@ export function getFieldDefsForAnnouncement(
   if (category === 'procurement_document') {
     sections = tenderType === 'SINGLE_SOURCE'
       ? PROCUREMENT_SINGLE_SOURCE_ANNOUNCEMENT_SECTIONS
-      : PROCUREMENT_BIDDING_ANNOUNCEMENT_SECTIONS;
+      : tenderType === 'PUBLIC_BIDDING'
+        ? PROCUREMENT_PUBLIC_BIDDING_ANNOUNCEMENT_SECTIONS
+        : PROCUREMENT_BIDDING_ANNOUNCEMENT_SECTIONS;
   } else if (category === 'failed_bid') {
     sections = FAILED_BID_ANNOUNCEMENT_SECTIONS;
   } else {

@@ -114,10 +114,16 @@ describe('SupplierLinkService — 公司侧（三级审批）', () => {
         count: jest.fn().mockResolvedValue(over.staffCount ?? 1),
       },
       auditLog: { create: jest.fn().mockResolvedValue({}) },
+      // 办结联动消解（2026-11-20）：存量无 id 形态按 content 前缀+收件人公司域先查后改
+      notification: {
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
     };
     const notify = {
       create: jest.fn().mockResolvedValue({}),
       sendToUser: jest.fn().mockResolvedValue({ userId: 'u1', results: {} }),
+      resolveActionable: jest.fn().mockResolvedValue({}),
     };
     // I1 终审修复（2026-10-19）：setDisabled 经 resolveScope+assertInScope 断言本公司 link——
     // 桩与真 CompanyScopeService 同语义（限定集不含目标公司 id → 403 COMPANY_SCOPE_FORBIDDEN）
@@ -266,5 +272,87 @@ describe('SupplierLinkService — 通知兜底链', () => {
     const svc = new SupplierLinkService(prisma, notify as any, { resolveScope: async () => ({ all: false, companyIds: [] }) } as any);
     await svc.apply('u1', { companyId: 'co-2' });
     expect(notify.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'ld-1' }));
+  });
+});
+
+/** 办结联动消解（2026-11-20 用户实录：同公司两账号都收到加入申请待办，一人审批后
+ *  另一人的待办仍长期挂着）：加入/退库待办是群发型（同级审批人每人一行），而
+ *  approveLink/rejectLink 此前零消解钩子——他人副本要等每日 sweep 且全库 link 队列
+ *  清空才走。锁定：新通知 link 带 linkId 精确指针 + 任一审批动作即时消解全部副本。 */
+describe('SupplierLinkService — 办结联动消解', () => {
+  const LINK = { id: 'l1', supplierId: 's1', companyId: 'co-2', status: 'PENDING', reviewStage: 'STAFF', supplier: { id: 's1', userId: 'u1', name: '甲供应商', companyId: 'co-1' }, company: { name: '乙公司' } };
+  const mk = (over: Record<string, any> = {}) => {
+    const prisma: any = {
+      supplierCompanyLink: {
+        findUnique: jest.fn().mockResolvedValue({ ...LINK, ...over.link }),
+        findFirst: jest.fn().mockResolvedValue(null),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ id: 's1', name: '甲供应商', status: 'APPROVED', isTemporary: false, userId: 'u1', companyId: 'co-1' }) },
+      company: { findUnique: jest.fn().mockResolvedValue({ id: 'co-2', name: '乙公司' }) },
+      user: {
+        findUnique: jest.fn().mockResolvedValue(over.reviewer ?? { id: 'rev-1', role: 'staff', companyId: 'co-2' }),
+        findMany: jest.fn().mockResolvedValue(over.users ?? []),
+        count: jest.fn().mockResolvedValue(1),
+      },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      notification: {
+        findMany: jest.fn().mockResolvedValue(over.legacyRows ?? []),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    const notify = {
+      create: jest.fn().mockResolvedValue({}),
+      sendToUser: jest.fn().mockResolvedValue({ userId: 'u1', results: {} }),
+      resolveActionable: jest.fn().mockResolvedValue({}),
+    };
+    const svc = new SupplierLinkService(prisma, notify as any, { resolveScope: async () => ({ all: false, companyIds: ['co-2'] }) } as any);
+    return { prisma, notify, svc };
+  };
+
+  it('apply/applyLeave/逐级流转：通知 link 带 linkId 精确指针（消解可按 type+link 圈定本申请）', async () => {
+    const { prisma, notify, svc } = mk({ users: [{ id: 'st-1', role: 'staff', companyId: 'co-2' }] });
+    prisma.supplierCompanyLink.findUnique.mockResolvedValue(null); // 无存量 link → 走 create
+    prisma.supplierCompanyLink.create = jest.fn().mockResolvedValue({ id: 'l-new' });
+    await svc.apply('u1', { companyId: 'co-2' });
+    expect(notify.create).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'SUPPLIER_LINK_PENDING',
+      link: '/supplier?tab=company-links&linkId=l-new',
+    }));
+  });
+
+  it('approveLink STAFF 通过 → 即时消解本申请待办（跨收件人，含同公司他人副本）', async () => {
+    const { notify, svc } = mk();
+    await svc.approveLink('l1', 'rev-1', '同意');
+    expect(notify.resolveActionable).toHaveBeenCalledWith('SUPPLIER_LINK_PENDING', '/supplier?tab=company-links&linkId=l1');
+  });
+
+  it('approveLink ADMIN 终审 → 同样消解', async () => {
+    const { notify, svc } = mk({ link: { reviewStage: 'ADMIN' }, reviewer: { id: 'adm', role: 'admin', companyId: null } });
+    await svc.approveLink('l1', 'adm');
+    expect(notify.resolveActionable).toHaveBeenCalledWith('SUPPLIER_LINK_PENDING', '/supplier?tab=company-links&linkId=l1');
+  });
+
+  it('rejectLink → 同样消解', async () => {
+    const { notify, svc } = mk();
+    await svc.rejectLink('l1', 'rev-1', '资质不符');
+    expect(notify.resolveActionable).toHaveBeenCalledWith('SUPPLIER_LINK_PENDING', '/supplier?tab=company-links&linkId=l1');
+  });
+
+  it('存量无 id 形态：content 前缀=供应商名 + 收件人属目标公司才消解——他司收件人与他名申请不受牵连', async () => {
+    const legacyRows = [
+      { id: 'n1', userId: 'st-2', content: '甲供应商 申请加入贵公司供应商库，请前往审批。' }, // 本公司他人副本 → 消解
+      { id: 'n2', userId: 'st-9', content: '甲供应商 申请加入贵公司供应商库，请前往审批。' }, // 同名申请他司收件人 → 保留
+      { id: 'n3', userId: 'st-2', content: '乙供应商 申请加入贵公司供应商库，请前往审批。' }, // 他名申请 → 保留
+    ];
+    const users = [
+      { id: 'st-2', role: 'staff', companyId: 'co-2' },
+      { id: 'st-9', role: 'staff', companyId: 'co-other' },
+    ];
+    const { prisma, svc } = mk({ legacyRows, users });
+    await svc.approveLink('l1', 'rev-1', '同意');
+    expect(prisma.notification.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { in: ['n1'] } }) }),
+    );
   });
 });

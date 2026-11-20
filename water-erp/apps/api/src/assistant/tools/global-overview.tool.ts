@@ -5,14 +5,12 @@ import { announcementCompanyWhere, toolCompanyWhere } from './company-filter';
 import {
   PMI_STATUS_LABEL,
   SUPPLIER_STATUS_LABEL,
+  TENDER_PROCUREMENT_METHODS,
   t,
 } from './labels';
 /** 采购流程阶段（PMI currentStage）标签——与驾驶舱/进展页同源（2026-11-03 用户裁定：
  *  阶段分布以采购步骤为准，BidProject 投标执行阶段不再冒充全局阶段） */
 import { STAGE_LABELS as PM_STAGE_LABELS } from '../../progress/progress.service';
-
-/** 法定招标方式（2026-11-20 分列两行裁定）：「采购项目」口径=PMI 非招标两方式 */
-const TENDER_METHODS = ['邀请招标', '公开招标'];
 
 @Injectable()
 export class GlobalOverviewTool implements AssistantTool {
@@ -46,10 +44,10 @@ export class GlobalOverviewTool implements AssistantTool {
       announcementCount,
     ] = await Promise.all([
       this.prisma.projectManagementItem.count({
-        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: TENDER_METHODS } },
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: [...TENDER_PROCUREMENT_METHODS] } },
       }),
       this.prisma.projectManagementItem.count({
-        where: { ...companyWhere, status: 'ACTIVE', procurementMethod: { notIn: TENDER_METHODS } },
+        where: { ...companyWhere, status: 'ACTIVE', procurementMethod: { notIn: [...TENDER_PROCUREMENT_METHODS] } },
       }),
       this.prisma.projectManagementItem.count({
         where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: '公开招标' },
@@ -72,7 +70,7 @@ export class GlobalOverviewTool implements AssistantTool {
     const pmByStatus =
       await this.prisma.projectManagementItem.groupBy({
         by: ['status'],
-        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: TENDER_METHODS } },
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: [...TENDER_PROCUREMENT_METHODS] } },
         _count: true,
         _sum: { budgetAmount: true },
       });

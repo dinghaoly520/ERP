@@ -23,6 +23,7 @@ import { ChatDto } from './dto/chat.dto';
 import { mapToChart } from './chart.mapper';
 import { applyCardGate, applyCardRelevance } from './card-gate';
 import { toolCompanyWhere } from './tools/company-filter';
+import { TENDER_PROCUREMENT_METHODS } from './tools/labels';
 
 /** 会话属主：认证用户（JWT）或匿名访客（X-Assistant-Guest 头） */
 export interface AssistantOwner {
@@ -966,7 +967,7 @@ ${toolList}
        * PMI 为准（非招标两方式——邀请招标/公开招标单列招标口径、不含回收站）；
        * pending=台账立项待审批（旧台账审批概念，语义收窄为台账） */
       this.prisma.projectManagementItem.count({
-        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: ['邀请招标', '公开招标'] } },
+        where: { ...companyWhere, status: { not: 'RECYCLED' }, procurementMethod: { notIn: [...TENDER_PROCUREMENT_METHODS] } },
       }),
       this.prisma.procurementProject.count({ where: { ...companyWhere, status: 'PENDING_REVIEW' } }),
       this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),

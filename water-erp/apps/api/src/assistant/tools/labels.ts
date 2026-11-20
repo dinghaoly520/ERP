@@ -13,6 +13,10 @@ export const PROCUREMENT_STATUS_LABEL: Record<string, string> = {
   CLOSED: '已关闭',
 };
 
+/** 法定招标方式（2026-11-20 分列两行裁定）：「采购项目」口径=PMI 非招标两方式——
+ *  global-overview 行拆分与 quickStats 计数共用本常量（单源，防两处口径漂移） */
+export const TENDER_PROCUREMENT_METHODS = ['邀请招标', '公开招标'] as const;
+
 /** PMI 项目状态（ProjectManagementStatus）——2026-11-04 口径裁定（2026-11-20 公开招标入 PMI 收窄）：
  *  「采购项目」以 PMI 为准（非招标两方式、不含回收站）——招标两方式单列「招标项目」口径 */
 export const PMI_STATUS_LABEL: Record<string, string> = {

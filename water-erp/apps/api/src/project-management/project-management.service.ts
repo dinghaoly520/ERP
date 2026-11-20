@@ -409,7 +409,7 @@ export class ProjectManagementService {
    * 信息发布中心独立发布 BID_NOTICE 且无既有项目时，BidProject 由 createFromAnnouncement 创建（无 PMI 挂钩），
    * 而 :3005 开标确认面板（评分标准/主持人/按时开标/归档/公示）以 PMI 为宿主——本方法补齐宿主。
    * 编号复用 create 流程同款规则（procurementMethodPrefix + 当日序号）；阶段集复用 PROJECT_WORKFLOW_STAGES
-   * + 方法过滤（PUBLIC_ANNOUNCEMENT 仅竞价/直接/邀请）；前置阶段以公告为准补记 COMPLETED，
+   * + 方法过滤（公告型=谈判/询比/竞价/公开招标：留公告段、无邀请段；2026-11-20 修正反转向量）；前置阶段以公告为准补记 COMPLETED，
    * currentStage 落 BID_EVALUATION（此后 syncPmStage 恢复正常联动）。
    */
   async createItemFromAnnouncement(
@@ -439,15 +439,18 @@ export class ProjectManagementService {
 
     // 阶段集：全套 + 方法过滤（与 create 流程同口径）
     // 2026-11-20 修正：公告型方式=谈判/询比/竞价/公开招标（2026-11-12 流程互换后口径）
-    // 保留公告公示阶段；邀请域（邀请招标/直接采购）不发布采购公告、被 announcement 方式闸
-    // 拦截不可达本路径（防御性过滤）。原列表 ['竞价','直接','邀请'] 与互换后语义相反——
-    // 直接/邀请模板本无公告阶段，谈判/询比（发公告）反被误剔；公开招标公告直建必须有
-    // 公告阶段（补记 COMPLETED）而随本修正一并落位
+    // 保留公告公示阶段、不带供应商邀请段（公告型不经邀请组织——直建行集与
+    // METHOD_STAGE_TEMPLATES 对齐，防幽灵「供应商邀请」步骤出现在公告型直建项目）；
+    // 邀请域（邀请招标/直接采购）不发布采购公告、被 announcement 方式闸拦截不可达本路径
+    //（防御性过滤）。原列表 ['竞价','直接','邀请'] 与互换后语义相反——直接/邀请模板本无
+    // 公告阶段，谈判/询比（发公告）反被误剔；公开招标公告直建必须有公告阶段（补记
+    // COMPLETED）而随本修正一并落位
     const NOTICE_BASED_METHODS = ['谈判采购', '询比采购', '竞价采购', '公开招标'];
     const needsPublicAnnouncement = NOTICE_BASED_METHODS.includes(dto.procurementMethod);
     const stagesToCreate = PROJECT_WORKFLOW_STAGES.filter(
       (s) =>
         (needsPublicAnnouncement || s.key !== 'PUBLIC_ANNOUNCEMENT')
+        && (!needsPublicAnnouncement || s.key !== 'SUPPLIER_INVITATION')
         // 09 备案表为直接采购专属（2026-09-28）：其余方式不得带入（末阶段归档闸门按最后阶段判定，
         // 带入后该方式将永远无法完成归档）
         && (s.key !== 'DIRECT_PURCHASE_FILING' || dto.procurementMethod === '直接采购'),

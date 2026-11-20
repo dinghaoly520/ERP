@@ -62,11 +62,13 @@ import { FilePreviewPane } from './file-preview-pane';
 import { openingTimeFromSources, toDatetimeLocalValue as toDatetimeLocal, toDateInputValue as toDateInput } from '@/lib/tender-write/opening-time';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
 
-/** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段） */
+/** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段）
+ *  INQUIRY_PURCHASE 2026-10-29 模板 v2 起与竞价对齐为 responseSubmissionTime（此处曾漏改，
+ *  草稿开标时间回读恒空——2026-11-20 随公开招标接入复查修正，与 tender-write-modal 同口径） */
 const TENDER_OPENING_KEY: Record<TenderDocumentType, string> = {
   COMPETITIVE_NEGOTIATION: 'responseDeadline',
   SINGLE_SOURCE: 'submissionAndNegotiationTime',
-  INQUIRY_PURCHASE: 'bidOpeningTime',
+  INQUIRY_PURCHASE: 'responseSubmissionTime',
   INTERNAL_BIDDING: 'responseSubmissionTime',
   INVITED_BIDDING: 'responseSubmissionTime',
   PUBLIC_BIDDING: 'responseSubmissionTime',

@@ -1677,7 +1677,7 @@ function InternalBiddingPreview({
               <p className="ml-4">1.3 未被最高人民法院在"信用中国"网站（www.creditchina.gov.cn）列入严重失信名单；</p>
               <p className="ml-4">1.4 符合法律、行政法规规定的其他条件。</p>
               <p className="mt-2">2.本项目特定资格要求：<PreviewValue value={stripTrailingPeriod(draft.qualificationRequirements)} placeholder="{{特定资格要求}}" multiline inline fieldKey="qualificationRequirements" onValueChange={onValueChange} />。</p>
-              <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受被邀请的{T.party}以联合体形式参加响应。
+              <p className="mt-2">3.本项目{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'accept' ? '☑' : '☐')}接受/{!draft.consortiumFormType ? '☐' : (draft.consortiumFormType === 'reject' ? '☑' : '☐')}不接受{variant === 'public' ? `${T.party}以联合体形式参加投标` : `被邀请的${T.party}以联合体形式参加响应`}。
               {!draft.consortiumFormType ? (
                 <span><br />联合体还应满足下列要求：<span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{联合体形式}}"}</span>。</span>
               ) : draft.consortiumFormType === 'accept' ? (
@@ -1695,7 +1695,7 @@ function InternalBiddingPreview({
             <div className="mt-3 space-y-2 pl-1 text-sm leading-7 text-[color:var(--foreground)]">
               {/* 「时　　间」条目已删（2026-11-20 用户裁定）：不再填写文件获取时间，其余条目重排号 */}
               <p>1.地　　点：<PreviewValue value={draft.contactAddress} placeholder="{{联系人地址}}" fieldKey="contactAddress" onValueChange={onValueChange} /></p>
-              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并在公示期间下载采购文件。</p>
+              <p>2.方　　式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目并{variant === 'public' ? '在招标公告公示期间下载招标文件' : '在公示期间下载采购文件'}。</p>
               <p>3.售　　价：<PreviewValue value={draft.documentPrice} placeholder="{{采购文件售价}}" fieldKey="documentPrice" onValueChange={onValueChange} />元/份</p>
             </div>
           </div>

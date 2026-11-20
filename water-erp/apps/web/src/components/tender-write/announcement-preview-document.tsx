@@ -311,28 +311,54 @@ function InvitedOrInternalBiddingAnnouncementPreview({
             {PV(draft.maxPriceChinese, "{{最高限价（大写）}}", "maxPriceChinese")}整（¥
             {PV(draft.maxPriceNumeric, "{{最高限价（小写）}}", "maxPriceNumeric")}）（含税价）。
           </p>
+          {isPublic && (
+            <p>
+              3、资格审查方式：{PV((draft as Record<string, string>).qualificationReviewMethod, "{{资格审查方式}}", "qualificationReviewMethod")}
+            </p>
+          )}
           {(draft as Record<string, string>).scheduleRequirementsType === "have" && (
             <p>
-              3、工期及进度要求：{PV(draft.scheduleRequirements, "{{工期及进度要求}}", "scheduleRequirements", true)}
+              {isPublic ? "4" : "3"}、工期及进度要求：{PV(draft.scheduleRequirements, "{{工期及进度要求}}", "scheduleRequirements", true)}
             </p>
           )}
         </div>
       </div>
 
-      {/* 三、报名方式及条件 */}
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          三、报名方式及条件
+      {/* 三、报名方式及条件（公开招标：三、资格条件 + 四、招标文件获取） */}
+      {isPublic ? (
+        <>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+              三、资格条件
+            </div>
+            <div className="mt-2 text-[0.92rem] leading-8">
+              {PV((draft as Record<string, string>).qualificationConditions, "{{资格条件}}", "qualificationConditions", true)}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+              四、招标文件获取
+            </div>
+            <div className="mt-2 text-[0.92rem] leading-8">
+              {PV((draft as Record<string, string>).documentAcquisition, "{{招标文件获取}}", "documentAcquisition", true)}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
+            三、报名方式及条件
+          </div>
+          <div className="mt-2 text-[0.92rem] leading-8">
+            {PV(draft.registrationMethod, "{{报名方式及条件}}", "registrationMethod", true)}
+          </div>
         </div>
-        <div className="mt-2 text-[0.92rem] leading-8">
-          {PV(draft.registrationMethod, "{{报名方式及条件}}", "registrationMethod", true)}
-        </div>
-      </div>
+      )}
 
-      {/* 四、公示期限 */}
+      {/* 公示期限（公开招标顺延为五） */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          四、公示期限
+          {isPublic ? "五、公示期限" : "四、公示期限"}
         </div>
         <div className="mt-2 text-[0.92rem] leading-8">
           本公告有效期从
@@ -341,10 +367,10 @@ function InvitedOrInternalBiddingAnnouncementPreview({
         </div>
       </div>
 
-      {/* 五、开标时间及地点 */}
+      {/* 开标时间及地点（公开招标顺延为六） */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          五、开标时间及地点
+          {isPublic ? "六、开标时间及地点" : "五、开标时间及地点"}
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>
@@ -354,10 +380,10 @@ function InvitedOrInternalBiddingAnnouncementPreview({
         </div>
       </div>
 
-      {/* 六、联系方式 */}
+      {/* 联系方式（公开招标顺延为七） */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          六、联系方式
+          {isPublic ? "七、联系方式" : "六、联系方式"}
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>{isPublic ? "招标人" : "采购人"}：{company}</p>
@@ -367,10 +393,10 @@ function InvitedOrInternalBiddingAnnouncementPreview({
         </div>
       </div>
 
-      {/* 七、监督举报 */}
+      {/* 监督举报（公开招标顺延为八） */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          七、监督举报
+          {isPublic ? "八、监督举报" : "七、监督举报"}
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>监督部门：{PV(draft.supervisionDepartment || cd?.supervisionDept || '', "{{监督部门}}", "supervisionDepartment")}</p>

@@ -90,6 +90,23 @@ export type InvitedBiddingAnnouncementDraft = Record<
   string
 >;
 
+// ─── 采购文件公告 (公开招标，2026-11-20 模板适配) ───
+// 法定口吻模板：无「报名方式及条件」，拆为 资格审查方式（资格后审/资格预审）、
+// 资格条件（编号行）、招标文件获取（门户获取句）三字段
+
+export type PublicBiddingAnnouncementFieldKey = Exclude<
+  InvitedBiddingAnnouncementFieldKey,
+  "registrationMethod"
+> |
+  "qualificationReviewMethod"
+  | "qualificationConditions"
+  | "documentAcquisition";
+
+export type PublicBiddingAnnouncementDraft = Record<
+  PublicBiddingAnnouncementFieldKey,
+  string
+>;
+
 // ─── 采购文件公告 (直接采购) ───
 
 export type SingleSourceAnnouncementFieldKey =
@@ -179,6 +196,7 @@ export type ChangeAddendumAnnouncementFieldKey =
 
 export type AnnouncementFieldKey =
   | InvitedBiddingAnnouncementFieldKey
+  | PublicBiddingAnnouncementFieldKey
   | SingleSourceAnnouncementFieldKey
   | FailedBidAnnouncementFieldKey
   | WinningBidAnnouncementFieldKey
@@ -186,6 +204,7 @@ export type AnnouncementFieldKey =
 
 export type AnnouncementDraft =
   | InvitedBiddingAnnouncementDraft
+  | PublicBiddingAnnouncementDraft
   | SingleSourceAnnouncementDraft
   | FailedBidAnnouncementDraft
   | WinningBidAnnouncementDraft;

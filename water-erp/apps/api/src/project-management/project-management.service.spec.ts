@@ -2073,11 +2073,12 @@ describe('ProjectManagementService', () => {
       expect(String(createArg.projectCode)).toMatch(/^SW-TP-\d{10}$/);
       const stages = prisma.projectManagementStage.createMany.mock.calls[0][0].data as any[];
       const keys = stages.map((x) => x.stageKey);
-      // 公告型方式（谈判/询比/竞价/公开招标）公告直建含公告公示段，且以公告为准补记 COMPLETED
+      // 公告型方式（谈判/询比/竞价/公开招标）公告直建含公告公示段，且以公告为准补记 COMPLETED；
+      // 不带供应商邀请段（公告型不经邀请组织——2026-11-20 随审修正，防幽灵邀请步骤）
       expect(keys).toContain('PUBLIC_ANNOUNCEMENT');
+      expect(keys).not.toContain('SUPPLIER_INVITATION');
       const completed = new Set(stages.filter((x) => x.status === 'COMPLETED').map((x) => x.stageKey));
       expect(completed.has('PUBLIC_ANNOUNCEMENT')).toBe(true);
-      expect(completed.has('SUPPLIER_INVITATION')).toBe(true);
     });
   });
 
