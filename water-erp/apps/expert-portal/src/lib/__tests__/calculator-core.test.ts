@@ -152,3 +152,17 @@ test('formatCalcDisplay：千分位与负号原样', () => {
   assert.equal(formatCalcDisplay('5.'), '5.');
   assert.equal(formatCalcDisplay('0'), '0');
 });
+
+test('终审 F2：15 位整数后 dot 被忽略——不产生「有小数点却输不进小数」的锁死态', () => {
+  const fifteen = Array.from({ length: 15 }, () => d('9')) as CalcAction[];
+  const s = run(...fifteen, dot());
+  assert.equal(s.display, '999999999999999'); // dot 未生效（数字预算已满）
+  assert.equal(calcReducer(s, d('5')).display, '999999999999999'); // digit 上限依旧
+  assert.equal(run(d('5'), dot()).display, '5.'); // 正常入口 dot 不受影响
+});
+
+test('终审 F7："-0." 退格归一为 "0"，后续数字正常（不留 "-012" 显示）', () => {
+  const s = run(dot(), neg(), bs()); // '0.' → '-0.' → 退格 → 应归一 '0' 而非停驻 '-0'
+  assert.equal(s.display, '0');
+  assert.equal(calcReducer(s, d('1')).display, '1');
+});

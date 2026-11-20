@@ -96,6 +96,8 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
       if (state.error) return state;
       if (state.freshEntry) return { ...state, display: '0.', freshEntry: false };
       if (state.display.includes('.')) return state;
+      // 终审 F2：数字预算（15 位）已满时忽略 dot——否则产生「有小数点却输不进小数」的锁死态
+      if (state.display.replace(/[^\d]/g, '').length >= MAX_ENTRY_LEN) return state;
       return { ...state, display: `${state.display}.` };
     }
 
@@ -179,7 +181,8 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
       // 错误态/结果态（freshEntry）不可退格——结果不是可编辑文本
       if (state.error || state.freshEntry) return state;
       const next = state.display.slice(0, -1);
-      return { ...state, display: next === '' || next === '-' ? '0' : next };
+      // 终审 F7：'-0.' 退到 '-0' 时归一为 '0'——防停驻 '-0' 后续输显示 '-012'
+      return { ...state, display: next === '' || next === '-' || next === '-0' ? '0' : next };
     }
 
     case 'clear':

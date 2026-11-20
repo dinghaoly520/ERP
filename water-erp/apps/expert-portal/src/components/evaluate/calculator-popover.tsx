@@ -70,12 +70,16 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
 
-  // 打开：按触发钮矩形定位（右缘对齐、向下弹）；窗口尺寸变化即关（SearchSelect 同款语义）
+  // 打开：按触发钮矩形定位（右缘对齐、向下弹）；窗口尺寸变化即关（SearchSelect 同款语义，
+  // 终审 F4：关后还焦触发钮——resize 无自然落焦目标，不还焦会掉到 body）
   useEffect(() => {
     if (!open) return;
     const r = btnRef.current?.getBoundingClientRect();
     if (r) setPos({ top: r.bottom + 8, right: window.innerWidth - r.right });
-    const onResize = () => setOpen(false);
+    const onResize = () => {
+      setOpen(false);
+      btnRef.current?.focus();
+    };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [open]);
@@ -142,16 +146,26 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
             aria-label="计算器"
             tabIndex={-1}
             onKeyDown={onKeyDown}
+            onBlur={(e) => {
+              // 终审 F6：焦点离开弹层即收起——防 Tab 逃逸后 Escape 直击 window（语义反转：
+              // 面板全屏被退、计算器却还开着）。relatedTarget 仍在弹层内（键钮间移动）不收。
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
+            }}
             className="neu-card-static fixed z-[70] w-[248px] !rounded-[16px] p-3 focus:outline-none"
             style={{ top: pos.top, right: pos.right }}
           >
-            {/* 显示区：待算式小字 + 主显示（mono 表格数字） */}
+            {/* 显示区：待算式小字 + 主显示（mono 表格数字；终审 F3 truncate 防超宽，title 悬停看全值） */}
             <div className="rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-2 text-right">
-              <div className="h-4 font-mono text-[10px] leading-4 text-[var(--muted-foreground)]">{exprLine}</div>
+              <div className="h-4 truncate font-mono text-[10px] leading-4 text-[var(--muted-foreground)]" title={exprLine}>
+                {exprLine}
+              </div>
               {state.error ? (
                 <div className="text-[13px] font-bold text-[var(--danger)]">{state.error}</div>
               ) : (
-                <div className="font-mono text-xl font-bold tabular-nums leading-7 text-[var(--foreground)]">
+                <div
+                  className="truncate font-mono text-xl font-bold tabular-nums leading-7 text-[var(--foreground)]"
+                  title={formatCalcDisplay(state.display)}
+                >
                   {formatCalcDisplay(state.display)}
                 </div>
               )}
