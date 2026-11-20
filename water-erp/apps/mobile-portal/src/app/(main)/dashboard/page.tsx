@@ -1092,9 +1092,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                     {methodDonut.segs.slice(0, 6).map((seg, i) => (
                       <button key={i} type="button" onClick={() => setActiveMethod(seg.m)} className="flex w-full items-center gap-2 text-left">
                         <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
-                        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
-                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.m.count}项 · {seg.m.amountLabel}</span>
-                        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{seg.m.share}%</span>
+                        <span className="w-[4.5rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
+                        <span className="min-w-0 flex-1 text-right text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.m.count}项 · {seg.m.amountLabel}</span>
+                        <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{seg.m.share}%</span>
                       </button>
                     ))}
                   </div>
