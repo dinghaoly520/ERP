@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
 import { fetchAnnouncements, ANNOUNCEMENT_TYPE_LABELS, type AnnouncementItem, type AnnouncementItemType } from "@/lib/api/announcement";
-import { ClipboardList, Megaphone, ChartNoAxesCombined,
+import { fetchSupplierLibrary, SUPPLIER_STATUS_LABELS, type SupplierItem } from "@/lib/api/supplier";
+import { Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
   AlertTriangle,
   BarChart3,
@@ -30,7 +31,7 @@ import { ClipboardList, Megaphone, ChartNoAxesCombined,
   TrendingUp,
   Trophy,
   Users,
-  } from "lucide-react";
+   } from "lucide-react";
 import {
   fetchBidStageProjects,
   fetchBidStageStatus,
@@ -571,6 +572,18 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   const [cmpDim, setCmpDim] = useState<"amount" | "rounds" | "savings" | "rate" | "abnormal">("amount");
   /* 公告公示（2026-11-19 板块优化）：类型 Chip + 公告列表，懒取 */
   const [announcements, setAnnouncements] = useState<AnnouncementItem[] | null>(null);
+  /* 供应商库（2026-11-19 用户裁定：放真供应商库——非 dashboard 成交统计） */
+  const [supplierLib, setSupplierLib] = useState<SupplierItem[] | null>(null);
+  const [supplierTotal, setSupplierTotal] = useState(0);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  useEffect(() => {
+    if (analysisOpen !== "supplier" || supplierLib) return;
+    let active = true;
+    fetchSupplierLibrary({ pageSize: 50, status: 'APPROVED' })
+      .then((r) => { if (active) { setSupplierLib(r.items); setSupplierTotal(r.total); } })
+      .catch(() => { if (active) setSupplierLib([]); });
+    return () => { active = false; };
+  }, [analysisOpen, supplierLib]);
   const [annType, setAnnType] = useState<AnnouncementItemType | "all">("all");
   useEffect(() => {
     if (analysisOpen !== "risk" || announcements) return;
@@ -1439,49 +1452,63 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "supplier" ? (
               <>
-            {/* ══ 供应商（2026-11-19 板块优化）：排名卡+中标率+参与度 ══ */}
-            {data?.supplierStats?.length ? (
-              <AnalysisZone icon={Handshake} title="重点供应商" count={`${data.supplierStats.length} 家`} color="var(--success)">
-                <div className="space-y-1.5">
-                  {data.supplierStats.map((sp, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setActiveSupplier(sp)}
-                      className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold ${i === 0 ? "bg-[color-mix(in_oklch,var(--success)_14%,transparent)] text-[var(--success)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]"}`}>
-                          {sp.name.slice(0, 2)}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{sp.name}</span>
-                          <span className="mt-0.5 block text-[12px] text-[var(--muted-foreground)]">
-                            中标 <b className="text-[var(--success)]">{sp.winCount}</b>/{sp.participatedCount} · 中标率 <b className="text-[var(--success)]">{sp.hitRate}%</b> · {sp.awardAmountLabel}
-                          </span>
-                        </span>
-                        {/* 中标率环形进度 */}
-                        <span className="relative flex h-[2.75rem] w-[2.75rem] shrink-0 items-center justify-center">
-                          <svg viewBox="0 0 40 40" className="absolute inset-0">
-                            <circle cx="20" cy="20" r="17" fill="none" stroke="var(--muted-foreground)" strokeOpacity={0.12} strokeWidth="3.5" />
-                            <circle
-                              cx="20" cy="20" r="17" fill="none"
-                              stroke={sp.hitRate >= 50 ? "var(--success)" : sp.hitRate >= 25 ? "var(--accent)" : "var(--warning)"}
-                              strokeWidth="3.5" strokeLinecap="round"
-                              strokeDasharray={`${(sp.hitRate / 100) * 106.8} 106.8`}
-                              transform="rotate(-90 20 20)"
-                            />
-                          </svg>
-                          <span className="relative text-[11px] font-black tabular-nums text-[var(--foreground)]">{sp.hitRate}%</span>
-                        </span>
-                        <ChevronRight size={14} className="shrink-0 text-[var(--muted-foreground)]" />
-                      </div>
-                    </button>
-                  ))}
+            {/* ══ 供应商（2026-11-19 用户裁定：真供应商库列表——搜索+排名卡+状态色）══ */}
+            {supplierLib ? (
+              <AnalysisZone icon={Handshake} title="供应商库" count={`${supplierTotal} 家`} color="var(--success)">
+                <div className="relative mb-2.5">
+                  <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                  <input
+                    value={supplierSearch}
+                    onChange={(e) => setSupplierSearch(e.target.value)}
+                    placeholder="搜索供应商名称"
+                    aria-label="搜索供应商名称"
+                    className="m-input h-10 w-full pl-9 pr-3"
+                  />
                 </div>
+                {(() => {
+                  const kw = supplierSearch.trim();
+                  const filtered = kw ? supplierLib.filter((sp) => sp.name.includes(kw) || (sp.shortName ?? "").includes(kw)) : supplierLib;
+                  return filtered.length ? (
+                    <div className="space-y-1.5">
+                      {filtered.slice(0, 20).map((sp, i) => {
+                        const approved = sp.status === 'APPROVED';
+                        return (
+                          <div key={sp.id} className="rounded-[12px] m-tile px-3 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold ${i < 3 ? "bg-[color-mix(in_oklch,var(--success)_14%,transparent)] text-[var(--success)]" : "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]"}`}>
+                                {sp.name.slice(0, 2)}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{sp.name}</span>
+                                <span className="mt-0.5 flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
+                                  {sp.legalRepresentative ? <span>{sp.legalRepresentative}</span> : null}
+                                  {sp.companies?.length ? <span className="truncate">{sp.companies[0].name}</span> : null}
+                                </span>
+                              </span>
+                              <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                  approved
+                                    ? "bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[var(--success)]"
+                                    : "bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]"
+                                }`}
+                              >
+                                {SUPPLIER_STATUS_LABELS[sp.status]}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {filtered.length > 20 ? (
+                        <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 20 · 共 {filtered.length} 家</div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <EmptyState text={kw ? `无匹配「${kw}」的供应商` : "供应商库为空"} />
+                  );
+                })()}
               </AnalysisZone>
             ) : (
-              <EmptyState text="暂无供应商动态" />
+              <div className="py-2"><Skeleton lines={6} height={40} /></div>
             )}
               </>
             ) : null}
