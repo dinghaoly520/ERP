@@ -2141,10 +2141,26 @@ export class SupplierService {
     });
   }
 
-  /** 管理端：标签列表（默认全部，可按状态过滤），含自创来源供应商名 */
-  async listBusinessTags(status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
+  /** 管理端：标签列表（默认全部，可按状态过滤），含自创来源供应商名。
+   *  公司隔离（2026-11-20）：按来源供应商注入审批流双谓词（APPROVED link OR 注册主归属
+   *  companyId）——注册/临时注册自创标签时供应商尚在三级审批、无 APPROVED link，只有
+   *  companyId；变更引入的库外标签来自 APPROVED 供应商、走 link。无来源供应商的标签
+   *  （SetNull/迁移件）仅 admin 可见，同注册审批「未归属归 admin 代审」口径。 */
+  async listBusinessTags(status?: 'PENDING' | 'APPROVED' | 'REJECTED', actor?: AuthenticatedUser, companyId?: string) {
+    const scope = actor ? await this.companyScope.resolveScope(actor, companyId) : null;
+    const ids = scope ? scopeCompanyIds(scope) : null;
     return this.prisma.businessTag.findMany({
-      where: status ? { status } : undefined,
+      where: {
+        ...(status ? { status } : {}),
+        ...(ids !== null ? {
+          createdBySupplier: {
+            OR: [
+              { companyLinks: { some: { companyId: { in: ids }, status: 'APPROVED' } } },
+              { companyId: { in: ids } },
+            ],
+          },
+        } : {}),
+      },
       select: {
         id: true, name: true, status: true, source: true, createdAt: true, reviewedAt: true,
         // id（2026-10-08）：审核面板按来源供应商合并分组的分组键
@@ -2155,11 +2171,35 @@ export class SupplierService {
     });
   }
 
+  /** 业务标签公司闸（:id 越权 403，2026-11-20）：标签来源供应商须在视野内（双谓词同
+   *  listBusinessTags）；无来源供应商的标签归 admin。actor 缺省（脚本/内部调用）不设闸。 */
+  private async assertBusinessTagInScope(tag: { createdBySupplierId: string | null }, actor?: AuthenticatedUser) {
+    if (!actor) return;
+    const scope = await this.companyScope.resolveScope(actor);
+    if (scope.all) return;
+    const ids = scopeCompanyIds(scope);
+    if (ids === null) return;
+    if (!tag.createdBySupplierId
+      || !(await this.prisma.supplier.findFirst({
+        where: {
+          id: tag.createdBySupplierId,
+          OR: [
+            { companyLinks: { some: { companyId: { in: ids }, status: 'APPROVED' } } },
+            { companyId: { in: ids } },
+          ],
+        },
+        select: { id: true },
+      }))) {
+      throw new ForbiddenException({ error: '该数据不属于本公司，无权访问', code: 'COMPANY_SCOPE_FORBIDDEN' });
+    }
+  }
+
   /** 审核通过：PENDING → APPROVED（入池，后续注册可选） */
-  async approveBusinessTag(id: string, reviewerUserId?: string) {
+  async approveBusinessTag(id: string, reviewerUserId?: string, actor?: AuthenticatedUser) {
     const tag = await this.prisma.businessTag.findUnique({ where: { id } });
     if (!tag) throw new BadRequestException({ error: '标签不存在', code: 'NOT_FOUND' });
     if (tag.status !== 'PENDING') throw new BadRequestException({ error: '该标签不在待审核状态', code: 'INVALID_STATUS' });
+    await this.assertBusinessTagInScope(tag, actor);
     const updated = await this.prisma.businessTag.update({
       where: { id },
       data: { status: 'APPROVED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },
@@ -2177,10 +2217,11 @@ export class SupplierService {
   }
 
   /** 审核拒绝：PENDING → REJECTED（不入池；供应商资料中已使用的标签文本不受影响） */
-  async rejectBusinessTag(id: string, reviewerUserId?: string) {
+  async rejectBusinessTag(id: string, reviewerUserId?: string, actor?: AuthenticatedUser) {
     const tag = await this.prisma.businessTag.findUnique({ where: { id } });
     if (!tag) throw new BadRequestException({ error: '标签不存在', code: 'NOT_FOUND' });
     if (tag.status !== 'PENDING') throw new BadRequestException({ error: '该标签不在待审核状态', code: 'INVALID_STATUS' });
+    await this.assertBusinessTagInScope(tag, actor);
     const updated = await this.prisma.businessTag.update({
       where: { id },
       data: { status: 'REJECTED', reviewedById: reviewerUserId ?? null, reviewedAt: new Date() },

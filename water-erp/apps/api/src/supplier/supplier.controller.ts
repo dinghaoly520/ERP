@@ -73,23 +73,23 @@ export class SupplierController {
 
   @Get('admin/tags')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '管理端：业务标签列表（可按状态过滤）' })
-  async listTags(@Query('status') status?: 'PENDING' | 'APPROVED' | 'REJECTED') {
-    return this.supplierService.listBusinessTags(status);
+  @ApiOperation({ summary: '管理端：业务标签列表（可按状态过滤；公司隔离，admin 可 ?companyId= 切公司）' })
+  async listTags(@Query('status') status?: 'PENDING' | 'APPROVED' | 'REJECTED', @Query('companyId') companyId?: string, @Request() req: any = {}) {
+    return this.supplierService.listBusinessTags(status, req.user, companyId);
   }
 
   @Post('admin/tags/:id/approve')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '审核通过自创标签（入池，后续注册可选）' })
+  @ApiOperation({ summary: '审核通过自创标签（入池，后续注册可选；越权他司标签 403）' })
   async approveTag(@Param('id') id: string, @Request() req: any) {
-    return this.supplierService.approveBusinessTag(id, req.user?.sub);
+    return this.supplierService.approveBusinessTag(id, req.user?.sub, req.user);
   }
 
   @Post('admin/tags/:id/reject')
   @Roles('admin', 'leader', 'staff')
-  @ApiOperation({ summary: '审核拒绝自创标签（不入池）' })
+  @ApiOperation({ summary: '审核拒绝自创标签（不入池；越权他司标签 403）' })
   async rejectTag(@Param('id') id: string, @Request() req: any) {
-    return this.supplierService.rejectBusinessTag(id, req.user?.sub);
+    return this.supplierService.rejectBusinessTag(id, req.user?.sub, req.user);
   }
 
   @Post('compare-profiles')
