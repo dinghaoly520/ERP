@@ -230,6 +230,7 @@ export type DashboardData = {
   savingsRanking: Array<{
     project: string;
     department: string;
+    company: string;
     controlAmount: number;
     awardAmount: number;
     savings: number;

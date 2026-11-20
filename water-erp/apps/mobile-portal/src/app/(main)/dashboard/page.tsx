@@ -1544,7 +1544,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       {top10.map((item, idx) => {
                         const rc = item.savingsRate >= 15 ? "var(--success)" : item.savingsRate >= 8 ? "var(--accent)" : "var(--warning)";
                         const maxRate = top10[0].savingsRate;
-                        const deptLabel = singleCo ? item.department : `${item.department}`;
+                        const deptLabel = item.department;
                         return (
                           <button
                             key={idx}
@@ -1561,7 +1561,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               <span className="min-w-0 flex-1">
                                 <span className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--foreground)]">{item.project}</span>
                                 <span className="mt-0.5 flex items-center gap-1.5">
-                                  <span className="max-w-[7rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">{deptLabel}</span>
+                                  <span className="max-w-[8.5rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
+                                    {companyIds.length !== 1 && item.company ? `${item.company} · ` : ""}{deptLabel}
+                                  </span>
                                   <span className="truncate text-[11px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
                                 </span>
                               </span>
