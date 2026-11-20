@@ -552,6 +552,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   /* 公司对比页（2026-11-19 设计落地）：维度切换 + 双企 PK 选择——数据复用
    * 公司龙虎榜 ranking（admin 全榜）；leader 无榜时退单企卡 */
   const [cmpDim, setCmpDim] = useState<"amount" | "rounds" | "savings" | "rate" | "abnormal">("amount");
+  /* 供应商集中度选中行（2026-11-19 用户裁定：撤长列，选择展示——默认榜首 */
+  const [concPick, setConcPick] = useState<string | null>(null);
   const [cmpA, setCmpA] = useState<string | null>(null);
   const [cmpB, setCmpB] = useState<string | null>(null);
 
@@ -1008,47 +1010,63 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{scaleTotal} 项已成交</span>
             </div>
 
-            {/* 供应商集中度（2026-11-19 用户裁定）：Top10 瓷片行点击展开下钻——
-                金额/中标次数随行直列，细进度条内嵌，不再长条并排 */}
+            {/* 供应商集中度（2026-11-19 用户裁定）：撤长列改选择展示——CR3 头卡 +
+                供应商下拉选择 + 单家详情瓷片（点击开下钻） */}
             <SectionCard icon={Handshake} title="供应商集中度" index={0} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>}>
               {supplierConc.top10.length ? (
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5" style={{ background: "color-mix(in oklch, var(--gold) 6%, transparent)" }}>
-                    <span className="text-[13px] text-[var(--muted-foreground)]">Top3 集中度</span>
-                    <span className="ml-auto text-[17px] font-black tabular-nums text-[var(--gold)]">{(supplierConc.cr3 * 100).toFixed(1)}%</span>
-                  </div>
-                  {supplierConc.top10.map((x, i) => {
-                    const pct = (x.amount / (supplierConc.total || 1)) * 100;
-                    return (
+                (() => {
+                  const rows = supplierConc.top10;
+                  const idx = Math.max(0, rows.findIndex((x) => x.name === concPick));
+                  const cur = rows[idx];
+                  const pct = (cur.amount / (supplierConc.total || 1)) * 100;
+                  return (
+                    <div className="space-y-2.5">
+                      <div className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5" style={{ background: "color-mix(in oklch, var(--gold) 6%, transparent)" }}>
+                        <span className="text-[13px] text-[var(--muted-foreground)]">Top3 集中度</span>
+                        <span className="ml-auto text-[17px] font-black tabular-nums text-[var(--gold)]">{(supplierConc.cr3 * 100).toFixed(1)}%</span>
+                      </div>
+                      <InlineSelect
+                        label={cur.name}
+                        active={!!concPick}
+                        options={rows.map((x, i) => ({ value: x.name, label: `第${i + 1}名 · ${x.name}` }))}
+                        selected={[cur.name]}
+                        onSelect={(next) => setConcPick(next[0] ?? rows[0].name)}
+                        ariaLabel="选择供应商"
+                      />
                       <button
-                        key={x.name}
                         type="button"
                         onClick={() => {
-                          const hit = (data?.supplierStats ?? []).find((sp) => sp.name === x.name);
+                          const hit = (data?.supplierStats ?? []).find((sp) => sp.name === cur.name);
                           if (hit) setActiveSupplier(hit);
                         }}
-                        className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
+                        className="w-full rounded-[12px] m-tile px-3 py-3 text-left active:scale-[0.99]"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{x.name}</span>
-                          <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{x.amount >= 10000 ? `${(x.amount / 10000).toFixed(1)}万` : `${Math.round(x.amount)}元`}</span>
-                          <span className="shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{x.wins} 次</span>
-                          <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
+                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black ${idx < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{idx + 1}</span>
+                          <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-[var(--foreground)]">{cur.name}</span>
+                          <span className="shrink-0 text-[12px] font-semibold text-[var(--accent)]">详情 ›</span>
                         </div>
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                            <span className="block h-full rounded-full bg-[var(--gold)] opacity-75" style={{ width: `${pct}%` }} />
-                          </span>
-                          <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">占比 {pct.toFixed(1)}%</span>
+                        <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+                          <div className="rounded-[10px] px-1 py-1.5" style={{ background: "color-mix(in oklch, var(--gold) 6%, transparent)" }}>
+                            <div className="text-[15px] font-black tabular-nums text-[var(--foreground)]">{cur.amount >= 10000 ? `${(cur.amount / 10000).toFixed(1)}万` : `${Math.round(cur.amount)}元`}</div>
+                            <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">中标金额</div>
+                          </div>
+                          <div className="rounded-[10px] px-1 py-1.5" style={{ background: "color-mix(in oklch, var(--accent) 6%, transparent)" }}>
+                            <div className="text-[15px] font-black tabular-nums text-[var(--foreground)]">{cur.wins}</div>
+                            <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">中标次数</div>
+                          </div>
+                          <div className="rounded-[10px] px-1 py-1.5" style={{ background: "color-mix(in oklch, var(--success) 6%, transparent)" }}>
+                            <div className="text-[15px] font-black tabular-nums text-[var(--foreground)]">{pct.toFixed(1)}%</div>
+                            <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">占总成交额</div>
+                          </div>
                         </div>
                       </button>
-                    );
-                  })}
-                  {supplierConc.cr3 >= 0.5 ? (
-                    <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">Top3 占比过半——集中度偏高，建议扩充竞争面</div>
-                  ) : null}
-                </div>
+                      {supplierConc.cr3 >= 0.5 ? (
+                        <div className="px-1 text-[12px] text-[var(--muted-foreground)]">Top3 占比过半——集中度偏高，建议扩充竞争面</div>
+                      ) : null}
+                    </div>
+                  );
+                })()
               ) : (
                 <EmptyState text="暂无成交供应商数据" />
               )}
