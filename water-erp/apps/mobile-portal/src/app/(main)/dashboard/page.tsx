@@ -536,26 +536,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   ] : [];
   const scaleSegs = useMemo(() => computeSegments(data), [data]);
 
-  /* 节资趋势（2026-11-19 恢复）：月度节资（AWARDED 且 budget>=award>0）柱 + 节资率线 */
-  const savingsTrend = useMemo(() => {
-    const series = (data?.trendSeries ?? []).map((t) => {
-      let savings = 0;
-      let budget = 0;
-      (t.projects ?? []).forEach((p) => {
-        const b = parseBudgetLabel(p.budgetLabel);
-        const a = parseBudgetLabel(p.awardLabel || "");
-        if (a > 0 && b >= a) {
-          savings += b - a;
-          budget += b;
-        }
-      });
-      const rate = budget > 0 ? (savings / budget) * 100 : 0;
-      return { label: t.label, count: t.count, savings: savings / 10000, rate, raw: t };
-    });
-    const total = series.reduce((sum, x) => sum + x.savings, 0);
-    if (!total) return null;
-    return { series, total };
-  }, [data]);
   const scaleTotal = scaleSegs.reduce((s, x) => s + x.count, 0);
 
   /* 趋势图几何 */
@@ -914,89 +894,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
               </>
             ) : null}
-            {/* ── 节资趋势（月度节资柱 + 节资率线，双纵轴）── */}
-            {savingsTrend ? (
-              <SectionCard
-                icon={TrendingUp}
-                title="节资趋势"
-                index={1.5}
-                right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">柱=节资 · 线=节资率</span>}
-              >
-                {(() => {
-                  const st = savingsTrend;
-                  const n = st.series.length;
-                  const W = 340;
-                  const H = 150;
-                  const padL = 34;
-                  const padR = 26;
-                  const padT = 16;
-                  const padB = 22;
-                  const plotW = W - padL - padR;
-                  const plotH = H - padT - padB;
-                  const maxSav = Math.max(...st.series.map((x) => x.savings), 1);
-                  const maxRate = Math.max(...st.series.map((x) => x.rate), 1);
-                  const x = (i: number) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
-                  const colW = n > 0 ? plotW / n : plotW;
-                  const colX = (i: number) => padL + i * colW;
-                  const barW = Math.min(Math.round(colW * 0.42), 26);
-                  const savY = (v: number) => padT + plotH - (v / maxSav) * plotH;
-                  const rateY = (v: number) => padT + plotH - (v / maxRate) * plotH * 0.85;
-                  const pts = st.series.map((t, i) => [x(i), rateY(t.rate)] as const);
-                  const line = pts.map(([px, py], i) => `${i === 0 ? "M" : "L"} ${px.toFixed(1)} ${py.toFixed(1)}`).join(" ");
-                  const labelStep = Math.max(1, Math.ceil(n / 5));
-                  return (
-                    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="节资趋势图">
-                      <defs>
-                        <linearGradient id="savBarFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--success)" stopOpacity="0.34" />
-                          <stop offset="100%" stopColor="var(--success)" stopOpacity="0.08" />
-                        </linearGradient>
-                      </defs>
-                      {/* 轴角标 */}
-                      <text x={padL - 5} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资</text>
-                      <text x={W - 2} y={10} textAnchor="end" fontSize={8} fill="var(--muted-foreground)">节资率</text>
-                      {/* 左轴=节资 万 */}
-                      {[maxSav, maxSav / 2].map((v, i) => (
-                        <g key={`st-${i}`}>
-                          <line x1={padL} y1={savY(v)} x2={W - padR} y2={savY(v)} stroke="var(--muted-foreground)" strokeOpacity={0.16} strokeWidth={0.8} />
-                          <text x={padL - 5} y={savY(v) + 3} textAnchor="end" fontSize={8.5} fill="var(--muted-foreground)">
-                            {v >= 10000 ? `${Math.round(v / 1000) / 10}亿` : v >= 100 ? Math.round(v) : Math.round(v * 10) / 10}
-                          </text>
-                        </g>
-                      ))}
-                      {/* 右轴=节资率% */}
-                      {[maxRate, maxRate / 2].map((v, i) => (
-                        <text key={`sr-${i}`} x={W - 2} y={rateY(v) + 3} textAnchor="end" fontSize={8.5} fontWeight={600} fill="var(--gold)">
-                          {`${Math.round(v)}%`}
-                        </text>
-                      ))}
-                      <line x1={padL} y1={padT + plotH} x2={W - padR} y2={padT + plotH} stroke="var(--muted-foreground)" strokeOpacity={0.3} strokeWidth={1} />
-                      {st.series.map((t, i) => {
-                        const barH = (t.savings / maxSav) * plotH;
-                        return barH > 0 ? (
-                          <rect key={`sb-${i}`} x={x(i) - barW / 2} y={padT + plotH - barH} width={barW} height={Math.max(barH, 2)} rx={3} fill="url(#savBarFill)" className="m-bar" style={{ animationDelay: `${i * 40}ms` }} />
-                        ) : null;
-                      })}
-                      <path d={line} fill="none" stroke="var(--gold)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" className="m-draw-line" style={{ ["--m-path-len" as string]: "800" }} />
-                      {st.series.map((t, i) => (
-                        <g key={`sp-${i}`}>
-                          <circle cx={x(i)} cy={rateY(t.rate)} r={3} fill="var(--gold)" stroke="white" strokeWidth={1.2} />
-                          {i % labelStep === 0 ? (
-                            <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10.5} fill="var(--muted-foreground)">
-                              {t.label.slice(-5)}
-                            </text>
-                          ) : null}
-                        </g>
-                      ))}
-                      {st.series.map((t, i) => (
-                        <rect key={`sh-${i}`} x={colX(i)} y={padT - 4} width={colW} height={plotH + 4} fill="transparent" style={{ cursor: "pointer" }} onClick={() => setActiveTrend(t.raw)} />
-                      ))}
-                    </svg>
-                  );
-                })()}
-              </SectionCard>
-            ) : null}
-
             {analysisOpen === "company" ? (
               <>
             {/* ══ 公司对比（2026-11-19 设计落地：排行 → 五维对比图 → 双企 PK）══ */}
@@ -1346,160 +1243,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </AnalysisZone>
 
             {/* ══ 进行中数据（PMI 进展清单五卡）══ */}
-            <AnalysisZone icon={Milestone} title="进行中数据" count={`${pmDist.total} 项在办`} color="var(--success)">
-              {analysisPm ? (
-                <>
-                  {/* 阶段分布：垂直阶段管线 */}
-                  <ZoneRow icon={Gauge} title="阶段分布">
-                    {pmDist.stage.length ? (
-                      <div className="relative pl-6">
-                        <span className="absolute left-[9px] top-2 bottom-2 w-[2px] rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]" aria-hidden />
-                        {(() => {
-                          const FLOW = ["PROCUREMENT_DEMAND","INITIATION","TENDER_DOCUMENT","SUPPLIER_INVITATION","PUBLIC_ANNOUNCEMENT","EXPERT_SELECTION","BID_EVALUATION","AWARD_DECISION","CONTRACT","DIRECT_PURCHASE_FILING"];
-                          return FLOW.map((k) => ({ key: k, label: PMI_STAGE_LABELS_OF(k), count: pmDist.stage.find((d) => d.name === k)?.count ?? 0 })).filter((x) => x.count > 0).map((st) => (
-                            <div key={st.key} className="relative flex items-center gap-3 py-1.5">
-                              <span className={`absolute left-[-21px] flex h-[18px] w-[18px] items-center justify-center rounded-full text-[10px] font-bold ${st.count > 0 ? "bg-[var(--accent)] text-white" : "bg-[color-mix(in_oklch,var(--muted-foreground)_20%,transparent)] text-[var(--muted-foreground)]"}`}>{st.count > 0 ? st.count : ""}</span>
-                              <span className={`text-[14px] ${st.count > 0 ? "font-semibold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}`}>{st.label}</span>
-                              {st.count > 0 ? <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-[12px] font-bold tabular-nums text-[var(--accent)]">{st.count} 项</span> : null}
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
-                  </ZoneRow>
-
-                  {/* 采购方式分布：环形图 */}
-                  <ZoneRow icon={Layers} title="采购方式分布">
-                    {pmDist.method.length ? (
-                      (() => {
-                        const total = pmDist.totalMethod || 1;
-                        let acc = 0;
-                        const segs = pmDist.method.map((m, i) => {
-                          const sweep = (m.count / total) * 360;
-                          const seg = { m, a0: acc, a1: acc + Math.max(sweep, 0.001), color: DONUT_COLORS[i % DONUT_COLORS.length] };
-                          acc += sweep;
-                          return seg;
-                        });
-                        return (
-                          <div className="flex items-center gap-3">
-                            <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="进行中采购方式分布环形图">
-                              {segs.map((seg, i) => (
-                                <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />
-                              ))}
-                              <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{total}</text>
-                              <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">在办</text>
-                            </svg>
-                            <div className="min-w-0 flex-1 space-y-1.5">
-                              {segs.slice(0, 6).map((seg, i) => (
-                                <div key={i} className="flex items-center gap-2">
-                                  <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
-                                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
-                                  <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.m.count}项</span>
-                                  <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.m.count / total) * 100)}%</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
-                  </ZoneRow>
-
-                  {/* 部门分布：排名卡 */}
-                  <ZoneRow icon={Building2} title="部门分布">
-                    {pmDist.dept.length ? (
-                      <div className="space-y-1.5">
-                        {pmDist.dept.slice(0, 12).map((d, i) => {
-                          const pct = pmDist.total > 0 ? (d.count / pmDist.total) * 100 : 0;
-                          const max = pmDist.dept[0].count;
-                          return (
-                            <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
-                              <div className="flex items-center gap-2.5">
-                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
-                                <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
-                                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(1)}%</span>
-                              </div>
-                              <div className="mt-1.5 flex items-center gap-2">
-                                <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {pmDist.dept.length > 12 ? <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 12 · 共 {pmDist.dept.length} 个部门</div> : null}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
-                  </ZoneRow>
-
-                  {/* 项目规模分析：六档桶 */}
-                  <ZoneRow icon={BarChart3} title="项目规模分析">
-                    {pmDist.scale.some((b) => b.count > 0) ? (
-                      <div className="space-y-1">
-                        {(() => {
-                          const totalAmt = pmDist.scale.reduce((sum, b) => sum + parseBudgetLabel(b.amountLabel), 0) || 1;
-                          return pmDist.scale.map((b, i) => (
-                            <button key={i} type="button" className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1.5 text-left active:scale-[0.99]">
-                              <span className="w-[4.5rem] shrink-0 leading-tight">
-                                <span className="block text-[14px] font-semibold text-[var(--foreground)]">{b.label}</span>
-                                <span className="block text-[13px] text-[var(--muted-foreground)]">{b.range}</span>
-                              </span>
-                              <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                                <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(parseBudgetLabel(b.amountLabel) / totalAmt) * 100}%`, background: b.color }} />
-                              </span>
-                              <span className="w-[4rem] shrink-0 text-right leading-tight">
-                                <span className="block text-[14px] font-bold tabular-nums" style={{ color: b.color }}>{b.count}项</span>
-                                <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{b.amountLabel}</span>
-                              </span>
-                            </button>
-                          ));
-                        })()}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
-                  </ZoneRow>
-
-                  {/* 归属项目分布：排名卡 */}
-                  <ZoneRow icon={FolderKanban} title="归属项目分布">
-                    {pmDist.project.length ? (
-                      <div className="space-y-1.5">
-                        {pmDist.project.map((d, i) => {
-                          const max = pmDist.project[0].count;
-                          return (
-                            <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
-                              <div className="flex items-center gap-2.5">
-                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
-                                <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
-                                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pmDist.total > 0 ? ((d.count / pmDist.total) * 100).toFixed(1) : 0}%</span>
-                              </div>
-                              <div className="mt-1.5 flex items-center gap-2">
-                                <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
-                  </ZoneRow>
-                </>
-              ) : (
-                <div className="py-2"><Skeleton lines={6} height={40} /></div>
-              )}
-            </AnalysisZone>
-                          </>
+                                      </>
             ) : null}
             {analysisOpen === "ranking" ? (
               <>
@@ -1510,17 +1254,11 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 {(() => { const rows = ranking.rows!; return null; })()}
                 <AnalysisZone
                   icon={Trophy}
-                  title={`公司排行 · ${rankingRange === "month" ? "本月" : "本年"}`}
+                  title="公司排行"
                   count={`${ranking.rows.length} 家`}
                   color="var(--gold)"
                 >
-                  <div className="mb-2 flex justify-end gap-1.5">
-                    {(["month", "year"] as const).map((k) => (
-                      <Chip key={k} active={rankingRange === k} onClick={() => setRankingRange(k)}>
-                        {k === "month" ? "本月" : "本年"}
-                      </Chip>
-                    ))}
-                  </div>
+  
                   <div className="space-y-1.5">
                     {(ranking.rows ?? []).slice(0, 8).map((r, i) => {
                       const max = (ranking.rows ?? [])[0]?.awardAmount ?? 1;
