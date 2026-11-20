@@ -663,11 +663,11 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                                     </td>
                                     <td className="px-4 py-[7px] text-right">
                                       {n.group ? (
-                                        <span className="font-mono text-[0.78rem] tabular-nums text-[color:var(--foreground)]">
+                                        <span className="text-[0.78rem] tabular-nums text-[color:var(--muted-foreground)]">
                                           {n.group.map((g) => g.count).join('/')} 家
                                         </span>
                                       ) : (
-                                        <span className={`font-mono text-[0.78rem] tabular-nums ${n.time ? (n.tone === 'danger' ? 'text-[var(--danger)]' : 'text-[color:var(--foreground)]') : 'text-[color:var(--muted-foreground)]/60'}`}>
+                                        <span className={`text-[0.78rem] tabular-nums ${n.tone === 'danger' && n.time ? 'text-[var(--danger)]' : 'text-[color:var(--muted-foreground)]'}`}>
                                           {timelineFmtNode(n)}
                                         </span>
                                       )}
