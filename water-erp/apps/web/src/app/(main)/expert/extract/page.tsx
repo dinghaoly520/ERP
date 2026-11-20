@@ -697,7 +697,7 @@ export function ExpertExtractPage({
   }, [step, pid, altPreview, altExhausted, altQuotas]);
 
   // 状态变更时自动保存到 localStorage（页面切换后恢复）
-  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, openTimeSource, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 });
+  const stateRef = useRef({ pid, step, extractMode, quotas, selectedExperts, alternativeExperts, leadExpertId, preview, done, notifyResults, confirmedExpertIds, manualExperts, openTimeDate, openTimeTime, openTimeSource, expertNotifyKeywords, tn, alt, error, pd, step3Confirmed, candidateNotifiedIds, reHistory, altPreview, altSelected, altNotified, altExhausted, needDemandRep, demandRepCount, demandRepPersons, demandRepMode, demandRepCompany, demandRepDept, demandRepDeptSpecialty, totalSeats: 5 as 3 | 5 | 7 | 9 | 11 });
   useEffect(() => {
     const save = () => {
       const s = stateRef.current;
@@ -1065,7 +1065,7 @@ export function ExpertExtractPage({
     if (changed) { setNotifyMessages(nm); setNotifyVersion(v => v + 1); }
   }, [notifyMessages]);
   // 委员会席位数（用户主动选择 3/5/7）
-  const [totalSeats, setTotalSeats] = useState<3 | 5 | 7>(5);
+  const [totalSeats, setTotalSeats] = useState<3 | 5 | 7 | 9 | 11>(5);
   const demandRepSeats = needDemandRep ? demandRepCount : 0;
   const expertSeats = Math.max(0, totalSeats - demandRepSeats); // 专业专家可分配席位
   const quotaSum = quotas.reduce((s, q) => s + q.count, 0); // 所有专业行的人数和（含未选专业的占位行，与 addQ/adjustQuota 调配一致）
@@ -2277,9 +2277,10 @@ export function ExpertExtractPage({
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-xs font-semibold text-[var(--muted-foreground)]">总席位</span>
-                <div className="neu-segment" data-count="3" data-index={[3, 5, 7].indexOf(totalSeats)}>
+                {/* 席位档位（2026-11-20 用户裁定）：3/5/7 基础上增 9/11 两档 */}
+                <div className="neu-segment" data-count="5" data-index={[3, 5, 7, 9, 11].indexOf(totalSeats)}>
                   <span className="neu-segment-thumb" aria-hidden="true" />
-                  {([3, 5, 7] as const).map(n => (
+                  {([3, 5, 7, 9, 11] as const).map(n => (
                     <button
                       key={n}
                       type="button"
