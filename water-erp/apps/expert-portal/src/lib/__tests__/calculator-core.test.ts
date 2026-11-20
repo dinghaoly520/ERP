@@ -220,3 +220,73 @@ test('科学·一元函数作用于 = 后结果：4 = √ → 2 且 freshEntry',
 test('keyToAction：^ 映射为 op ^', () => {
   assert.deepEqual(keyToAction('^'), { type: 'op', op: '^' });
 });
+
+// ── v2.1 括号（AOS 栈：即时执行 + 括号上下文）──
+const po = () => ({ type: 'paren', kind: 'open' } as CalcAction);
+const pc = () => ({ type: 'paren', kind: 'close' } as CalcAction);
+
+test('括号·基础：2 × (3+4) = → 14，纸带 expr 含括号原文', () => {
+  const s = run(d('2'), op('×'), po(), d('3'), op('+'), d('4'), pc(), eq());
+  assert.equal(s.display, '14');
+  assert.equal(s.history[0].expr, '2 × (3 + 4)');
+  assert.equal(s.history[0].result, '14');
+  assert.equal(s.parenStack.length, 0);
+});
+
+test('括号·隐式乘法：5 ( 3+2 ) = → 25，expr=5 × (3 + 2)', () => {
+  const s = run(d('5'), po(), d('3'), op('+'), d('2'), pc(), eq());
+  assert.equal(s.display, '25');
+  assert.equal(s.history[0].expr, '5 × (3 + 2)');
+});
+
+test('括号·嵌套：2 × (3 + (4−1)) = → 12，expr 双层括号', () => {
+  const s = run(d('2'), op('×'), po(), d('3'), op('+'), po(), d('4'), op('-'), d('1'), pc(), pc(), eq());
+  assert.equal(s.display, '12');
+  assert.equal(s.history[0].expr, '2 × (3 + (4 − 1))');
+});
+
+test('括号·无运算内层与空栈 close：( 7 ) = → 7；栈空 close 为 no-op', () => {
+  assert.equal(run(po(), d('7'), pc(), eq()).display, '7');
+  assert.equal(run(po(), d('7'), pc(), eq()).history[0].expr, '7');
+  const s = run(d('5'), pc());
+  assert.equal(s.display, '5');
+  assert.equal(s.parenStack.length, 0);
+});
+
+test('括号·= 自动闭合未关括号并清栈', () => {
+  const s = run(d('2'), op('×'), po(), d('3'), op('+'), d('4'), eq());
+  assert.equal(s.display, '14');
+  assert.equal(s.parenStack.length, 0);
+});
+
+test('括号·深度上限 8：第 9 个 ( 被忽略', () => {
+  const acts: CalcAction[] = [];
+  for (let i = 0; i < 9; i++) acts.push(po());
+  const s = run(...acts);
+  assert.equal(s.parenStack.length, 8);
+  assert.equal(s.display, '0');
+});
+
+test('括号·) 后数字替换内层结果（外层 pendingOp 保留）', () => {
+  const s = run(d('2'), op('×'), po(), d('3'), op('+'), d('4'), pc(), d('5'));
+  assert.equal(s.display, '5');
+  assert.equal(s.acc, 2);
+  assert.equal(s.pendingOp, '×');
+});
+
+test('括号·clear 清栈且保留角度模式（v2.1 修复 clear 误重置 angleMode）', () => {
+  const s = run({ type: 'toggleAngle' } as CalcAction, po(), clr());
+  assert.equal(s.parenStack.length, 0);
+  assert.equal(s.angleMode, 'RAD');
+});
+
+test('括号·含括号计算后连按 = 不重复（lastOp 清空）', () => {
+  const s = run(d('2'), op('×'), po(), d('3'), op('+'), d('4'), eq(), eq());
+  assert.equal(s.display, '14');
+  assert.equal(s.history.length, 1);
+});
+
+test('keyToAction：( ) 映射 paren open/close', () => {
+  assert.deepEqual(keyToAction('('), { type: 'paren', kind: 'open' });
+  assert.deepEqual(keyToAction(')'), { type: 'paren', kind: 'close' });
+});

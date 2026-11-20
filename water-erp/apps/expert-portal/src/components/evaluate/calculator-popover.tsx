@@ -34,7 +34,7 @@ const digit = (n: CalcDigit): CalcAction => ({ type: 'digit', d: n });
 const opAct = (op: '+' | '-' | '×' | '÷' | '^'): CalcAction => ({ type: 'op', op });
 const un = (fn: 'sin' | 'cos' | 'tan' | 'ln' | 'log' | 'sqrt' | 'sqr' | 'inv'): CalcAction => ({ type: 'unary', fn });
 
-/** v2 科学函数区（3 行，一元按下即算；xʸ 入运算链；π/e 常量；DEG/RAD 切换） */
+/** v2 科学函数区（4 行：3 行函数 + 1 行括号/编辑键；一元按下即算；xʸ 入运算链；DEG/RAD 切换） */
 const SCI_ROWS: CalcKey[][] = [
   [
     { label: 'sin', act: un('sin') },
@@ -51,18 +51,18 @@ const SCI_ROWS: CalcKey[][] = [
   [
     { label: '1/x', act: un('inv') },
     { label: 'xʸ', act: opAct('^'), cls: 'is-info' },
-    { label: 'e', act: { type: 'constant', kind: 'e' } },
+    { label: '±', act: { type: 'negate' }, cls: 'is-info' },
     { label: 'DEG', act: { type: 'toggleAngle' }, cls: 'is-info', isAngle: true },
+  ],
+  [
+    { label: '(', act: { type: 'paren', kind: 'open' } },
+    { label: ')', act: { type: 'paren', kind: 'close' } },
+    { label: '⌫', act: { type: 'backspace' }, cls: 'is-warning' },
+    { label: '%', act: { type: 'percent' }, cls: 'is-warning' },
   ],
 ];
 
 const KEY_ROWS: CalcKey[][] = [
-  [
-    { label: 'C', act: { type: 'clear' }, cls: 'is-danger' },
-    { label: '⌫', act: { type: 'backspace' }, cls: 'is-warning' },
-    { label: '%', act: { type: 'percent' }, cls: 'is-warning' },
-    { label: '÷', act: opAct('÷'), cls: 'is-info' },
-  ],
   [
     { label: '7', act: digit('7') },
     { label: '8', act: digit('8') },
@@ -82,7 +82,7 @@ const KEY_ROWS: CalcKey[][] = [
     { label: '+', act: opAct('+'), cls: 'is-info' },
   ],
   [
-    { label: '±', act: { type: 'negate' }, cls: 'is-info' },
+    { label: 'C', act: { type: 'clear' }, cls: 'is-danger' },
     { label: '0', act: digit('0') },
     { label: '.', act: { type: 'dot' } },
     { label: '=', act: { type: 'equals' }, cls: 'is-info font-bold' },
@@ -271,8 +271,15 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 ))}
               </div>
               <div className="shrink-0 px-3 pb-2 pt-1 text-right">
-                <div className="h-4 truncate font-mono text-[10px] leading-4 text-[var(--muted-foreground)]" title={exprLine}>
-                  {exprLine}
+                <div className="flex h-4 items-center gap-2">
+                  {state.parenStack.length > 0 && (
+                    <span className="shrink-0 font-mono text-[10px] font-bold text-[var(--accent)]" title={`未闭合括号 ${state.parenStack.length} 层`}>
+                      ( ×{state.parenStack.length}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1 truncate text-right font-mono text-[10px] leading-4 text-[var(--muted-foreground)]" title={exprLine}>
+                    {exprLine}
+                  </div>
                 </div>
                 {state.error ? (
                   <div className="text-[13px] font-bold text-[var(--danger)]">{state.error}</div>
