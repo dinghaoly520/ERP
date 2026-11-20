@@ -58,11 +58,6 @@ function getStageMeta(stageKey?: string | null): StageMeta {
   return STAGE_META[stageKey] ?? { ...DEFAULT_STAGE_META, label: stageKey };
 }
 
-const URGENCY_COLOR: Record<string, string> = {
-  high: "var(--danger)",
-  medium: "var(--warning)",
-  low: "var(--accent)",
-};
 
 /* 洞察分组（与驾驶舱页 AI 卡「亮点/待关注/建议」同款三段式语言，按紧急度分层） */
 /* ── 紧凑阶段步进条 ── */

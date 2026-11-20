@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
 import { fetchAnnouncements, fetchAnnouncementDetail, ANNOUNCEMENT_TABS, typeOf, matchesTab, type AnnouncementItem, type AnnouncementDetail } from "@/lib/api/announcement";
 import { fetchSupplierLibrary, SUPPLIER_STATUS_LABELS, type SupplierItem } from "@/lib/api/supplier";
-import { Award, Search, ClipboardList, Megaphone, ChartNoAxesCombined,
+import {
+  Award, Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
   AlertTriangle,
   BarChart3,
@@ -14,7 +15,6 @@ import { Award, Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   ListOrdered,
   ChartPie,
   Scale,
-  ShieldAlert,
   Handshake,
   BookUser,
   Building2,
@@ -24,14 +24,12 @@ import { Award, Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   Layers,
   PieChart,
   Radio,
-  Radar,
   Gauge,
   GraduationCap,
-  Share2,
   TrendingUp,
   Trophy,
   Users,
-    } from "lucide-react";
+} from "lucide-react";
 import {
   fetchBidStageProjects,
   fetchBidStageStatus,
@@ -47,19 +45,8 @@ import {
   type ProjectStatusCounts,
 } from "@/lib/api/dashboard";
 import { fetchMobileBrief, type MobileBrief } from "@/lib/api/ai";
-import {
-  fetchAlertsOverview,
-  fetchBidLiveProjects,
-  fetchExpertCompanyCounts,
-  fetchExpertLibraryStats,
-  fetchPerformanceMetrics,
-  type AlertsOverview,
-  type BidLiveProject,
-  type ExpertCompanyCount,
-  type ExpertLibraryStats,
-  type PerformanceMetrics,
-} from "@/lib/api/cockpit";
 import { fetchExpertList, type ExpertListItem } from "@/lib/api/expert";
+import { fetchExpertLibraryStats, fetchExpertCompanyCounts, fetchBidLiveProjects, type ExpertLibraryStats, type ExpertCompanyCount, type BidLiveProject } from "@/lib/api/cockpit";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, type ProgressStats } from "@/lib/api/progress";
 import { RANGES, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
@@ -108,7 +95,6 @@ import { Skeleton } from "@/components/m/skeleton";
 import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { usePolling } from "@/hooks/use-polling";
-import { copyToClipboard } from "@/lib/copy-to-clipboard";
 
 export type AnalysisTileKey = "ledger" | "progress" | "trend" | "ranking" | "composition" | "company" | "risk" | "supplier" | "experts";
 export const ANALYSIS_TILES: Array<{
@@ -323,8 +309,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   /* 龙虎榜失败≠空数据（P2，2026-11-03）：失败保留旧数据 + 显式重试入口，不再伪装成空态 */
   const [rankingError, setRankingError] = useState(false);
   /* 资源告警 + 项目质效（2026-11-03 数据利用评审：后端现成、此前 :3011 零呈现） */
-  const [alerts, setAlerts] = useState<AlertsOverview | null>(null);
-  const [perf, setPerf] = useState<PerformanceMetrics | null>(null);
   /* 项目状态盘点（2026-11-19 用户裁定：数据总览首排）——PMI 当前状态快照，随重试重取 */
   const [projectStatus, setProjectStatus] = useState<ProjectStatusCounts | null>(null);
   /* 实时运行态势（2026-11-18 指挥台改版）：30s 轮询 bid live——进行中开评标实名录。
@@ -403,37 +387,14 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     [rangeKey, customRange],
   );
 
-  // 资源告警 + 项目质效 + 项目状态盘点：失败保留旧数据（告警）/静默隐藏（质效），随重试重取；
-  // 项目盘点 headline 仅随公司口径（当前状态快照），flow 三窗随区间档（同比/环比子行）
+  // 项目状态盘点：随重试重取
   useEffect(() => {
     let active = true;
-    fetchAlertsOverview().then((a) => { if (active) setAlerts(a); }).catch(() => undefined);
-    fetchPerformanceMetrics().then((p) => { if (active) setPerf(p); }).catch(() => undefined);
     fetchProjectStatusCounts(companyIds.length ? companyIds.join(",") : undefined, queryRange.startDate, queryRange.endDate)
       .then((s) => { if (active) setProjectStatus(s); })
       .catch(() => undefined);
     return () => { active = false; };
   }, [retryTick, companyIds, queryRange.startDate, queryRange.endDate]);
-
-  /* 风险项目一键转发（2026-11-03 用户裁定：允许转发类——领导看得见也能推动）；
-     share 优先、AbortError 静默、剪贴板降级（要报转发随三句卡撤销，2026-11-18） */
-  const [riskShared, setRiskShared] = useState<"idle" | "ok" | "shared" | "fail">("idle");
-  async function shareRisk(p: { project: string; pendingDays: number; reason: string }) {
-    const text = `【风险提示】${p.project}已滞留 ${p.pendingDays} 天：${p.reason}——来自蜀水云采驾驶舱`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: "蜀水云采·风险项目", text });
-        setRiskShared("shared");
-        window.setTimeout(() => setRiskShared("idle"), 2000);
-        return;
-      } catch (err) {
-        if (err instanceof Error && err.name === "AbortError") return;
-      }
-    }
-    const ok = await copyToClipboard(text);
-    setRiskShared(ok ? "ok" : "fail");
-    window.setTimeout(() => setRiskShared("idle"), 2000);
-  }
 
   // 今日关注条（一行事实句，随口径选择器/重试变化重取——区间对齐 2026-11-03：
   // brief 与总览指标同区间，消灭「本月 0 万 vs 本年数百万」同屏打架；effect 置于
@@ -963,6 +924,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   const plotH = H - padT - padB;
                   const maxSav = Math.max(...st.series.map((x) => x.savings), 1);
                   const maxRate = Math.max(...st.series.map((x) => x.rate), 1);
+
                   const x = (i: number) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
                   const colW = n > 0 ? plotW / n : plotW;
                   const colX = (i: number) => padL + i * colW;
@@ -1532,8 +1494,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
              *  全部/多选公司 → 公司排行 + 节资额排行 + 节资率排行（部门标公司名）
              *  仅选一家 → 部门排行（该公司内）+ 节资额排行 + 节资率排行（部门不重复标公司）══ */}
             {(() => {
-              const singleCo = companyIds.length === 1;
-              const coName = singleCo ? ((companies ?? []).find((c) => c.id === companyIds[0])?.name ?? "") : "";
+
               return (
                 <>
             {/* ── 节资额排行（按节约金额排序）── */}
@@ -1572,7 +1533,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                     <div className="space-y-1.5">
                       {top10.map((item, idx) => {
                         const rc = item.savingsRate >= 15 ? "var(--success)" : item.savingsRate >= 8 ? "var(--accent)" : "var(--warning)";
-                        const maxRate = top10[0].savingsRate;
                         const deptLabel = item.department;
                         return (
                           <button
@@ -1916,7 +1876,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       {Object.entries(expertStats.evaluation.levelCounts)
                         .filter(([, n]) => n > 0)
                         .sort((a, b) => b[1] - a[1])
-                        .map(([grade, n], i) => {
+                        .map(([grade, n]) => {
                           const total = expertStats.evaluation.total;
                           const max = Math.max(...Object.values(expertStats.evaluation.levelCounts), 1);
                           const color = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : 'var(--warning)';
