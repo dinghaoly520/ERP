@@ -460,7 +460,8 @@ export default function ExpertRepositoryPage() {
     return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && fl.some(b => b.expertRole === '正选');
   }).length;
   const occupied = experts.filter(e => inFlightOf(e).some(b => b.project?.stage === 'EVALUATING')).length;
-  const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用').length;
+  // E9 评审低置信a：兜底与新标签「未在池」语义对齐——补 RETIRED/PENDING（仅 expStats 未就绪瞬间可见）
+  const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用' || (e.expertProfile?.entryStatus ?? 'ACTIVE') !== 'ACTIVE').length;
   // totalEvals 已删（2026-11-06 随累计评价胶囊移除；当前页推导值本就随翻页漂移）
   // 服务端全量 KPI（与 /expert/statistics 同口径，公司隔离同参数）
   const [expStats, setExpStats] = useState<Awaited<ReturnType<typeof getExpertStatistics>> | null>(null);
