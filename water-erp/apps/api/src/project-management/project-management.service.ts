@@ -7957,6 +7957,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 删除旧附件记录和文件
     await this.prisma.attachment.delete({ where: { id: oldAttachment.id } });
     try { await unlink(filePath); } catch {}
+    await removeAttachmentCopy(oldAttachment.objectKey); // MinIO 副本双清（内部吞错）——终审 I1 补第五删除点
 
     // 采购文件主文件段落内容已变——失效 /tmp 文本缓存（同 saveAttachmentHtml 口径）
     if (oldAttachment.projectManagementStageId) {
@@ -8491,12 +8492,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     );
     if (!docxAttachment) return null;
 
-    const localPath = resolve(process.cwd(), 'uploads', docxAttachment.objectKey);
-    let buffer: Buffer;
-    try {
-      buffer = await readFile(localPath);
-    } catch {
-      this.logger.warn(`parseAnnouncementFields: 源文件不存在 ${localPath}`);
+    // 双轨（终审 I2）：本地 miss 回退 MinIO 副本——此前容器重建后公告字段预填静默 null
+    const buffer = await readAttachmentBuffer(docxAttachment.objectKey);
+    if (!buffer) {
+      this.logger.warn(`parseAnnouncementFields: 源文件双轨皆失 ${docxAttachment.objectKey}`);
       return null;
     }
 

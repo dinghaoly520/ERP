@@ -18,6 +18,20 @@ import { BidService } from '../bid/bid.service';
 import { NotificationService } from '../notification/notification.service';
 import { minioClient } from '../upload/minio.client';
 import { PlaintextFetcherService } from '../ai-bid-analysis/services/plaintext-fetcher.service';
+import { readAttachmentBuffer } from '../common/attachment-object-store';
+
+// 双轨 mock（2026-11-20 终审 I3）：默认委托真实 fs 读本地——既有主轨用例语义不变；
+// 双轨专项用例以 mockResolvedValueOnce 覆写
+jest.mock('../common/attachment-object-store', () => {
+  const actualFs = jest.requireActual('node:fs/promises');
+  const actualPath = jest.requireActual('node:path');
+  return {
+    readAttachmentBuffer: jest.fn(async (objectKey: string) =>
+      actualFs.readFile(actualPath.resolve(process.cwd(), 'uploads', objectKey))),
+    writeAttachmentCopy: jest.fn(),
+    removeAttachmentCopy: jest.fn(),
+  };
+});
 import { SignatureService } from '../common/crypto/signature.service';
 
 describe('ExpertService', () => {
@@ -3369,10 +3383,20 @@ describe('ExpertService', () => {
           .rejects.toMatchObject({ response: { code: 'FILE_NOT_IN_CONFIG' } });
       });
 
+      it('主轨本地与 MinIO 双失 → 404 ATTACHMENT_FILE_MISSING（终审 I3：此前文件级缺失裸 500）', async () => {
+        (readAttachmentBuffer as unknown as jest.Mock).mockResolvedValueOnce(null);
+        prisma.attachment.findUnique.mockResolvedValue({
+          fileName: '谈判采购文件.docx', objectKey: 'pm/tender-file.docx', mimeType: null,
+        });
+        prisma.bidSupervisionLog.create.mockResolvedValue({});
+
+        await expect(service.downloadNegotiationFile('user-1', 'proj-1', 'att-1'))
+          .rejects.toMatchObject({ response: { code: 'ATTACHMENT_FILE_MISSING' } });
+      });
+
       it('Attachment 主轨：本地磁盘读取 + 转换失败诚实降级（原名+真实 Word mime，bug#169）+ 写监督日志', async () => {
-        const fs = require('fs');
         const buf = Buffer.from('fake docx content');
-        jest.spyOn(fs.promises, 'readFile').mockResolvedValue(buf);
+        (readAttachmentBuffer as unknown as jest.Mock).mockResolvedValueOnce(buf);
         const childProcess = require('child_process');
         const spy = jest.spyOn(childProcess, 'execFileSync').mockImplementation(() => undefined as any);
         prisma.attachment.findUnique.mockResolvedValue({

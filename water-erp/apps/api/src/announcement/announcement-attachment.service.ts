@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { resolve } from 'node:path';
-import { readFile, access } from 'node:fs/promises';
+import { readAttachmentBuffer } from '../common/attachment-object-store';
 import { createHash, randomUUID } from 'node:crypto';
 import { PUBLIC_VISIBLE_CLASSES } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -51,13 +51,11 @@ export class AnnouncementAttachmentService {
       throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
     }
 
-    const localPath = resolve(process.cwd(), 'uploads', dto.objectKey);
-    try {
-      await access(localPath);
-    } catch {
+    // 双轨（终审 I4）：本地 miss 回退 MinIO 副本——公告向导「引用采购文件」在容器重建后不再断供
+    const buffer = await readAttachmentBuffer(dto.objectKey);
+    if (!buffer) {
       throw new NotFoundException({ error: '源文件不存在', code: 'SOURCE_NOT_FOUND' });
     }
-    const buffer = await readFile(localPath);
     const sha256 = createHash('sha256').update(buffer).digest('hex');
 
     const baseName = dto.fileName || dto.objectKey;

@@ -27,12 +27,19 @@ import { minioClient, MINIO_BUCKET } from '../src/upload/minio.client';
 const prisma = new PrismaClient();
 const execute = process.argv.includes('--execute');
 
-async function minioHas(objectKey: string): Promise<boolean> {
+export async function minioHas(objectKey: string): Promise<boolean> {
   try {
     await minioClient.statObject(MINIO_BUCKET, objectKey);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // 终审 I5：NoSuchKey=真缺失；其余（网络不可达/凭证错/env 指错）必须响亮失败——
+    // dry-run 若把「不可达」当「缺失」会产出假不可恢复清单误导业务方找回文件
+    // S3 缺失码两形态：GetObject=NoSuchKey、HeadObject(statObject)=NotFound（dev MinIO 实测）
+    const code = (err as { code?: string })?.code;
+    if (code === 'NoSuchKey' || code === 'NotFound') return false;
+    throw new Error(
+      `MinIO statObject 不可达（objectKey=${objectKey}）——先核对 MINIO_* env 与服务状态；判定中止，不把不可达当缺失。原始错误: ${(err as Error)?.message ?? err}`,
+    );
   }
 }
 
@@ -96,9 +103,11 @@ async function main() {
   }
 }
 
-main()
-  .catch((err) => {
-    console.error('[backfill-attachment-minio] 致命错误:', err);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+if (require.main === module) {
+  main()
+    .catch((err) => {
+      console.error('[backfill-attachment-minio] 致命错误:', err);
+      process.exitCode = 1;
+    })
+    .finally(() => prisma.$disconnect());
+}

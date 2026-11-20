@@ -2,6 +2,7 @@ import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequest
 import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
+import { readAttachmentBuffer } from '../common/attachment-object-store';
 import * as path from 'path';
 import * as os from 'os';
 import type Redis from 'ioredis';
@@ -1209,7 +1210,15 @@ export class ExpertService {
       if (!keys.includes(attachment.objectKey)) {
         throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
       }
-      const buffer = await fs.promises.readFile(path.resolve(process.cwd(), 'uploads', attachment.objectKey));
+      // 双轨（终审 I3）：本地 miss 回退 MinIO 副本——FileAsset 兼容轨只兜「行缺失」不兜「文件缺失」，
+      // 此前容器重建后专家端同一文件裸 ENOENT 500 而供应商端已可经副本恢复
+      const buffer = await readAttachmentBuffer(attachment.objectKey);
+      if (!buffer) {
+        throw new NotFoundException({
+          error: '附件文件缺失（本地与对象存储均未找到）',
+          code: 'ATTACHMENT_FILE_MISSING',
+        });
+      }
       return this.finishNegotiationDownload(buffer, attachment.fileName, attachment.mimeType, expert, projectId);
     }
 

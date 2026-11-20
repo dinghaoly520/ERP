@@ -390,6 +390,11 @@ jest.mock('node:fs/promises', () => ({
   stat: jest.fn(),
 }));
 
+// 终审 I2：parseAnnouncementFields 正路径经 mammoth——mock 掉避免依赖真实 docx
+jest.mock('mammoth', () => ({
+  extractRawText: jest.fn().mockResolvedValue({ value: '公告提取文本' }),
+}));
+
 describe('ProjectManagementService', () => {
   const makeService = () => {
     const aiService = {
@@ -3028,6 +3033,64 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
 
       expect(removeCopyMock).toHaveBeenCalledTimes(1);
       expect(removeCopyMock).toHaveBeenCalledWith('project-management/300-x.pdf');
+    });
+  });
+
+  describe('终审修复轮（2026-11-20 review）', () => {
+    const readBufferMock = readAttachmentBuffer as unknown as jest.Mock;
+    const statMock = stat as unknown as jest.Mock;
+    const removeCopyMock = removeAttachmentCopy as unknown as jest.Mock;
+
+    beforeEach(() => {
+      readBufferMock.mockReset();
+      statMock.mockReset();
+      statMock.mockResolvedValue(null);
+      removeCopyMock.mockReset();
+    });
+
+    it('I1: saveAttachmentParagraphs 替换旧件 → 旧 objectKey 的 MinIO 副本同删（第五删除点）', async () => {
+      const JSZipMod = require('jszip');
+      const zip = new JSZipMod();
+      zip.file('word/document.xml', '<?xml version="1.0"?><w:document><w:body><w:p><w:r><w:t>旧段落</w:t></w:r></w:p></w:body></w:document>');
+      const docx = await zip.generateAsync({ type: 'nodebuffer' });
+
+      const { service, prisma, readFileMock } = makeService();
+      prisma.attachment.findUnique.mockResolvedValue({
+        id: 'att-old',
+        fileName: '采购文件.docx',
+        objectKey: 'project-management/800-old.docx',
+        projectManagementItemId: 'pm-1',
+        projectManagementStageId: null,
+      });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ status: 'ACTIVE' });
+      (prisma.attachment as unknown as { create: jest.Mock }).create = jest.fn().mockResolvedValue({ id: 'att-new' });
+      (prisma.attachment as unknown as { delete: jest.Mock }).delete = jest.fn().mockResolvedValue({ id: 'att-old' });
+      readBufferMock.mockResolvedValue(docx);
+      readFileMock.mockResolvedValue(docx);
+      jest.spyOn(service as never as { persistUploadedFile: () => Promise<unknown> }, 'persistUploadedFile')
+        .mockResolvedValue({ absolutePath: '/tmp/new.docx', attachment: { fileName: '采购文件.docx', objectKey: 'project-management/900-new.docx', mimeType: 'a', fileSize: 1, uploadedById: 'u-1' } });
+
+      await (service as unknown as {
+        saveAttachmentParagraphs: (p: string, d: { attachmentId: string; paragraphs: Array<{ index: number; text: string }> }, u?: string) => Promise<unknown>;
+      }).saveAttachmentParagraphs('pm-1', { attachmentId: 'att-old', paragraphs: [] }, 'u-1');
+
+      expect(removeCopyMock).toHaveBeenCalledWith('project-management/800-old.docx');
+    });
+
+    it('I2: parseAnnouncementFields 本地 miss + MinIO 副本命中 → 公告字段预填复活（不再静默 null）', async () => {
+      const { service, prisma, aiService, readFileMock } = makeService();
+      (prisma.projectManagementStage as unknown as { findFirst: jest.Mock }).findFirst = jest.fn().mockResolvedValue({
+        id: 'st-1',
+        attachments: [{ fileName: '采购文件.docx', objectKey: 'project-management/700-x.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }],
+      });
+      readFileMock.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' })); // 旧代码的本地读取确实失败
+      readBufferMock.mockResolvedValue(Buffer.from('docx-copy'));
+      (aiService as unknown as { chatJson: jest.Mock }).chatJson = jest.fn().mockResolvedValue({ projectName: '测试项目' });
+
+      const out = await (service as unknown as { parseAnnouncementFields: (p: string) => Promise<{ extractedText: string } | null> }).parseAnnouncementFields('pm-1');
+
+      expect(out).not.toBeNull();
+      expect(out!.extractedText).toBe('公告提取文本');
     });
   });
 });
