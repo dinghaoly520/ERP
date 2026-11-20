@@ -78,10 +78,13 @@ export function buildPrefillFromProject(
     }
 
     case 'INTERNAL_BIDDING':
-    case 'INVITED_BIDDING': {
+    case 'INVITED_BIDDING':
+    case 'PUBLIC_BIDDING': {
       const draft = tenderType === 'INTERNAL_BIDDING'
         ? createEmptyInternalBiddingDraft()
-        : createEmptyInvitedBiddingDraft();
+        : tenderType === 'PUBLIC_BIDDING'
+          ? createEmptyPublicBiddingDraft()
+          : createEmptyInvitedBiddingDraft();
       return {
         ...draft,
         projectName: project.title || draft.projectName,
@@ -184,6 +187,7 @@ export function getAiGenerationFields(tenderType: TenderDocumentType): Array<{
 
     case 'INTERNAL_BIDDING':
     case 'INVITED_BIDDING':
+    case 'PUBLIC_BIDDING':
       return withPrompts([
         { fieldKey: 'projectOverview', label: '项目概况和采购内容' },
         { fieldKey: 'submissionRequirements', label: '提交成果要求' },
