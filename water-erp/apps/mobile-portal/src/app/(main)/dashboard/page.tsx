@@ -1106,7 +1106,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </ZoneRow>
 
             {/* 各部门采购分布（归档，按成交金额） */}
-<ZoneRow icon={Building2} title="各部门采购分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按成交金额</span>}>
+<ZoneRow icon={Building2} title="各部门采购分布">
               {arcDeptDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
