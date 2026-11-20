@@ -14,7 +14,7 @@ function makePrisma(tables: {
   notifications?: NotifRow[];
   users?: UserRow[];
   suppliers?: Array<{ id: string; status: string; name?: string; companyId?: string | null }>;
-  links?: Array<{ id: string; status: string }>;
+  links?: Array<{ id: string; status: string; companyId?: string; supplierName?: string }>;
   apps?: Array<{ id: string; status: string }>;
   tags?: Array<{ id: string; status: string; createdBySupplierId?: string | null }>;
   changeRecords?: Array<{ supplierId: string; status: string }>;
@@ -105,6 +105,8 @@ function makePrisma(tables: {
     supplierCompanyLink: {
       count: jest.fn(async ({ where }: any) => links.filter((l) =>
         where.status?.in ? where.status.in.includes(l.status) : l.status === where.status).length),
+      // 逐件对账（2026-11-20 规则 3）：include supplier 取名
+      findMany: jest.fn(async () => links.map((l) => ({ companyId: l.companyId, supplier: { name: l.supplierName } }))),
     },
     supplierCatalogApplication: {
       findMany: jest.fn(async ({ where }: any) => apps.filter((a) => where.id.in.includes(a.id))),
@@ -220,12 +222,37 @@ describe('sweepStaleActionableNotifications', () => {
     expect(b._unresolved()).toEqual([]);
   });
 
-  it('加入/退库审批：队列空全清、非空全留（无实体 id 可归因；退库件 2026-11-10 同 type）', async () => {
-    const rows = [N('l1', 'SUPPLIER_LINK_PENDING', '/supplier?tab=company-links')];
-    const a = makePrisma({ notifications: rows.map((n) => ({ ...n })), links: [{ id: 'l', status: 'PENDING' }, { id: 'l2', status: 'LEAVE_PENDING' }] });
+  it('加入/退库审批·逐件对账（2026-11-20 升级）：该（供应商,收件人公司）无在审 link 即消解；他司在审/同名边界不误杀', async () => {
+    // 场景 A：甲供应商对 co-9 在审——co-2 收件人的副本消解（僵尸），co-9 收件人保留；
+    // 乙供应商全库无在审 → admin 兜底收件副本也消解；丙供应商在审 → admin 副本保留
+    const a = makePrisma({
+      notifications: [
+        { ...N('l1', 'SUPPLIER_LINK_PENDING', '/supplier?tab=company-links', '甲供应商 申请加入贵公司供应商库，请前往审批。'), userId: 'st-2' },
+        { ...N('l2', 'SUPPLIER_LINK_PENDING', '/supplier?tab=company-links', '甲供应商 申请加入贵公司供应商库，请前往审批。'), userId: 'st-9' },
+        { ...N('l3', 'SUPPLIER_LINK_PENDING', '/supplier?tab=company-links', '乙供应商 申请加入贵公司供应商库，请前往审批。'), userId: 'adm-1' },
+        { ...N('l4', 'SUPPLIER_LINK_PENDING', '/supplier?tab=company-links', '丙供应商 申请加入贵公司供应商库，请前往审批。'), userId: 'adm-1' },
+      ],
+      users: [
+        { id: 'st-2', isActive: true, role: 'staff', displayName: '二', companyId: 'co-2' },
+        { id: 'st-9', isActive: true, role: 'staff', displayName: '九', companyId: 'co-9' },
+        { id: 'adm-1', isActive: true, role: 'admin', displayName: '管', companyId: null },
+      ],
+      links: [
+        { id: 'lk-1', status: 'PENDING', companyId: 'co-9', supplierName: '甲供应商' },
+        { id: 'lk-2', status: 'LEAVE_PENDING', companyId: 'co-7', supplierName: '丙供应商' },
+      ],
+    });
     await sweepStaleActionableNotifications(a as any);
-    expect(a._unresolved()).toEqual(['l1']);
-    const b = makePrisma({ notifications: rows.map((n) => ({ ...n })), links: [] });
+    expect(a._unresolved().sort()).toEqual(['l2', 'l4']);
+
+    // 场景 B：队列空 → 全消（含 admin 副本）
+    const b = makePrisma({
+      notifications: [
+        { ...N('m1', 'SUPPLIER_LINK_PENDING', '/supplier?tab=company-links', '甲供应商 申请加入贵公司供应商库，请前往审批。'), userId: 'st-2' },
+      ],
+      users: [{ id: 'st-2', isActive: true, role: 'staff', displayName: '二', companyId: 'co-2' }],
+      links: [],
+    });
     await sweepStaleActionableNotifications(b as any);
     expect(b._unresolved()).toEqual([]);
   });
