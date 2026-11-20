@@ -1189,23 +1189,30 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 <ZoneRow icon={FolderKanban} title="归属项目分布">
               {arcProjectDist.length ? (
                 <div className="space-y-1.5">
-                  {(() => {
+                  {arcProjectDist.map((d, i) => {
                     const max = arcProjectDist[0].count;
-                    return arcProjectDist.map((d) => (
-                      <div key={d.name} className="flex items-center gap-2">
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
-                        <span className="h-3.5 w-[9rem] shrink-0 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-[5px] bg-[oklch(0.55_0.1_228)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
-                        </span>
-                        <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                    const totalRounds = arcProjectDist.reduce((s, x) => s + x.count, 0) || 1;
+                    return (
+                      <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
+                          <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count} 轮</span>
+                          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((d.count / totalRounds) * 100).toFixed(1)}%</span>
+                        </div>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                            <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                          </span>
+                        </div>
                       </div>
-                    ));
-                  })()}
+                    );
+                  })}
                 </div>
               ) : (
                 <EmptyState text="暂无成交数据" />
               )}
-            </ZoneRow>
+                </ZoneRow>
 
             </AnalysisZone>
             <AnalysisZone icon={Milestone} title="进行中数据" count={`${pmDist.total} 项在办`} color="var(--success)">
@@ -1336,15 +1343,21 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 <ZoneRow icon={FolderKanban} title="归属项目分布">
                   {pmDist.project.length ? (
                     <div className="space-y-1.5">
-                      {pmDist.project.map((d) => {
+                      {pmDist.project.map((d, i) => {
                         const max = pmDist.project[0].count;
                         return (
-                          <div key={d.name} className="flex items-center gap-2">
-                            <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
-                            <span className="h-3.5 w-[9rem] shrink-0 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                              <span className="block h-full rounded-[5px] bg-[oklch(0.58_0.14_285)] opacity-80" style={{ width: `${(d.count / max) * 100}%` }} />
-                            </span>
-                            <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                          <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
+                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
+                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pmDist.total > 0 ? ((d.count / pmDist.total) * 100).toFixed(1) : 0}%</span>
+                            </div>
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                              </span>
+                            </div>
                           </div>
                         );
                       })}
