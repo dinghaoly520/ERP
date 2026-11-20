@@ -54,11 +54,13 @@ test('连按 = 重复上次运算：5+3= → 8，再 = → 11', () => {
   assert.deepEqual(s.history[0], { expr: '8 + 3', result: '11' });
 });
 
-test('percent：1500 × 5 % → display=0.05，再 = → 75', () => {
-  const mid = run(d('1'), d('5'), d('0'), d('0'), op('×'), d('5'), pct());
-  assert.equal(mid.display, '0.05');
-  const fin = calcReducer(mid, eq());
+test('percent·v2.2 后缀语义：5% 不立即换算；1500 × 5% = → 75、expr 带百分号', () => {
+  const mid = run(d('5'), pct());
+  assert.equal(mid.display, '5');
+  assert.equal(mid.entryPercent, true); // 显示层缀 %，数值不动
+  const fin = run(d('1'), d('5'), d('0'), d('0'), op('×'), d('5'), pct(), eq());
   assert.equal(fin.display, '75');
+  assert.equal(fin.history[0].expr, '1500 × 5%');
 });
 
 test('除零：5÷0= → error="除数不能为 0"；随后 digit 7 自愈 display=7、error=null', () => {
@@ -289,4 +291,49 @@ test('括号·含括号计算后连按 = 不重复（lastOp 清空）', () => {
 test('keyToAction：( ) 映射 paren open/close', () => {
   assert.deepEqual(keyToAction('('), { type: 'paren', kind: 'open' });
   assert.deepEqual(keyToAction(')'), { type: 'paren', kind: 'close' });
+});
+
+// ── v2.2 百分号后缀语义（用户裁定：按下不立即换算，求值时 ÷100）──
+test('百分号·幂等与结果态：已缀再按 no-op；freshEntry 态 no-op', () => {
+  assert.equal(run(d('5'), pct(), pct()).entryPercent, true);
+  assert.equal(run(d('2'), op('+'), d('3'), eq(), pct()).entryPercent, false);
+});
+
+test('百分号·backspace 先摘后缀再删数字；缀后输数字开新条目', () => {
+  const s = run(d('5'), d('2'), pct(), bs());
+  assert.equal(s.display, '52');
+  assert.equal(s.entryPercent, false);
+  assert.equal(calcReducer(s, bs()).display, '5');
+  const t = run(d('5'), pct(), d('7'));
+  assert.equal(t.display, '7');
+  assert.equal(t.entryPercent, false);
+});
+
+test('百分号·negate 保留后缀：5% ± → -5%，求值 -0.05', () => {
+  const s = run(d('5'), pct(), neg());
+  assert.equal(s.display, '-5');
+  assert.equal(s.entryPercent, true);
+  // 求值路径：( 5% ± ) 纯段 = → -0.05
+  assert.equal(run(po(), d('5'), pct(), neg(), pc(), eq()).display, '-0.05');
+});
+
+test('百分号·一元函数消费百分值：50% √ → √0.5', () => {
+  assert.equal(run(d('5'), d('0'), pct(), sqrtA()).display, '0.707106781187');
+});
+
+test('百分号·括号内：1500 × (5%) = → 75，expr=1500 × (5%)', () => {
+  const s = run(d('1'), d('5'), d('0'), d('0'), op('×'), po(), d('5'), pct(), pc(), eq());
+  assert.equal(s.display, '75');
+  assert.equal(s.history[0].expr, '1500 × (5%)');
+});
+
+test('百分号·运算符链消费：1500 × 5% × 2 = → 150', () => {
+  const s = run(d('1'), d('5'), d('0'), d('0'), op('×'), d('5'), pct(), op('×'), d('2'), eq());
+  assert.equal(s.display, '150');
+});
+
+test('百分号·dot 尾缀归一：5. % → display=5 后缀生效', () => {
+  const s = run(d('5'), dot(), pct());
+  assert.equal(s.display, '5');
+  assert.equal(s.entryPercent, true);
 });

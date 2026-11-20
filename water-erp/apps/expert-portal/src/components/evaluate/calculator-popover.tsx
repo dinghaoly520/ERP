@@ -286,9 +286,10 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 ) : (
                   <div
                     className="truncate font-mono text-xl font-bold tabular-nums leading-7 text-[var(--foreground)]"
-                    title={formatCalcDisplay(state.display)}
+                    title={`${formatCalcDisplay(state.display)}${state.entryPercent ? '%' : ''}`}
                   >
                     {formatCalcDisplay(state.display)}
+                    {state.entryPercent ? '%' : ''}
                   </div>
                 )}
               </div>

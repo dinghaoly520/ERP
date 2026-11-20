@@ -48,6 +48,8 @@ export interface CalcState {
   parenStack: CalcParenFrame[];
   /** v2.1 当前显示值的来源算式（')' 折叠产生，如 '3 + 4'）——纸带按括号原文记账；被直接编辑即清空 */
   segExpr: string | null;
+  /** v2.2 % 后缀：条目缀上百分号（显示 5%），求值时（运算符/=/) 消费）才 ÷100 */
+  entryPercent: boolean;
 }
 
 export type CalcAction =
@@ -81,6 +83,7 @@ export const initialCalcState: CalcState = {
   angleMode: 'DEG',
   parenStack: [],
   segExpr: null,
+  entryPercent: false,
 };
 
 const MAX_ENTRY_LEN = 15;
@@ -93,6 +96,14 @@ const norm = (n: number): string => String(Number(n.toPrecision(12)));
 
 /** 算式文本里的减号渲染为排版用 −（与键面一致；仅展示层，运算仍是 '-'） */
 const opSym = (o: CalcOp): string => (o === '-' ? '−' : o);
+
+/** 当前条目的有效数值（v2.2：带 % 后缀时 ÷100，否则原值） */
+const entryValue = (st: CalcState): number => {
+  const v = Number(st.display);
+  return st.entryPercent ? v / 100 : v;
+};
+/** 当前条目的算式文本（v2.2：带 % 后缀时缀上百分号） */
+const entryText = (st: CalcState): string => (st.entryPercent ? `${st.display}%` : norm(Number(st.display)));
 
 const apply = (a: number, o: CalcOp, b: number): number =>
   o === '+' ? a + b : o === '-' ? a - b : o === '×' ? a * b : o === '^' ? Math.pow(a, b) : a / b;
@@ -109,6 +120,7 @@ const errored = (state: CalcState, message: string): CalcState => ({
   error: message,
   parenStack: [],
   segExpr: null,
+  entryPercent: false,
 });
 
 /** v2 一元函数实现；返回 null 表示域错误 */
@@ -155,7 +167,9 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
           segExpr: null,
         };
       }
-      if (state.freshEntry) return { ...state, display: action.d, freshEntry: false, segExpr: null };
+      if (state.freshEntry || state.entryPercent) {
+        return { ...state, display: action.d, freshEntry: false, segExpr: null, entryPercent: false };
+      }
       if (state.display.length >= MAX_ENTRY_LEN) return state; // 输入上限
       if (state.display === '0') {
         return action.d === '0' ? state : { ...state, display: action.d };
@@ -165,7 +179,9 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
 
     case 'dot': {
       if (state.error) return state;
-      if (state.freshEntry) return { ...state, display: '0.', freshEntry: false, segExpr: null };
+      if (state.freshEntry || state.entryPercent) {
+        return { ...state, display: '0.', freshEntry: false, segExpr: null, entryPercent: false };
+      }
       if (state.display.includes('.')) return state;
       // 终审 F2：数字预算（15 位）已满时忽略 dot——否则产生「有小数点却输不进小数」的锁死态
       if (state.display.replace(/[^\d]/g, '').length >= MAX_ENTRY_LEN) return state;
@@ -176,28 +192,28 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
       if (state.error) return state;
       // 即时执行：已有待算运算符且右操作数已输入 → 先算再挂新运算符
       if (state.pendingOp !== null && !state.freshEntry) {
-        const acc = apply(state.acc as number, state.pendingOp, Number(state.display));
-        return { ...state, acc, display: norm(acc), pendingOp: action.op, freshEntry: true, segExpr: null };
+        const acc = apply(state.acc as number, state.pendingOp, entryValue(state));
+        return { ...state, acc, display: norm(acc), pendingOp: action.op, freshEntry: true, segExpr: null, entryPercent: false };
       }
       if (state.acc === null) {
-        return { ...state, acc: Number(state.display), pendingOp: action.op, freshEntry: true, segExpr: null };
+        return { ...state, acc: entryValue(state), pendingOp: action.op, freshEntry: true, segExpr: null, entryPercent: false };
       }
       // freshEntry 下改选运算符（5 + 后改 × 不重算）
-      return { ...state, pendingOp: action.op, freshEntry: true, segExpr: null };
+      return { ...state, pendingOp: action.op, freshEntry: true, segExpr: null, entryPercent: false };
     }
 
     case 'equals': {
       if (state.error) return state;
       if (state.pendingOp !== null) {
         const left = state.acc as number;
-        const right = Number(state.display);
+        const right = entryValue(state);
         if (state.pendingOp === '÷' && right === 0) return errored(state, DIV_ZERO_MSG);
         let val = apply(left, state.pendingOp, right);
         // 纸带算式：segExpr 存在（内层来自括号折叠）→ 按括号原文记账
         let str =
           state.segExpr !== null
             ? `${norm(left)} ${opSym(state.pendingOp)} (${state.segExpr})`
-            : `${norm(left)} ${opSym(state.pendingOp)} ${norm(right)}`;
+            : `${norm(left)} ${opSym(state.pendingOp)} ${entryText(state)}`;
         // = 自动闭合未关括号（Windows/Casio 惯例），自内向外折叠
         let folded = false;
         const stack = [...state.parenStack];
@@ -223,14 +239,15 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
           lastOp: linear ? state.pendingOp : null,
           freshEntry: true,
           segExpr: null,
+          entryPercent: false,
           parenStack: [],
           history: withHistory(state, { expr: str, result: display }),
         };
       }
       // 纯括号段（无 pendingOp 但有未关栈或 segExpr）：折叠后记账
       if (state.parenStack.length > 0 || state.segExpr !== null) {
-        let val = Number(state.display);
-        let str = state.segExpr ?? norm(val);
+        let val = entryValue(state);
+        let str = state.segExpr ?? entryText(state);
         const stack = [...state.parenStack];
         while (stack.length > 0) {
           const f = stack.pop() as CalcParenFrame;
@@ -248,6 +265,7 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
           display,
           freshEntry: true,
           segExpr: null,
+          entryPercent: false,
           parenStack: [],
           lastOperand: null,
           lastOp: null,
@@ -281,8 +299,9 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
           // 挂起中的外层运算：2 × ( → 压栈 {2, ×}
           frame = { accVal: state.acc, accStr: norm(state.acc), op: state.pendingOp };
         } else if (state.acc === null && state.pendingOp === null && !state.freshEntry) {
-          // 隐式乘法：5 ( → 5 × (
-          frame = { accVal: Number(state.display), accStr: norm(Number(state.display)), op: '×' };
+          // 隐式乘法：5 ( → 5 × （% 后缀按有效值入栈）
+          const ev = entryValue(state);
+          frame = { accVal: ev, accStr: norm(ev), op: '×' };
         } else {
           frame = { accVal: null, accStr: null, op: null };
         }
@@ -293,6 +312,7 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
           display: '0',
           freshEntry: true,
           segExpr: null,
+          entryPercent: false,
           parenStack: [...state.parenStack, frame],
         };
       }
@@ -302,16 +322,16 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
       let str: string;
       if (state.pendingOp !== null) {
         const left = state.acc as number;
-        const right = Number(state.display);
+        const right = entryValue(state);
         if (state.pendingOp === '÷' && right === 0) return errored(state, DIV_ZERO_MSG);
         val = apply(left, state.pendingOp, right);
         str =
           state.segExpr !== null
             ? `${norm(left)} ${opSym(state.pendingOp)} (${state.segExpr})`
-            : `${norm(left)} ${opSym(state.pendingOp)} ${norm(right)}`;
+            : `${norm(left)} ${opSym(state.pendingOp)} ${entryText(state)}`;
       } else {
-        val = Number(state.display);
-        str = state.segExpr ?? norm(val);
+        val = entryValue(state);
+        str = state.segExpr ?? entryText(state);
       }
       const stack = [...state.parenStack];
       const top = stack.pop() as CalcParenFrame;
@@ -322,14 +342,18 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
         display: norm(val),
         freshEntry: true,
         segExpr: str,
+        entryPercent: false,
         parenStack: stack,
       };
     }
 
     case 'percent': {
-      if (state.error) return state;
-      // 语义：当前值÷100（乘法场景主导：1500 × 5% = 75）
-      return { ...state, display: norm(Number(state.display) / 100), freshEntry: true, segExpr: null };
+      // v2.2 用户裁定：按下不立即换算——给当前条目缀 % 后缀，求值时才 ÷100
+      if (state.error || state.freshEntry) return state; // 错误态/结果态无条目可缀
+      if (state.entryPercent) return state; // 已缀，幂等
+      const display = state.display.endsWith('.') ? state.display.slice(0, -1) : state.display; // 摘尾部小数点
+      if (display === '' || display === '-') return state;
+      return { ...state, display, entryPercent: true };
     }
 
     case 'negate': {
@@ -344,6 +368,7 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
     case 'backspace': {
       // 错误态/结果态（freshEntry）不可退格——结果不是可编辑文本
       if (state.error || state.freshEntry) return state;
+      if (state.entryPercent) return { ...state, entryPercent: false }; // v2.2：先摘 % 后缀再删数字
       const next = state.display.slice(0, -1);
       // 终审 F7：'-0.' 退到 '-0' 时归一为 '0'——防停驻 '-0' 后续输显示 '-012'
       return { ...state, display: next === '' || next === '-' || next === '-0' ? '0' : next };
@@ -354,22 +379,22 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
       return { ...initialCalcState, history: state.history, angleMode: state.angleMode };
 
     case 'useHistory':
-      return { ...state, display: action.value, freshEntry: true, error: null, segExpr: null };
+      return { ...state, display: action.value, freshEntry: true, error: null, segExpr: null, entryPercent: false };
 
     case 'unary': {
       if (state.error) return state;
-      const v = Number(state.display);
+      const v = entryValue(state);
       if (action.fn === 'inv' && v === 0) return errored(state, DIV_ZERO_MSG);
       const out = applyUnary(v, action.fn, state.angleMode);
       if (out === null) return errored(state, DOMAIN_MSG);
       // 函数结果不进 history（仅 = 记账，Casio 惯例）；结果后新数字重新起数
-      return { ...state, display: norm(out), freshEntry: true, segExpr: null };
+      return { ...state, display: norm(out), freshEntry: true, segExpr: null, entryPercent: false };
     }
 
     case 'constant': {
       if (state.error) return state;
       const v = action.kind === 'pi' ? Math.PI : Math.E;
-      return { ...state, display: norm(v), freshEntry: true, segExpr: null };
+      return { ...state, display: norm(v), freshEntry: true, segExpr: null, entryPercent: false };
     }
 
     case 'toggleAngle':
