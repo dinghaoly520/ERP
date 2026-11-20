@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   Clock,
   CalendarClock,
-  OctagonX,
   FolderOpen,
   Loader2,
   Eye,
@@ -434,27 +433,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
               <div className="flex min-h-0 flex-1 overflow-hidden">
                 {/* Left Panel - Basic Info & Summary */}
                 <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                  {/* 顶部状态横幅：归档=中标单位；终止=终止状态一览（2026-11-20 排版重构：
-                      终止项目无中标结果，原「中标单位 -」横幅与三项空指标属噪声） */}
-                  {data.kind === 'terminated' ? (
-                    <motion.div
-                      {...fadeIn(0, reducedMotion)}
-                      className="wb-tone-banner wb-tone-banner--danger"
-                    >
-                      <div
-                        className="wb-icon-well wb-icon-well--sm"
-                        style={{ '--well-bg': 'color-mix(in oklch, var(--danger) 15%, transparent)', '--well-fg': 'var(--danger)' } as CSSProperties}
-                      >
-                        <OctagonX size={16} />
-                      </div>
-                      <div className="flex-1">
-                        <div className="text-xs opacity-70">项目已终止{data.archivedAt ? ` · ${data.archivedAt}` : ''}</div>
-                        <div className="text-[0.9rem] font-semibold">
-                          终止于「{data.basicInfo['终止时所在阶段'] || '—'}」阶段 · {data.basicInfo['终止人'] || '—'}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ) : (
+                  {/* 顶部横幅：仅归档=中标单位。终止项目不出横幅（2026-11-20 二次重构）——
+                      标题栏已有「已终止」徽标与终止日期，终止事实归基本信息红框，避免三处重复 */}
+                  {data.kind !== 'terminated' && (
                   <motion.div
                     {...fadeIn(0, reducedMotion)}
                     className="wb-tone-banner wb-tone-banner--success"
@@ -562,20 +543,29 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         </div>
                       </div>
                       {data.kind === 'terminated' && (
-                        /* 终止三件套（2026-11-20 排版重构：项目编号已在上主网格，撤重复项） */
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] p-3">
-                          <div className="space-y-1">
-                            <div className="text-xs text-[color:var(--muted-foreground)]">终止日期</div>
-                            <div className="text-[0.85rem] font-semibold text-[var(--danger)]">{data.basicInfo['终止日期'] || '-'}</div>
+                        /* 终止四件套（2026-11-20 二次重构：终止事实唯一出处——撤顶部横幅后
+                           并补「终止原因」；项目编号在上主网格） */
+                        <div className="space-y-3 rounded-[10px] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] p-3">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-1">
+                              <div className="text-xs text-[color:var(--muted-foreground)]">终止日期</div>
+                              <div className="text-[0.85rem] font-semibold text-[var(--danger)]">{data.basicInfo['终止日期'] || '-'}</div>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-xs text-[color:var(--muted-foreground)]">终止时所在阶段</div>
+                              <div className="text-[0.85rem]">{data.basicInfo['终止时所在阶段'] || '-'}</div>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-xs text-[color:var(--muted-foreground)]">终止人</div>
+                              <div className="text-[0.85rem]">{data.basicInfo['终止人'] || '-'}</div>
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            <div className="text-xs text-[color:var(--muted-foreground)]">终止时所在阶段</div>
-                            <div className="text-[0.85rem]">{data.basicInfo['终止时所在阶段'] || '-'}</div>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="text-xs text-[color:var(--muted-foreground)]">终止人</div>
-                            <div className="text-[0.85rem]">{data.basicInfo['终止人'] || '-'}</div>
-                          </div>
+                          {data.extractedInfo['终止原因'] && (
+                            <div className="space-y-1">
+                              <div className="text-xs text-[color:var(--muted-foreground)]">终止原因</div>
+                              <div className="text-[0.85rem] leading-relaxed text-[color:var(--foreground)]">{data.extractedInfo['终止原因']}</div>
+                            </div>
+                          )}
                         </div>
                       )}
                       {/* 专家信息/投标单位/立项事由/供方要求（2026-11-20 排版重构）：
