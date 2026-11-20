@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
 import { ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
   AlertTriangle,
@@ -1000,16 +1001,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <>
             {/* ══ 数据分析（2026-11-19 重构裁定：台账数据 / 进行中数据 两区瓷面条分区标，各五图）══ */}
             {/* 分区标题（2026-11-19 用户裁定：台账数据/进行中数据瓷面条样式） */}
-            <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{ background: "color-mix(in oklch, var(--accent) 12%, transparent)", color: "var(--accent)" }}>
-                <ClipboardList size={15} strokeWidth={1.5} />
-              </span>
-              <span className="text-[16px] font-bold tracking[-0.01em] text-[var(--foreground)]">台账数据</span>
-              <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{scaleTotal} 项已成交</span>
-            </div>
+            <AnalysisZone icon={ClipboardList} title="台账数据" count={`${scaleTotal} 项已成交`}>
 
             {/* 供应商集中度（2026-11-19 用户裁定：全部展开、依次排序 Top10 行列） */}
-            <SectionCard icon={Handshake} title="供应商集中度" index={0} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>} collapsible defaultOpen={false}>
+<ZoneRow icon={Handshake} title="供应商集中度" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>}>
               {supplierConc.top10.length ? (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2.5" style={{ background: "color-mix(in oklch, var(--gold) 6%, transparent)" }}>
@@ -1048,10 +1043,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               ) : (
                 <EmptyState text="暂无成交供应商数据" />
               )}
-            </SectionCard>
+            </ZoneRow>
 
             {/* 项目规模分析（归档） */}
-            <SectionCard icon={BarChart3} title="项目规模分析" index={1} right={<span className="shrink-0 text-[13px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>} collapsible defaultOpen={false}>
+<ZoneRow icon={BarChart3} title="项目规模分析" right={<span className="shrink-0 text-[13px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}>
               {scaleTotal > 0 ? (
                 <div className="space-y-1">
                   {(() => {
@@ -1077,10 +1072,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               ) : (
                 <EmptyState text="暂无项目数据" />
               )}
-            </SectionCard>
+            </ZoneRow>
 
             {/* 采购方式分布（归档，环形图） */}
-            <SectionCard icon={Layers} title="采购方式分布" index={2} collapsible defaultOpen={false}>
+            <ZoneRow icon={Layers} title="采购方式分布">
               {methodDonut ? (
                 <div className="flex items-center gap-3">
                   <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="采购方式分布环形图">
@@ -1104,10 +1099,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               ) : (
                 <EmptyState text="暂无采购方式数据" />
               )}
-            </SectionCard>
+            </ZoneRow>
 
             {/* 各部门采购分布（归档，按成交金额） */}
-            <SectionCard icon={Building2} title="各部门采购分布" index={3} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按成交金额</span>} collapsible defaultOpen={false}>
+<ZoneRow icon={Building2} title="各部门采购分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按成交金额</span>}>
               {arcDeptDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
@@ -1126,10 +1121,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               ) : (
                 <EmptyState text="暂无成交数据" />
               )}
-            </SectionCard>
+            </ZoneRow>
 
             {/* 归属项目分布（归档，按轮次 Top6） */}
-            <SectionCard icon={FolderKanban} title="归属项目分布" index={4} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按轮次</span>} collapsible defaultOpen={false}>
+<ZoneRow icon={FolderKanban} title="归属项目分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按轮次</span>}>
               {arcProjectDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
@@ -1148,21 +1143,15 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               ) : (
                 <EmptyState text="暂无成交数据" />
               )}
-            </SectionCard>
+            </ZoneRow>
 
-            <div className="my-3 h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
-            <div className="m-pagebar mb-3 flex items-center gap-2.5 px-3 py-2">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]" style={{ background: "color-mix(in oklch, var(--success) 12%, transparent)", color: "var(--success)" }}>
-                <Milestone size={15} strokeWidth={1.5} />
-              </span>
-              <span className="text-[16px] font-bold tracking[-0.01em] text-[var(--foreground)]">进行中数据</span>
-              <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pmDist.total} 项在办</span>
-            </div>
+            </AnalysisZone>
+            <AnalysisZone icon={Milestone} title="进行中数据" count={`${pmDist.total} 项在办`} color="var(--success)">
 
             {analysisPm ? (
               <>
                 {/* 阶段分布（进行中） */}
-                <SectionCard icon={Gauge} title="阶段分布" index={0} collapsible defaultOpen={false}>
+                <ZoneRow icon={Gauge} title="阶段分布">
                   {pmDist.stage.length ? (
                     <div className="space-y-1.5">
                       {pmDist.stage.map((d) => {
@@ -1181,10 +1170,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   ) : (
                     <EmptyState text="暂无进行中项目" />
                   )}
-                </SectionCard>
+                </ZoneRow>
 
                 {/* 采购方式分布（进行中，横条） */}
-                <SectionCard icon={Layers} title="采购方式分布" index={1} collapsible defaultOpen={false}>
+                <ZoneRow icon={Layers} title="采购方式分布">
                   {pmDist.method.length ? (
                     <div className="space-y-1.5">
                       {pmDist.method.map((d) => {
@@ -1203,10 +1192,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   ) : (
                     <EmptyState text="暂无进行中项目" />
                   )}
-                </SectionCard>
+                </ZoneRow>
 
                 {/* 部门分布（进行中） */}
-                <SectionCard icon={Building2} title="部门分布" index={2} collapsible defaultOpen={false}>
+                <ZoneRow icon={Building2} title="部门分布">
                   {pmDist.dept.length ? (
                     <div className="space-y-1.5">
                       {pmDist.dept.map((d) => {
@@ -1225,10 +1214,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   ) : (
                     <EmptyState text="暂无进行中项目" />
                   )}
-                </SectionCard>
+                </ZoneRow>
 
                 {/* 项目规模分析（进行中） */}
-                <SectionCard icon={BarChart3} title="项目规模分析" index={3} collapsible defaultOpen={false}>
+                <ZoneRow icon={BarChart3} title="项目规模分析">
                   {pmDist.scale.some((b) => b.count > 0) ? (
                     <div className="space-y-1.5">
                       {pmDist.scale.map((b) => {
@@ -1253,10 +1242,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   ) : (
                     <EmptyState text="暂无进行中项目" />
                   )}
-                </SectionCard>
+                </ZoneRow>
 
                 {/* 归属项目分布（进行中） */}
-                <SectionCard icon={FolderKanban} title="归属项目分布" index={4} collapsible defaultOpen={false}>
+                <ZoneRow icon={FolderKanban} title="归属项目分布">
                   {pmDist.project.length ? (
                     <div className="space-y-1.5">
                       {pmDist.project.map((d) => {
@@ -1275,13 +1264,14 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   ) : (
                     <EmptyState text="暂无进行中项目" />
                   )}
-                </SectionCard>
+                </ZoneRow>
               </>
             ) : (
               <div className="py-2">
                 <Skeleton lines={6} height={40} />
               </div>
             )}
+</AnalysisZone>
               </>
             ) : null}
             {analysisOpen === "ranking" ? (
