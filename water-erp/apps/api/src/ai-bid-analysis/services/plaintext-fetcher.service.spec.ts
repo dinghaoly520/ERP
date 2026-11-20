@@ -3,6 +3,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PlaintextFetcherService } from './plaintext-fetcher.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { readAttachmentBuffer } from '../../common/attachment-object-store';
 
 // mock 依赖模块，避免真实 MinIO / Prisma 连接
 jest.mock('../../upload/minio.client', () => ({
@@ -14,6 +15,18 @@ jest.mock('../../bid/bid-submission.crypto', () => ({
   streamToBuffer: jest.fn(async () => Buffer.from('plaintext')),
   verifyIntegrity: jest.fn(() => true),
 }));
+// 双轨 mock 默认（2026-11-20）：委托真实 fs 读本地——既有主轨用例的 fs.promises.readFile
+// spy 与路径断言原样生效；双轨专项用例以 mockResolvedValueOnce 覆写
+jest.mock('../../common/attachment-object-store', () => {
+  const actualFs = jest.requireActual('node:fs/promises');
+  const actualPath = jest.requireActual('node:path');
+  return {
+    readAttachmentBuffer: jest.fn(async (objectKey: string) =>
+      actualFs.readFile(actualPath.resolve(process.cwd(), 'uploads', objectKey))),
+    writeAttachmentCopy: jest.fn(),
+    removeAttachmentCopy: jest.fn(),
+  };
+});
 jest.mock('../../common/crypto/envelope-crypto', () => ({
   unwrapKey: jest.fn((blob: string) => `mock-hex:${blob}:mockiv:mocktag`),
   isWrappedKey: jest.fn((value: string | null | undefined) => {
@@ -224,6 +237,53 @@ describe('PlaintextFetcherService — 解密双格式测试 (C12)', () => {
 
     it('无谈判配置且公告轨 miss → null（空态行为不变）', async () => {
       redis.get.mockResolvedValue(null);
+
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out).toBeNull();
+    });
+
+    it('主轨本地 miss + MinIO 副本命中（2026-11-20 双轨）→ 返回副本 buffer', async () => {
+      prisma.attachment.findMany.mockResolvedValue([
+        { id: 'att-1', fileName: '谈判采购文件.docx', objectKey: 'pm/tender-file.docx' },
+      ]);
+      const buf = Buffer.from('minio-copy-bytes');
+      (readAttachmentBuffer as unknown as jest.Mock).mockResolvedValueOnce(buf);
+
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out).toEqual({ buffer: buf, fileName: '谈判采购文件.docx' });
+    });
+
+    it('主轨双失 → 不空手而归，落 FileAsset 兼容轨返回（2026-11-20 双轨）', async () => {
+      prisma.attachment.findMany.mockResolvedValue([
+        { id: 'att-1', fileName: '谈判采购文件.docx', objectKey: 'pm/tender-file.docx' },
+      ]);
+      (readAttachmentBuffer as unknown as jest.Mock).mockResolvedValueOnce(null);
+      prisma.fileAsset.findMany.mockImplementation(async (args: any) => {
+        const where = args?.where ?? {};
+        if (where.OR || where.id) {
+          return [{
+            id: 'fa-invite-1', originalName: '采购邀请书.docx',
+            key: 'general/invitation/x.docx', sealedPath: null, sealedKey: null,
+            clientEncrypted: false, sha256: 'abc123',
+          }];
+        }
+        return [];
+      });
+      (streamToBuffer as jest.Mock).mockResolvedValueOnce(Buffer.from('asset-bytes'));
+
+      const out = await service.fetchTenderPlaintext('project-1');
+
+      expect(out!.fileName).toBe('采购邀请书.docx');
+      expect(out!.buffer.toString()).toBe('asset-bytes'); // 兼容轨经 minio getObject + streamToBuffer 取回
+    });
+
+    it('主轨与兼容轨皆无 → null（双失降级语义）', async () => {
+      prisma.attachment.findMany.mockResolvedValue([
+        { id: 'att-1', fileName: '谈判采购文件.docx', objectKey: 'pm/tender-file.docx' },
+      ]);
+      (readAttachmentBuffer as unknown as jest.Mock).mockResolvedValueOnce(null);
 
       const out = await service.fetchTenderPlaintext('project-1');
 

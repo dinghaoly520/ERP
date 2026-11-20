@@ -30,7 +30,7 @@ export interface SignPacketSnapshot {
   leaderCoSignedAt: string | null;
   /** A-151：评标报告章节附注（一~九节末「附注：」段；十节正文续写）——未设置时字段缺省 */
   reportNotes?: Array<{ section: string; content: string }>;
-  openingRecords: Array<{ supplierName: string; amount: string; amountUnit?: string | null; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string }>;
+  openingRecords: Array<{ supplierName: string; amount: string; amountUnit?: string | null; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string; objectionReason?: string | null }>;
   bids: Array<{ supplierName: string; amount: string; period: string; submittedAt: string | null }>;
   invalidBids: Array<{ supplierName: string; reason: string | null }>;
   scoreStandard: Array<{ category: string; name: string; maxScore: number; points: string[] }>;
@@ -43,9 +43,9 @@ export interface SignPacketSnapshot {
     pointDecisions: Array<{ pointName: string; supplierName: string; checked: boolean; awardedScore: number }>;
     trace: OperationTrace;
   }>;
-  disputes: Array<{ expertName: string; type: string; title: string; content: string; status: string; response: string | null; createdAt: string }>;
+  disputes: Array<{ expertName: string; type: string; title: string; content: string; status: string; response: string | null; createdAt: string; resolvedBy?: string | null; resolvedAt?: string | null }>;
   clarifications: Array<{ supplierName: string; question: string; reply: string | null; createdAt: string }>;
-  motions: Array<{ title: string; description: string | null; status: string; result: string | null; votes: Array<{ expertName: string; vote: string }> }>;
+  motions: Array<{ type?: string | null; title: string; description: string | null; status: string; result: string | null; votes: Array<{ expertName: string; vote: string; reason?: string | null }> }>;
   /** R5（2026-09-20 §4.4）：核验事件（身份核验降级/核验异常/专家替换）——核验记录表附注，证据自含 */
   verifyEvents?: Array<{ time: string; action: string; target: string; result: string }>;
 }
@@ -167,9 +167,12 @@ export class BidSignPacketDocxService {
       new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
-          this.headerRow(['供应商', '投标报价', '工期', '质量目标', '保证金', '开标确认']),
+          this.headerRow(['供应商', '投标报价', '工期', '质量目标', '保证金', '开标确认', '开标异议']),
           ...s.openingRecords.map(r => new TableRow({
-            children: [r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.confirmStatus].map(v => new TableCell({ children: [this.para(v)] })),
+            // N17（2026-11-20b 复核轮）：增「开标异议」列——异议终态入纸质法定件（裁决详情见监督日志/回流包）
+            children: [r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.confirmStatus,
+              r.confirmStatus === '供应商提出异议' ? (r.objectionReason ? `异议处置中：${r.objectionReason}` : '异议处置中') : '—']
+              .map(v => new TableCell({ children: [this.para(v)] })),
           })),
         ],
       }),
@@ -309,7 +312,8 @@ export class BidSignPacketDocxService {
       new Paragraph({ pageBreakBefore: true, children: [new TextRun({ text: '附：异议工单、澄清纪要、动议决议', bold: true, size: 28 })] }),
       this.h2('异议工单'),
       ...(s.disputes.length
-        ? s.disputes.map(d => this.para(`[${d.status}] ${d.expertName}：${d.title} — ${d.content}${d.response ? `\n裁决：${d.response}` : ''}`))
+        // N17：裁决段补裁决人/时间（原仅回流包有——纸质法定件证据自含）
+        ? s.disputes.map(d => this.para(`[${d.status}] ${d.expertName}：${d.title} — ${d.content}${d.response ? `\n裁决：${d.response}${d.resolvedBy ? `（${d.resolvedBy} · ${d.resolvedAt ?? '—'}）` : ''}` : ''}`))
         : [this.para('无。')]),
       this.h2('澄清纪要'),
       ...(s.clarifications.length
@@ -317,7 +321,8 @@ export class BidSignPacketDocxService {
         : [this.para('无。')]),
       this.h2('动议决议'),
       ...(s.motions.length
-        ? s.motions.map(m => this.para(`[${m.status}/${m.result ?? '未决'}] ${m.title}${m.description ? ` — ${m.description}` : ''}；表决：${m.votes.map(v => `${v.expertName}=${v.vote}`).join('，') || '无'}`))
+        // N15：动议类型前缀 + 逐票表决理由（记名理由入法定件）
+        ? s.motions.map(m => this.para(`[${m.type ? `${m.type}/` : ''}${m.status}/${m.result ?? '未决'}] ${m.title}${m.description ? ` — ${m.description}` : ''}；表决：${m.votes.map(v => `${v.expertName}=${v.vote}${v.reason ? `（${v.reason}）` : ''}`).join('，') || '无'}`))
         : [this.para('无。')]),
     ];
     return out;

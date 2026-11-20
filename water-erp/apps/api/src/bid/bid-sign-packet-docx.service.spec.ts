@@ -67,6 +67,28 @@ describe('BidSignPacketDocxService', () => {
     }
   });
 
+  it('N15/N16/N17：动议 type/逐票理由、异议裁决人、唱标「开标异议」列入纸质文本', () => {
+    const snap = {
+      ...baseSnapshot,
+      openingRecords: [
+        ...baseSnapshot.openingRecords,
+        { supplierName: '乙公司', amount: '470', period: '90日历天', qualityTarget: '合格', bondStatus: '已缴纳', confirmStatus: '供应商提出异议', objectionReason: '唱标金额与密封报价不符' },
+      ],
+      disputes: [{ expertName: '王工', type: '程序', title: '评分口径异议', content: '商务分计算有误', status: 'resolved', response: '维持原评标结论', createdAt: '2026-11-01T00:00:00Z', resolvedBy: '主持人甲', resolvedAt: '2026-11-02T00:00:00Z' }],
+      motions: [{ type: 'invalid_bid', title: '废标动议', description: null, status: 'closed', result: 'approved', votes: [{ expertName: '周祥志', vote: 'approve', reason: '证据不足' }] }],
+    } as any;
+    const text = textOf(svc.buildChildren(snap));
+    // N15：动议类型前缀+逐票理由
+    expect(text).toContain('[invalid_bid/closed/approved] 废标动议');
+    expect(text).toContain('周祥志=approve（证据不足）');
+    // N17：异议裁决人/时间
+    expect(text).toContain('（主持人甲 · 2026-11-02');
+    // N17：唱标表「开标异议」列
+    expect(text).toContain('开标异议');
+    expect(text).toContain('异议处置中：唱标金额与密封报价不符');
+    expect(text).toContain('—'); // 无异议家占位
+  });
+
   it('generateDocument 输出 docx（PK zip 头，长度合理）', async () => {
     const buf = await svc.generateDocument(baseSnapshot);
     expect(buf.length).toBeGreaterThan(1000);

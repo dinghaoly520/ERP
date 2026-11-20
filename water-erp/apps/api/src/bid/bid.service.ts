@@ -1590,9 +1590,15 @@ export class BidService {
         data: { stage: 'ABORTED', riskNote, abortedAt: new Date() },
         select: { id: true, stage: true },
       });
+      // N6（2026-11-20b 复核轮）：强制关闭全部未关报价轮——流标后 open 轮次残留会让
+      // 供应商侧报价入口看似仍可用（submitQuote 另有阶段闸兜底，此处收敛数据面）。
+      const closedRounds = await tx.bidRound.updateMany({
+        where: { projectId: id, status: { not: 'closed' } },
+        data: { status: 'closed' },
+      });
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name,
-          action: '流标', result: `${riskNote}${resultCount > 0 ? '；注意：已存在官方评标结果，随流标作废' : ''}`, riskFlag: '高风险' },
+          action: '流标', result: `${riskNote}${resultCount > 0 ? '；注意：已存在官方评标结果，随流标作废' : ''}${closedRounds.count > 0 ? `；已强制关闭 ${closedRounds.count} 个未结束报价轮次` : ''}`, riskFlag: '高风险' },
       });
       return result;
     });
@@ -4176,8 +4182,15 @@ export class BidService {
   ) {
     const cat = GB_ARCHIVE_CATEGORIES.find(c => c.key === dto.categoryKey);
     if (!cat) throw new BadRequestException({ error: '档案类别不合法', code: 'BAD_CATEGORY' });
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true } });
+    // N8（2026-11-20b 终审 C8 语义修正）：流标死项目不可补录；ARCHIVED 保 :3005
+    //「归档前后均可用」既有工作流（archive-template-card 头注释）放行——事后补登以
+    // 监督日志留痕显影（解决材料集与归档时点指纹脱界的可追溯，而非禁止）。
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true, stage: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage === 'ABORTED') {
+      throw new ConflictException({ error: `项目【${project.name}】已流标，归档材料补录通道已关闭`, code: 'PROJECT_TERMINAL' });
+    }
+    const lateArchive = project.stage === 'ARCHIVED';
 
     const existing = await this.prisma.bidArchiveItem.findFirst({
       where: { projectId, gbCategory: cat.key, status: { not: 'ARCHIVED' } },
@@ -4194,7 +4207,9 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: actor?.username ?? '采购人', target: project.name,
-        action: '档案人工登记', result: `${cat.name}${dto.fileAssetId ? '（附材料）' : ''}`, riskFlag: '无',
+        action: '档案人工登记',
+        result: `${lateArchive ? '【归档后补登】' : ''}${cat.name}${dto.fileAssetId ? '（附材料）' : ''}`,
+        riskFlag: lateArchive ? '中' : '无',
       },
     }).catch(() => {});
 
@@ -4678,8 +4693,21 @@ export class BidService {
   }
 
   /** B3（GB/T 43711 7.2.3.6）：资格后审复核结果登记（登记制——评审线下完成，结果留痕） */
+  /** N2/N3/N4/N8（2026-11-20b 复核轮）：终态写冻结——ARCHIVED/ABORTED 后写通道全关。
+   *  bid 域新增写端点必须前置本闸（归档/流标数据的更正一律走数据修正流程）。 */
+  private async assertProjectWritable(projectId: string): Promise<void> {
+    const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, name: true } });
+    if (p?.stage === 'ARCHIVED' || p?.stage === 'ABORTED') {
+      throw new ConflictException({
+        error: `项目【${p.name}】已${p.stage === 'ARCHIVED' ? '归档' : '流标'}，该写通道已冻结；如需更正请走数据修正流程`,
+        code: 'PROJECT_TERMINAL',
+      });
+    }
+  }
+
   async registerQualificationReview(projectId: string, result: string) {
     if (!result?.trim()) throw new BadRequestException({ error: '请填写复核结果', code: 'RESULT_REQUIRED' });
+    await this.assertProjectWritable(projectId); // N3：资格后审结论归档后不可扰动
     const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     const updated = await this.prisma.bidProject.update({
@@ -4699,6 +4727,12 @@ export class BidService {
     return { notes: (p?.reportNotes as ReportNoteItemDto[] | null) ?? [] };
   }
   async setReportNotes(projectId: string, dto: ReportNotesDto, actorId?: string) {
+    await this.assertProjectWritable(projectId); // N4：终态冻结
+    // N4：签字包闭环后附注与已签 PDF 分叉——闭环即锁（归档前窗口同护）
+    const closedPacket = await this.prisma.bidSignPacket.findUnique({ where: { projectId }, select: { closedAt: true } });
+    if (closedPacket?.closedAt) {
+      throw new ConflictException({ error: '评标签字已闭环，报告附注不可再编辑；如需更正请走数据修正流程重开签字包', code: 'SIGN_PACKET_CLOSED' });
+    }
     const p = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { name: true } });
     if (!p) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
     // notes 缺省/null 归一空数组（@IsOptional 放行 body {}/{"notes":null}）——否则日志行 .map 在 create 参数求值阶段同步抛 TypeError（.catch 挂在返回的 Promise 上救不了）→ 500 且清空绕过留痕
@@ -5563,6 +5597,12 @@ export class BidService {
     if (round.deadline && new Date() > new Date(round.deadline)) {
       throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
     }
+    // N6（2026-11-20b 复核轮）：项目阶段闸——镜像 createRound 的 STAGE_NOT_OPENING 口径。
+    // 流标/归档不关轮次（abort 事务另有关轮收敛，此为兜底闸），防终态项目继续收报价。
+    const quoteProject = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!quoteProject || (quoteProject.stage !== 'OPENING' && quoteProject.stage !== 'EVALUATING')) {
+      throw new ConflictException({ error: '当前阶段不可提交报价（项目可能已流标或归档）', code: 'STAGE_NOT_OPENING' });
+    }
     // P3-24（2026-11-20 全链路审查）：结果冻结直接闸——createRound 侧同闸早已存在（:5458-5461），
     // 本端点注释自述「提交侧同闸」但未实现（此前靠「结果生成要求全轮 closed」间接封死，
     // 数据修正流程清零结果与轮次重开之间的窗口内可迟报；补直接闸消除对间接闸的依赖）。
@@ -5914,6 +5954,7 @@ export class BidService {
   // Supervision Annotations
 
   async upsertSupervisionAnnotation(projectId: string, dto: UpsertSupervisionAnnotationDto) {
+    await this.assertProjectWritable(projectId); // N2：监督批注属证据材料，终态后不可增改
     // 归属校验：防止 supplierId 指向其它项目的 BidSupplier，写出 projectId=A、supplierId→B 的脏标注
     const bidSupplier = await this.prisma.bidSupplier.findFirst({
       where: { id: dto.supplierId, projectId },
@@ -5970,6 +6011,7 @@ export class BidService {
   }
 
   async deleteSupervisionAnnotation(projectId: string, supplierId: string) {
+    await this.assertProjectWritable(projectId); // N2：终态后不可删批注（证据链不可扰动）
     // 归属校验：原实现 where:{supplierId} 忽略 projectId（supplierId 为 @unique），
     // 可跨项目删除任意项目下该供应商的标注
     const existing = await this.prisma.bidSupervisionAnnotation.findFirst({
@@ -6678,6 +6720,17 @@ export class BidService {
       }
       // 换出组长时同步摘除其 isLead，防止组长标记残留在候补行
       await tx.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补', ...(e1.isLead ? { isLead: false } : {}) } });
+      // N16（2026-11-20b 复核轮）：替换事实写监督日志——签字包核验事件表（verifyEvents）与
+      // 监督视图的唯一披露源（被换出者经 signLoopExpertScope 不进名册/签字页，无此日志则
+      // 委员会组成变更在法定报告零呈现）。
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '系统', target: `${e1.expertName} → ${e2.expertName}`,
+          action: '专家替换',
+          result: `正选换出/候补递补（${e1.expertRole}→${e2.expertRole}）；签字包核验事件表据此披露委员会变更`,
+          riskFlag: '中',
+        },
+      }).catch(() => {});
       // 替换留痕（2026-10-21 终检补齐）：SWAP_OUT/SWAP_IN 轨迹——角色流转是邀请状态机的
       // 一部分，缺失即审计断链（被换出正选的履历、候补转正的依据均不可溯）
       await tx.expertInvitationLog.create({

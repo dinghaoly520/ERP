@@ -207,6 +207,48 @@ describe('BidSignPacketService.generate', () => {
     );
   });
 
+  it('N15/N16/N17：快照补三列——动议 type+逐票 reason、异议 resolvedBy/At、专家替换监督日志入 verifyEvents', async () => {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING', name: 'p', projectCode: 'c' });
+    (prisma.bidEvaluationResult.count as jest.Mock).mockResolvedValue(2);
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue(null);
+    const svc = makeService();
+    (svc as any).docxService.generateDocument.mockResolvedValue(Buffer.from('fake-docx'));
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.bidMotion.findMany as jest.Mock).mockResolvedValue([
+      { id: 'm1', type: 'invalid_bid', title: '废标动议', description: '', status: 'closed', result: 'approved',
+        votes: [{ expertId: 'e1', vote: 'approve', reason: '证据不足' }] },
+    ]);
+    (prisma.expertDispute.findMany as jest.Mock).mockResolvedValue([
+      { expertName: '王工', type: '程序', title: 't', content: 'c', status: 'resolved', response: '维持原评标结论',
+        createdAt: new Date('2026-11-01T00:00:00Z'), resolvedBy: '主持人甲', resolvedAt: new Date('2026-11-02T00:00:00Z') },
+    ]);
+    (prisma.bidSupervisionLog.findMany as jest.Mock).mockResolvedValue([
+      { time: new Date('2026-11-01T00:00:00Z'), action: '专家替换', target: '张三 → 李四', result: '正选换出/候补递补' },
+    ]);
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: fileAssetId });
+    (prisma.bidSignPacket.upsert as jest.Mock).mockResolvedValue({ id: 'sp1', projectId, fileAssetId });
+    (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+    await svc.generate(projectId, 'u1');
+
+    const snap = (svc as any).docxService.generateDocument.mock.calls[0][0];
+    // N15：动议快照补 type 与逐票 reason
+    expect(snap.motions[0].type).toBe('invalid_bid');
+    expect(snap.motions[0].votes[0].reason).toBe('证据不足');
+    // N17：异议快照补 resolvedBy/resolvedAt
+    expect(snap.disputes[0].resolvedBy).toBe('主持人甲');
+    expect(snap.disputes[0].resolvedAt).toContain('2026-11-02');
+    // N16：专家替换监督日志入核验事件（verifyEvents 过滤器须含 action='专家替换'）
+    expect(snap.verifyEvents.some((v: any) => v.action === '专家替换' && v.target === '张三 → 李四')).toBe(true);
+
+    // 泄漏防护：clearAllMocks 不复位 mockResolvedValue 实现——还原默认空集，
+    // 防 generateHandover describe（未自设这三个 mock）读到本用例数据在 :556 炸 createdAt
+    (prisma.bidMotion.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.expertDispute.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.bidSupervisionLog.findMany as jest.Mock).mockResolvedValue([]);
+  });
+
   it('P1-17：重复 generate（重生成）走 fileAsset.upsert 不撞 key 唯一约束（非幂等 500 修复）', async () => {
     (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING', name: 'p', projectCode: 'c' });
     (prisma.bidEvaluationResult.count as jest.Mock).mockResolvedValue(2);

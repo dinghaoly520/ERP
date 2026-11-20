@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { mkdir, readFile, unlink, writeFile, copyFile, access, stat } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile, copyFile, access, stat, rename } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { createReadStream } from 'node:fs';
@@ -46,6 +46,7 @@ import { BID_TAIL_STAGE_KEYS, LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './p
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { stripMojibake } from '../common/text-clean.util';
+import { writeAttachmentCopy, readAttachmentBuffer, removeAttachmentCopy } from '../common/attachment-object-store';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -5033,7 +5034,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
             lines.push(`  ${analysisFile.contentSummary}`);
           }
 
-          const srcPath = resolve(process.cwd(), 'uploads', att.objectKey);
+          const srcPath = await this.ensureAttachmentLocal(att.objectKey);
+          if (!srcPath) continue; // 双轨皆失（2026-11-20）：跳过该附件的归档拷贝
           // Copy to local archive
           const localDstPath = join(localStageDir, att.fileName);
           try { await copyFile(srcPath, localDstPath); } catch { /* skip if file missing */ }
@@ -5162,10 +5164,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       if (!cachedFiles) {
         const filesWithText = await Promise.all(
           stage.attachments.map(async (attachment) => {
-            const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
-            const extractedText = await this.extractFileTextWithOcr(
-              filePath, attachment.mimeType, attachment.fileName,
-            );
+            const extractedText = await this.attachmentExtractedText(attachment);
             return {
               objectKey: attachment.objectKey,
               fileName: attachment.fileName,
@@ -5686,10 +5685,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (newAttachments.length > 0) {
           const newFilesWithText = await Promise.all(
             newAttachments.map(async (attachment) => {
-              const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
-              const extractedText = await this.extractFileTextWithOcr(
-                filePath, attachment.mimeType, attachment.fileName,
-              );
+              const extractedText = await this.attachmentExtractedText(attachment);
               return {
                 objectKey: attachment.objectKey,
                 fileName: attachment.fileName,
@@ -6590,6 +6586,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       } catch {
         // 文件可能已不存在，继续
       }
+      await removeAttachmentCopy(att.objectKey); // MinIO 副本双清（内部吞错）
     }
 
     return { success: true };
@@ -6625,6 +6622,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     } catch {
       // File may not exist, continue with database deletion
     }
+    await removeAttachmentCopy(attachment.objectKey); // MinIO 副本双清（内部吞错）
 
     // Delete the attachment record
     await this.prisma.attachment.delete({
@@ -6757,8 +6755,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
       select: { fileName: true, objectKey: true, mimeType: true },
     });
     for (const att of attachments) {
+      const filePath = await this.ensureAttachmentLocal(att.objectKey);
+      if (!filePath) continue; // 双轨皆失（2026-11-20）：跳过该附件，维持识别流程可用
       const text = await this.extractFileText(
-        resolve(process.cwd(), 'uploads', att.objectKey),
+        filePath,
         att.mimeType,
         att.fileName,
       );
@@ -6814,18 +6814,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   private async extractFileTextWithOcr(
-    filePath: string,
+    buffer: Buffer,
     mimeType: string,
     fileName: string,
   ): Promise<string> {
     try {
-      const buffer = await readFile(filePath);
       const text = await this.documentParser.parseWithOcr(buffer, mimeType, fileName);
       return text.slice(0, 8000);
     } catch (error) {
       this.logger.error(`Failed to extract text with OCR from ${fileName}:`, error);
       return '';
     }
+  }
+
+  /** 双轨提取（2026-11-20）：本地 miss 回退 MinIO 副本；双失返回空串（维持静默降级语义）。 */
+  private async attachmentExtractedText(attachment: {
+    objectKey: string;
+    mimeType: string | null;
+    fileName: string;
+  }): Promise<string> {
+    const buffer = await readAttachmentBuffer(attachment.objectKey);
+    if (!buffer) {
+      this.logger.warn(`[attachmentExtractedText] 附件双轨皆失，文本提取为空: ${attachment.objectKey}`);
+      return '';
+    }
+    return this.extractFileTextWithOcr(buffer, attachment.mimeType ?? '', attachment.fileName);
   }
 
   private normalizeInitiationText(text: string) {
@@ -7364,16 +7377,21 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     await writeFile(absolutePath, file.buffer);
 
-    return {
-      absolutePath,
-      attachment: {
-        fileName: normalizedFileName,
-        objectKey: `project-management/${storedFileName}`,
-        mimeType: file.mimetype,
-        fileSize: file.size,
-        uploadedById,
-      } satisfies StoredAttachment,
-    };
+    const attachment = {
+      fileName: normalizedFileName,
+      objectKey: `project-management/${storedFileName}`,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+      uploadedById,
+    } satisfies StoredAttachment;
+
+    // 双轨制（2026-11-20）：本地主轨写成功后 best-effort 落 MinIO 副本，失败不阻断
+    const copied = await writeAttachmentCopy(attachment.objectKey, file.buffer, file.mimetype);
+    if (!copied) {
+      this.logger.warn(`[persistUploadedFile] MinIO 副本失败（不阻断）: ${attachment.objectKey}`);
+    }
+
+    return { absolutePath, attachment };
   }
 
   async getProjectAttributions(user?: AuthenticatedUser, requestedCompanyId?: string) {
@@ -7444,7 +7462,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
 
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
     const zip = await JSZip.loadAsync(buffer);
     const docXml = await zip.file('word/document.xml')?.async('string');
@@ -7703,7 +7727,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     if (!oldAttachment) throw new NotFoundException('未找到对应附件');
     await this.assertStageAttachmentMutable(projectId, oldAttachment); // 属主+旧轮闸（2026-10-26 补漏，此前两查皆无）
 
-    const filePath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(oldAttachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
     const zip = await JSZip.loadAsync(buffer);
     const docXml = await zip.file('word/document.xml')?.async('string');
@@ -7817,6 +7847,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 删除旧附件记录和文件
     await this.prisma.attachment.delete({ where: { id: oldAttachment.id } });
     try { await unlink(filePath); } catch {}
+    await removeAttachmentCopy(oldAttachment.objectKey); // MinIO 副本双清（内部吞错）——终审 I1 补第五删除点
 
     // 采购文件主文件段落内容已变——失效 /tmp 文本缓存（同 saveAttachmentHtml 口径）
     if (oldAttachment.projectManagementStageId) {
@@ -7851,6 +7882,29 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return prefixRatio * 0.6 + charRatio * 0.4;
   }
 
+  /** 双轨读（2026-11-20）：本地优先；miss 则从 MinIO 副本物化回本地后返回路径；两轨皆失返 null。 */
+  private async ensureAttachmentLocal(objectKey: string): Promise<string | null> {
+    const localPath = resolve(process.cwd(), 'uploads', objectKey);
+    // M5 防御：stat 抛错或返回非 Promise（测试桩未配置）都按 miss 走，不炸 TypeError
+    const st = await Promise.resolve(stat(localPath)).catch(() => null);
+    if (st && typeof (st as { isFile?: () => boolean }).isFile === 'function' && (st as { isFile: () => boolean }).isFile()) {
+      return localPath;
+    }
+    const buffer = await readAttachmentBuffer(objectKey); // 内部会再探本地（廉价），miss 探 MinIO 副本
+    if (!buffer) return null;
+    await mkdir(dirname(localPath), { recursive: true });
+    // M1：临时文件 + 原子 rename 落位——并发物化同一附件时读端不可能读到半文件
+    const tmpPath = `${localPath}.tmp-${process.pid}-${Date.now()}`;
+    try {
+      await writeFile(tmpPath, buffer);
+      await rename(tmpPath, localPath);
+    } catch (err) {
+      await unlink(tmpPath).catch(() => undefined);
+      throw err;
+    }
+    return localPath;
+  }
+
   /** 直接返回附件原始文件（供 iframe 查看模式使用）。 */
   async getAttachmentFile(attachmentId: string): Promise<{ buffer: Buffer; mimeType: string; fileName: string }> {
     const attachment = await this.prisma.attachment.findUnique({
@@ -7858,7 +7912,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
       select: { id: true, fileName: true, objectKey: true, mimeType: true },
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到），请重新上传',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
     return { buffer, mimeType: attachment.mimeType, fileName: attachment.fileName };
   }
@@ -7871,7 +7931,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
 
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到），请重新上传',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     let text = await this.extractFileText(filePath, attachment.mimeType, attachment.fileName);
 
     // Fallback: 若 documentParser 解析 DOCX 失败，直接用 JSZip 提取 word/document.xml 的原始文本
@@ -7922,6 +7988,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 删除旧附件并连接新附件到同一阶段
     await this.prisma.attachment.delete({ where: { id: oldAttachment.id } });
     try { await unlink(resolve(process.cwd(), 'uploads', oldAttachment.objectKey)); } catch {}
+    await removeAttachmentCopy(oldAttachment.objectKey); // MinIO 副本双清（内部吞错）
 
     // 找到刚创建的附件记录并关联到原阶段
     const createdAttachment = await this.prisma.attachment.findFirst({
@@ -7966,7 +8033,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
     if (!attachment) throw new NotFoundException('未找到对应附件');
 
-    const filePath = resolve(process.cwd(), 'uploads', attachment.objectKey);
+    const filePath = await this.ensureAttachmentLocal(attachment.objectKey);
+    if (!filePath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const buffer = await readFile(filePath);
 
     if (!this.patcherEnabled) {
@@ -8185,7 +8258,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 冻结锁（2026-09-27）：已完成的 03 正式盖章版不可替换内容
     await this.assertAttachmentNotFrozen(oldAttachment);
 
-    const oldPath = resolve(process.cwd(), 'uploads', oldAttachment.objectKey);
+    const oldPath = await this.ensureAttachmentLocal(oldAttachment.objectKey);
+    if (!oldPath) {
+      throw new NotFoundException({
+        error: '附件文件缺失（本地与对象存储均未找到）',
+        code: 'ATTACHMENT_FILE_MISSING',
+      });
+    }
     const usePatcher = this.patcherEnabled && !!dto.originalHash;
     let newBuffer: Buffer;
 
@@ -8239,6 +8318,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // 清理旧物理文件（patcher 路径已在归档步骤复制到 tender-doc-versions/）
     try { await unlink(oldPath); } catch {}
+    await removeAttachmentCopy(oldAttachment.objectKey); // MinIO 副本双清（内部吞错）
 
     // 采购文件主文件内容已整体替换——失效 /tmp 文本缓存。
     // （上面 extractedText 置空只覆盖 DB 懒缓存；/tmp 缓存不清，
@@ -8313,12 +8393,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
     );
     if (!docxAttachment) return null;
 
-    const localPath = resolve(process.cwd(), 'uploads', docxAttachment.objectKey);
-    let buffer: Buffer;
-    try {
-      buffer = await readFile(localPath);
-    } catch {
-      this.logger.warn(`parseAnnouncementFields: 源文件不存在 ${localPath}`);
+    // 双轨（终审 I2）：本地 miss 回退 MinIO 副本——此前容器重建后公告字段预填静默 null
+    const buffer = await readAttachmentBuffer(docxAttachment.objectKey);
+    if (!buffer) {
+      this.logger.warn(`parseAnnouncementFields: 源文件双轨皆失 ${docxAttachment.objectKey}`);
       return null;
     }
 

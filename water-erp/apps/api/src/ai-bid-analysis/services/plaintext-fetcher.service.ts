@@ -9,6 +9,7 @@ import * as path from 'path';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../../upload/minio.client';
+import { readAttachmentBuffer } from '../../common/attachment-object-store';
 import { decryptBuffer, streamToBuffer, verifyIntegrity } from '../../bid/bid-submission.crypto';
 import { unwrapKey, isWrappedKey } from '../../common/crypto/envelope-crypto';
 import { resolveEnvelopeVersion } from '../../supplier-portal/envelope-version.util';
@@ -226,8 +227,9 @@ export class PlaintextFetcherService {
       });
       if (attachments.length > 0) {
         const att = attachments[0];
-        const buffer = await fs.promises.readFile(path.resolve(process.cwd(), 'uploads', att.objectKey));
-        return { buffer, fileName: att.fileName };
+        // 双轨（2026-11-20）：本地 miss 回退 MinIO 副本；双失不空手而归——落 FileAsset 兼容轨继续
+        const buffer = await readAttachmentBuffer(att.objectKey);
+        if (buffer) return { buffer, fileName: att.fileName };
       }
     }
 

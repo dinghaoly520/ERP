@@ -25,6 +25,13 @@ import {
 } from '@water-erp/ukey';
 import type { DualEnvelope, EnvelopeFileEntry, SealedFields } from '@water-erp/ukey';
 import { sealPii } from '../common/crypto/sm-field-crypto';
+import { readAttachmentBuffer } from '../common/attachment-object-store';
+
+jest.mock('../common/attachment-object-store', () => ({
+  readAttachmentBuffer: jest.fn(),
+  writeAttachmentCopy: jest.fn(),
+  removeAttachmentCopy: jest.fn(),
+}));
 
 jest.mock('../announcement/bid-document.crypto', () => ({
   encryptBuffer: jest.fn().mockReturnValue({
@@ -3872,6 +3879,15 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
       attachment: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn().mockResolvedValue(null) },
     };
     redis = { get: jest.fn().mockResolvedValue(JSON.stringify(CFG)) };
+    // 双轨 mock 默认（2026-11-20）：委托真实 fs 读本地——既有下载用例的字节断言语义原样保留；
+    // 双轨专项用例自行覆写 null/Buffer
+    const readBufferMock = readAttachmentBuffer as unknown as jest.Mock;
+    const realFs = jest.requireActual('node:fs/promises') as typeof import('node:fs/promises');
+    const realPath = jest.requireActual('node:path') as typeof import('node:path');
+    readBufferMock.mockReset();
+    readBufferMock.mockImplementation(async (objectKey: string) =>
+      realFs.readFile(realPath.resolve(process.cwd(), 'uploads', objectKey)),
+    );
     const instance: any = Object.create(SupplierPortalService.prototype);
     instance.prisma = prisma;
     instance.redis = redis;
@@ -4135,6 +4151,38 @@ describe('SupplierPortalService — getNegotiationFiles / downloadNegotiationFil
       expect(ctPrisma.supplierContact.update).toHaveBeenCalled();
       expect(r.name).toBe('张三');
     });
+  });
+
+  it('downloadNegotiationFile 主轨双失 → 404 ATTACHMENT_FILE_MISSING（不再裸 500，2026-11-20 双轨）', async () => {
+    const readBufferMock = readAttachmentBuffer as unknown as jest.Mock;
+    readBufferMock.mockReset();
+    readBufferMock.mockResolvedValue(null);
+    prisma.attachment.findUnique.mockResolvedValue({
+      fileName: '谈判采购文件.docx',
+      objectKey: CFG.refFileKeys[0],
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+
+    await expect(
+      svc.downloadNegotiationFile('bp-1', 'att-9', 'sup-1', res),
+    ).rejects.toMatchObject({ response: { code: 'ATTACHMENT_FILE_MISSING' } });
+  });
+
+  it('downloadNegotiationFile 主轨本地 miss + MinIO 副本命中 → 返 buffer 并设置下载头', async () => {
+    const readBufferMock = readAttachmentBuffer as unknown as jest.Mock;
+    readBufferMock.mockReset();
+    readBufferMock.mockResolvedValue(Buffer.from('negotiation-pdf'));
+    prisma.attachment.findUnique.mockResolvedValue({
+      fileName: '谈判采购文件.docx',
+      objectKey: CFG.refFileKeys[0],
+      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+
+    await svc.downloadNegotiationFile('bp-1', 'att-9', 'sup-1', res);
+
+    expect(res.end).toHaveBeenCalledWith(Buffer.from('negotiation-pdf'));
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining(encodeURIComponent('谈判采购文件.docx')));
   });
 });
 

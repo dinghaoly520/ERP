@@ -64,6 +64,9 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
   /** 页面级 socket 实时推送的异常事件 */
   anomalyEvents: AnomalyDetectedPayload[];
 }) {
+  // C9（2026-11-20b 终审）：终态写锁——ARCHIVED/ABORTED 后端 supervision-annotations 全 409
+  // PROJECT_TERMINAL（N2），前端同步收口写按钮（关注/上报/批注），防点了必炸的 UX 回归。
+  const annotationsLocked = project?.stage === 'ARCHIVED' || project?.stage === 'ABORTED';
   const [anomalyFlags, setAnomalyFlags] = useState<Map<string, 'flagged' | 'escalated' | null>>(new Map());
   const [anomalyNotes, setAnomalyNotes] = useState<Map<string, string>>(new Map());
   const [annotatingId, setAnnotatingId] = useState<string | null>(null);
@@ -191,6 +194,7 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
                           )}
                         </div>
                         <div className="ml-2 flex flex-shrink-0 items-center gap-1.5">
+                          {!annotationsLocked && (<>
                           <button type="button" onClick={() => void saveAnnotation(s.id, anomalyFlags.get(s.id) === 'flagged' ? null : 'flagged')}
                             title="标记关注"
                             className={flag === 'flagged' ? 'neu-btn-xs is-warning' : 'neu-btn-xs'}>关注</button>
@@ -200,6 +204,7 @@ export function SupervisionView({ projectId, project, liveLogs, anomalyEvents }:
                           <button type="button" onClick={() => { setAnnotatingId(isAnnotating ? null : s.id); setNoteDraft(note || ''); }}
                             title="批注"
                             className={isAnnotating ? 'neu-btn-xs is-info' : 'neu-btn-xs'}>批注</button>
+                          </>)}
                         </div>
                       </div>
                     </div>

@@ -2,6 +2,7 @@ import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequest
 import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'child_process';
 import * as fs from 'fs';
+import { readAttachmentBuffer } from '../common/attachment-object-store';
 import * as path from 'path';
 import * as os from 'os';
 import type Redis from 'ioredis';
@@ -828,6 +829,27 @@ export class ExpertService {
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
         action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: resolvedConflicts.length > 0 ? '中' : '无' },
     }).catch(() => {});
+    // N5（2026-11-20b 复核轮）：回避后该供应商的有效评审人数复核——低于法定 5 人单数口径
+    //（37 条）高风险留痕。不硬拦：回避是专家法定申报义务，硬拦会造「既不能回避也不能继续」死锁；
+    // 委员会组成的处置权在主持端（重新组建/流标）。人数=回避者之外的 confirmed 正选（其对回避
+    // 家的评分已被聚合层排除，P3-15）。
+    try {
+      if (resolvedConflicts.length > 0) {
+        const activePanel = await this.prisma.bidExpert.count({
+          where: { projectId, expertRole: '正选', invitationStatus: 'confirmed', id: { not: expert.id } },
+        });
+        if (activePanel < 5) {
+          for (const sid of resolvedConflicts) {
+            await this.prisma.bidSupervisionLog.create({
+              data: { projectId, time: new Date(), role: '系统', target: rosterIdName.get(sid) ?? sid,
+                action: '有效评审人数提示',
+                result: `专家 ${expert.expertName} 回避后，该供应商有效评审专家降为 ${activePanel} 人（低于评标委员会 5 人以上单数口径），请主持端评估委员会组成`,
+                riskFlag: '高' },
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch { /* 人数复核失败不阻断回避申报 */ }
     // P1-5（中断审查）：回避申报改变可评集合 → 本专家 progress 即时重算（分母收缩），
     // 否则分母含回避家、评不出即永远 <100 → 报告确认死锁（不再依赖下次提交触发）
     try {
@@ -1188,7 +1210,15 @@ export class ExpertService {
       if (!keys.includes(attachment.objectKey)) {
         throw new ForbiddenException({ error: '该文件不在本项目的采购文件清单内', code: 'FILE_NOT_IN_CONFIG' });
       }
-      const buffer = await fs.promises.readFile(path.resolve(process.cwd(), 'uploads', attachment.objectKey));
+      // 双轨（终审 I3）：本地 miss 回退 MinIO 副本——FileAsset 兼容轨只兜「行缺失」不兜「文件缺失」，
+      // 此前容器重建后专家端同一文件裸 ENOENT 500 而供应商端已可经副本恢复
+      const buffer = await readAttachmentBuffer(attachment.objectKey);
+      if (!buffer) {
+        throw new NotFoundException({
+          error: '附件文件缺失（本地与对象存储均未找到）',
+          code: 'ATTACHMENT_FILE_MISSING',
+        });
+      }
       return this.finishNegotiationDownload(buffer, attachment.fileName, attachment.mimeType, expert, projectId);
     }
 

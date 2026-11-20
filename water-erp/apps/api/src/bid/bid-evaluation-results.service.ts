@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException, Optional, Logger } 
 import * as crypto from 'crypto';
 import { evaluateBondCompliance, parseAmountToYuan } from '@water-erp/shared';
 import { aggregateSupplierScores } from './aggregate-supplier-scores';
+import { getMinBiddersForMethod } from './decrypt-quorum.util';
 import { resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 import { parseConflictedIds } from '../common/scoring/expert.util';
 import { Prisma } from '@prisma/client';
@@ -491,6 +492,28 @@ export class BidEvaluationResultsService {
     });
 
     const qualifiedRanked = ranked.filter(r => !r.disqualified);
+    // N1（2026-11-20b 复核轮）：全废标硬拦——否决所有投标的法定出口是流标/重新组织
+    //（招标投标法 42 条语义），不走「0 推荐结果集→签字→完整归档」的定标路径；
+    // ensureWinnerNotice 的 #151b 守卫只防废标公示，不防错误归档路径。
+    if (qualifiedRanked.length === 0) {
+      throw new ConflictException({
+        error: '全部投标经评审被否决，不得生成评标结果——请走评标中流标（:3007 异议裁决/终止）后重新组织采购',
+        code: 'ALL_BIDS_REJECTED',
+      });
+    }
+    // N1：有效标不足法定家数（12 号令 27 条「明显缺乏竞争可否决」为裁量项）——留痕不硬拦，
+    // 继续与否由评标委员会决定；此提示随归档哈希链入证据链。
+    const minBidders = getMinBiddersForMethod(project.procurementMethod);
+    if (qualifiedRanked.length < minBidders) {
+      await this.prisma.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '系统', target: project.name,
+          action: '有效标不足法定家数提示',
+          result: `有效投标 ${qualifiedRanked.length} 家不足法定 ${minBidders} 家（明显缺乏竞争）——评标委员会可依《评标委员会和评标方法暂行规定》第 27 条否决全部投标走流标；继续生成视为确认竞争充分性`,
+          riskFlag: '高',
+        },
+      }).catch(() => undefined);
+    }
     // 按评标办法确定候选人数：最低价类→1, 综合评估→3, 直接采购→1
     const winnerCount = this.getWinnerCount(
       project.procurementMethod,

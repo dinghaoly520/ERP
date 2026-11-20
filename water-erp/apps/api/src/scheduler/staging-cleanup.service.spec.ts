@@ -29,6 +29,8 @@ const mkPrisma = (over: Record<string, any> = {}) => ({
       { envelope: { files: { technical: { assetId: 'fa-kept' } } } },
     ]),
   },
+  // N13-B：冻结载荷引用集查询（默认无冻结操作）
+  caOperation: { findMany: jest.fn().mockResolvedValue(over.frozenOps ?? []) },
   bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
 });
 
@@ -64,5 +66,49 @@ describe('StagingCleanupService（T7）', () => {
     const r = await new StagingCleanupService(prisma as any).cleanupOnce();
     expect(r.removed).toBe(1);
     expect(prisma.fileAsset.delete).toHaveBeenCalledTimes(1);
+  });
+
+  test('N10：候选超过单批上限（600>BATCH 500）→ 分批循环清空', async () => {
+    const many = Array.from({ length: 600 }, (_, i) => ({ id: `fa-${i}`, key: `v3-staging/p1/s${i}/a.outer`, createdAt: OLD }));
+    const deleted = new Set<string>();
+    const prisma = mkPrisma({ assets: many, versions: [] });
+    prisma.fileAsset.findMany.mockImplementation(async ({ where, take }: any) =>
+      many.filter(a => a.createdAt < where.createdAt.lt && !deleted.has(a.id)).slice(0, take ?? 500));
+    prisma.fileAsset.delete.mockImplementation(async ({ where }: any) => { deleted.add(where.id); return {}; });
+    const r = await new StagingCleanupService(prisma as any).cleanupOnce();
+    expect(r.removed).toBe(600);
+    expect(deleted.size).toBe(600);
+    expect(prisma.fileAsset.findMany).toHaveBeenCalledTimes(2); // 500 + 100 两轮
+  });
+
+  test('F1 终审：满批全被引用（kept 满 500）→ 无进展即停，不得死循环', async () => {
+    const many = Array.from({ length: 500 }, (_, i) => ({ id: `fa-kept-${i}`, key: `v3-staging/p1/s${i}/k.outer`, createdAt: OLD }));
+    const prisma = mkPrisma({ assets: many, versions: many.map(a => ({ envelope: { files: { technical: { assetId: a.id } } } })) });
+    // 服务端 where 语义由 mkPrisma 内置（过滤 createdAt）；全引用 → 全 kept
+    const r = await new StagingCleanupService(prisma as any).cleanupOnce();
+    expect(r.removed).toBe(0);
+    expect(r.kept).toBe(500);
+    expect(prisma.fileAsset.findMany).toHaveBeenCalledTimes(1); // 第二轮同 500 满批全留 → 守卫 break
+  });
+
+  test('N13-B：CaOperation 冻结载荷（submit/reupload PAYLOAD_READY）引用的暂存不删', async () => {
+    // C1 终审修正：生产 writer 恒写 result.canonical=JSON.stringify(envelope)
+    //（ca-operation.service:42 attachPayload + ca-bid-operation.controller:120-123 唯二 caller），
+    // 无 result.files——夹具改真实形状，防再犯「伪形状空转通过」
+    const mkFrozen = (assetId: string) => ({
+      result: { canonical: JSON.stringify({ files: { technical: { assetId } } }), canonicalSha256: 'x' },
+    });
+    const prisma = mkPrisma({ frozenOps: [
+      mkFrozen('fa-stale'),
+      mkFrozen('fa-other'),
+      { result: { canonical: 'not-json' } },   // 防御：解析失败跳过不炸
+      { result: null },                         // 防御：无载荷跳过
+    ] });
+    const r = await new StagingCleanupService(prisma as any).cleanupOnce();
+    expect(r.removed).toBe(0);
+    expect(minioClient.removeObject).not.toHaveBeenCalled();
+    expect(prisma.caOperation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ purpose: { in: ['submit', 'reupload'] }, status: 'PAYLOAD_READY' }) }),
+    );
   });
 });

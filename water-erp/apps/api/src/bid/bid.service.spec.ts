@@ -170,7 +170,7 @@ describe('BidService — stage transitions', () => {
       bidInvalidBid: { findMany: jest.fn().mockResolvedValue([]), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
       expertDispute: { count: jest.fn().mockResolvedValue(0), findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
       bidScoreRecordHistory: { create: jest.fn() },
-      bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), count: jest.fn().mockResolvedValue(0) },
+      bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 0 }), count: jest.fn().mockResolvedValue(0) },
       bidQuote: { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       projectManagementStage: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null), update: jest.fn() },
@@ -1029,6 +1029,24 @@ describe('BidService — stage transitions', () => {
       expect(abortLog?.[0].data.result).toContain('原因：定标前发现重大问题');
     });
 
+    it('N6：流标事务强制关闭全部未关报价轮（防流标后报价窗口残留）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P', procurementMethod: '公开招标', _count: { suppliers: 3 } });
+      prisma.bidEvaluationResult.count.mockResolvedValue(0);
+      prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      prisma.bidRound.updateMany.mockResolvedValue({ count: 2 });
+
+      await service.abortBidProject('p1', 'u1', '测试流标');
+
+      expect(prisma.bidRound.updateMany).toHaveBeenCalledWith({
+        where: { projectId: 'p1', status: { not: 'closed' } },
+        data: { status: 'closed' },
+      });
+      // 有轮次被关时监督日志留痕提及
+      const abortLog = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '流标');
+      expect(abortLog?.[0].data.result).toContain('报价轮');
+    });
+
     it('N4：无官方结果时流标不需理由（原行为不变，日志无作废说明）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', name: 'P', procurementMethod: '谈判采购', _count: { suppliers: 2 } });
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
@@ -1251,6 +1269,63 @@ describe('BidService — stage transitions', () => {
       const notification = (service as any).notificationService;
       expect(notification.sendToUser).not.toHaveBeenCalled();
       expect(prisma.bidSupervisionAnnotation.upsert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('终态写冻结（N2/N3/N4/N8，2026-11-20b 复核轮）', () => {
+    beforeEach(() => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'ARCHIVED' });
+    });
+
+    it('N2：ARCHIVED 后监督批注 upsert → PROJECT_TERMINAL（不触批注表）', async () => {
+      await expect(service.upsertSupervisionAnnotation('p1', { supplierId: 's-1', status: 'escalated', notes: 'x' } as any))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
+      expect(prisma.bidSupervisionAnnotation.upsert).not.toHaveBeenCalled();
+    });
+
+    it('N2：ABORTED 后删除监督批注 → PROJECT_TERMINAL', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'ABORTED' });
+      await expect(service.deleteSupervisionAnnotation('p1', 's-1'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
+    });
+
+    it('N3：ARCHIVED 后资格后审复核登记 → PROJECT_TERMINAL（不触 update）', async () => {
+      await expect(service.registerQualificationReview('p1', '复核通过'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('N8/C8：ABORTED 后补录归档材料项 → PROJECT_TERMINAL（死项目不可扰动）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'ABORTED' });
+      await expect(service.registerManualArchiveItem('p1', { categoryKey: 'dispute' }, { userId: 'u1', username: 'op' }))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
+    });
+
+    it('N8/C8：ARCHIVED 后补录放行（:3005「归档前后均可用」既有工作流）+ 监督日志高风险留痕', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'ARCHIVED' });
+      prisma.bidArchiveItem.findFirst.mockResolvedValue(null);
+      prisma.bidArchiveItem.create.mockResolvedValue({ id: 'it1' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      await service.registerManualArchiveItem('p1', { categoryKey: 'dispute' }, { userId: 'u1', username: 'op' });
+      expect(prisma.bidArchiveItem.create).toHaveBeenCalled();
+      const log = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '档案人工登记');
+      expect(log?.[0].data.result).toContain('归档后补登');
+    });
+
+    it('N4：EVALUATING 但签字包已闭环 → setReportNotes 拒 SIGN_PACKET_CLOSED', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'EVALUATING' });
+      prisma.bidSignPacket.findUnique.mockResolvedValue({ closedAt: new Date() });
+      await expect(service.setReportNotes('p1', { notes: [] } as any))
+        .rejects.toMatchObject({ response: { code: 'SIGN_PACKET_CLOSED' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
+    });
+
+    it('N4：EVALUATING 且未闭环 → setReportNotes 放行（监督日志照写）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'EVALUATING' });
+      prisma.bidSignPacket.findUnique.mockResolvedValue(null);
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      await service.setReportNotes('p1', { notes: [] } as any);
+      expect(prisma.bidProject.update).toHaveBeenCalled();
     });
   });
 
@@ -4275,7 +4350,7 @@ describe('createRound — 供应商准入', () => {
 
   beforeEach(async () => {
     prisma = {
-      bidProject: { findUnique: jest.fn(), update: jest.fn() },
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }), update: jest.fn() }, // N6：submitQuote 阶段闸默认放行（原 findUnique 空实现升级为默认 EVALUATING）
       bidRound: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), create: jest.fn().mockResolvedValue({ id: 'r1', roundNo: 1 }), count: jest.fn().mockResolvedValue(0) },
       bidSupplier: { findMany: jest.fn(), findFirst: jest.fn() },
       bidQuote: { create: jest.fn() },
@@ -4493,6 +4568,7 @@ describe('submitQuote — 准入校验', () => {
       bidSupplier: { findFirst: jest.fn() },
       bidQuote: { create: jest.fn() },
       bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) }, // P3-24：结果冻结闸默认无结果
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // N6：报价阶段闸默认放行
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };
@@ -4520,6 +4596,31 @@ describe('submitQuote — 准入校验', () => {
     prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's3', bidValidity: 'valid', decryptStatus: 'SUCCESS', submitStatus: '已提交' });
     await expect(service.submitQuote('p1', 'r1', 's3', 100))
       .rejects.toMatchObject({ response: { code: 'NOT_ELIGIBLE_FOR_ROUND' } });
+  });
+
+  it('N6：项目已流标（ABORTED）即使轮次仍 open 也不可报价 → STAGE_NOT_OPENING', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ABORTED' });
+    prisma.bidRound.findUnique.mockResolvedValue({
+      id: 'r1', projectId: 'p1', status: 'open', deadline: null, eligibleSupplierIds: [],
+    });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', bidValidity: 'valid', decryptStatus: 'SUCCESS', submitStatus: '已提交' });
+    await expect(service.submitQuote('p1', 'r1', 's1', 100))
+      .rejects.toMatchObject({ response: { code: 'STAGE_NOT_OPENING' } });
+    expect(prisma.bidQuote.create).not.toHaveBeenCalled();
+  });
+
+  it('N6：项目已归档（ARCHIVED）同样拒绝；EVALUATING 放行走完', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED' });
+    prisma.bidRound.findUnique.mockResolvedValue({
+      id: 'r1', projectId: 'p1', status: 'open', deadline: null, eligibleSupplierIds: [],
+    });
+    prisma.bidSupplier.findFirst.mockResolvedValue({ id: 's1', bidValidity: 'valid', decryptStatus: 'SUCCESS', submitStatus: '已提交' });
+    await expect(service.submitQuote('p1', 'r1', 's1', 100))
+      .rejects.toMatchObject({ response: { code: 'STAGE_NOT_OPENING' } });
+
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    await service.submitQuote('p1', 'r1', 's1', 100); // 不抛阶段码即放行
+    expect(prisma.bidQuote.create).toHaveBeenCalled();
   });
 
   it('废标供应商 → SUPPLIER_DISQUALIFIED', async () => {
@@ -6099,6 +6200,7 @@ describe('BidService — report notes (A-151 评标报告章节附注)', () => {
     prisma = {
       bidProject: { findUnique: jest.fn().mockResolvedValue({ name: '测试项目' }), update: jest.fn().mockResolvedValue({}) },
       bidSupervisionLog: { create: jest.fn().mockResolvedValue({}) },
+      bidSignPacket: { findUnique: jest.fn().mockResolvedValue(null) }, // N4：附注编辑场景=签字包未生成/未闭环
     };
     const module = await Test.createTestingModule({
       providers: [

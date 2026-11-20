@@ -706,8 +706,10 @@ export class BidSignPacketService {
         this.prisma.bidClarification.findMany({ where: { projectId }, orderBy: { createdAt: 'asc' } }),
         this.prisma.bidMotion.findMany({ where: { projectId }, include: { votes: true }, orderBy: { createdAt: 'asc' } }),
         // R5（2026-09-20 §4.4）：核验事件入签字包证据链（降级/异常/替换三类留痕）
+        // N16（2026-11-20b 复核轮）：过滤器补「专家替换」——swapExpertRole 事务内同步写监督日志
+        // （被换出者经 signLoopExpertScope 整体除名，替换事实唯一披露面=本表）
         this.prisma.bidSupervisionLog.findMany({
-          where: { projectId, action: { in: ['身份核验降级', '核验异常', '核验异常撤销'] } },
+          where: { projectId, action: { in: ['身份核验降级', '核验异常', '核验异常撤销', '专家替换'] } },
           select: { time: true, action: true, target: true, result: true },
           orderBy: { time: 'asc' },
         }),
@@ -820,16 +822,21 @@ export class BidSignPacketService {
       // 唱标金额单位：单位戳优先（amountUnit 列），回退轨道推导——签字包纸面/JSON 证据金额自含单位
       openingRecords: openingRecords.map(r => {
         const unit = r.amountUnit ?? ((r.bidSupplierId ? amountUnitMapForRecords.get(r.bidSupplierId) : null) ?? null);
-        return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus };
+        return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus,
+          // N17（2026-11-20b 复核轮）：开标异议终态/事由入包（docx 唱标表「开标异议」列渲染依据）
+          objectionReason: (r as { objectionReason?: string | null }).objectionReason ?? null };
       }),
       bids: suppliers.map(s => ({ supplierName: s.supplierName, amount: '（见开标记录）', period: '（见开标记录）', submittedAt: s.createdAt.toISOString() })),
       invalidBids: invalidBids.map(b => ({ supplierName: suppliers.find(s => s.id === b.supplierId)?.supplierName ?? '（未知供应商）', reason: b.reason })),
       scoreStandard: scoreItems.map(i => ({ category: i.category, name: i.name, maxScore: Number(i.maxScore), points: i.points.map(p => p.name) })),
       results: results.map(r => ({ supplierName: r.supplierName, totalScore: Number(r.totalScore), averageScore: Number(r.averageScore), rank: r.rank, recommended: r.recommended, disqualified: r.disqualified, bidPrice: r.bidPrice ? Number(r.bidPrice) : null })),
       expertSheets,
-      disputes: disputes.map(d => ({ expertName: d.expertName, type: d.type, title: d.title, content: d.content, status: d.status, response: d.response, createdAt: d.createdAt.toISOString() })),
+      disputes: disputes.map(d => ({ expertName: d.expertName, type: d.type, title: d.title, content: d.content, status: d.status, response: d.response, createdAt: d.createdAt.toISOString(),
+        // N17（2026-11-20b 复核轮）：裁决人/时间入包（原仅回流包有——纸质法定件证据自含）
+        resolvedBy: d.resolvedBy ?? null, resolvedAt: d.resolvedAt?.toISOString() ?? null })),
       clarifications: clarifications.map(c => ({ supplierName: c.supplierName, question: c.question, reply: c.reply, createdAt: c.createdAt.toISOString() })),
-      motions: motions.map(m => ({ title: m.title, description: m.description, status: m.status, result: m.result, votes: m.votes.map(v => ({ expertName: committee.find(e => e.id === v.expertId)?.expertName ?? '（专家）', vote: v.vote })) })),
+      // N15（2026-11-20b 复核轮）：动议补 type 与逐票 reason（schema BidVote.reason 存在；对照 disputes 含 type）
+      motions: motions.map(m => ({ type: m.type, title: m.title, description: m.description, status: m.status, result: m.result, votes: m.votes.map(v => ({ expertName: committee.find(e => e.id === v.expertId)?.expertName ?? '（专家）', vote: v.vote, reason: v.reason ?? null })) })),
       // R5（2026-09-20 §4.4）：核验事件（降级/异常/替换）入签字包——核验记录表附注披露
       verifyEvents: verifyLogs.map(l => ({
         time: l.time.toISOString(), action: l.action, target: l.target, result: l.result,

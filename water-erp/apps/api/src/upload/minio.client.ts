@@ -15,6 +15,13 @@ export const minioClient = new Client({
   secretKey: process.env.MINIO_SECRET_KEY || 'water_erp_minio_dev',
 });
 
+// 请求超时兜底（2026-11-20 终审 M3）：黑洞端点下副本写入/回退读不再无限挂到 OS TCP 超时。
+// 默认 120s——500MB 大对象在慢链路也有余量；MINIO_REQUEST_TIMEOUT_MS 可覆盖（毫秒）。
+export const MINIO_REQUEST_TIMEOUT_MS = Number(process.env.MINIO_REQUEST_TIMEOUT_MS) || 120_000;
+if (typeof (minioClient as unknown as { setDefaultTimeout?: (ms: number) => void }).setDefaultTimeout === 'function') {
+  (minioClient as unknown as { setDefaultTimeout: (ms: number) => void }).setDefaultTimeout(MINIO_REQUEST_TIMEOUT_MS);
+}
+
 export const MINIO_BUCKET = process.env.MINIO_BUCKET || 'water-erp';
 
 /**
