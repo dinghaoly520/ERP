@@ -1590,9 +1590,15 @@ export class BidService {
         data: { stage: 'ABORTED', riskNote, abortedAt: new Date() },
         select: { id: true, stage: true },
       });
+      // N6（2026-11-20b 复核轮）：强制关闭全部未关报价轮——流标后 open 轮次残留会让
+      // 供应商侧报价入口看似仍可用（submitQuote 另有阶段闸兜底，此处收敛数据面）。
+      const closedRounds = await tx.bidRound.updateMany({
+        where: { projectId: id, status: { not: 'closed' } },
+        data: { status: 'closed' },
+      });
       await tx.bidSupervisionLog.create({
         data: { projectId: id, time: new Date(), role: '系统', target: project.name,
-          action: '流标', result: `${riskNote}${resultCount > 0 ? '；注意：已存在官方评标结果，随流标作废' : ''}`, riskFlag: '高风险' },
+          action: '流标', result: `${riskNote}${resultCount > 0 ? '；注意：已存在官方评标结果，随流标作废' : ''}${closedRounds.count > 0 ? `；已强制关闭 ${closedRounds.count} 个未结束报价轮次` : ''}`, riskFlag: '高风险' },
       });
       return result;
     });
@@ -5674,6 +5680,12 @@ export class BidService {
     if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
     if (round.deadline && new Date() > new Date(round.deadline)) {
       throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
+    }
+    // N6（2026-11-20b 复核轮）：项目阶段闸——镜像 createRound 的 STAGE_NOT_OPENING 口径。
+    // 流标/归档不关轮次（abort 事务另有关轮收敛，此为兜底闸），防终态项目继续收报价。
+    const quoteProject = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (!quoteProject || (quoteProject.stage !== 'OPENING' && quoteProject.stage !== 'EVALUATING')) {
+      throw new ConflictException({ error: '当前阶段不可提交报价（项目可能已流标或归档）', code: 'STAGE_NOT_OPENING' });
     }
     // P3-24（2026-11-20 全链路审查）：结果冻结直接闸——createRound 侧同闸早已存在（:5458-5461），
     // 本端点注释自述「提交侧同闸」但未实现（此前靠「结果生成要求全轮 closed」间接封死，
