@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { getTenderTextCachePath } from './docx/file-utils';
 import { ProjectManagementService } from './project-management.service';
-import { writeAttachmentCopy, readAttachmentBuffer } from '../common/attachment-object-store';
+import { writeAttachmentCopy, readAttachmentBuffer, removeAttachmentCopy } from '../common/attachment-object-store';
 import { stat } from 'node:fs/promises';
 
 jest.mock('../common/attachment-object-store', () => ({
@@ -3005,6 +3005,29 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
       ).rejects.toMatchObject({
         response: { code: 'ATTACHMENT_FILE_MISSING' },
       });
+    });
+  });
+
+  describe('附件删除 MinIO 副本双清', () => {
+    const removeCopyMock = removeAttachmentCopy as unknown as jest.Mock;
+
+    it('deleteAttachment → 本地 unlink 后 removeAttachmentCopy 以 objectKey 调用一次', async () => {
+      removeCopyMock.mockReset();
+      const { service, prisma } = makeService();
+      // stageId=null：三闸走早退（MUT 属主对齐 / FROZEN 直接返回），且跳过缓存重建分支
+      prisma.attachment.findUnique.mockResolvedValue({
+        id: 'att-5',
+        fileName: 'x.pdf',
+        objectKey: 'project-management/300-x.pdf',
+        projectManagementItemId: 'pm-1',
+        projectManagementStageId: null,
+      });
+      prisma.projectManagementItem.findUnique.mockResolvedValue({ status: 'ACTIVE' });
+
+      await (service as unknown as { deleteAttachment: (p: string, a: string) => Promise<void> }).deleteAttachment('pm-1', 'att-5');
+
+      expect(removeCopyMock).toHaveBeenCalledTimes(1);
+      expect(removeCopyMock).toHaveBeenCalledWith('project-management/300-x.pdf');
     });
   });
 });

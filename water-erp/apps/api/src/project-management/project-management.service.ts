@@ -46,7 +46,7 @@ import { BID_TAIL_STAGE_KEYS, LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './p
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { stripMojibake } from '../common/text-clean.util';
-import { writeAttachmentCopy, readAttachmentBuffer } from '../common/attachment-object-store';
+import { writeAttachmentCopy, readAttachmentBuffer, removeAttachmentCopy } from '../common/attachment-object-store';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -6614,6 +6614,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       } catch {
         // 文件可能已不存在，继续
       }
+      await removeAttachmentCopy(att.objectKey); // MinIO 副本双清（内部吞错）
     }
 
     return { success: true };
@@ -6649,6 +6650,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     } catch {
       // File may not exist, continue with database deletion
     }
+    await removeAttachmentCopy(attachment.objectKey); // MinIO 副本双清（内部吞错）
 
     // Delete the attachment record
     await this.prisma.attachment.delete({
@@ -8084,6 +8086,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // 删除旧附件并连接新附件到同一阶段
     await this.prisma.attachment.delete({ where: { id: oldAttachment.id } });
     try { await unlink(resolve(process.cwd(), 'uploads', oldAttachment.objectKey)); } catch {}
+    await removeAttachmentCopy(oldAttachment.objectKey); // MinIO 副本双清（内部吞错）
 
     // 找到刚创建的附件记录并关联到原阶段
     const createdAttachment = await this.prisma.attachment.findFirst({
@@ -8413,6 +8416,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // 清理旧物理文件（patcher 路径已在归档步骤复制到 tender-doc-versions/）
     try { await unlink(oldPath); } catch {}
+    await removeAttachmentCopy(oldAttachment.objectKey); // MinIO 副本双清（内部吞错）
 
     // 采购文件主文件内容已整体替换——失效 /tmp 文本缓存。
     // （上面 extractedText 置空只覆盖 DB 懒缓存；/tmp 缓存不清，
