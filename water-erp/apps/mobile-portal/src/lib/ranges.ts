@@ -26,7 +26,7 @@ export const RANGES: Record<PresetKey, { label: string; start: () => string | un
     },
   },
   year: { label: "本年", start: () => `${new Date().getFullYear()}-01-01` },
-  all: { label: "全部", start: () => undefined },
+  all: { label: "时间", start: () => undefined }, // 2026-11-20 用户裁定：默认标签「全部」→「时间」
 };
 
 /** ISO 日期整移一年（02-29 闰年回夹平年 02-28）——同比窗计算 */
