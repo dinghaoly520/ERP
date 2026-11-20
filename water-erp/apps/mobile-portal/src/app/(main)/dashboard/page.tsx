@@ -1270,23 +1270,27 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 {/* 部门分布（进行中） */}
                 <ZoneRow icon={Building2} title="部门分布">
                   {pmDist.dept.length ? (
-                    <div className="space-y-2">
-                      {pmDist.dept.map((d) => {
-                        const max = pmDist.dept[0].count;
+                    <div className="space-y-1.5">
+                      {pmDist.dept.slice(0, 12).map((d, i) => {
                         const pct = pmDist.total > 0 ? (d.count / pmDist.total) * 100 : 0;
+                        const max = pmDist.dept[0].count;
                         return (
-                          <div key={d.name}>
-                            <div className="flex items-baseline justify-between gap-2">
-                              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{d.name}</span>
+                          <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                            <div className="flex items-center gap-2.5">
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
                               <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
-                              <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(0)}%</span>
+                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(1)}%</span>
                             </div>
-                            <div className="mt-1 h-2 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                              <div className="h-full rounded-full bg-[var(--success)] opacity-75 transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%` }} />
+                            <div className="mt-1.5 flex items-center gap-2">
+                              <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                              </span>
                             </div>
                           </div>
                         );
                       })}
+                      {pmDist.dept.length > 12 ? <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 12 · 共 {pmDist.dept.length} 个部门</div> : null}
                     </div>
                   ) : (
                     <EmptyState text="暂无进行中项目" />
@@ -1296,27 +1300,27 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 {/* 项目规模分析（进行中） */}
                 <ZoneRow icon={BarChart3} title="项目规模分析">
                   {pmDist.scale.some((b) => b.count > 0) ? (
-                    <div className="space-y-1.5">
-                      {pmDist.scale.map((b) => {
-                        /* 2026-11-19 用户裁定：分母=进行中预算总额（金额口径） */
-                        const max = pmDist.scale.reduce((sum, x) => sum + parseBudgetLabel(x.amountLabel), 0) || 1;
-                        const bAmt = parseBudgetLabel(b.amountLabel);
-                        return (
-                          <div key={b.label} className="flex items-center gap-2">
+                    <div className="space-y-1">
+                      {(() => {
+                        const totalAmt = pmDist.scale.reduce((sum, b) => sum + parseBudgetLabel(b.amountLabel), 0) || 1;
+                        const maxCount = Math.max(...pmDist.scale.map((b) => b.count), 1);
+                        return pmDist.scale.map((b, i) => (
+                          <button key={i} type="button" className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1.5 text-left active:scale-[0.99]">
                             <span className="w-[4.5rem] shrink-0 leading-tight">
-                              <span className="block text-[13px] font-semibold text-[var(--foreground)]">{b.label}</span>
-                              <span className="block text-[12px] text-[var(--muted-foreground)]">{b.range}</span>
+                              <span className="block text-[14px] font-semibold text-[var(--foreground)]">{b.label}</span>
+                              <span className="block text-[13px] text-[var(--muted-foreground)]">{b.range}</span>
                             </span>
-                            <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                              <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(bAmt / max) * 100}%`, background: b.color }} />
+                            <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                              <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(parseBudgetLabel(b.amountLabel) / totalAmt) * 100}%`, background: b.color }} />
                             </span>
-                            <span className="w-[3.5rem] shrink-0 text-right leading-tight">
-                              <span className="block text-[13px] font-bold tabular-nums text-[var(--foreground)]">{b.count}</span>
+                            <span className="w-[4rem] shrink-0 text-right leading-tight">
+                              <span className="block text-[14px] font-bold tabular-nums" style={{ color: b.color }}>{b.count}项</span>
                               <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{b.amountLabel}</span>
+                              <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{Math.round((b.count / maxCount) * 100)}%</span>
                             </span>
-                          </div>
-                        );
-                      })}
+                          </button>
+                        ));
+                      })()}
                     </div>
                   ) : (
                     <EmptyState text="暂无进行中项目" />
