@@ -12,8 +12,9 @@ export type ChangeFieldDef = {
   target: 'PMI' | 'BID';
   /** 下拉选项（2026-11-11 用户裁定：采购类别用下拉）——仅前端表单渲染用，后端闸不感知 */
   options?: string[];
-  /** 实体名单选择器（归属项目=项目清单，2026-11-11）：渲染走 SearchSelect，后端闸不感知 */
-  widget?: 'search-select' | 'datetime-range';
+  /** 实体名单选择器（归属项目=项目清单，2026-11-11）：渲染走 SearchSelect，后端闸不感知。
+   *  datetime-range（曾用于文件获取时间）已随字段退役移除（2026-11-20）。 */
+  widget?: 'search-select';
   /** 多行文本（长段落字段如项目概况）——渲染为加高文本域 */
   multiline?: boolean;
   /** 整行占位（2 列栅格跨双列，长段落字段） */
@@ -61,7 +62,6 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
     stageKey: 'TENDER_DOCUMENT',
     stageLabel: '采购文件',
     fields: [
-      { field: 'documentAcquireTime', label: '文件获取时间', kind: 'text', target: 'PMI', widget: 'datetime-range', fullRow: true, aiAssist: 'tender-overview' },
       { field: 'bidOpeningTime', label: '开标时间', kind: 'datetime', target: 'PMI', aiAssist: 'tender-overview' },
     ],
   },

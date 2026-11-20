@@ -44,14 +44,13 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     return tl.rounds[0].nodes;
   };
 
-  it('固定业务顺序（2026-09-08）：时间乱序（归档早于文件获取/开标）也不重排', async () => {
+  it('固定业务顺序（2026-09-08）：时间乱序（归档早于开标）也不重排', async () => {
     const prisma = mk(
       {
         id: 'pmi-1',
         createdAt: new Date('2026-06-30T00:00:00Z'),
-        // 刻意乱序：归档(8/20)早于文件获取(9/10)与开标(9/12)——固定顺序下不得重排
+        // 刻意乱序：归档(8/20)早于开标(9/12)——固定顺序下不得重排
         initiationDate: new Date('2026-07-01T00:00:00Z'),
-        documentAcquireTime: '2026-09-10',
         bidOpeningTime: null,
         archivedAt: new Date('2026-08-20T00:00:00Z'),
       },
@@ -59,8 +58,9 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
       { signedAt: new Date('2026-08-21T00:00:00Z') },
     );
     const nodes = await nodesOf(prisma);
+    // 「采购文件获取」节点已随字段退役删除（2026-11-20）
     expect(nodes.map(n => n.key)).toEqual([
-      'initiation', 'bidNoticePublish', 'documentAcquire', 'bidDeadline', 'expertExtraction', 'bidOpening', 'evaluationEnd',
+      'initiation', 'bidNoticePublish', 'bidDeadline', 'expertExtraction', 'bidOpening', 'evaluationEnd',
       'winNoticePublish', 'awardLetter', 'failedNoticePublish', 'contractSign', 'archived',
     ]);
     expect(nodes.every(n => n.label && n.source)).toBe(true);
@@ -89,7 +89,7 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe(`按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）`);
     expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - BID_DEADLINE_BEFORE_OPENING_MS).getTime());
-    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'documentAcquire', 'expertExtraction', 'evaluationEnd', 'winNoticePublish', 'awardLetter', 'failedNoticePublish', 'contractSign', 'archived']);
+    expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'expertExtraction', 'evaluationEnd', 'winNoticePublish', 'awardLetter', 'failedNoticePublish', 'contractSign', 'archived']);
   });
 
   it('兜底：立项缺 initiationDate → 建档时刻；合同缺 Contract 记录 → CONTRACT 阶段完成时刻', async () => {
@@ -212,13 +212,11 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     expect(failed.source).toBe('公告');
   });
 
-  it('AI 提取的中文时间可解析：documentAcquireTime 区间文本起止、bidOpeningTime 中文时刻', async () => {
+  it('AI 提取的中文时间可解析：bidOpeningTime 中文时刻（documentAcquireTime 节点已删，2026-11-20）', async () => {
     const prisma = mk(
       {
         id: 'pmi-1', currentRound: 1,
         initiationDate: new Date('2026-03-18T00:00:00Z'),
-        // AI 提取的原始区间文本——曾因 new Date() 解析失败显示"未登记"
-        documentAcquireTime: '2026年03月23日09:00至2026年03月26日15:00',
         bidOpeningTime: '2026年3月23日14:00',
         archivedAt: null,
       },
@@ -226,68 +224,27 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
       null,
     );
     const nodes = await nodesOf(prisma);
-    const acquire = nodes.find(n => n.key === 'documentAcquire');
     const opening = nodes.find(n => n.key === 'bidOpening');
-    expect(acquire?.time).not.toBeNull(); // 区间起点 2026-03-23 09:00
-    expect(acquire?.time).toMatch(/^2026-03-23/);
-    expect(acquire?.timeEnd).toMatch(/^2026-03-26/); // 区间终点 2026-03-26 15:00
     expect(opening?.time).toMatch(/^2026-03-23/); // 中文时刻 → 2026-03-23 14:00（本地）
     expect(opening?.timeEnd).toBeUndefined(); // 非区间节点无终点
+    expect(nodes.some(n => n.key === 'documentAcquire')).toBe(false); // 获取节点已退役
   });
 
-  it('纯日期区间（无时分）不被次段年份误读成时分——"10月10日-2026年10月14日"回归', async () => {
-    // 2026-10-12 实录：旧正则时分组冒号可选，\D+ 跨段吞位把次段年份 2026 的
-    // "20""26" 当成 20:26 → 单点 2026-10-10 20:26，区间终点丢失
+  it('无获取节点残留：PMI 存量 documentAcquireTime 值不再产生节点（2026-11-20）', async () => {
     const prisma = mk(
       {
         id: 'pmi-1', currentRound: 1,
         initiationDate: new Date('2026-03-18T00:00:00Z'),
-        documentAcquireTime: '2026年10月10日-2026年10月14日',
+        // 存量库仍有旧值的兼容面：服务端不再 select 该列，节点恒不存在
+        documentAcquireTime: '2026年03月23日09:00至2026年03月26日15:00',
         bidOpeningTime: null,
-        archivedAt: null,
-      },
-      [{ id: 'bp-1', round: 1, projectCode: 'BP-1', deadline: null, openTime: null, createdAt: new Date('2026-10-01T00:00:00Z') }],
-      null,
-    );
-    const nodes = await nodesOf(prisma);
-    const acquire = nodes.find(n => n.key === 'documentAcquire');
-    // 本地零点 → ISO 为 UTC 前一日 16:00（前端渲染时转回本地 10-10/10-14 00:00）
-    expect(acquire?.time).toBe('2026-10-09T16:00:00.000Z'); // 起点零点，不是 20:26
-    expect(acquire?.timeEnd).toBe('2026-10-13T16:00:00.000Z'); // 终点恢复成区间
-  });
-
-  it('上传同步的单点 documentAcquireTime（无区间）→ timeEnd 为 null', async () => {
-    const prisma = mk(
-      {
-        id: 'pmi-1', currentRound: 1,
-        initiationDate: new Date('2026-03-18T00:00:00Z'),
-        documentAcquireTime: '2026年08月27日14:58',
-        bidOpeningTime: null,
-        archivedAt: null,
-      },
-      [{ id: 'bp-1', round: 1, projectCode: 'BP-1', deadline: null, openTime: null, createdAt: new Date('2026-08-01T00:00:00Z') }],
-      null,
-    );
-    const nodes = await nodesOf(prisma);
-    const acquire = nodes.find(n => n.key === 'documentAcquire');
-    expect(acquire?.time).toMatch(/^2026-08-27/);
-    expect(acquire?.timeEnd).toBeNull();
-  });
-
-  it('彻底无法解析的文本 → 该节点仍为未登记（null），不影响其他节点', async () => {
-    const prisma = mk(
-      {
-        id: 'pmi-1', currentRound: 1,
-        initiationDate: new Date('2026-03-18T00:00:00Z'),
-        documentAcquireTime: '见公告',
-        bidOpeningTime: '',
         archivedAt: null,
       },
       [{ id: 'bp-1', round: 1, projectCode: 'BP-1', deadline: null, openTime: null, createdAt: new Date('2026-03-01T00:00:00Z') }],
       null,
     );
     const nodes = await nodesOf(prisma);
-    expect(nodes.find(n => n.key === 'documentAcquire')?.time).toBeNull();
+    expect(nodes.some(n => n.key === 'documentAcquire')).toBe(false);
     const initiationLocal = new Date(nodes.find(n => n.key === 'initiation')!.time!);
     expect(`${initiationLocal.getFullYear()}-${initiationLocal.getMonth() + 1}-${initiationLocal.getDate()}`).toBe('2026-3-18');
   });
@@ -332,11 +289,10 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
 
     const r2 = tl.rounds[1].nodes;
     // 第二轮：自己的公告（BP-R2 编码归属）已登记，截止/开标未登记（轮内 BP 无值且非 PMI 开标回退——
-    // PMI.bidOpeningTime 属当前轮字段但此处为空）；文件获取（PMI 单值）挂在末轮
+    // PMI.bidOpeningTime 属当前轮字段但此处为空）
     expect(r2.find(n => n.key === 'bidNoticePublish')!.time).toMatch(/^2026-11-18/);
     expect(r2.find(n => n.key === 'bidDeadline')!.time).toBeNull();
     expect(r2.find(n => n.key === 'bidOpening')!.time).toBeNull();
-    expect(r2.find(n => n.key === 'documentAcquire')!.time).toMatch(/^2026-11-20/);
     expect(r2.find(n => n.key === 'initiation')).toBeUndefined(); // 立项不重复挂轮
   });
 
@@ -372,7 +328,7 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     const basePmi = { id: 'pmi-1', initiationDate: new Date('2026-03-18') };
     const baseBps = [{ id: 'bp-1', round: 1, createdAt: new Date('2026-11-01') }];
 
-    it('供应商参与=一个组合节点：位于采购文件获取后、投标截止前；三行子项=两轨去重计数+各最近时刻', async () => {
+    it('供应商参与=一个组合节点：位于采购公告发布后、投标截止前；三行子项=两轨去重计数+各最近时刻', async () => {
       const prisma = mk(basePmi, baseBps, null, null, [], {
         intents: [{ projectId: 'bp-1', supplierId: 's1', confirmedAt: new Date('2026-11-13T09:00:00Z'), supplier: { name: '甲公司' } }],
         rsvpAll: [{ projectId: 'bp-1', supplierId: 's1', supplierName: '甲公司', respondedAt: new Date('2026-11-13T08:00:00Z') }, // 与意向同家去重
@@ -392,9 +348,9 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
         { label: '提交标书', count: 1, time: new Date('2026-11-20T16:00:00Z').toISOString(),
           detail: ['乙公司 · 2026/11/21 00:00'] },
       ]);
-      const acq = nodes.findIndex(n => n.key === 'documentAcquire');
+      const notice = nodes.findIndex(n => n.key === 'bidNoticePublish');
       const dl = nodes.findIndex(n => n.key === 'bidDeadline');
-      expect(nodes.findIndex(n => n.key === 'supplierActivity')).toBeGreaterThan(acq);
+      expect(nodes.findIndex(n => n.key === 'supplierActivity')).toBeGreaterThan(notice);
       expect(nodes.findIndex(n => n.key === 'supplierActivity')).toBeLessThan(dl);
       // 全空 → 组合节点不出现
       const empty = await nodesOf(mk(basePmi, baseBps));

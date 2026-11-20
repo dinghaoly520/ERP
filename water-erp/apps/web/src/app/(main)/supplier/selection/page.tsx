@@ -348,7 +348,6 @@ export function SupplierSelectionPage({
   }, [neg, isDirect, isRerun, rerunRound]);
   // 日期解析：从 AI 提取的中文/ISO 格式字符串中提取日期和时分
   // 开标时间为单点时间："2026年3月27日14:00"→ {date, time}
-  // 采购文件获取时间为区间："2026年3月23日9:00-2026年3月26日15:00"→ {startDate, startTime, endDate, endTime}
   const parseChineseDatetime = (raw: string | null | undefined) => {
     const s = (raw || '').trim();
     if (!s) return { date: '', time: '' };
@@ -370,32 +369,16 @@ export function SupplierSelectionPage({
     if (md) return { date: `${md[1]}-${String(Number(md[2])).padStart(2, '0')}-${String(Number(md[3])).padStart(2, '0')}`, time: '00:00' };
     return { date: s, time: '00:00' };
   };
-  const parseChineseRange = (raw: string | null | undefined) => {
-    const s = (raw || '').trim();
-    if (!s) return { startDate: '', startTime: '00:00', endDate: '', endTime: '00:00' };
-    // 按 - 或 至 分割
-    const parts = s.split(/\s*[-–至]\s*/);
-    if (parts.length >= 2) {
-      const start = parseChineseDatetime(parts[0]);
-      const end = parseChineseDatetime(parts[1]);
-      return {
-        startDate: start.date, startTime: start.time || '00:00',
-        endDate: end.date, endTime: end.time || '00:00',
-      };
-    }
-    // 未识别区间：整体当单点
-    const single = parseChineseDatetime(s);
-    return { startDate: single.date, startTime: single.time, endDate: '', endTime: '00:00' };
-  };
 
   // 时间选择（2026-11-04 重构）：日期+时刻合一的 datetime-local 单控件（原 date/time 双输入被 .neu-input
   // 的 44px 高/28px 内边距压至不可操作——「无法重新选择」根源）；值为 "YYYY-MM-DDTHH:mm"
+  // 获取窗口不再从项目「采购文件获取时间」预填（2026-11-20 用户裁定字段退役）——起止留空
+  // 由本流程按谈判安排现填（写谈判配置 acquireStartTime/acquireEndTime）
   const toLocalDt = (date: string, time: string) => (date ? `${date}T${(time || '00:00').slice(0, 5)}` : '');
   const initBid = parseChineseDatetime(project?.bidOpeningTime);
   const [bidAt, setBidAt] = useState(() => toLocalDt(initBid.date, initBid.time));
-  const initAcquire = parseChineseRange(project?.documentAcquireTime);
-  const [acquireFrom, setAcquireFrom] = useState(() => toLocalDt(initAcquire.startDate, initAcquire.startTime));
-  const [acquireTo, setAcquireTo] = useState(() => toLocalDt(initAcquire.endDate || initAcquire.startDate, initAcquire.endTime));
+  const [acquireFrom, setAcquireFrom] = useState('');
+  const [acquireTo, setAcquireTo] = useState('');
 
   // 项目「采购文件」阶段附件（供"引用采购文件"勾选，排除审批/批准类文件）
   const projectTenderFiles = useMemo(() => {

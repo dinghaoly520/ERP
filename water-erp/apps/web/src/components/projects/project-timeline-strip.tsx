@@ -63,7 +63,8 @@ export function ProjectTimelineStrip({ pmiId, refreshKey = 0 }: { pmiId: string;
     const hm = hasTime ? ` ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` : '';
     return `${omitYear ? '' : `${d.getFullYear()}/`}${d.getMonth() + 1}/${d.getDate()}${hm}`;
   };
-  // 节点展示：区间节点（采购文件获取）按拍板固定中文格式「2026年9月7日9:00-2026年9月8日15:00」
+  // 节点展示：区间节点按拍板固定中文格式「2026年9月7日9:00-2026年9月8日15:00」
+  //（「采购文件获取」区间节点已删，2026-11-20；分支保留服务未来区间节点）
   const fmtNode = (n: TimelineNode) => {
     if (!n.time) return '未登记';
     if (!n.timeEnd) return fmt(n.time);

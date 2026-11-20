@@ -1720,21 +1720,21 @@ export class BidService {
       data: { riskNote: `${original.riskNote || ''}｜已于 ${formatNoteTime(now)} 由 ${(await this.resolveActorLabel(actorId)) ?? '系统'} 重启为新项目 ${newCode}` },
     });
 
-    // 2026-10-28 二轮隔离（与 PMI reproc 同口径）：旧轮 PMI 层开标/获取时间快照到旧轮项目行，
-    // PMI 两字段清空——新轮基本信息不带旧轮时间（历史轮展示改读快照列）。
-    // 2026-10-30 类型闸修复（与 reproc 同源）：PMI 两列是自由文本（String?），快照列是
+    // 2026-10-28 二轮隔离（与 PMI reproc 同口径）：旧轮 PMI 层开标时间快照到旧轮项目行，
+    // PMI 字段清空——新轮基本信息不带旧轮时间（历史轮展示改读快照列）。
+    // 2026-10-30 类型闸修复（与 reproc 同源）：PMI 列是自由文本（String?），快照列是
     // DateTime?——直赋字符串必炸 PrismaClientValidationError。parseFlexibleDate 尽力解析。
+    // 「文件获取时间」快照停写（2026-11-20 用户裁定字段退役；清空保留作存量治理）。
     if (original.projectManagementItemId) {
       const host = await this.prisma.projectManagementItem.findUnique({
         where: { id: original.projectManagementItemId },
-        select: { bidOpeningTime: true, documentAcquireTime: true },
+        select: { bidOpeningTime: true },
       });
-      if (host && (host.bidOpeningTime || host.documentAcquireTime)) {
+      if (host?.bidOpeningTime) {
         await this.prisma.bidProject.update({
           where: { id },
           data: {
             roundOpeningTime: parseFlexibleDate(host.bidOpeningTime),
-            roundDocAcquireTime: parseFlexibleDate(host.documentAcquireTime),
           },
         });
         await this.prisma.projectManagementItem.update({

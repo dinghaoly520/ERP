@@ -325,7 +325,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
       {/* 四、公示期限 */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          四、公示期限（采购文件获取时间）
+          四、公示期限
         </div>
         <div className="mt-2 text-[0.92rem] leading-8">
           本公告有效期从
@@ -459,7 +459,7 @@ function SingleSourceAnnouncementPreview({
       {/* 五、公示期限 */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          五、公示期限（采购文件获取时间）
+          五、公示期限
         </div>
         <div className="mt-2 text-[0.92rem] leading-8">
           {PV(formatDateToChinese(draft.announcementStart), "{{公示期限（起）}}", "announcementStart")}至

@@ -243,7 +243,7 @@ export type ProjectManagementItem = {
   initiationDate?: string | null;
   projectOverview?: string | null;
   bidOpeningTime?: string | null;
-  documentAcquireTime?: string | null;
+  // 「采购文件获取时间」字段已删（2026-11-20 用户裁定，概念整体退役）
   // B1（GB/T 43711 7.2.1.2 采购方案要素，选填）
   implementerName?: string | null;
   contractPricingType?: string | null;

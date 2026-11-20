@@ -131,7 +131,7 @@ export async function reprocProject(projectId: string, body: ReprocBody) {
 // /submit-review、/review 路由后端从未实现且无 UI 调用方（2026-09-28 审计死封装）；
 // 送审流落地时按后端实际路由重建。
 
-/** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime / documentAcquireTime */
+/** 从已上传的采购文件重新提取 projectOverview / bidOpeningTime */
 export async function extractTenderFields(projectId: string, field?: string, timeoutMs = 150_000, dryRun = false) {
   const qs = [field ? `field=${field}` : '', dryRun ? 'dryRun=true' : ''].filter(Boolean).join('&');
   const qsPrefixed = qs ? `?${qs}` : '';
@@ -321,7 +321,6 @@ export type ExtractedInfo = {
   contractNumber: string | null;
   projectOverview: string | null;
   bidOpeningTime: string | null;
-  documentAcquireTime: string | null;
   invitedSuppliers: string | null;
   paymentPerformance: string | null;
 };
@@ -458,7 +457,6 @@ export type ExtractedInfoPayload = {
   departmentNumber?: string;
   projectOverview?: string;
   bidOpeningTime?: string;
-  documentAcquireTime?: string;
   invitedSuppliers?: string;
   paymentPerformance?: string;
   requesterName?: string;

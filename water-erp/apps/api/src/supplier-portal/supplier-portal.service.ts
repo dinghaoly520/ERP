@@ -1403,16 +1403,12 @@ export class SupplierPortalService {
     if (!project.projectManagementItemId) return project;
     const pm = await this.prisma.projectManagementItem.findUnique({
       where: { id: project.projectManagementItemId },
-      select: { projectCode: true, documentAcquireTime: true },
+      select: { projectCode: true },
     });
     if (!pm) return project;
+    // 「采购文件获取时间」PMI 兜底已删（2026-11-20 用户裁定字段退役）——供应商端
+    // 获取窗口唯一来源 = BidProject.downloadDeadline（采购公告发布链按公示期限写入）
     const out: Record<string, unknown> = { ...project, projectCode: pm.projectCode ?? project.projectCode };
-    // 采购文件获取时间（非谈判项目）：PMI 阶段提取的中文区间「YYYY年MM月DD日HH:MM至…」，
-    // BidProject.downloadDeadline 对直接采购等常为空，此字段是唯一权威来源
-    const downloadDeadline = (project as { downloadDeadline?: Date | null }).downloadDeadline;
-    if (downloadDeadline == null && pm.documentAcquireTime) {
-      out.documentAcquireTime = pm.documentAcquireTime;
-    }
     return out as T;
   }
 
