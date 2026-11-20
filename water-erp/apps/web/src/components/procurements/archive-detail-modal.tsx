@@ -344,6 +344,11 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
             </span>
             <span className="text-[1.15rem] font-bold text-[color:var(--foreground)]">
               {loading ? '加载中...' : data?.projectTitle || '归档详情'}
+              {!loading && data?.basicInfo?.['项目编号'] && (
+                <span className="ml-2 align-middle font-mono text-[0.8rem] font-semibold text-[color:var(--accent-strong)]">
+                  {data.basicInfo['项目编号']}
+                </span>
+              )}
               {data?.kind === 'terminated' && (
                 <span className="ml-2 inline-flex items-center rounded-[6px] bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 align-middle text-[11px] font-bold text-[var(--danger)]">已终止</span>
               )}
@@ -476,36 +481,47 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <h3 className="text-base font-semibold">基本信息</h3>
                     </div>
                     <div className="space-y-4">
-                      {/* Row 1: 申请人、申请部门、采购方式、采购类别、所属项目、合同编号 */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">申请人</div>
-                          <div className="text-[0.85rem] font-medium">{data.basicInfo['申请人'] || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">申请部门</div>
-                          <div className="text-[0.85rem]">{data.basicInfo['申请部门'] || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">采购方式</div>
-                          <div className="text-[0.85rem]">{data.basicInfo['采购方式'] || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">采购类别</div>
-                          <div className="text-[0.85rem]">{data.basicInfo['采购类别'] || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">所属项目</div>
-                          <div className="text-[0.85rem]">{data.basicInfo['所属项目'] || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">项目编号</div>
-                          <div className="text-[0.85rem] font-mono font-semibold text-[color:var(--accent-strong)]">{data.basicInfo['项目编号'] || '-'}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-[color:var(--muted-foreground)]">合同编号</div>
-                          <div className="text-[0.85rem] font-mono">{data.basicInfo['合同编号'] || '-'}</div>
-                        </div>
+                      {/* 主字段表格（2026-11-20 用户裁定表格排版）：标签|值 两组成对四列，
+                          行间 hairline、组间竖 hairline，与时间轴表格同款式 */}
+                      <div className="rounded-[12px] bg-[oklch(0.975_0.01_248_/_0.6)] overflow-hidden">
+                        <table className="w-full">
+                          <tbody>
+                            {[
+                              [
+                                { k: '申请人', v: data.basicInfo['申请人'] || '-', strong: true },
+                                { k: '申请部门', v: data.basicInfo['申请部门'] || '-' },
+                              ],
+                              [
+                                { k: '采购方式', v: data.basicInfo['采购方式'] || '-' },
+                                { k: '采购类别', v: data.basicInfo['采购类别'] || '-' },
+                              ],
+                              [
+                                { k: '所属项目', v: data.basicInfo['所属项目'] || '-' },
+                                { k: '项目编号', v: data.basicInfo['项目编号'] || '-', mono: true },
+                              ],
+                              [
+                                { k: '合同编号', v: data.basicInfo['合同编号'] || '-', mono: true },
+                                null,
+                              ],
+                            ].map((row, ri) => (
+                              <tr key={ri} className={ri > 0 ? 'border-t border-[oklch(0.6_0.04_258_/_0.12)]' : ''}>
+                                {(() => {
+                                  const pairTd = (cell: { k: string; v: string; mono?: boolean; strong?: boolean } | null, second: boolean) => (
+                                    <>
+                                      <td className="w-[92px] px-4 py-[7px] text-xs whitespace-nowrap text-[color:var(--muted-foreground)]">
+                                        {cell?.k ?? ''}
+                                      </td>
+                                      <td className={`px-4 py-[7px] text-[0.85rem] ${second ? 'border-l border-[oklch(0.6_0.04_258_/_0.12)]' : ''} ${cell?.mono ? 'font-mono font-semibold text-[color:var(--accent-strong)]' : cell?.strong ? 'font-medium text-[color:var(--foreground)]' : 'text-[color:var(--foreground)]'}`}>
+                                        {cell?.v ?? ''}
+                                      </td>
+                                    </>
+                                  );
+                                  return (<>{pairTd(row[0], false)}{pairTd(row[1], true)}</>);
+                                })()}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                       {data.kind === 'terminated' && (
                         /* 终止四件套（2026-11-20 二次重构：终止事实唯一出处——撤顶部横幅后
@@ -533,8 +549,21 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           )}
                         </div>
                       )}
-                      {/* 专家信息/投标单位/立项事由/供方要求（2026-11-20 排版重构）：
-                          有内容才渲染——空值时整段隐藏，不再占行显 "-" 噪声 */}
+                      {/* 参与供应商/专家信息/立项事由/供方要求（2026-11-20 排版重构）：
+                          参与供应商居专家信息之前；有内容才渲染——空值整段隐藏不占行 */}
+                      {biddingUnits.length > 0 && (
+                      <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
+                        <div className="text-xs text-[color:var(--muted-foreground)]">参与供应商</div>
+                        <div className="flex flex-wrap gap-2">
+                          {biddingUnits.map((unit, i) => (
+                            <span key={i} className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
+                              {unit}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      )}
+
                       {experts.length > 0 && (
                       <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">专家信息</div>
@@ -560,20 +589,6 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         ) : (
                           <span className="text-[0.85rem] text-[var(--danger)]">暂缺</span>
                         )}
-                      </div>
-                      )}
-
-                      {/* Row 5: 投标单位 */}
-                      {biddingUnits.length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
-                        <div className="text-xs text-[color:var(--muted-foreground)]">投标单位</div>
-                        <div className="flex flex-wrap gap-2">
-                          {biddingUnits.map((unit, i) => (
-                            <span key={i} className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
-                              {unit}
-                            </span>
-                          ))}
-                        </div>
                       </div>
                       )}
 
