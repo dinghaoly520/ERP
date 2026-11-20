@@ -269,9 +269,12 @@ it('stats：E8 口径分叉锁定——在途评审中=派生 occupied（宽松�
     { label: '可用', value: '2' }, // 库内 4 − 在途 2
     { label: '在途评审中', value: '2' }, // 派生在途并集——宽松口径会答 4（含 ABORTED/declined/池外），锁分叉
   ]);
-  // 负荷查询 where 形状：人口过滤（mock 对 where 全盲，形状断言锁回归）
+  // 负荷查询 where 形状：人口过滤（mock 对 where 全盲，形状断言锁回归）；
+  // stage≠ARCHIVED（含流标痕迹）与 declined 保留（负荷语义）一并锁形状
   const loadCall = (prisma.bidExpert.findMany.mock.calls as Array<any[]>).find(c => !c[0].select?.project)![0];
   expect(loadCall.where.user.expertProfile).toEqual({ entryStatus: 'ACTIVE', availability: { not: '停用' } });
+  expect(loadCall.where.project).toEqual({ stage: { not: 'ARCHIVED' } });
+  expect(loadCall.where.invitationStatus).toBeUndefined(); // declined 行保留=负荷语义（勿加过滤）
   // 负荷空闲基数=库内人口 4（宽松 distinct=4 → 空闲 0；全量基数会答 1）
   const loadRows = cards[4].rows as Array<Record<string, unknown>>;
   const loadMap = Object.fromEntries(loadRows.map((x) => [x.load, x.count]));
