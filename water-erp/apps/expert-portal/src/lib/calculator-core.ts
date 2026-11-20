@@ -1,11 +1,14 @@
 /**
- * 通用计算器核心（2026-11-20）——「条款响应核对」右栏计算器 v1 的纯函数状态机。
+ * 通用计算器核心（2026-11-20 v1，同日 v2 增科学函数）——评标工作台计算器纯函数状态机。
  * 无 React/DOM 依赖；语义裁定见 docs/superpowers/specs/2026-11-20-expert-compare-calculator-design.md：
  * % = 当前值÷100；连按 = 重复上次运算；C 重置运算态但保留 history；
  * 错误态仅 digit/clear 有效（digit 自愈重新起数）；精度 toPrecision(12) 消浮点噪声。
+ * v2：一元函数（sin/cos/tan/ln/log/√/x²/1/x）按下即作用于当前显示值（不进 history，仅 = 记账）；
+ * xʸ 为即时执行链上的二元运算（无优先级，与 +−×÷ 同链）；π/e 为常量输入；
+ * 角度模式 angleMode（DEG 默认，可切 RAD）仅影响三角函数。
  */
 
-export type CalcOp = '+' | '-' | '×' | '÷';
+export type CalcOp = '+' | '-' | '×' | '÷' | '^';
 
 const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'] as const;
 export type CalcDigit = (typeof DIGITS)[number];
@@ -30,8 +33,10 @@ export interface CalcState {
   freshEntry: boolean;
   /** '除数不能为 0'（错误态仅 digit/clear 自愈） */
   error: string | null;
-  /** 最近计算记录，新的在前，≤5 条 */
+  /** 最近计算记录，新的在前，≤12 条（v2 纸带加高提容） */
   history: CalcHistoryEntry[];
+  /** 角度模式（仅三角函数）：DEG 默认，RAD 可切（v2） */
+  angleMode: 'DEG' | 'RAD';
 }
 
 export type CalcAction =
@@ -43,7 +48,13 @@ export type CalcAction =
   | { type: 'negate' }
   | { type: 'backspace' }
   | { type: 'clear' }
-  | { type: 'useHistory'; value: string };
+  | { type: 'useHistory'; value: string }
+  /** v2 一元函数：按下即作用于当前显示值 */
+  | { type: 'unary'; fn: 'sin' | 'cos' | 'tan' | 'ln' | 'log' | 'sqrt' | 'sqr' | 'inv' }
+  /** v2 常量输入（π/e） */
+  | { type: 'constant'; kind: 'pi' | 'e' }
+  /** v2 角度模式切换 DEG⇄RAD */
+  | { type: 'toggleAngle' };
 
 export const initialCalcState: CalcState = {
   display: '0',
@@ -54,19 +65,57 @@ export const initialCalcState: CalcState = {
   freshEntry: true,
   error: null,
   history: [],
+  angleMode: 'DEG',
 };
 
 const MAX_ENTRY_LEN = 15;
 const DIV_ZERO_MSG = '除数不能为 0';
+const DOMAIN_MSG = '输入超出定义域';
 
 /** 浮点噪声归一：12 位有效数字后回字符串（0.1+0.2 → "0.3"） */
 const norm = (n: number): string => String(Number(n.toPrecision(12)));
 
 const apply = (a: number, o: CalcOp, b: number): number =>
-  o === '+' ? a + b : o === '-' ? a - b : o === '×' ? a * b : a / b;
+  o === '+' ? a + b : o === '-' ? a - b : o === '×' ? a * b : o === '^' ? Math.pow(a, b) : a / b;
 
+/** 错误态（运算链全清、保留 history；digit/clear 自愈） */
+const errored = (state: CalcState, message: string): CalcState => ({
+  ...state,
+  display: '0',
+  acc: null,
+  pendingOp: null,
+  lastOperand: null,
+  lastOp: null,
+  freshEntry: true,
+  error: message,
+});
+
+/** v2 一元函数实现；返回 null 表示域错误 */
+const applyUnary = (v: number, fn: 'sin' | 'cos' | 'tan' | 'ln' | 'log' | 'sqrt' | 'sqr' | 'inv', angleMode: 'DEG' | 'RAD'): number | null => {
+  switch (fn) {
+    case 'sin':
+    case 'cos':
+    case 'tan': {
+      const r = angleMode === 'DEG' ? (v * Math.PI) / 180 : v;
+      return fn === 'sin' ? Math.sin(r) : fn === 'cos' ? Math.cos(r) : Math.tan(r);
+    }
+    case 'ln':
+      return v > 0 ? Math.log(v) : null;
+    case 'log':
+      return v > 0 ? Math.log10(v) : null;
+    case 'sqrt':
+      return v >= 0 ? Math.sqrt(v) : null;
+    case 'sqr':
+      return v * v;
+    case 'inv':
+      return v === 0 ? null : 1 / v;
+  }
+};
+
+/** v2：纸带显示区加高，历史容量 5 → 12（2026-11-20 用户需求「看见更多输入历史」） */
+const HISTORY_CAP = 12;
 const withHistory = (state: CalcState, entry: CalcHistoryEntry): CalcHistoryEntry[] =>
-  [entry, ...state.history].slice(0, 5);
+  [entry, ...state.history].slice(0, HISTORY_CAP);
 
 export function calcReducer(state: CalcState, action: CalcAction): CalcState {
   switch (action.type) {
@@ -192,6 +241,25 @@ export function calcReducer(state: CalcState, action: CalcAction): CalcState {
     case 'useHistory':
       return { ...state, display: action.value, freshEntry: true, error: null };
 
+    case 'unary': {
+      if (state.error) return state;
+      const v = Number(state.display);
+      if (action.fn === 'inv' && v === 0) return errored(state, DIV_ZERO_MSG);
+      const out = applyUnary(v, action.fn, state.angleMode);
+      if (out === null) return errored(state, DOMAIN_MSG);
+      // 函数结果不进 history（仅 = 记账，Casio 惯例）；结果后新数字重新起数
+      return { ...state, display: norm(out), freshEntry: true };
+    }
+
+    case 'constant': {
+      if (state.error) return state;
+      const v = action.kind === 'pi' ? Math.PI : Math.E;
+      return { ...state, display: norm(v), freshEntry: true };
+    }
+
+    case 'toggleAngle':
+      return { ...state, angleMode: state.angleMode === 'DEG' ? 'RAD' : 'DEG' };
+
     default:
       return state;
   }
@@ -213,6 +281,8 @@ export function keyToAction(key: string): CalcAction | null {
     case 'x':
     case 'X':
       return { type: 'op', op: '×' };
+    case '^':
+      return { type: 'op', op: '^' };
     case '/':
       return { type: 'op', op: '÷' };
     case 'Enter':

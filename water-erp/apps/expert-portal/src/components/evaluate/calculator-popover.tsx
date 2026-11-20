@@ -26,10 +26,35 @@ interface CalcKey {
   label: string;
   act: CalcAction;
   cls?: string;
+  /** DEG/RAD 切换键：label 由 state.angleMode 动态渲染 */
+  isAngle?: boolean;
 }
 
 const digit = (n: CalcDigit): CalcAction => ({ type: 'digit', d: n });
-const opAct = (op: '+' | '-' | '×' | '÷'): CalcAction => ({ type: 'op', op });
+const opAct = (op: '+' | '-' | '×' | '÷' | '^'): CalcAction => ({ type: 'op', op });
+const un = (fn: 'sin' | 'cos' | 'tan' | 'ln' | 'log' | 'sqrt' | 'sqr' | 'inv'): CalcAction => ({ type: 'unary', fn });
+
+/** v2 科学函数区（3 行，一元按下即算；xʸ 入运算链；π/e 常量；DEG/RAD 切换） */
+const SCI_ROWS: CalcKey[][] = [
+  [
+    { label: 'sin', act: un('sin') },
+    { label: 'cos', act: un('cos') },
+    { label: 'tan', act: un('tan') },
+    { label: 'π', act: { type: 'constant', kind: 'pi' } },
+  ],
+  [
+    { label: 'ln', act: un('ln') },
+    { label: 'log', act: un('log') },
+    { label: '√', act: un('sqrt') },
+    { label: 'x²', act: un('sqr') },
+  ],
+  [
+    { label: '1/x', act: un('inv') },
+    { label: 'xʸ', act: opAct('^'), cls: 'is-info' },
+    { label: 'e', act: { type: 'constant', kind: 'e' } },
+    { label: 'DEG', act: { type: 'toggleAngle' }, cls: 'is-info', isAngle: true },
+  ],
+];
 
 const KEY_ROWS: CalcKey[][] = [
   [
@@ -64,10 +89,10 @@ const KEY_ROWS: CalcKey[][] = [
   ],
 ];
 
-/** 窗口尺寸约束（右下角 grip 拖拽缩放） */
-const INIT_SIZE = { w: 248, h: 376 };
-const MIN_SIZE = { w: 232, h: 328 };
-const MAX_SIZE = { w: 480, h: 640 };
+/** v2 窗口尺寸约束（科学键区 8 行 + 纸带显示，整体更高更宽） */
+const INIT_SIZE = { w: 260, h: 540 };
+const MIN_SIZE = { w: 232, h: 470 };
+const MAX_SIZE = { w: 560, h: 800 };
 
 /** 视口钳制：标题栏永不移出屏幕（至少留 48px 高度、80px 宽度可抓回） */
 const clampPos = (left: number, top: number) => ({
@@ -84,6 +109,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
   sizeRef.current = size;
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
+  const tapeRef = useRef<HTMLDivElement>(null);
   /** 拖拽/缩放统一手势态（null=无手势；监听器常驻，无手势时 no-op） */
   const gestureRef = useRef<null | {
     mode: 'drag' | 'resize';
@@ -113,6 +139,12 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
   useEffect(() => {
     if (open) popRef.current?.focus();
   }, [open, pos]);
+
+  // 纸带自动滚到底（最新在底部）
+  useEffect(() => {
+    const el = tapeRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [state.history]);
 
   const closePopover = () => {
     setOpen(false);
@@ -223,50 +255,48 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               </button>
             </div>
 
-            {/* 显示区：待算式小字 + 主显示（mono 表格数字；truncate 防超宽，title 悬停看全值） */}
-            <div className="shrink-0 rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-2 text-right">
-              <div className="h-4 truncate font-mono text-[10px] leading-4 text-[var(--muted-foreground)]" title={exprLine}>
-                {exprLine}
-              </div>
-              {state.error ? (
-                <div className="text-[13px] font-bold text-[var(--danger)]">{state.error}</div>
-              ) : (
-                <div
-                  className="truncate font-mono text-xl font-bold tabular-nums leading-7 text-[var(--foreground)]"
-                  title={formatCalcDisplay(state.display)}
-                >
-                  {formatCalcDisplay(state.display)}
-                </div>
-              )}
-            </div>
-
-            {/* 历史条（伸缩区①）：≤5 条，点击回填结果 */}
-            {state.history.length > 0 && (
-              <div className="mt-2 min-h-0 flex-1 overflow-y-auto rounded-[10px] bg-[oklch(0.96_0.01_258/0.3)] px-1.5 py-1">
-                {state.history.map((h, i) => (
+            {/* 纸带显示区（v2 加高）：历史行（可点回填，最新在下）+ 当前算式/主显示固定底部 */}
+            <div className="flex min-h-[120px] flex-1 flex-col overflow-hidden rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)]">
+              <div ref={tapeRef} className="flex-1 overflow-y-auto px-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {[...state.history].reverse().map((h, i) => (
                   <button
                     key={`${h.expr}|${h.result}|${i}`}
                     type="button"
                     title="点击回填结果"
                     onClick={() => dispatch({ type: 'useHistory', value: h.result })}
-                    className="block w-full rounded px-1.5 py-0.5 text-right font-mono text-[10px] tabular-nums text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(0.96_0.04_251/0.25)] hover:text-[var(--foreground)]"
+                    className="block w-full rounded px-1 py-0.5 text-right font-mono text-[11px] tabular-nums text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(0.96_0.04_251/0.25)] hover:text-[var(--foreground)]"
                   >
                     {h.expr} = {h.result}
                   </button>
                 ))}
               </div>
-            )}
+              <div className="shrink-0 px-3 pb-2 pt-1 text-right">
+                <div className="h-4 truncate font-mono text-[10px] leading-4 text-[var(--muted-foreground)]" title={exprLine}>
+                  {exprLine}
+                </div>
+                {state.error ? (
+                  <div className="text-[13px] font-bold text-[var(--danger)]">{state.error}</div>
+                ) : (
+                  <div
+                    className="truncate font-mono text-xl font-bold tabular-nums leading-7 text-[var(--foreground)]"
+                    title={formatCalcDisplay(state.display)}
+                  >
+                    {formatCalcDisplay(state.display)}
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {/* 键区（伸缩区②）：auto-rows-fr 随窗口高度拉伸 */}
-            <div className="mt-2 grid flex-1 auto-rows-fr grid-cols-4 gap-1.5">
-              {KEY_ROWS.flat().map((k) => (
+            {/* 键区：科学函数 3 行 + 主键区 5 行，auto-rows-fr 随窗口高度拉伸 */}
+            <div className="mt-2 grid shrink-0 auto-rows-fr grid-cols-4 gap-1.5">
+              {[...SCI_ROWS, ...KEY_ROWS].flat().map((k) => (
                 <button
                   key={k.label}
                   type="button"
                   onClick={() => dispatch(k.act)}
                   className={`neu-btn-xs !px-0 font-mono !text-[13px] ${k.cls ?? ''}`}
                 >
-                  {k.label}
+                  {k.isAngle ? state.angleMode : k.label}
                 </button>
               ))}
             </div>

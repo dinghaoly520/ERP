@@ -166,3 +166,57 @@ test('终审 F7："-0." 退格归一为 "0"，后续数字正常（不留 "-012"
   assert.equal(s.display, '0');
   assert.equal(calcReducer(s, d('1')).display, '1');
 });
+
+// ── v2 科学函数（2026-11-20）──
+const sin = () => ({ type: 'unary', fn: 'sin' } as CalcAction);
+const sqrtA = () => ({ type: 'unary', fn: 'sqrt' } as CalcAction);
+const sqr = () => ({ type: 'unary', fn: 'sqr' } as CalcAction);
+const inv = () => ({ type: 'unary', fn: 'inv' } as CalcAction);
+const ln = () => ({ type: 'unary', fn: 'ln' } as CalcAction);
+const pi = () => ({ type: 'constant', kind: 'pi' } as CalcAction);
+
+test('科学·DEG 一元函数：30 sin → 0.5（精度归一）', () => {
+  const s = run(d('3'), d('0'), sin());
+  assert.equal(s.display, '0.5');
+  assert.equal(s.freshEntry, true); // 函数结果后新数字重新起数
+});
+
+test('科学·角度模式切换：DEG 30 sin=0.5，toggleAngle 后 30 sin=RAD 值', () => {
+  const rad = run({ type: 'toggleAngle' } as CalcAction, d('3'), d('0'), sin());
+  assert.equal(rad.angleMode, 'RAD');
+  assert.equal(rad.display, '-0.988031624093');
+});
+
+test('科学·域错误：√(-1) 与 ln(0) → 输入超出定义域；digit 自愈', () => {
+  const negated = run(d('1'), neg(), sqrtA());
+  assert.equal(negated.error, '输入超出定义域');
+  const healed = calcReducer(negated, d('7'));
+  assert.equal(healed.display, '7');
+  assert.equal(run(d('0'), ln()).error, '输入超出定义域');
+});
+
+test('科学·x²/1/x：5 x²→25；8 1/x→0.125；0 1/x→除零文案', () => {
+  assert.equal(run(d('5'), sqr()).display, '25');
+  assert.equal(run(d('8'), inv()).display, '0.125');
+  assert.equal(run(d('0'), inv()).error, '除数不能为 0');
+});
+
+test('科学·常量 π/e：12 位有效数字进入显示', () => {
+  assert.equal(run(pi()).display, '3.14159265359');
+  assert.equal(run({ type: 'constant', kind: 'e' } as CalcAction).display, '2.71828182846');
+});
+
+test('科学·x^y：2 ^ 10 = → 1024；与 + 链式 2^3+1=9（即时执行）', () => {
+  assert.equal(run(d('2'), op('^'), d('1'), d('0'), eq()).display, '1024');
+  assert.equal(run(d('2'), op('^'), d('3'), op('+'), d('1'), eq()).display, '9');
+});
+
+test('科学·一元函数作用于 = 后结果：4 = √ → 2 且 freshEntry', () => {
+  const s = run(d('4'), eq(), sqrtA());
+  assert.equal(s.display, '2');
+  assert.equal(s.freshEntry, true);
+});
+
+test('keyToAction：^ 映射为 op ^', () => {
+  assert.deepEqual(keyToAction('^'), { type: 'op', op: '^' });
+});
