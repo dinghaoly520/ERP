@@ -2000,14 +2000,12 @@ export class ExpertAdminService {
   /* 大屏聚合统计（公开，无需登录） */
 
   async getBigscreenStats() {
-    const [total, busyCounts, disabledRetired, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
+    const [total, busyCounts, specGroups, titleGroups, evals, scoreRecords] = await Promise.all([
       this.prisma.user.count({ where: { role: 'bid_expert' } }),
       // 库况四态派生（2026-11-19 审查⑵收口）：available/occupied 弃 availability 镜像（「占用」
       // 零写入者恒 0、「可用」虚含在途专家），改 expert-busy-state.util 单源（含裁定⑴停用组排除，
       // 临时需求方代表不再虚增「可用」）——与 :3005 统计/水叮当同口径；返回字段名不变，大屏页零改动
       deriveBusyCounts(this.prisma, { role: 'bid_expert', isActive: true }),
-      // 已停用=退库专家（entryStatus 为准，availability 镜像可能失真）
-      this.prisma.expertProfile.count({ where: { entryStatus: 'RETIRED', user: { role: 'bid_expert' } } }),
       this.prisma.expertProfile.groupBy({
         by: ['specialty'],
         where: { user: { role: 'bid_expert', isActive: true } },
@@ -2036,7 +2034,11 @@ export class ExpertAdminService {
     // 可用状态（四态派生：空闲=库内可抽取人口−在途并集；occupied=在途并集人数）
     const avail = busyCounts.idle;
     const occupied = busyCounts.occupied;
-    const disabled = disabledRetired;
+    // E9（2026-11-20）：未在池=total−库内可抽取人口（池外并集：RETIRED/PENDING/SUSPENDED/
+    // 停用-ACTIVE 临时代表/停账号/无档案）——计算闭合保证四桶加总=total（原 RETIRED-only 计数
+    // 使停用-ACTIVE 等落不进任何桶、人口蒸发）。基底用 inLibraryActive 勿改 idle+occupied：
+    // deriveBusyCounts 的钳 0 防线在病理态（在途超分母）会使 idle+occupied 超出分母、多扣出负。
+    const disabled = Math.max(0, total - busyCounts.inLibraryActive);
 
     // 专业分布（最大值为 100% 基准）
     const maxSpec = specGroups[0]?._count ?? 1;
@@ -2089,7 +2091,12 @@ export class ExpertAdminService {
         available: avail,
         occupied,
         disabled,
-        availableRate: total > 0 ? Math.round((avail / total) * 1000) / 10 : 0,
+        // E9（2026-11-20 用户裁定 B 案）：可用率=库内空闲占比（分母=可抽取人口，与可用+占用两桶
+        // 自洽、观众可在同 KPI 行验算；原全库分母让池外人口拉低一个叫「可抽取率」的数）。
+        // 零分母护栏：空池/全新库不出 NaN。
+        availableRate: busyCounts.inLibraryActive > 0
+          ? Math.round((avail / busyCounts.inLibraryActive) * 1000) / 10
+          : 0,
       },
       specialties,
       evaluation: { levelCounts, excellentRatio, total: evalTotal, avgScoreDeviation: avgDeviation },
@@ -2516,10 +2523,8 @@ export class ExpertAdminService {
     const cutoff30d = new Date(Date.now() - 30 * 24 * 3600 * 1000);
     const f = await this.expertScopeFilter(user, companyId); // 统计在隔离集上算，不是全量算完再减
 
-    const [totalExperts, disabledRetired, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d, busyCounts] = await Promise.all([
+    const [totalExperts, specGroups, titleGroups, evals, recentAssigns7d, recentExtractions30d, busyCounts] = await Promise.all([
       this.prisma.user.count({ where: { role: 'bid_expert', ...f } }),
-      // 已停用=退库专家：以 entryStatus 为准（availability='停用' 是 RETIRED 的镜像且历史档案可能失真）
-      this.prisma.expertProfile.count({ where: { entryStatus: 'RETIRED', user: { role: 'bid_expert', ...f } } }),
       this.prisma.expertProfile.groupBy({
         by: ['specialty'], where: { user: { role: 'bid_expert', isActive: true, ...f } },
         _count: true, orderBy: { _count: { specialty: 'desc' } },
@@ -2572,7 +2577,10 @@ export class ExpertAdminService {
         evaluating: busyCounts.evaluating,
         alternate: busyCounts.alternate,
       },
-      disabled: disabledRetired,
+      // E9（2026-11-20 同 PR 扫·用户裁定）：未在池=total−库内可抽取人口（计算闭合，同 getBigscreenStats；
+      // 原 RETIRED-only 计数使停用-ACTIVE 临时代表/待审/停账号者落不进任何桶——统计页 KPI 与库页
+      // 六联锚四桶加总≠总数）。基底 inLibraryActive（钳 0 病理防御同大屏注释）。
+      disabled: Math.max(0, totalExperts - busyCounts.inLibraryActive),
       specialtyDistribution: specGroups.map(g => ({ name: g.specialty, count: g._count })),
       titleDistribution: titleGroups.map(g => ({ name: g.title || '未填写', count: g._count })),
       evaluationStats: { levelCounts, excellentRatio, total: evalTotal },

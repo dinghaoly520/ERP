@@ -229,10 +229,9 @@ describe('ExpertAdminService', () => {
       expect(res.available).toBe(5);
       expect(res.occupied).toBe(0);
       expect(res.busy).toEqual({ idle: 5, assigned: 0, evaluating: 0, alternate: 0 });
-      expect(res.disabled).toBe(1);
-      expect(prisma.expertProfile.count).toHaveBeenCalledWith(expect.objectContaining({
-        where: expect.objectContaining({ entryStatus: 'RETIRED' }),
-      }));
+      // E9 同 PR 扫：未在池=计算闭合（10−库内5=5；原 RETIRED-only 计数答 expertProfile.count 值）
+      expect(res.disabled).toBe(5);
+      expect(res.totalExperts).toBe(res.available + res.occupied + res.disabled); // 四桶恒等式
     });
 
     it('getStatistics 四态派生（2026-11-18）：优先级链 正在评标＞正选在途＞候补待命 同人只计高位（多在途行去重），declined 不入查询、在途限库内 ACTIVE；空闲=库内 ACTIVE−在途并集', async () => {
@@ -294,8 +293,7 @@ describe('ExpertAdminService', () => {
     it('getBigscreenStats：库况四态派生（2026-11-19 ⑵收口）——available/occupied 来自在途派生而非 availability 镜像（「占用」零写入者恒 0 的病根），停用组不入分母', async () => {
       // 本端点此前零 spec 覆盖（正是镜像漂移无告警的根源）；bidScoreRecord 主工厂未提供，本地补
       (prisma as any).bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
-      prisma.user.count.mockResolvedValue(8);
-      prisma.expertProfile.count.mockResolvedValue(1);
+      prisma.user.count.mockResolvedValue(8); // 全量 8（含池外 3：RETIRED/停用-ACTIVE/待审）
       prisma.expertProfile.groupBy.mockImplementation(({ by, where }: any) => {
         if (by[0] !== 'availability') return Promise.resolve([]);
         const all = [
@@ -312,7 +310,30 @@ describe('ExpertAdminService', () => {
       const res = await service.getBigscreenStats();
       expect(res.availability.available).toBe(3); // 可抽取 5 − 在途 2（≠镜像「可用」5）
       expect(res.availability.occupied).toBe(2); // 在途并集（≠镜像「占用」0）
-      expect(res.availability.disabled).toBe(1);
+      // E9：未在池=计算闭合（8−库内5=3；原 RETIRED-only 计数答 expertProfile.count 值、四桶蒸发）
+      expect(res.availability.disabled).toBe(3);
+      // E9 恒等式（bug 本体）：四桶加总=总数
+      expect(res.total).toBe(res.availability.available + res.availability.occupied + res.availability.disabled);
+      // E9 B 案：可用率=库内空闲占比（3/5=60%；全库分母会答 37.5%）
+      expect(res.availability.availableRate).toBe(60);
+    });
+
+    it('getBigscreenStats E9 钳 0 病理：在途并集超库内基数（历史脏数据）——disabled 基底用 inLibraryActive（idle+occupied 基底会多扣成 0/负）', async () => {
+      (prisma as any).bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.user.count.mockResolvedValue(2);
+      prisma.expertProfile.groupBy.mockImplementation(({ by }: any) => {
+        if (by[0] !== 'availability') return Promise.resolve([]);
+        return Promise.resolve([{ availability: '可用', _count: 1 }]); // 库内基数 1
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },
+        { userId: 'e2', expertRole: '正选', project: { stage: 'EVALUATING' } }, // 在途并集 2 > 基数 1（病理）
+      ]);
+      const res = await service.getBigscreenStats();
+      expect(res.availability.available).toBe(0); // 钳 0
+      expect(res.availability.occupied).toBe(2);
+      expect(res.availability.disabled).toBe(1); // 2−1（idle+occupied 基底会答 2−0−2=0 ✗）
+      expect(res.availability.availableRate).toBe(0); // 零分母护栏（基数 1>0 但 idle 0 → 0%）
     });
 
     it('getStatistics：评价统计按槽位去重（2026-10-21 统计闸裁定，此前本端点为唯一漏网）', async () => {

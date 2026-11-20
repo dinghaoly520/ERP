@@ -1489,7 +1489,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                     <MetricCard label="在库专家" value={String(expertStats.total)} tone="accent" />
                     <MetricCard label="可抽取" value={String(expertStats.availability.available)} tone="success" />
                     <MetricCard label="评标占用" value={String(expertStats.availability.occupied)} tone="warning" />
-                    <MetricCard label="已退库" value={String(expertStats.availability.disabled)} />
+                    <MetricCard label="未在池" value={String(expertStats.availability.disabled)} />
                   </div>
                   <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
                     <div className="flex justify-between gap-3">

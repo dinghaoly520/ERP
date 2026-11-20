@@ -505,7 +505,7 @@ export default function ExpertRepositoryPage() {
                 { value: String(expStats?.busy?.assigned ?? assigned), unit: '名', label: '已被抽取', color: 'var(--accent)' },
                 { value: String(expStats?.busy?.evaluating ?? occupied), unit: '名', label: '正在评标', color: 'var(--warning)' },
                 { value: String(expStats?.busy?.alternate ?? alternates), unit: '名', label: '候补待命', color: 'var(--water, oklch(0.5 0.12 175))' },
-                { value: String(expStats?.disabled ?? disabled), unit: '名', label: '已停用', color: 'var(--muted-foreground)' },
+                { value: String(expStats?.disabled ?? disabled), unit: '名', label: '未在池', color: 'var(--muted-foreground)' },
               ] as const).map((s, i) => (
                 <div key={s.label} className="flex items-center">
                   {i > 0 && <span className="mx-3 h-9 w-px bg-[oklch(0.6_0.04_258/0.16)]" aria-hidden="true" />}
