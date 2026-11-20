@@ -642,8 +642,13 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
         color: seg.color,
       };
     });
+    /* 2026-11-19 用户裁定：部门分布与台账区同款公司标注——全部/多选=「公司·部门」、
+       仅选一家=纯部门（PMI projectName 非公司，公司取 companyName 快照） */
+    const multiCo = companyIds.length !== 1;
+    const deptKey = (p: ProgressStats["projects"][number]) =>
+      multiCo ? `${p.companyName || "未归属"} · ${p.requesterDepartment || "未归属"}` : p.requesterDepartment || "未归属";
     return {
-      dept: by((p) => p.requesterDepartment || "未归属"),
+      dept: by(deptKey),
       stage: by((p) => p.currentStage),
       method: methodRows,
       scale: scaleBuckets,
