@@ -1053,7 +1053,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               {scaleTotal > 0 ? (
                 <div className="space-y-1">
                   {(() => {
-                    const maxSegCount = Math.max(...scaleSegs.map((seg) => seg.count), 1);
+                    /* 2026-11-19 用户裁定：条宽分母=总成交额（各档金额占比，和=100%），不再按最大档归一 */
+                    const totalAmt = scaleSegs.reduce((sum, seg) => sum + seg.amount, 0) || 1;
                     return scaleSegs.map((seg, i) => (
                       <button key={i} type="button" onClick={() => setActiveSeg(seg)} className="flex w-full items-center gap-2 rounded-[10px] px-1 py-1.5 text-left active:scale-[0.99]">
                         <span className="w-[4.5rem] shrink-0 leading-tight">
@@ -1061,7 +1062,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           <span className="block text-[13px] text-[var(--muted-foreground)]">{seg.range}</span>
                         </span>
                         <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.count / maxSegCount) * 100}%`, background: seg.color }} />
+                          <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.amount / totalAmt) * 100}%`, background: seg.color }} />
                         </span>
                         <span className="w-[3.5rem] shrink-0 text-right leading-tight">
                           <span className="block text-[14px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
@@ -1224,7 +1225,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   {pmDist.scale.some((b) => b.count > 0) ? (
                     <div className="space-y-1.5">
                       {pmDist.scale.map((b) => {
-                        const max = Math.max(...pmDist.scale.map((x) => x.count), 1);
+                        /* 2026-11-19 用户裁定：分母=进行中预算总额（金额口径） */
+                        const max = pmDist.scale.reduce((sum, x) => sum + parseBudgetLabel(x.amountLabel), 0) || 1;
+                        const bAmt = parseBudgetLabel(b.amountLabel);
                         return (
                           <div key={b.label} className="flex items-center gap-2">
                             <span className="w-[4.5rem] shrink-0 leading-tight">
@@ -1232,7 +1235,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               <span className="block text-[12px] text-[var(--muted-foreground)]">{b.range}</span>
                             </span>
                             <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                              <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(b.count / max) * 100}%`, background: b.color }} />
+                              <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(bAmt / max) * 100}%`, background: b.color }} />
                             </span>
                             <span className="w-[3.5rem] shrink-0 text-right leading-tight">
                               <span className="block text-[13px] font-bold tabular-nums text-[var(--foreground)]">{b.count}</span>
