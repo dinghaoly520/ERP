@@ -609,12 +609,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       return [...m.entries()].map(([name, count]) => ({ name: String(name), count })).sort((a, b) => b.count - a.count);
     };
     const methodRows = by((p) => p.procurementMethod);
-    const scaleBuckets = SCALE_SEGS.map((seg) => ({
-      label: seg.label,
-      range: seg.range,
-      count: list.filter((p) => { const b = Number(p.budgetAmount ?? 0); return b >= seg.min && b < seg.max; }).length,
-      color: seg.color,
-    }));
+    const scaleBuckets = SCALE_SEGS.map((seg) => {
+      const hits = list.filter((p) => { const b = Number(p.budgetAmount ?? 0); return b >= seg.min && b < seg.max; });
+      const amount = hits.reduce((sum, p) => sum + Number(p.budgetAmount ?? 0), 0);
+      return {
+        label: seg.label,
+        range: seg.range,
+        count: hits.length,
+        amountLabel: amount >= 10000 ? `${(amount / 10000).toFixed(1)}万` : `${Math.round(amount)}元`,
+        color: seg.color,
+      };
+    });
     return {
       dept: by((p) => p.requesterDepartment || "未归属"),
       stage: by((p) => p.currentStage),
@@ -1015,6 +1020,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           <span className="block h-full rounded-[5px] bg-[var(--gold)] opacity-80" style={{ width: `${(x.amount / max) * 100}%` }} />
                         </span>
                         <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{x.amount >= 10000 ? `${(x.amount / 10000).toFixed(1)}万` : `${Math.round(x.amount)}元`}</span>
+                        <span className="w-[2.75rem] shrink-0 text-right text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{x.wins} 次</span>
                       </div>
                     ));
                   })()}
@@ -1043,9 +1049,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                           <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.count / maxSegCount) * 100}%`, background: seg.color }} />
                         </span>
-                        <span className="w-[3.25rem] shrink-0 text-right leading-tight">
+                        <span className="w-[3.5rem] shrink-0 text-right leading-tight">
                           <span className="block text-[14px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
-                          <span className="block text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.share}%</span>
+                          <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{seg.amountLabel}</span>
+                          <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{seg.share}%</span>
                         </span>
                       </button>
                     ));
@@ -1072,6 +1079,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       <button key={i} type="button" onClick={() => setActiveMethod(seg.m)} className="flex w-full items-center gap-2 text-left">
                         <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
                         <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
+                        <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.m.count}项 · {seg.m.amountLabel}</span>
                         <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{seg.m.share}%</span>
                       </button>
                     ))}
@@ -1218,7 +1226,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                             <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                               <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(b.count / max) * 100}%`, background: b.color }} />
                             </span>
-                            <span className="w-[2.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{b.count}</span>
+                            <span className="w-[3.5rem] shrink-0 text-right leading-tight">
+                              <span className="block text-[13px] font-bold tabular-nums text-[var(--foreground)]">{b.count}</span>
+                              <span className="block text-[12px] tabular-nums text-[var(--muted-foreground)]">{b.amountLabel}</span>
+                            </span>
                           </div>
                         );
                       })}
