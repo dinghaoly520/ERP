@@ -16,13 +16,11 @@ import {
   Loader2,
   Eye,
   Download,
-  Sparkles,
 } from "lucide-react";
 import Folder from "@/components/Folder";
 import { Modal } from "@/components/workbench";
 import { ScoreSnapshotSection } from "@/components/projects/bid-confirm/handover-preview";
 import { ProjectTimelineStrip } from "@/components/projects/project-timeline-strip";
-import { analyzeProjectStep } from "@/lib/api/project-management";
 import { apiFetch } from '@/lib/api/api-fetch';
 
 // Animation utilities
@@ -206,11 +204,6 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedStageKey, setSelectedStageKey] = useState<string | null>(null);
-  // 步骤分析：右侧面板 tab 切换，懒加载——读缓存命中秒回，miss 才触发生成
-  const [stageTab, setStageTab] = useState<'files' | 'analysis'>('files');
-  const [stepAnalysis, setStepAnalysis] = useState<{ stageKey: string; content: string; empty: boolean } | null>(null);
-  const [stepAnalysisLoading, setStepAnalysisLoading] = useState(false);
-  const [stepAnalysisError, setStepAnalysisError] = useState<string | null>(null);
 
   // File preview state
   const [previewFile, setPreviewFile] = useState<{
@@ -219,34 +212,9 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
     mimeType: string;
   } | null>(null);
 
-  const handlePreviewFile = (stageKey: string, fileIndex: number, fileName: string, mimeType: string, round?: number) => {
-    const url = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api'}/project-management/archive-file/${procurementRoundId}/${stageKey}/${fileIndex}${round != null ? `?round=${round}` : ''}`;
-    setPreviewFile({ url, fileName, mimeType });
-  };
-
   const handleClosePreview = () => {
     setPreviewFile(null);
   };
-
-  // 懒加载步骤分析：切到「步骤分析」tab 时按需拉取（服务端缓存命中秒回，miss 才生成）；
-  // 同阶段重复点开直接复用已取结果
-  const loadStepAnalysis = async (stageKey: string) => {
-    if (stepAnalysis?.stageKey === stageKey && !stepAnalysisError) return;
-    setStepAnalysisLoading(true);
-    setStepAnalysisError(null);
-    try {
-      const projectId = data?.projectId;
-      if (!projectId) throw new Error('缺少项目标识');
-      const result = await analyzeProjectStep(projectId, stageKey);
-      setStepAnalysis({ stageKey, content: result.content ?? '', empty: !!result.empty });
-    } catch (err) {
-      setStepAnalysis(null);
-      setStepAnalysisError(err instanceof Error ? err.message : '步骤分析加载失败');
-    } finally {
-      setStepAnalysisLoading(false);
-    }
-  };
-
   useEffect(() => {
     const fetchArchiveDetail = async () => {
       setLoading(true);
@@ -269,10 +237,6 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
         if (firstStageWithFiles) {
           setSelectedStageKey(`${firstStageWithFiles.stageKey}@${firstStageWithFiles.round ?? 1}`);
         }
-        // 重置步骤分析视图（新弹窗实例）
-        setStageTab('files');
-        setStepAnalysis(null);
-        setStepAnalysisError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载失败');
       } finally {
@@ -411,7 +375,6 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       type="button"
                       onClick={() => {
                         setSelectedStageKey(stageKeyOf(stage));
-                        setStageTab('files'); // 切阶段回到文件 tab，分析按需重新拉取
                       }}
                       className={`neu-tab ${selectedStageKey === stageKeyOf(stage) ? 'is-active' : ''}`}
                     >
@@ -663,7 +626,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                   )}
                 </div>
 
-                {/* Right Panel - 阶段材料 + 步骤分析（tab 切换） */}
+                {/* Right Panel - 阶段材料（2026-11-20 用户裁定：台账不做分析——「步骤分析」
+                    页签与生成入口全撤，仅展示载荷自带内容；分析生成归项目管理详情） */}
                 <div className="w-[240px] xl:w-[320px] shrink-0 overflow-y-auto border-l border-[oklch(0.6_0.04_258_/_0.16)] bg-[color-mix(in_oklch,var(--success)_4%,transparent)]">
                   {selectedStage ? (
                     <>
@@ -672,44 +636,13 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                         <div className="flex items-center gap-2">
                           {getStatusIcon(selectedStage.status)}
                           <span className="text-[0.85rem] font-semibold">{selectedStage.stageName}</span>
-                        </div>
-                        {/* 文件材料 / 步骤分析 tab */}
-                        <div className="mt-2 flex gap-1 rounded-[9px] bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] p-1">
-                          {(['files', 'analysis'] as const).map((t) => (
-                            <button
-                              key={t}
-                              onClick={() => { setStageTab(t); if (t === 'analysis') void loadStepAnalysis(selectedStage.stageKey); }}
-                              className={`flex-1 rounded-[7px] px-2 py-1 text-[11px] font-semibold transition-colors ${stageTab === t ? 'bg-[color:var(--background)] text-[color:var(--foreground)] shadow-[1px_1px_3px_oklch(0.55_0.03_258/0.12)]' : 'text-[color:var(--muted-foreground)] hover:text-[color:var(--foreground)]'}`}
-                            >
-                              {t === 'files' ? `文件材料（${selectedStage.attachments.length}）` : '步骤分析'}
-                            </button>
-                          ))}
+                          <span className="ml-auto rounded-[6px] bg-[color-mix(in_oklch,var(--success)_8%,transparent)] px-1.5 py-0.5 text-[10px] font-bold text-[color-mix(in_oklch,var(--success)_80%,black)]">
+                            文件 {selectedStage.attachments.length}
+                          </span>
                         </div>
                       </div>
 
-                      {/* 步骤分析内容 */}
-                      {stageTab === 'analysis' ? (
-                        <div className="p-3">
-                          {stepAnalysisLoading ? (
-                            <div className="flex items-center gap-2 rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-3 py-4 text-xs text-[color:var(--muted-foreground)]">
-                              <Loader2 size={14} className="animate-spin" />
-                              {stepAnalysis?.stageKey === selectedStage.stageKey ? '生成中…（首次分析需数秒）' : '加载中…'}
-                            </div>
-                          ) : stepAnalysisError ? (
-                            <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--danger)_6%,transparent)] px-3 py-4 text-xs text-[var(--danger)]">{stepAnalysisError}</div>
-                          ) : stepAnalysis?.stageKey === selectedStage.stageKey ? (
-                            stepAnalysis.empty || !stepAnalysis.content ? (
-                              <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-3 py-4 text-xs text-[color:var(--muted-foreground)]">
-                                该阶段暂无可分析数据（步骤分析仅对已完成阶段开放）。
-                              </div>
-                            ) : (
-                              <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-3 py-3">
-                                <p className="whitespace-pre-line text-[0.8rem] leading-relaxed text-[color:var(--foreground)]">{stepAnalysis.content}</p>
-                              </div>
-                            )
-                          ) : null}
-                        </div>
-                      ) : selectedStage.attachments.length > 0 ? (
+                      {selectedStage.attachments.length > 0 ? (
                       /* Files with Analysis */
                       <div className="p-3 space-y-4">
                         {selectedStage.attachments.map((file, i) => (
@@ -725,15 +658,26 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                                   文件{i + 1}
                                 </span>
                                 <span className="text-[0.8rem] font-medium truncate flex-1">{file.fileName}</span>
-                                {data.kind !== 'terminated' && data.archiveDir && (
-                                  <button
-                                    onClick={() => handlePreviewFile(selectedStage.stageKey, i, file.fileName, file.mimeType, selectedStage.round ?? 1)}
-                                    className="neu-btn-xs"
-                                    title="预览文件"
-                                  >
-                                    <Eye size={14} className="text-[var(--success)]" />
-                                  </button>
-                                )}
+                                {(() => {
+                                  /* 查看（2026-11-20 用户要求）：归档走 archive-file（TXT 目录物理文件），
+                                     终止走 attachment-file（uploads/{objectKey} 附件本体，payload 已带 id） */
+                                  const base = process.env.NEXT_PUBLIC_API_BASE_URL ?? '/api';
+                                  const url = data.kind === 'terminated'
+                                    ? `${base}/project-management/${data.projectId}/attachment-file/${file.id}`
+                                    : data.archiveDir
+                                      ? `${base}/project-management/archive-file/${procurementRoundId}/${selectedStage.stageKey}/${i}${selectedStage.round != null ? `?round=${selectedStage.round}` : ''}`
+                                      : null;
+                                  if (!url) return null;
+                                  return (
+                                    <button
+                                      onClick={() => setPreviewFile({ url, fileName: file.fileName, mimeType: file.mimeType })}
+                                      className="neu-btn-xs"
+                                      title="查看文件"
+                                    >
+                                      <Eye size={14} className="text-[var(--success)]" />
+                                    </button>
+                                  );
+                                })()}
                               </div>
                               <div className="text-xs text-[color:var(--muted-foreground)] mt-1">
                                 {formatFileSize(file.fileSize)}
@@ -758,47 +702,19 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                           </motion.div>
                         ))}
 
-                        {/* 终止详情专属·阶段级步骤分析（2026-11-19「缓存直出+按需生成」裁定）：
-                            载荷缓存命中直出（如 :3011/mobile 或本弹窗「步骤分析」页签生成过）；
-                            未生成过的已完成阶段给「生成分析」按钮走 analyze-step 懒生成+缓存 */
-                        data.kind === 'terminated' && (selectedStage.status === '已完成' || selectedStage.status === 'COMPLETED') && (
-                          (() => {
-                            const generated = stepAnalysis?.stageKey === selectedStage.stageKey && !stepAnalysisError
-                              ? stepAnalysis
-                              : null;
-                            const content = selectedStage.stageAnalysis || (generated && !generated.empty ? generated.content : '');
-                            if (content) {
-                              return (
-                                <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] px-3 py-2.5">
-                                  <div className="text-xs font-semibold uppercase tracking-wide text-[color-mix(in_oklch,var(--accent)_70%,black)] mb-1.5">
-                                    步骤分析
-                                  </div>
-                                  <p className="text-xs leading-relaxed text-[color:var(--foreground)] whitespace-pre-wrap">
-                                    {content}
-                                  </p>
-                                </div>
-                              );
-                            }
-                            if (stepAnalysisLoading) {
-                              return (
-                                <div className="flex items-center gap-2 rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] px-3 py-3 text-xs text-[color:var(--muted-foreground)]">
-                                  <Loader2 size={14} className="animate-spin" />
-                                  生成中…（首次分析需数秒）
-                                </div>
-                              );
-                            }
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => void loadStepAnalysis(selectedStage.stageKey)}
-                                className="neu-btn-soft w-full !h-8 !text-xs"
-                              >
-                                <Sparkles size={14} className="text-[rgba(76,111,189,1)]" />
-                                生成分析
-                              </button>
-                            );
-                          })()
-                        )}
+                        {/* 终止详情专属·阶段级步骤分析：仅缓存直出（2026-11-20 用户裁定「台账不做
+                            分析」）——载荷 stageAnalysis 命中即渲染，未生成不显示任何占位；
+                            分析生成归项目管理详情的步骤分析链路 */}
+                        {data.kind === 'terminated' && selectedStage.stageAnalysis ? (
+                          <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] px-3 py-2.5">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-[color-mix(in_oklch,var(--accent)_70%,black)] mb-1.5">
+                              步骤分析
+                            </div>
+                            <p className="text-xs leading-relaxed text-[color:var(--foreground)] whitespace-pre-wrap">
+                              {selectedStage.stageAnalysis}
+                            </p>
+                          </div>
+                        ) : null}
                       </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center py-16 px-4">
