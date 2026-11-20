@@ -5878,6 +5878,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '申请人': pmItem.requesterName ?? '',
         '采购方式': pmItem.procurementMethod ?? '',
         '采购类别': pmItem.procurementCategory ?? '',
+        // 所属项目（2026-11-20 用户实录补齐）：终止载荷此前漏带该键，台账详情恒显 "-"
+        '所属项目': pmItem.demandProject ?? '',
         '预算金额': pmItem.budgetAmount ? `${Number(pmItem.budgetAmount).toLocaleString('zh-CN')}元` : '',
         '终止日期': terminatedAt ? terminatedAt.toISOString().split('T')[0] : '',
         '终止时所在阶段': pmItem.terminatedStage ?? '',
@@ -5951,6 +5953,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '申请部门': pmItem.requesterDepartment ?? '',
         '采购方式': pmItem.procurementMethod ?? '',
         '采购类别': pmItem.procurementCategory ?? '',
+        // 所属项目（2026-11-20 补齐，同终止详情）：降级组装此前同样漏带
+        '所属项目': pmItem.demandProject ?? '',
         '预算金额': pmItem.budgetAmount ? `${Number(pmItem.budgetAmount).toLocaleString('zh-CN')}元` : '',
         '合同编号': pmItem.contractNumber ?? pmItem.demandContractNumber ?? '',
         '部门编号': pmItem.departmentNumber ?? '',
