@@ -34,6 +34,15 @@ describe('EncryptedAssetController（dual-v3 暂存）', () => {
     mockPrisma.bidProject.findUnique = orig;
   });
 
+  test('N11：截标已过（stage 仍 SUBMIT）→ 409 DEADLINE_PASSED 不可暂存', async () => {
+    const buffer = Buffer.from('y');
+    const mockFile = { buffer, originalname: 't.outer', mimetype: 'application/octet-stream', size: 1 } as Express.Multer.File;
+    const orig = mockPrisma.bidProject.findUnique;
+    mockPrisma.bidProject.findUnique = async () => ({ stage: 'SUBMIT', deadline: new Date(Date.now() - 3600_000) });
+    await expect(ctrl.uploadEncryptedAsset('proj-x', mockReq, mockFile)).rejects.toMatchObject({ response: { code: 'DEADLINE_PASSED' } });
+    mockPrisma.bidProject.findUnique = orig;
+  });
+
   test('上传密文→服务端实算 outerSha256+返回暂存信息', async () => {
     const buffer = Buffer.from('encrypted-data-outer-ciphertext');
     const mockFile = { buffer, originalname: 'test.outer', mimetype: 'application/octet-stream', size: buffer.length } as Express.Multer.File;

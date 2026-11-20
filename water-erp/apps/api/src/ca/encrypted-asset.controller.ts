@@ -49,11 +49,16 @@ export class EncryptedAssetController {
     // 仅堵无项目与已开标项目的滥用）；临时过期同拦（与投递闸同口径）。
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { stage: true },
+      select: { stage: true, deadline: true },
     });
     if (!project) throw new BadRequestException({ error: '投标项目不存在', code: 'PROJECT_NOT_FOUND' });
     if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
       throw new ConflictException({ error: '项目不在投递阶段，不可暂存投标密文', code: 'PROJECT_NOT_SUBMITTING' });
+    }
+    // N11（2026-11-20b 复核轮）：截标闸——截标已过、按时开标未推进（stage 仍 SUBMIT）的窗口期
+    // 不可再暂存 500MB×10/min（投递本身有事务内 deadline 复查，此处堵纯暂存滥用窗口）。
+    if (project.deadline && project.deadline.getTime() < Date.now()) {
+      throw new ConflictException({ error: '投标截止时间已过，不可暂存投标密文', code: 'DEADLINE_PASSED' });
     }
     if (supplier.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
       throw new ForbiddenException({ error: '临时供应商权限已过期，无法投标', code: 'TEMPORARY_EXPIRED' });

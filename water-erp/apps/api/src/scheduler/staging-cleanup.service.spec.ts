@@ -65,4 +65,33 @@ describe('StagingCleanupService（T7）', () => {
     expect(r.removed).toBe(1);
     expect(prisma.fileAsset.delete).toHaveBeenCalledTimes(1);
   });
+
+  test('N10：候选超过单批上限（600>BATCH 500）→ 分批循环清空', async () => {
+    const many = Array.from({ length: 600 }, (_, i) => ({ id: `fa-${i}`, key: `v3-staging/p1/s${i}/a.outer`, createdAt: OLD }));
+    const deleted = new Set<string>();
+    const prisma = mkPrisma({ assets: many, versions: [] });
+    prisma.fileAsset.findMany.mockImplementation(async ({ where, take }: any) =>
+      many.filter(a => a.createdAt < where.createdAt.lt && !deleted.has(a.id)).slice(0, take ?? 500));
+    prisma.fileAsset.delete.mockImplementation(async ({ where }: any) => { deleted.add(where.id); return {}; });
+    const r = await new StagingCleanupService(prisma as any).cleanupOnce();
+    expect(r.removed).toBe(600);
+    expect(deleted.size).toBe(600);
+    expect(prisma.fileAsset.findMany).toHaveBeenCalledTimes(2); // 500 + 100 两轮
+  });
+
+  test('N13-B：CaOperation 冻结载荷（submit/reupload PAYLOAD_READY）引用的暂存不删', async () => {
+    const prisma = mkPrisma({ versions: [] });
+    const caFindMany = jest.fn().mockResolvedValue([
+      { result: { files: { technical: { assetId: 'fa-stale' } } } },
+      { result: { files: { business: { assetId: 'fa-other' } } } },
+      { result: 'not-an-object' },
+    ]);
+    (prisma as any).caOperation = { findMany: caFindMany };
+    const r = await new StagingCleanupService(prisma as any).cleanupOnce();
+    expect(r.removed).toBe(0);
+    expect(minioClient.removeObject).not.toHaveBeenCalled();
+    expect(caFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ purpose: { in: ['submit', 'reupload'] }, status: 'PAYLOAD_READY' }) }),
+    );
+  });
 });
