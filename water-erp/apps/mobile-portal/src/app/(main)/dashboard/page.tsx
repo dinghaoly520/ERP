@@ -1209,77 +1209,88 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <>
                 {/* 阶段分布（进行中） */}
                 <ZoneRow icon={Gauge} title="阶段分布">
-                    {pmDist.stage.length ? (
-                      <div className="space-y-1.5">
-                        {pmDist.stage.map((d, i) => (
-                          <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{PMI_STAGE_LABELS_OF(d.name)}</span>
-                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
-                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pmDist.total > 0 ? ((d.count / pmDist.total) * 100).toFixed(0) : 0}%</span>
-                            </div>
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pmDist.total > 0 ? (d.count / pmDist.total) * 100 : 0}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
-                              </span>
-                            </div>
+                  {pmDist.stage.length ? (
+                    <div className="relative pl-6">
+                      <span className="absolute left-[9px] top-2 bottom-2 w-[2px] rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_15%,transparent)]" aria-hidden />
+                      {(() => {
+                        const FLOW = ["PROCUREMENT_DEMAND","INITIATION","TENDER_DOCUMENT","SUPPLIER_INVITATION","PUBLIC_ANNOUNCEMENT","EXPERT_SELECTION","BID_EVALUATION","AWARD_DECISION","CONTRACT","DIRECT_PURCHASE_FILING"];
+                        return FLOW.map((k) => ({ key: k, label: PMI_STAGE_LABELS_OF(k), count: pmDist.stage.find((d) => d.name === k)?.count ?? 0 })).filter((x) => x.count > 0).map((st) => (
+                          <div key={st.key} className="relative flex items-center gap-3 py-1.5">
+                            <span className={`absolute left-[-21px] flex h-[18px] w-[18px] items-center justify-center rounded-full text-[10px] font-bold ${st.count > 0 ? "bg-[var(--accent)] text-white" : "bg-[color-mix(in_oklch,var(--muted-foreground)_20%,transparent)] text-[var(--muted-foreground)]"}`}>{st.count > 0 ? st.count : ""}</span>
+                            <span className={`text-[14px] ${st.count > 0 ? "font-semibold text-[var(--foreground)]" : "text-[var(--muted-foreground)]"}`}>{st.label}</span>
+                            {st.count > 0 ? <span className="ml-auto shrink-0 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-[12px] font-bold tabular-nums text-[var(--accent)]">{st.count} 项</span> : null}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
+                        ));
+                      })()}
+                    </div>
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
                 </ZoneRow>
 
                 {/* 采购方式分布（进行中，横条） */}
                 <ZoneRow icon={Layers} title="采购方式分布">
-                    {pmDist.method.length ? (
-                      <div className="space-y-1.5">
-                        {pmDist.method.map((d, i) => (
-                          <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
-                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count} 项</span>
-                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pmDist.totalMethod > 0 ? ((d.count / pmDist.totalMethod) * 100).toFixed(0) : 0}%</span>
-                            </div>
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pmDist.totalMethod > 0 ? (d.count / pmDist.totalMethod) * 100 : 0}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
-                              </span>
-                            </div>
+                  {pmDist.method.length ? (
+                    (() => {
+                      const total = pmDist.totalMethod || 1;
+                      let acc = 0;
+                      const segs = pmDist.method.map((m, i) => {
+                        const sweep = (m.count / total) * 360;
+                        const seg = { m, a0: acc, a1: acc + Math.max(sweep, 0.001), color: DONUT_COLORS[i % DONUT_COLORS.length] };
+                        acc += sweep;
+                        return seg;
+                      });
+                      return (
+                        <div className="flex items-center gap-3">
+                          <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="进行中采购方式分布环形图">
+                            {segs.map((seg, i) => (
+                              <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />
+                            ))}
+                            <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{total}</text>
+                            <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">在办</text>
+                          </svg>
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            {segs.slice(0, 6).map((seg, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
+                                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.m.name}</span>
+                                <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.m.count}项</span>
+                                <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.m.count / total) * 100)}%</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
                 </ZoneRow>
 
                 {/* 部门分布（进行中） */}
                 <ZoneRow icon={Building2} title="部门分布">
-                    {pmDist.dept.length ? (
-                      <div className="space-y-1.5">
-                        {pmDist.dept.map((d, i) => (
-                          <div key={d.name} className="rounded-[12px] m-tile px-3 py-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
+                  {pmDist.dept.length ? (
+                    <div className="space-y-2">
+                      {pmDist.dept.map((d) => {
+                        const max = pmDist.dept[0].count;
+                        const pct = pmDist.total > 0 ? (d.count / pmDist.total) * 100 : 0;
+                        return (
+                          <div key={d.name}>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{d.name}</span>
                               <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.count}</span>
-                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pmDist.total > 0 ? ((d.count / pmDist.total) * 100).toFixed(0) : 0}%</span>
+                              <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(0)}%</span>
                             </div>
-                            <div className="mt-1.5 flex items-center gap-2">
-                              <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${pmDist.total > 0 ? (d.count / pmDist.total) * 100 : 0}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
-                              </span>
+                            <div className="mt-1 h-2 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                              <div className="h-full rounded-full bg-[var(--success)] opacity-75 transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%` }} />
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyState text="暂无进行中项目" />
-                    )}
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <EmptyState text="暂无进行中项目" />
+                  )}
                 </ZoneRow>
 
                 {/* 项目规模分析（进行中） */}
