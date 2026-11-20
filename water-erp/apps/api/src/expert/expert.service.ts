@@ -1619,16 +1619,22 @@ export class ExpertService {
     // 返回 URL 恒为 403 死链且泄露内部 fileId → 置 null（前端按可空处理）。
     const reportDocxUrl = null;
 
+    // P2-3（2026-11-20 全链路审查）：回避名单过滤——对比页含回避供应商的 AI 总分/唱标金额
+    // 泄漏给应回避专家（单家 getAssistData 有拦、本端点漏拦，与 :2429 自述"四路均拦"不符）。
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
+
     return {
-      bidders: results.map((r) => ({
-        supplierId: r.bidSupplierId,
-        supplierName: r.bidSupplier.supplierName,
-        totalScore: r.totalScore != null ? Number(r.totalScore) : 0,
-        categoryTotals: (r.categoryTotals as Record<string, { score: number; max: number }>) ?? {},
-        qualificationStatus: r.qualificationStatus ?? '待审查',
-        riskLevel: r.riskLevel ?? 'low',
-        openingAmountWan: openingWanBySupplier.get(r.bidSupplierId) ?? null,
-      })),
+      bidders: results
+        .filter((r) => !conflictedIds.includes(r.bidSupplierId))
+        .map((r) => ({
+          supplierId: r.bidSupplierId,
+          supplierName: r.bidSupplier.supplierName,
+          totalScore: r.totalScore != null ? Number(r.totalScore) : 0,
+          categoryTotals: (r.categoryTotals as Record<string, { score: number; max: number }>) ?? {},
+          qualificationStatus: r.qualificationStatus ?? '待审查',
+          riskLevel: r.riskLevel ?? 'low',
+          openingAmountWan: openingWanBySupplier.get(r.bidSupplierId) ?? null,
+        })),
       projectFraud,
       reportDocxUrl,
       ceilingPriceWan,
@@ -1643,6 +1649,12 @@ export class ExpertService {
     assertEvaluationStage(project.stage); // 启动闸（2026-10-21）：多轮报价历史属评标资料（轮次本就建于评标期，此闸补齐阶段缺口）
     const expert = await this.prisma.bidExpert.findFirst({ where: { userId, projectId } });
     if (!expert) throw new ForbiddenException({ error: '您不是该项目的评审专家', code: 'NOT_PROJECT_EXPERT' });
+    // P2-3：核验门+回避过滤——对照 getAssistCompare/getDecryptedDocuments 口径补齐
+    //（原仅口令闸+启动闸+本人专家，回避供应商的各轮报价对回避专家全量可见）
+    if (!expert.signedIn || !expert.avoidanceConfirmed || !expert.aiConsentConfirmed || !expert.confidentialityAgreed || !expert.disciplineAgreed) {
+      throw new ForbiddenException({ error: '请先完成身份核验、回避确认、AI 辅助评标声明、保密承诺与评标纪律确认', code: 'VERIFICATION_REQUIRED' });
+    }
+    const conflictedIds = parseConflictedIds(expert.conflictedSupplierIds);
 
     const rounds = await this.prisma.bidRound.findMany({
       where: { projectId, status: { in: ['published', 'closed'] } },
@@ -1663,10 +1675,12 @@ export class ExpertService {
       roundType: r.roundType,
       status: r.status,
       deadline: r.deadline,
-      quotes: r.quotes.map(q => ({
-        supplierName: nameMap.get(q.bidSupplierId) ?? '—',
-        quotePrice: String(q.quotePrice),
-      })),
+      quotes: r.quotes
+        .filter(q => !conflictedIds.includes(q.bidSupplierId)) // P2-3：回避供应商报价不下发
+        .map(q => ({
+          supplierName: nameMap.get(q.bidSupplierId) ?? '—',
+          quotePrice: String(q.quotePrice),
+        })),
     }));
   }
 

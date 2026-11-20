@@ -13,6 +13,7 @@ import { matchesFileContentPolicy, PDF_WORD_IMAGE_MIME_TYPES } from './file-cont
 import { assertAttachmentRules } from './attachment-rules';
 import { CompanyScopeService } from '../company/company-scope';
 import { scopeCompanyIds } from '../company/company-scope';
+import { assertEvaluationStarted } from '../expert/expert-room.util';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -461,6 +462,11 @@ export class UploadService implements OnModuleInit {
           where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
         });
         if (!bidSupplier) return false;
+        // P2-7（2026-11-20 全链路审查）：启动闸——专家专用链全闸（getDecryptedDocuments/
+        // downloadBidDocument 的 assertEvaluationStage），本旁路端点原缺失：OPENING 期解密
+        // SUCCESS 后、启动评标前持 asset id 的专家可直取解密标书。与 expert 域同口径
+        //（EVALUATING/ABORTED 放行、其余 403 EVALUATION_NOT_STARTED）。
+        await assertEvaluationStarted(this.prisma, submission.projectId);
 
         // 审计：记录专家文件访问（与四列分支同款）
         await this.prisma.bidSupervisionLog.create({
@@ -645,6 +651,8 @@ export class UploadService implements OnModuleInit {
         where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
       });
       if (!bidSupplier) return false;
+      // P2-7：启动闸（与上方 bid_decrypted 分支同口径——四列兜底分支旁路专家专用链同病）
+      await assertEvaluationStarted(this.prisma, submission.projectId);
 
       // 审计：记录专家文件访问
       await this.prisma.bidSupervisionLog.create({

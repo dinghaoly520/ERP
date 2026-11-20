@@ -11,6 +11,8 @@ export interface HallActor {
   role: string;
   supplierId?: string;   // Supplier.id（supplier 角色必有）
   supplierName?: string;
+  /** 请求门户（portalFromRequest；P2-1 host 域闸用——:3007 被指派主持人豁免镜像 WS 口径） */
+  portal?: string;
 }
 
 @Injectable()
@@ -25,6 +27,27 @@ export class OpeningHallService {
 
   private assertHost(actor: HallActor) {
     if (!HOST_ROLES_SET.has(actor.role)) throw new ForbiddenException({ error: '仅主持人可执行此操作', code: 'HOST_ONLY' });
+  }
+
+  /**
+   * P2-1（2026-11-20 全链路审查）：host 面项目域闸——REST 镜像 bid.gateway.assertHostProjectScope
+   * （WS join:project host 分支同款）。原裸 assertHost 只查角色，跨公司 leader/staff 可读他司
+   * 开标现场全部私聊转录（PRIVATE room）、禁言/关闭他司会场、以 HOST 身份发言——同一数据的
+   * WS 面有公司隔离而 REST 面裸奔。判定：admin 放行；:3007（portal=bid）被指派主持人放行；
+   * 其余内部角色须本公司项目。项目不存在放行（与 WS 口径一致，后续语义自然 404/空）。
+   */
+  private async assertHostProjectScope(actor: HallActor, projectId: string) {
+    this.assertHost(actor);
+    if (actor.role === 'admin') return;
+    const proj = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { companyId: true, assignedHostUserId: true },
+    });
+    if (!proj) return;
+    if (actor.portal === 'bid' && proj.assignedHostUserId === actor.userId) return;
+    const me = await this.prisma.user.findUnique({ where: { id: actor.userId }, select: { companyId: true } });
+    if (me?.companyId && proj.companyId === me.companyId) return;
+    throw new ForbiddenException({ error: '该项目归属其他公司，无权访问开标大厅 host 面', code: 'COMPANY_SCOPE_FORBIDDEN' });
   }
 
   private async loadGate(projectId: string) {
@@ -56,7 +79,7 @@ export class OpeningHallService {
     // 授权收口：非供应商角色仅主持人可以 HOST 身份发言（防其他角色冒充主持人留痕）；
     // 供应商须参投本项目（PUBLIC/PRIVATE 均门控，PRIVATE 分支内对主持发送方的目标成员校验保持不变）。
     if (!isSupplier) {
-      this.assertHost(actor);
+      await this.assertHostProjectScope(actor, projectId); // P2-1：host 面项目域闸（跨公司 403）
     } else {
       const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: actor.supplierId } });
       if (!member) throw new BadRequestException({ error: '您未参与该项目投标', code: 'NOT_PROJECT_MEMBER' });
@@ -113,7 +136,7 @@ export class OpeningHallService {
   }
 
   async listMessages(actor: HallActor, projectId: string, q: { roomType: OpeningHallRoomType; supplierId?: string; cursor?: string; limit?: number }) {
-    if (actor.role !== 'supplier') this.assertHost(actor); // 非供应商仅主持人可读大厅消息（含私聊转录）
+    if (actor.role !== 'supplier') await this.assertHostProjectScope(actor, projectId); // P2-1 域闸 + 仅主持人可读大厅消息（含私聊转录）
     // S6：limit 健壮化——NaN/非有限值（limit=abc / Infinity）回落默认 50，再夹取 [1,100]
     const limit = Number.isFinite(q.limit) ? Math.min(Math.max(Math.trunc(q.limit as number), 1), 100) : 50;
     // S6：cursor 先校验再进 Prisma——非法值 400（旧实现让 Invalid Date 进 SQL → 500）。
@@ -159,7 +182,7 @@ export class OpeningHallService {
   }
 
   async unreadCounts(actor: HallActor, projectId: string) {
-    if (actor.role !== 'supplier') this.assertHost(actor); // 非供应商仅主持人可读未读分布
+    if (actor.role !== 'supplier') await this.assertHostProjectScope(actor, projectId); // P2-1 域闸 + 仅主持人可读未读分布
     const countSince = async (roomKey: string, where: any) => {
       const cursor = await this.prisma.openingHallReadCursor.findUnique({
         where: { projectId_userId_roomKey: { projectId, userId: actor.userId, roomKey } },
@@ -196,6 +219,7 @@ export class OpeningHallService {
         throw new ForbiddenException({ error: '无权操作该会话', code: 'ROOM_KEY_FORBIDDEN' });
       }
     } else if (HOST_ROLES_SET.has(actor.role)) {
+      await this.assertHostProjectScope(actor, projectId); // P2-1 域闸（host 写已读游标同属 host 面）
       if (roomKey !== 'public') {
         const target = roomKey.slice('supplier:'.length);
         const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: target } });
@@ -288,7 +312,7 @@ export class OpeningHallService {
   }
 
   async presence(projectId: string, actor: HallActor) {
-    if (actor.role !== 'supplier') this.assertHost(actor); // 非供应商仅主持人可查完整在场名单
+    if (actor.role !== 'supplier') await this.assertHostProjectScope(actor, projectId); // P2-1 域闸 + 仅主持人可查完整在场名单
     const online = this.gateway?.getOnlineSupplierIds(projectId) ?? new Set<string>();
     const rows = await this.prisma.bidSupplier.findMany({
       where: { projectId, supplierId: { not: null } },
@@ -307,7 +331,9 @@ export class OpeningHallService {
     return { suppliers: list, onlineCount: list.filter(x => x.online).length };
   }
 
-  async setExchangeControl(projectId: string, control: 'OPEN' | 'MUTED' | 'CLOSED', byName: string, actorUserId: string) {
+  async setExchangeControl(projectId: string, control: 'OPEN' | 'MUTED' | 'CLOSED', byName: string, actorUserId: string, actor?: HallActor) {
+    // P2-1：host 面项目域闸（禁言/关闭会场是对他司会场的实质干预，不得跨公司）
+    if (actor) await this.assertHostProjectScope(actor, projectId);
     // 无会话时 update where 命不中会 P2025 → 500；统一 409 引导先组建会话（与 sendMessage 同族闸）
     const session = await this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
     if (!session) throw new ConflictException({ error: '尚未组建开标会话，无法切换交流控制', code: 'SESSION_NOT_CREATED' });

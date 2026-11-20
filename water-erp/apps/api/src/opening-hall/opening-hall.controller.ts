@@ -6,6 +6,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { MarkReadDto } from './dto/mark-read.dto';
 import { ExchangeControlDto } from './dto/exchange-control.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { portalFromRequest } from '../auth/portal-cookie';
 
 @Controller('opening-hall')
 export class OpeningHallController {
@@ -19,7 +20,7 @@ export class OpeningHallController {
     const userId = req.user?.sub;
     const role = req.user?.role;
     if (!userId || !role) throw new BadRequestException({ error: '未登录', code: 'UNAUTHORIZED' });
-    const base: HallActor = { userId, role, supplierName: req.user?.username };
+    const base: HallActor = { userId, role, supplierName: req.user?.username, portal: portalFromRequest(req) };
     if (role === 'supplier') {
       const supplier = await this.prisma.supplier.findFirst({ where: { userId } });
       if (!supplier) throw new BadRequestException({ error: '供应商信息不存在', code: 'SUPPLIER_NOT_FOUND' });
@@ -84,6 +85,7 @@ export class OpeningHallController {
   @Roles('admin', 'bid_host', 'leader', 'staff')
   async control(@Request() req: any, @Param('projectId') projectId: string, @Body() dto: ExchangeControlDto) {
     // byName 给监督日志留痕；actorUserId（JWT sub）作 SYSTEM 提示消息的 senderId
-    return this.svc.setExchangeControl(projectId, dto.control, req.user?.username ?? req.user?.sub, req.user.sub);
+    // P2-1：actor 传入门户+角色供 host 域闸（跨公司禁言/关闭他司会场 403）
+    return this.svc.setExchangeControl(projectId, dto.control, req.user?.username ?? req.user?.sub, req.user.sub, await this.actor(req));
   }
 }

@@ -37,6 +37,7 @@ describe('UploadService — download permission', () => {
       bidOpeningSession: { findFirst: jest.fn() },
       bidSignPacket: { findFirst: jest.fn() },
       bidFileBackup: { findFirst: jest.fn().mockResolvedValue(null) }, // P1-3：v3 删件保护引用反查
+      bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'EVALUATING' }) }, // P2-7：专家分支启动闸（默认已启动）
       awardLetterDelivery: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       contract: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
       contractFulfillment: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]) },
@@ -722,6 +723,19 @@ describe('UploadService — download permission', () => {
 
       await expect(service.streamFile('fa-inner', { sub: 'u-other', role: 'supplier' }, res))
         .rejects.toThrow(ForbiddenException);
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('P2-7：专家下载投标文件在评标启动前（OPENING 期）→ 403 EVALUATION_NOT_STARTED（旁路端点补齐专家专用链启动闸）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(decAsset);
+      prisma.supplierBidSubmission.findFirst.mockImplementation(({ where }) =>
+        isDualOuterQuery(where) ? null : { supplierId: 'sys-1', projectId: 'p1' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ id: 'e1', projectId: 'p1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '甲', decryptStatus: 'SUCCESS' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING' }); // 解密 SUCCESS 但评标未启动
+
+      await expect(service.streamFile('fa-dec', { sub: 'u-expert', role: 'bid_expert' }, res))
+        .rejects.toMatchObject({ response: { code: 'EVALUATION_NOT_STARTED' } });
       expect(minioClient.getObject).not.toHaveBeenCalled();
     });
 

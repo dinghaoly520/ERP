@@ -912,12 +912,17 @@ export class SupplierPortalController {
     if (round.status !== 'published' && round.status !== 'closed') return [];
     const supplierId = await this.getSupplierId(req.user.sub);
     const myBidSupplier = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+    // P2-2（2026-11-20 全链路审查）：成员闸——原实现非成员不抛错继续返回全量报价（仅身份脱敏），
+    // 任意供应商拿 roundId 即可读他人项目全部价格；对照 listProjectRounds/getMyQuotes 同口径收口。
+    if (!myBidSupplier) {
+      throw new ForbiddenException({ error: '您未参与该项目投标，无权查看报价', code: 'NOT_PROJECT_MEMBER' });
+    }
     // M1: 脱敏——非 self 的 bidSupplierId 替换为序号，防止跨轮次关联竞争对手
     const quotes = await this.prisma.bidQuote.findMany({ where: { roundId }, orderBy: { quotePrice: 'asc' } });
     let seq = 0;
     return quotes.map(q => ({
       ...q,
-      bidSupplierId: q.bidSupplierId === myBidSupplier?.id ? q.bidSupplierId : `competitor_${++seq}`,
+      bidSupplierId: q.bidSupplierId === myBidSupplier.id ? q.bidSupplierId : `competitor_${++seq}`,
     }));
   }
 
