@@ -1109,19 +1109,59 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               )}
             </ZoneRow>
 
-            {/* 各部门采购分布（归档，按成交金额） */}
-<ZoneRow icon={Building2} title="各部门采购分布">
+            {/* 各部门采购分布——渐变排名卡（名次徽章+全称+金额+占比+底部渐变指示条） */}
+            <ZoneRow icon={Building2} title="各部门采购分布">
               {arcDeptDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
-                    return arcDeptDist.map((d) => (
-                      /* 2026-11-19 用户裁定：删比例条——名称左+金额右两端对齐 */
-                      <div key={d.name} className="flex items-center gap-2 rounded-[10px] m-tile px-3 py-2">
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--foreground)]">{d.name}</span>
-                        <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.label}</span>
-                      </div>
-                    ));
+                    const total = arcDeptDist.reduce((sum, d) => sum + d.amount, 0);
+                    const max = arcDeptDist[0].amount;
+                    return arcDeptDist.slice(0, 12).map((d, i) => {
+                      const pct = total > 0 ? (d.amount / total) * 100 : 0;
+                      const barPct = max > 0 ? (d.amount / max) * 100 : 0;
+                      return (
+                        <button
+                          key={d.name}
+                          type="button"
+                          onClick={() => router.push(`/ledger?q=${encodeURIComponent(d.name.split(" · ").pop() ?? d.name)}`)}
+                          className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${
+                                i === 0
+                                  ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]"
+                                  : i === 1
+                                    ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]"
+                                    : i === 2
+                                      ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]"
+                                      : "text-[var(--muted-foreground)]"
+                              }`}
+                            >
+                              {i + 1}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{d.name}</span>
+                            <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{d.label}</span>
+                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{pct.toFixed(1)}%</span>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                              <span
+                                className="block h-full rounded-full transition-[width] duration-300"
+                                style={{
+                                  width: `${barPct}%`,
+                                  background: i === 0 ? "var(--accent)" : i === 1 ? "var(--gold)" : i === 2 ? "var(--warning)" : "color-mix(in oklch, var(--accent) 45%, transparent)",
+                                }}
+                              />
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    });
                   })()}
+                  {arcDeptDist.length > 12 ? (
+                    <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 12 · 共 {arcDeptDist.length} 个部门</div>
+                  ) : null}
                 </div>
               ) : (
                 <EmptyState text="暂无成交数据" />
