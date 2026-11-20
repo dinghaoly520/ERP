@@ -21,6 +21,7 @@ import { ClarificationReplyDraftDto, SubmitClarificationReplyDto } from './dto/c
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ObjectionService } from './objection.service';
+import { CreateObjectionDto } from './dto/create-objection.dto';
 import { PrequalService } from '../prequal/prequal.service';
 import { FrameworkService } from '../framework/framework.service';
 import { PerformanceService } from '../performance/performance.service';
@@ -296,7 +297,7 @@ export class SupplierPortalController {
   }
 
   @Post('objections')
-  async createObjection(@Request() req: any, @Body() dto: { announcementId?: string; projectCode?: string; phase: string; title: string; content: string; attachments?: any; companyId?: string }) {
+  async createObjection(@Request() req: any, @Body() dto: CreateObjectionDto) { // P3-6：DTO 化（whitelist 生效，attachments 结构白名单）
     const supplier = await this.prisma.supplier.findUnique({
       where: { userId: req.user.sub },
       select: { id: true, name: true, userId: true },
@@ -912,12 +913,17 @@ export class SupplierPortalController {
     if (round.status !== 'published' && round.status !== 'closed') return [];
     const supplierId = await this.getSupplierId(req.user.sub);
     const myBidSupplier = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId }, select: { id: true } });
+    // P2-2（2026-11-20 全链路审查）：成员闸——原实现非成员不抛错继续返回全量报价（仅身份脱敏），
+    // 任意供应商拿 roundId 即可读他人项目全部价格；对照 listProjectRounds/getMyQuotes 同口径收口。
+    if (!myBidSupplier) {
+      throw new ForbiddenException({ error: '您未参与该项目投标，无权查看报价', code: 'NOT_PROJECT_MEMBER' });
+    }
     // M1: 脱敏——非 self 的 bidSupplierId 替换为序号，防止跨轮次关联竞争对手
     const quotes = await this.prisma.bidQuote.findMany({ where: { roundId }, orderBy: { quotePrice: 'asc' } });
     let seq = 0;
     return quotes.map(q => ({
       ...q,
-      bidSupplierId: q.bidSupplierId === myBidSupplier?.id ? q.bidSupplierId : `competitor_${++seq}`,
+      bidSupplierId: q.bidSupplierId === myBidSupplier.id ? q.bidSupplierId : `competitor_${++seq}`,
     }));
   }
 

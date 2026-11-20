@@ -13,6 +13,7 @@ import { matchesFileContentPolicy, PDF_WORD_IMAGE_MIME_TYPES } from './file-cont
 import { assertAttachmentRules } from './attachment-rules';
 import { CompanyScopeService } from '../company/company-scope';
 import { scopeCompanyIds } from '../company/company-scope';
+import { assertEvaluationStarted } from '../expert/expert-room.util';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -249,18 +250,29 @@ export class UploadService implements OnModuleInit {
       throw new ForbiddenException({ error: '无权访问该文件', code: 'FILE_FORBIDDEN' });
     }
 
-    // §5.4a 新轨 C_outer 拒收（置于 E2EE AES 分支之前）：dual-v2 四列引用的 bid_document 密文
-    // 对任何人都不提供下载——解密必须走开标解密流程（主持端 decrypt-outer → 供应商 decrypt-upload）。
-    // 判定限定 envelopeVersion='dual-v2'，不误伤旧轨 clientEncrypted 资产（旧轨供应商本人下载明文是合法功能）。
+    // §5.4a 新轨 C_outer 拒收（置于 E2EE AES 分支之前）：dual 家（v2 四列引用 + v3 信封引用，
+    // P1-3 2026-11-20 补 v3——原硬编码 dual-v2 使 v3 C_outer 走兜底分支直出密文）的
+    // bid_document 密文对任何人都不提供下载——解密必须走开标解密流程
+    // （主持端 decrypt-outer → 供应商 decrypt-upload）。旧轨 clientEncrypted 资产不受影响
+    // （无四列/信封引用，旧轨供应商本人下载明文是合法功能）。
     if (asset.category === 'bid_document') {
       const dualSubmission = await this.prisma.supplierBidSubmission.findFirst({
         where: {
-          envelopeVersion: 'dual-v2',
           OR: [
-            { technicalFileAssetId: asset.id },
-            { businessFileAssetId: asset.id },
-            { coverLetterAssetId: asset.id },
-            { bidBondAssetId: asset.id },
+            {
+              AND: [
+                { envelopeVersion: 'dual-v2' },
+                {
+                  OR: [
+                    { technicalFileAssetId: asset.id },
+                    { businessFileAssetId: asset.id },
+                    { coverLetterAssetId: asset.id },
+                    { bidBondAssetId: asset.id },
+                  ],
+                },
+              ],
+            },
+            this.v3EnvelopeAssetFilter(asset.id),
           ],
         },
         select: { id: true },
@@ -450,6 +462,11 @@ export class UploadService implements OnModuleInit {
           where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
         });
         if (!bidSupplier) return false;
+        // P2-7（2026-11-20 全链路审查）：启动闸——专家专用链全闸（getDecryptedDocuments/
+        // downloadBidDocument 的 assertEvaluationStage），本旁路端点原缺失：OPENING 期解密
+        // SUCCESS 后、启动评标前持 asset id 的专家可直取解密标书。与 expert 域同口径
+        //（EVALUATING/ABORTED 放行、其余 403 EVALUATION_NOT_STARTED）。
+        await assertEvaluationStarted(this.prisma, submission.projectId);
 
         // 审计：记录专家文件访问（与四列分支同款）
         await this.prisma.bidSupervisionLog.create({
@@ -477,6 +494,10 @@ export class UploadService implements OnModuleInit {
             { technicalFileAssetId: asset.id },
             { businessFileAssetId: asset.id },
             { coverLetterAssetId: asset.id },
+            // P1-3（2026-11-20）：补 bond 列（原三列漏）+ v3 信封引用——bid_document 密文
+            // 统一走 SUCCESS 闸（解密前不放行），不再落兜底 return true
+            { bidBondAssetId: asset.id },
+            this.v3EnvelopeAssetFilter(asset.id),
           ],
         },
       });
@@ -609,12 +630,15 @@ export class UploadService implements OnModuleInit {
     if (user.role === 'bid_expert') {
       // 从 asset 反查其所属项目（通过引用该 asset 的 SupplierBidSubmission），
       // 再校验专家是否被分配到【该】项目——避免对多项目专家取到错误项目导致误判。
+      // P1-3（2026-11-20）：补 bond 列 + v3 信封引用（与上方管理角色分支同口径）。
       const submission = await this.prisma.supplierBidSubmission.findFirst({
         where: {
           OR: [
             { technicalFileAssetId: asset.id },
             { businessFileAssetId: asset.id },
             { coverLetterAssetId: asset.id },
+            { bidBondAssetId: asset.id },
+            this.v3EnvelopeAssetFilter(asset.id),
           ],
         },
       });
@@ -627,6 +651,8 @@ export class UploadService implements OnModuleInit {
         where: { projectId: submission.projectId, supplierId: submission.supplierId, decryptStatus: 'SUCCESS' },
       });
       if (!bidSupplier) return false;
+      // P2-7：启动闸（与上方 bid_decrypted 分支同口径——四列兜底分支旁路专家专用链同病）
+      await assertEvaluationStarted(this.prisma, submission.projectId);
 
       // 审计：记录专家文件访问
       await this.prisma.bidSupervisionLog.create({
@@ -713,6 +739,22 @@ export class UploadService implements OnModuleInit {
   }
 
   /**
+   * P1-3（2026-11-20 全链路审查）：dual-v3 C_outer 信封引用反查条件。
+   * v3 投递只写 submission.envelope（files[].assetId），不写 technicalFileAssetId 等四列
+   * （四列是 v2/旧轨专利）——所有按四列反查的闸门对 v3 C_outer 失明（删除保护/下载拒收/
+   * 管理角色授权均漏）。本条件组按信封 path 逐角色精确匹配，供三处闸门共用。
+   * v2 信封（DualEnvelope）无 files[].assetId 结构，path 查询自然不命中、无误伤。
+   */
+  private v3EnvelopeAssetFilter(assetId: string) {
+    return {
+      AND: [
+        { envelopeVersion: 'dual-v3' as const },
+        { OR: BID_FILE_ROLES.map(role => ({ envelope: { path: ['files', role, 'assetId'], equals: assetId } })) },
+      ],
+    };
+  }
+
+  /**
    * 删除文件（MinIO 对象 + 元数据）
    */
   async delete(key: string, user?: { sub: string; role: string }) {
@@ -735,19 +777,34 @@ export class UploadService implements OnModuleInit {
       throw new ConflictException({ error: '该文件属开标解密环节的关键文件，禁止删除', code: 'FILE_PROTECTED' });
     }
     if (asset.category === 'bid_document') {
-      const dualOuter = await this.prisma.supplierBidSubmission.findFirst({
-        where: {
-          envelopeVersion: 'dual-v2',
-          OR: [
-            { technicalFileAssetId: asset.id },
-            { businessFileAssetId: asset.id },
-            { coverLetterAssetId: asset.id },
-            { bidBondAssetId: asset.id },
-          ],
-        },
-        select: { id: true },
-      });
-      if (dualOuter) {
+      // P1-3（2026-11-20 全链路审查）：原硬编码 envelopeVersion='dual-v2' 四列反查——v3 投递
+      // 不写四列（引用只在信封 JSON），供应商本人（uploader 可删）截标后删 C_outer 即毁开标
+      // 解密链（decryptOuterOneV3 按 asset.key 直读、无备份回退）。补 v3 信封引用 + BidFileBackup
+      // 备份引用（备份行随每次投递/补传固化 fileAssetId，天然覆盖历史版本资产）。
+      const [dualOuter, v3Outer, backupRef] = await Promise.all([
+        this.prisma.supplierBidSubmission.findFirst({
+          where: {
+            AND: [
+              { envelopeVersion: 'dual-v2' },
+              {
+                OR: [
+                  { technicalFileAssetId: asset.id },
+                  { businessFileAssetId: asset.id },
+                  { coverLetterAssetId: asset.id },
+                  { bidBondAssetId: asset.id },
+                ],
+              },
+            ],
+          },
+          select: { id: true },
+        }),
+        this.prisma.supplierBidSubmission.findFirst({
+          where: this.v3EnvelopeAssetFilter(asset.id),
+          select: { id: true },
+        }),
+        this.prisma.bidFileBackup.findFirst({ where: { fileAssetId: asset.id }, select: { id: true } }),
+      ]);
+      if (dualOuter || v3Outer || backupRef) {
         throw new ConflictException({ error: '该文件属开标解密环节的关键文件，禁止删除', code: 'FILE_PROTECTED' });
       }
     }
@@ -779,18 +836,26 @@ export class UploadService implements OnModuleInit {
     }
 
     // H7: 已被投标文件引用的资产不可删除——防供应商截标后删件伪装技术故障 / 触发解密误判（H1 组合）
-    const submission = await this.prisma.supplierBidSubmission.findFirst({
-      where: {
-        OR: [
-          { technicalFileAssetId: asset.id },
-          { businessFileAssetId: asset.id },
-          { coverLetterAssetId: asset.id },
-          { bidBondAssetId: asset.id },
-        ],
-      },
-      select: { id: true },
-    });
-    if (submission) {
+    // P1-3（2026-11-20）：补 v3 信封引用 + BidFileBackup 备份引用（v3 补传后的历史版本资产由备份行覆盖）。
+    const [submission, v3Submission, backupSubmission] = await Promise.all([
+      this.prisma.supplierBidSubmission.findFirst({
+        where: {
+          OR: [
+            { technicalFileAssetId: asset.id },
+            { businessFileAssetId: asset.id },
+            { coverLetterAssetId: asset.id },
+            { bidBondAssetId: asset.id },
+          ],
+        },
+        select: { id: true },
+      }),
+      this.prisma.supplierBidSubmission.findFirst({
+        where: this.v3EnvelopeAssetFilter(asset.id),
+        select: { id: true },
+      }),
+      this.prisma.bidFileBackup.findFirst({ where: { fileAssetId: asset.id }, select: { id: true } }),
+    ]);
+    if (submission || v3Submission || backupSubmission) {
       throw new ConflictException({ error: '该文件已被投标文件引用，不可删除', code: 'FILE_REFERENCED' });
     }
 

@@ -2666,6 +2666,17 @@ export class SupplierPortalService {
     let submission;
     try {
       submission = await this.prisma.$transaction(async (tx) => {
+        // P3-2（2026-11-20 全链路审查）：事务内行锁复查 stage/deadline——外层 assertCanSubmitBid
+        // 与落库之间隔着大文件 MinIO staging（秒~数十秒），截标/按时开标并发推进会穿透闸门
+        //（截标前发起、截标后落库）。FOR UPDATE 锁行后复查，serverSubmittedAt=闸后时点的旧问题一并消除。
+        await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
+        const freshGate = await tx.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, deadline: true } });
+        if (!freshGate || (freshGate.stage !== 'DOWNLOAD' && freshGate.stage !== 'SUBMIT')) {
+          throw new BadRequestException({ error: '当前项目已进入开标或后续阶段，无法投递', code: 'PROJECT_NOT_SUBMITTING' });
+        }
+        if (freshGate.deadline && freshGate.deadline.getTime() < Date.now()) {
+          throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
+        }
         for (const assetId of assetIds) {
           if (sealedPaths[assetId]) {
             await tx.fileAsset.update({
@@ -3133,12 +3144,22 @@ export class SupplierPortalService {
     const assetIds = (Object.values((envelope as { files?: Record<string, { assetId?: string }> }).files ?? {})
       .map((e2) => e2?.assetId)).filter((v): v is string => !!v);
     if (assetIds.length > 0) {
+      // P3-4（2026-11-20 全链路审查）：补 category 闸——对齐 v2 assertBidFileAssetsOwnedByUser
+      //（uploaderId + category='bid_document' 双闸）。原仅查 uploaderId：本人任意类目资产
+      //（qualification/他项目 bid_decrypted 明文）可封进信封充标书，证据链一致性缺口。
       const assets = await this.prisma.fileAsset.findMany({
-        where: { id: { in: assetIds } }, select: { id: true, uploaderId: true },
+        where: { id: { in: assetIds } }, select: { id: true, uploaderId: true, category: true },
       });
       const foreign = assets.find((a) => a.uploaderId !== supplier.userId);
+      const wrongCategory = assets.find((a) => a.category !== 'bid_document');
       if (assets.length !== new Set(assetIds).size || foreign) {
         throw new BadRequestException({ error: '投标文件无权使用（暂存资产不存在或非本司上传）', code: 'FILE_NOT_OWNED' });
+      }
+      if (wrongCategory) {
+        throw new BadRequestException({
+          error: '投标文件须引用本项目的密文暂存件（category=bid_document），不可引用其他业务文件',
+          code: 'INVALID_BID_FILE',
+        });
       }
     }
 
@@ -3201,6 +3222,17 @@ export class SupplierPortalService {
     // 事务：CAS + 版本快照 + 落库（I1：唯一索引冲突映射 409，不裸 500）
     try {
       const result = await this.prisma.$transaction(async (tx) => {
+        // P3-2（2026-11-20 全链路审查）：事务内行锁复查 stage/deadline——外层 assertCanSubmitBid
+        // 与落库之间隔着大文件 MinIO staging（秒~数十秒），截标/按时开标并发推进会穿透闸门
+        //（截标前发起、截标后落库）。FOR UPDATE 锁行后复查，serverSubmittedAt=闸后时点的旧问题一并消除。
+        await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
+        const freshGate = await tx.bidProject.findUnique({ where: { id: projectId }, select: { stage: true, deadline: true } });
+        if (!freshGate || (freshGate.stage !== 'DOWNLOAD' && freshGate.stage !== 'SUBMIT')) {
+          throw new BadRequestException({ error: '当前项目已进入开标或后续阶段，无法投递', code: 'PROJECT_NOT_SUBMITTING' });
+        }
+        if (freshGate.deadline && freshGate.deadline.getTime() < Date.now()) {
+          throw new BadRequestException({ error: '投递截止时间已过', code: 'DEADLINE_PASSED' });
+        }
         const existing = await tx.supplierBidSubmission.findUnique({
           where: { supplierId_projectId: { supplierId, projectId } },
         });
@@ -4875,6 +4907,10 @@ export class SupplierPortalService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // P3-11（2026-11-20 全链路审查）：行锁 BidProject——与 completeOpening 的
+      // lockAndReassertStage 同锁串行化，堵「completeOpening 事务内复查通过→提交前异议落库」
+      // 的文件包快照缺异议窗口（亚秒级 TOCTOU 收窄归零：两侧互斥于同一把行锁）。
+      await tx.$queryRaw`SELECT id FROM "BidProject" WHERE id = ${projectId} FOR UPDATE`;
       await tx.bidOpeningRecord.updateMany({
         where: { projectId, bidSupplierId: bidSupplier.id },
         data: { confirmStatus: '供应商提出异议', objectionReason: reason },

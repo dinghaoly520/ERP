@@ -384,9 +384,13 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (role === 'supplier') {
       // 双层门控（设计 §4.2）：角色门（supplier 永不进 host 房）+ 成员门（须参投本项目）
+      // P3-9（2026-11-20）：成员门收紧为「已提交」——受邀未投递/已撤回名册家非投标人，
+      // 唱标公开口径是「全体投标人」，不得旁观解密进度/公聊/在场事件（对照 checkIn 既有闸）
       const supplier = await this.prisma.supplier.findFirst({ where: { userId } });
       if (!supplier) return { error: 'SUPPLIER_PROFILE_NOT_FOUND' };
-      const member = await this.prisma.bidSupplier.findFirst({ where: { projectId, supplierId: supplier.id } });
+      const member = await this.prisma.bidSupplier.findFirst({
+        where: { projectId, supplierId: supplier.id, submitStatus: '已提交' },
+      });
       if (!member) return { error: 'NOT_PROJECT_MEMBER' };
 
       (client.data as any).supplierId = supplier.id;

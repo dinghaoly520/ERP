@@ -94,6 +94,7 @@ describe('SupplierPortalService', () => {
 
   beforeEach(async () => {
     prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $transaction: jest.fn(async (cb: any) => cb(prisma)),
 
       supplier: { findUnique: jest.fn(), update: jest.fn() },

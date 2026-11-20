@@ -58,5 +58,8 @@ export const PAIRING_ALLOWED: ReadonlyArray<PairingAllowEntry> = [
   { method: 'GET', path: /^\/expert\/projects/ },
   { method: 'GET', path: /^\/expert\/profile/ },
   { method: 'GET', path: /^\/expert\/statistics$/ },
-  { method: 'GET', path: /^\/expert\/tasks$/ },
+  // P3-19（2026-11-20 全链路审查）：GET /expert/tasks 移出白名单——它是跨项目聚合端点
+  //（getMyTasks 汇总动议/异议，pid 绑定只覆盖 /expert/projects/*），配对平板可借受限令牌
+  // 读该专家其他项目的动议/异议摘要。平板路由（/tablet、/tablet/evaluate）不消费该端点
+  //（全前端零调用已核），桌面工作台走全量会话不受影响。
 ];

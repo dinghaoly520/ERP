@@ -39,9 +39,38 @@ export function assertBidStageTransition(from: BidStage, to: BidStage): void {
   }
 }
 
-/** 判断 stage 是否已达到 min（含）之后——棘轮语义的阶段下限比较，供端点业务前置使用（如归档守卫）。 */
-export function stageAtLeast(stage: BidStage, min: BidStage): boolean {
-  return STAGE_ORDER[stage] >= STAGE_ORDER[min];
+/**
+ * 归档 scope×stage 收口矩阵（2026-11-20 全链路审查 P1-1，用户裁定）：
+ * - scope=opening 仅限 {OPENING, ABORTED}：EVALUATING 项目禁用开标归档——旧「阶段下限」
+ *   判定（stageAtLeast，已删）下 EVALUATING≥OPENING 通过、签字闭环/回流包/评标结果三闸
+ *   全按 scope 分支跳过，评标中项目可被不可逆终局归档（前端仅 UI 遮挡、API 裸可达）。
+ * - scope=full 仅限 EVALUATING：ABORTED（N4c——已出结果+签字闭环+回流后才流标）走 full
+ *   会使 ensureWinnerNotice 从已作废结果派生预成交公示、中标通知书可达、syncPmStage 把
+ *   PM 推进到定标——违反「N4c 存量结果仅作废留痕不得再派生公示」的既有裁定。流标收尾
+ *   一律走 opening 归档（ABORTED→ARCHIVED 收尾特例经 opening 自然兼容）。
+ * - ARCHIVED 放行：幂等语义（archiveAll 外层早退 + 事务内复查时并发第二笔归档不误炸）。
+ */
+export function assertArchiveScopeStage(scope: 'opening' | 'full', stage: BidStage): void {
+  if (scope === 'opening') {
+    if (stage === 'OPENING' || stage === 'ABORTED' || stage === 'ARCHIVED') return;
+    throw new ConflictException(
+      stage === 'EVALUATING'
+        ? {
+            error: '项目正在评标，开标归档不可用——请走完整归档（scope=full，须评标结果+签字闭环+评标回流包）',
+            code: 'ARCHIVE_EVALUATING_NOT_OPENING',
+          }
+        : { error: '开标归档要求项目已进入开标阶段', code: 'ARCHIVE_NOT_OPENED' },
+    );
+  }
+  if (stage === 'EVALUATING' || stage === 'ARCHIVED') return;
+  throw new ConflictException(
+    stage === 'ABORTED'
+      ? {
+          error: '项目已流标，完整归档不可用（防从已作废评标结果派生公示/定标）——请改用开标归档（scope=opening）收尾',
+          code: 'ARCHIVE_ABORTED_NOT_FULL',
+        }
+      : { error: '完整归档要求项目处于评标阶段；开标后不评标请改用开标归档（scope=opening）', code: 'ARCHIVE_NOT_EVALUATING' },
+  );
 }
 
 /**

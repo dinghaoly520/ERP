@@ -686,6 +686,8 @@ export interface SignPacketExpertRow {
   name: string;
   major: string;
   role: string;
+  /** 邀请状态（P3-27）：pending/declined 家不在签字闭环分母——前端警示名单过滤依据 */
+  invitationStatus?: string;
   isLead: boolean;
   isPurchaserRepresentative: boolean;
   signStatus: SignStatusValue;

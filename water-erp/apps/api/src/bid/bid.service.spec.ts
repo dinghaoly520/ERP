@@ -127,6 +127,7 @@ describe('BidService — stage transitions', () => {
   beforeEach(async () => {
     prisma = {
       bidProject: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }), // P3-17：重开重置末签
         findUnique: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
@@ -1439,7 +1440,7 @@ describe('BidService — stage transitions', () => {
       expect(created).toHaveLength(8); // 标准 8 项（5 通用 + 3 评标）
     });
 
-    it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；opening 跳过该守卫（开标归档路径）', async () => {
+    it('scope 分支：full 触发 EVALUATION_RESULTS_REQUIRED；P1-1 后 EVALUATING+opening 在移交闸之前即被矩阵拦截', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目' });
       prisma.bidSupplier.findMany.mockResolvedValue([{ id: 'bs1', supplierName: '甲' }]);
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
@@ -1448,10 +1449,32 @@ describe('BidService — stage transitions', () => {
       await expect(service.archiveAll('p1'))
         .rejects.toMatchObject({ response: { code: 'EVALUATION_RESULTS_REQUIRED' } });
 
-      // opening → 阶段下限通过（EVALUATING ≥ OPENING）、跳过评标守卫，但必须先完成移交
-      prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: null });
+      // P1-1（2026-11-20）：EVALUATING+opening 旧口径放行到移交闸（OPENING_HANDOVER_REQUIRED）
+      // ——现被 scope×stage 矩阵直接拦截（评标中项目不得绕过签字/回流/结果三闸开标归档）
       await expect(service.archiveAll('p1', undefined, 'opening'))
-        .rejects.toMatchObject({ response: { code: 'OPENING_HANDOVER_REQUIRED' } });
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_EVALUATING_NOT_OPENING' } });
+    });
+
+    it('P1-1 场景B：ABORTED + scope=full → 409 ARCHIVE_ABORTED_NOT_FULL（流标项目不得从已作废结果派生公示/定标）', async () => {
+      // N4c 组合：已出结果+签字闭环+回流包后流标——三闸本可全过，唯 stage 收口拦住
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', projectCode: 'BID-X', stage: 'ABORTED', name: '流标项目', projectManagementItemId: 'pm1', round: 1 });
+
+      await expect(service.archiveAll('p1', undefined, 'full'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_ABORTED_NOT_FULL' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled(); // 不可逆终局未被写入
+      expect(prisma.projectManagementStage.updateMany).not.toHaveBeenCalled(); // PM 未被推进定标
+    });
+
+    it('P1-1 事务内复查：外层读 OPENING、行锁后阶段已并发推进 EVALUATING → 开标归档被拦', async () => {
+      // 竞态：外层检查通过（OPENING+opening 合法）→ 并发 startEvaluation 推进 EVALUATING
+      // → 事务内行锁后的新鲜阶段复查拦截（陈旧读会放行错配组合）
+      prisma.bidProject.findUnique
+        .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-X', stage: 'OPENING', name: '测试项目', projectManagementItemId: 'pm1', round: 1 })
+        .mockResolvedValueOnce({ id: 'p1', projectCode: 'BID-X', stage: 'EVALUATING', name: '测试项目' }); // lockAndReassertStage 行锁后读
+
+      await expect(service.archiveAll('p1', undefined, 'opening'))
+        .rejects.toMatchObject({ response: { code: 'ARCHIVE_EVALUATING_NOT_OPENING' } });
+      expect(prisma.bidProject.update).not.toHaveBeenCalled();
     });
 
     it('F3 阶段下限：DOWNLOAD + scope=opening → 409 ARCHIVE_NOT_OPENED', async () => {
@@ -2760,6 +2783,24 @@ describe('BidService.archiveAll — 不再生成预成交公示草稿（2026-11-
   });
 
   it('开标归档（scope=opening）同样不生成（流标/废标收尾无成交方）', async () => {
+    // P1-1（2026-11-20，冲突融合）：mock stage 置 ABORTED——scope×stage 矩阵下 EVALUATING+opening
+    // 直接 409 走不到断言；与「已流标收尾」语义一致
+    prisma.bidProject.findUnique.mockImplementation(({ where }: any) => {
+      if (where?.id === 'p1') {
+        return Promise.resolve({
+          id: 'p1',
+          projectCode: 'BID-1',
+          stage: 'ABORTED',
+          name: '项目',
+          projectManagementItemId: 'pm1',
+          round: 1,
+          evaluationResults: [
+            { rank: 1, supplierName: '甲', totalScore: 90, averageScore: 30, recommended: true },
+          ],
+        });
+      }
+      return Promise.resolve(null);
+    });
     prisma.bidOpeningSession.findUnique.mockResolvedValue({ handoverAssetId: 'fa-handover' });
     await service.archiveAll('p1', 'u1', 'opening');
     expect(prisma.announcement.create).not.toHaveBeenCalled();
@@ -4451,6 +4492,7 @@ describe('submitQuote — 准入校验', () => {
       bidRound: { findUnique: jest.fn() },
       bidSupplier: { findFirst: jest.fn() },
       bidQuote: { create: jest.fn() },
+      bidEvaluationResult: { count: jest.fn().mockResolvedValue(0) }, // P3-24：结果冻结闸默认无结果
       $queryRaw: jest.fn(),
       $transaction: jest.fn(async (cb: any) => typeof cb === 'function' ? cb(prisma) : Promise.all(cb)),
     };
@@ -4986,7 +5028,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   const RANK1 = { supplierId: 'sup-win', supplierName: '中标公司' };
 
   it('公示未发布 → 409 PUBLICITY_NOT_ENDED 且零交付/零通知', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(null);
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司' }))
       .rejects.toMatchObject({ response: { code: 'PUBLICITY_NOT_ENDED' } });
@@ -4997,7 +5039,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('公示期未满 → 409 且 error 含公示截止时间', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     const future = new Date(Date.now() + 86_400_000);
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(future));
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司' }))
@@ -5007,7 +5049,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('publicityEnd 为 null → getPublicityStatus canIssueAward=false', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', projectManagementItemId: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(null));
     const status = await svc.getPublicityStatus('p1');
     expect(status.canIssueAward).toBe(false);
@@ -5015,7 +5057,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('公示期满 → 放行且定向通知仅中标方（sendToUser 用供应商 userId，sendToRole 零调用）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5042,7 +5084,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('定标回写（拍板#7）：中标人与台账不一致 → 自动回写 PMI.awardedSupplier；一致 → 幂等跳过', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5063,7 +5105,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('winnerSupplierId 与 rank1 不符 → 400 WINNER_MISMATCH 零交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     await expect(svc.deliverAwardLetter('p1', { winnerName: '中标公司', winnerSupplierId: 'sup-other' }))
@@ -5073,7 +5115,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书必须引用当前操作者上传的合同文档资产', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue(null);
@@ -5090,7 +5132,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('仅伪装成 PDF MIME 但不属于 contract_document 分类的资产仍拒绝交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     // Prisma 的复合过滤不会返回 category=general 的资产，即使其 mimeType 自称 PDF。
@@ -5112,7 +5154,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书附件超过 20 MiB 时拒绝交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue({
@@ -5133,7 +5175,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     'image/png',
     'text/html',
   ])('通知书附件存储 MIME 为 %s 时拒绝交付', async (mimeType) => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue({ id: 'letter-wrong-type', mimeType, size: 1_024 });
@@ -5150,7 +5192,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   ])('通知书附件允许可信 PDF/Word 存储 MIME：%s', async (mimeType) => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.fileAsset.findFirst.mockResolvedValue({
@@ -5165,7 +5207,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书缺少实际文件时拒绝发出', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
 
@@ -5176,7 +5218,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('通知书资产已绑定其他 delivery 时拒绝跨交付复用', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findFirst.mockResolvedValue({ id: 'delivery-other' });
@@ -5200,7 +5242,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   it.each(['draftAssetId', 'signedAssetId'] as const)(
     '通知书资产已作为合同 %s 时拒绝反向复用',
     async (contractAssetField) => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
       prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
       prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
       prisma.contract.findFirst.mockResolvedValue({ id: 'contract-1' });
@@ -5227,7 +5269,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   );
 
   it('通知书资产已作为合同履约证明时拒绝反向复用', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.contractFulfillment.findFirst.mockResolvedValue({ id: 'fulfillment-1' });
@@ -5246,7 +5288,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('已签收通知书不可被覆盖或重新交付', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findUnique.mockResolvedValue({
@@ -5265,7 +5307,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('未签收通知书重发时原子替换文件并清空旧查看回执', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5301,7 +5343,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('未签收通知书可用同一资产幂等重发，且占用查询排除当前 delivery', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.bidSupplier.findUnique.mockResolvedValue({ supplier: { userId: 'u-win' } });
@@ -5326,7 +5368,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('重发条件更新未命中时按并发签收冲突拒绝', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findUnique
@@ -5343,7 +5385,7 @@ describe('P1-8 — 中标通知书公示期闸门与定向通知', () => {
   });
 
   it('并发重发已换版时拒绝用旧版本继续覆盖', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P' });
     prisma.announcement.findFirst.mockResolvedValue(PUBLISHED_NOTICE(new Date(Date.now() - 1_000)));
     prisma.bidEvaluationResult.findFirst.mockResolvedValue(RANK1);
     prisma.awardLetterDelivery.findUnique
@@ -6177,7 +6219,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
 
   it('定标联动：sendToUser(创建人) resolve 后才写 marker + marker 幂等（marker 已在则不再提醒）', async () => {
     // 2026-10-09 串号修复：BOND_REFUND_DUE 从 staff 全平台广播改为只发项目创建人（PMI.createdById）
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
     prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -6222,7 +6264,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
   });
 
   it('定标联动：无待退还（pending=0）→ 不发送不写 marker（零副作用）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6239,7 +6281,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
   });
 
   it('定标联动：sendToUser 失败 → marker 不写（不占坑）+ warn 留痕，不阻塞通知书', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
     prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: true } });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -6259,7 +6301,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
   });
 
   it('定标联动：创建人已停用（isActive=false）→ 不发送且不占坑（法定提醒通道不被死信空耗）', async () => {
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: 'pm1' });
     prisma.projectManagementItem.findUnique.mockResolvedValue({ createdById: 'creator-1', createdBy: { isActive: false } });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
@@ -6278,7 +6320,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
 
   it('定标联动：创建人不可解析（无宿主 PMI）→ 不发送且不占坑（不回退广播）', async () => {
     // 2026-10-09 串号修复口径：解析失败宁可不发，marker 也不写——日调度兜底通道仍可补发
-    prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
     prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
     prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'sup-win', supplierName: '中标公司' });
     prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6294,7 +6336,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
   });
     it('P1-6：定标即定向通知未中标投标人（法45条）——BID_AWARD_RESULT 含中标人名称 + marker 幂等', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
       prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
       prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
       prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6323,7 +6365,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     });
 
     it('P1-6：marker 已在 → 不重复通知落标家（重签收/重发不重复）', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
       prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
       prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
       prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6339,7 +6381,7 @@ describe('BidService — 定标联动保证金退还提醒 (A-105)', () => {
     });
 
     it('P1-6：仅中标人参标（无落标者）→ 不发落标通知、不写 marker', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'ARCHIVED', projectCode: 'GK-1', name: 'P', projectManagementItemId: null });
       prisma.announcement.findFirst.mockResolvedValue({ status: 'PUBLISHED', publishDate: new Date(), publicityEnd: new Date(Date.now() - 1_000) });
       prisma.bidEvaluationResult.findFirst.mockResolvedValue({ supplierId: 'bs-win', supplierName: '中标公司' });
       prisma.supplier.findUnique.mockResolvedValue({ userId: 'u-win' });
@@ -6380,6 +6422,7 @@ describe('BidService — reopenExpertScoring', () => {
     prisma = {
       bidProject: {
         findUnique: jest.fn().mockResolvedValue({ id: 'p1', name: '测试项目', stage: 'EVALUATING', projectCode: 'GK-TEST' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }), // P3-17：重开重置 leaderCoSigned
       },
       bidSignPacket: { findUnique: jest.fn().mockResolvedValue({ closedAt: null }) },
       bidExpert: {
@@ -6590,44 +6633,7 @@ describe('BidService — resolveExpertDispute 废标联动重算', () => {
   });
 });
 
-/* ── B1/P2-5（第四波）：claimActiveHost TTL 惰性过期——会话死亡后标记残留、他人 claim 恒失败 ── */
-describe('BidService — claimActiveHost TTL 过期可接管', () => {
-  let service: any;
-  let prisma: any;
-
-  beforeEach(async () => {
-    prisma = {
-      bidOpeningSession: {
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        findUnique: jest.fn().mockResolvedValue({ activeHostId: 'u-other', activeHostName: '旧主持' }),
-      },
-    };
-    const { BidService } = jest.requireActual('./bid.service');
-    service = Object.create(BidService.prototype);
-    service.prisma = prisma;
-  });
-
-  it('where 含 TTL 谓词（他人占用且 activeHostClaimedAt 超时 → 可抢占）+ 命中即接管写新戳', async () => {
-    const r = await service.claimActiveHost('p1', 'u-new', '新主持');
-    expect(r.claimed).toBe(true);
-    // TTL 条件必须进 where（结构断言——SQL 语义单测极限，行为验证归 e2e）
-    expect(prisma.bidOpeningSession.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        OR: expect.arrayContaining([
-          expect.objectContaining({ activeHostClaimedAt: expect.objectContaining({ lt: expect.any(Date) }) }),
-        ]),
-      }),
-      data: expect.objectContaining({ activeHostClaimedAt: expect.any(Date) }),
-    }));
-  });
-
-  it('他人占用且未命中（TTL 内/存量无戳）→ claimed:false 带占用者名（现状保持）', async () => {
-    prisma.bidOpeningSession.updateMany.mockResolvedValue({ count: 0 });
-    const r = await service.claimActiveHost('p1', 'u-new', '新主持');
-    expect(r.claimed).toBe(false);
-    expect(r.existingHost).toBe('旧主持');
-  });
-});
+/* ── P3-28（2026-11-20 用户裁定删除）：claimActiveHost TTL 测试块随机制整体移除 ── */
 
 /* ═══════════════════════════════════════════════════════════════════
    #61回归A：唱标确认超时自动闭环（autoCloseExpiredConfirmations）

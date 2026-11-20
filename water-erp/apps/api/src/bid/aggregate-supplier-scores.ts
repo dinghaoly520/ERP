@@ -52,10 +52,15 @@ export interface AggregateSupplierScoresInput {
    *  与 recomputeExpertProgress 分母豁免同构——改票后 passed 不再 false 自动回参与。
    *  缺省 = 不过滤（未接线的既有调用零变化） */
   passFailItemIds?: Set<string>;
+  /** P3-15（2026-11-20 全链路审查）：专家回避申报（expertId → 回避 supplierId 集）——
+   *  对该供应商申报回避的专家，其已交评分不进该供应商的聚合与去极值序列（可评集合与
+   *  聚合集合一致；回避后评分视同作废，与核对/进度分母的回避收缩同构）。
+   *  缺省 = 不过滤（未接线的既有调用零变化）。 */
+  expertConflicts?: Map<string, Set<string>>;
 }
 
 export function aggregateSupplierScores(input: AggregateSupplierScoresInput): AggregatedSupplierRank[] {
-  const { activeSuppliers, recordsBySupplier, formulaPriceScores, priceItemIds, passFailVerdicts, bidPrices, isNegotiation, trimOutliers = true, passFailItemIds } = input;
+  const { activeSuppliers, recordsBySupplier, formulaPriceScores, priceItemIds, passFailVerdicts, bidPrices, isNegotiation, trimOutliers = true, passFailItemIds, expertConflicts } = input;
   const ranked: AggregatedSupplierRank[] = [];
   for (const supplier of activeSuppliers) {
     const records = recordsBySupplier.get(supplier.id) ?? [];
@@ -65,6 +70,12 @@ export function aggregateSupplierScores(input: AggregateSupplierScoresInput): Ag
     if (passFailItemIds && passFailItemIds.size > 0) {
       for (const r of records) {
         if (r.passed === false && passFailItemIds.has(r.scoreItemId)) exemptExperts.add(r.expertId);
+      }
+    }
+    // P3-15：回避排除——对该供应商申报回避的专家整体不参与（含历史残留记录）
+    if (expertConflicts) {
+      for (const [expertId, conflicted] of expertConflicts) {
+        if (conflicted.has(supplier.id)) exemptExperts.add(expertId);
       }
     }
     // 每位专家对该供应商的总评分

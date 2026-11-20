@@ -14,6 +14,22 @@ export interface CloseSignLoopOptions {
   operatorRole?: string;
 }
 
+/**
+ * P2-4（2026-11-20 全链路审查）：签字闭环分母/签字页名册的专家域——正选且邀请已确认。
+ * 名册除名口径（2026-10-27 declined）扩展到 pending：正选从未确认邀请的专家非实际评委
+ * （startEvaluation 只要求 confirmed≥法定数，pending 家不参与评审），若入闭环分母则
+ * signStatus 恒 PENDING → 闭环永不可达 → 完整归档永久阻塞（EVALUATING 禁 swap、reopen
+ * 需先闭环，唯一出口=主持人为从未到场者伪造签字登记）。declined 半边 2026-10-27 已修，
+ * 本处补 pending 半边；pending→confirmed 后实时回分母（动态查询，无状态迁移）。
+ */
+export function signLoopExpertScope(projectId: string) {
+  return {
+    projectId,
+    expertRole: '正选' as const,
+    invitationStatus: { notIn: ['declined', 'pending'] },
+  };
+}
+
 /** @returns 是否本次触发闭环（false = 仍有 PENDING） */
 export async function closeSignLoopIfDone(
   tx: Prisma.TransactionClient,
@@ -21,9 +37,8 @@ export async function closeSignLoopIfDone(
   closedById: string,
   opts: CloseSignLoopOptions = {},
 ): Promise<boolean> {
-  // 名册除名口径（2026-10-27）：婉拒正选不计入闭环分母——其 signStatus 恒为默认 PENDING，
-  // 不过滤会让签字闭环永不可达、完整归档永久阻塞
-  const pendingCount = await tx.bidExpert.count({ where: { projectId, expertRole: '正选', signStatus: 'PENDING', invitationStatus: { not: 'declined' } } });
+  // 名册除名口径（declined 2026-10-27 / pending P2-4 2026-11-20）：非实际评委不计入闭环分母
+  const pendingCount = await tx.bidExpert.count({ where: { ...signLoopExpertScope(projectId), signStatus: 'PENDING' } });
   if (pendingCount > 0) return false;
 
   await tx.bidSignPacket.update({ where: { projectId }, data: { closedAt: new Date(), closedById } });

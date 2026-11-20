@@ -178,6 +178,12 @@ export class ObjectionService {
     if (!objection) throw new BadRequestException({ error: '工单不存在', code: 'NOT_FOUND' });
     if (objection.status === 'closed') throw new BadRequestException({ error: '工单已办结，不可再答复', code: 'CLOSED' });
 
+    // P3-7（2026-11-20 全链路审查）：重复答复覆盖留痕——旧答复全文追加至 escalationNote
+    // 备忘区（含答复人/时点），不再无声消失；AuditLog 由管理端审批域另行接续。
+    const answerMemo = objection.answer
+      ? `${objection.escalationNote ? objection.escalationNote + '\n' : ''}【历史答复 ${objection.answeredAt?.toISOString() ?? ''} ${objection.answeredByName ?? ''}】${objection.answer}`
+      : objection.escalationNote;
+
     const updated = await this.prisma.supplierObjection.update({
       where: { id },
       data: {
@@ -186,6 +192,7 @@ export class ObjectionService {
         answeredBy: operator.userId,
         answeredByName: operator.username,
         answeredAt: new Date(),
+        ...(answerMemo !== objection.escalationNote ? { escalationNote: answerMemo } : {}),
       },
     });
 
@@ -220,6 +227,11 @@ export class ObjectionService {
   async close(id: string, note: string, operator: { userId: string; username: string }, actor?: { sub: string; role: string; companyId?: string | null }) {
     const objection = actor ? await this.assertCompanyVisible(id, actor) : await this.prisma.supplierObjection.findUnique({ where: { id } });
     if (!objection) throw new BadRequestException({ error: '工单不存在', code: 'NOT_FOUND' });
+    // P3-7（2026-11-20 全链路审查）：办结前置——原 close 无状态校验，pending（从未答复）
+    // 工单可零答复直接办结，供应商永远收不到答复。办结仅限已答复/已转投诉态。
+    if (objection.status === 'pending') {
+      throw new BadRequestException({ error: '工单尚未答复，不可直接办结（先答复再办结，或与供应商线下沟通后答复登记）', code: 'NOT_ANSWERED' });
+    }
     return this.prisma.supplierObjection.update({
       where: { id },
       data: {

@@ -5,7 +5,7 @@
    POST /supplier-portal/bid-submissions/:projectId/encrypted-assets
    Multer 单文件（C_outer 密文）→ 服务端实算 outerSha256 → 24h 暂存落库
    ================================================================= */
-import { Controller, Post, Param, Req, UploadedFile, UseInterceptors, HttpCode, HttpStatus, BadRequestException, ForbiddenException, PayloadTooLargeException, Injectable, Optional } from '@nestjs/common';
+import { Controller, Post, Param, Req, UploadedFile, UseInterceptors, HttpCode, HttpStatus, BadRequestException, ConflictException, ForbiddenException, PayloadTooLargeException, Injectable, Optional } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -42,6 +42,22 @@ export class EncryptedAssetController {
     const userId = (req as any).user?.sub;
     const supplier = await this.prisma.supplier.findUnique({ where: { userId } });
     if (!supplier) throw new ForbiddenException({ error: '供应商不存在', code: 'SUPPLIER_NOT_FOUND' });
+
+    // P3-3（2026-11-20 全链路审查）：暂存资格闸——原实现任意供应商可对任意 projectId 灌
+    // 500MB×10/min（已认证存储滥用面，无 TTL 无自动回收）。补「项目存在 + 投递阶段」轻量预检
+    //（完整投递资格仍由 submitBid 的 assertCanSubmitBid 把关——暂存端点不重复公司/邀请域判定，
+    // 仅堵无项目与已开标项目的滥用）；临时过期同拦（与投递闸同口径）。
+    const project = await this.prisma.bidProject.findUnique({
+      where: { id: projectId },
+      select: { stage: true },
+    });
+    if (!project) throw new BadRequestException({ error: '投标项目不存在', code: 'PROJECT_NOT_FOUND' });
+    if (project.stage !== 'DOWNLOAD' && project.stage !== 'SUBMIT') {
+      throw new ConflictException({ error: '项目不在投递阶段，不可暂存投标密文', code: 'PROJECT_NOT_SUBMITTING' });
+    }
+    if (supplier.isTemporary && supplier.temporaryExpiresAt && supplier.temporaryExpiresAt < new Date()) {
+      throw new ForbiddenException({ error: '临时供应商权限已过期，无法投标', code: 'TEMPORARY_EXPIRED' });
+    }
 
     const outerSha256 = createHash('sha256').update(file.buffer).digest('hex');
     const outerBytes = file.buffer.length;

@@ -54,8 +54,10 @@ export async function resolveOpeningAmountUnitMap(
   const suppliers = Array.isArray(bidSuppliers) ? bidSuppliers : [];
   const submissions = Array.isArray(subs) ? subs : [];
   const stamped = Array.isArray(stampedRows) ? stampedRows : [];
+  // P3-12（2026-11-20 全链路审查）：回退推导补 dual-v3——v3 投递同样以万元入库（无戳存量
+  // 记录按元解读会差一万倍）；主写点均已盖戳，本回退仅覆盖缺戳存量与补建记录。
   const dualSet = new Set(
-    submissions.filter((s) => s.envelopeVersion === 'dual-v2').map((s) => s.supplierId),
+    submissions.filter((s) => s.envelopeVersion === 'dual-v2' || s.envelopeVersion === 'dual-v3').map((s) => s.supplierId),
   );
   const stampedByBs = new Map(
     stamped

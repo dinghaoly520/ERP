@@ -295,15 +295,16 @@ export default function MyBidsPage() {
                             <span className="mb-card-meta-label">报价</span>
                             {formatBidPrice(row.bidPrice)}
                           </span>
-                        ) : row.envelopeVersion === "dual-v2" && row.decryptedPrice != null && ["EVALUATING", "ARCHIVED", "ABORTED"].includes(row.project?.stage ?? "") ? (
+                        ) : (row.envelopeVersion === "dual-v2" || row.envelopeVersion === "dual-v3") && row.decryptedPrice != null && ["EVALUATING", "ARCHIVED", "ABORTED"].includes(row.project?.stage ?? "") ? (
                           // SUP-P3-07：开标已揭示（阶段过 OPENING）——载荷本就带 decryptedPrice
-                          // （dual-v2=万元口径），此前恒显「已密封」误导回看
+                          // （dual 轨=万元口径），此前恒显「已密封」误导回看
+                          // P2-8（2026-11-20）：补 dual-v3 分支——v3 转正默认轨后新投递全部命中
                           <span className="mb-card-meta-item">
                             <span className="mb-card-meta-label">报价</span>
                             {formatOpeningAmount(row.decryptedPrice, "万元")}
                           </span>
-                        ) : row.envelopeVersion === "dual-v2" ? (
-                          // dual-v2：报价已密封进双层信封，服务端不回传明文（开标唱标时揭示）
+                        ) : row.envelopeVersion === "dual-v2" || row.envelopeVersion === "dual-v3" ? (
+                          // dual 双轨：报价已密封进双层信封，服务端不回传明文（开标唱标时揭示）
                           <span className="mb-card-meta-item sealed">
                             <span className="mb-card-meta-label">报价</span>
                             已密封 · 开标时揭示

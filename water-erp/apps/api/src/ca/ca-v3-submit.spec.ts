@@ -44,6 +44,9 @@ const tx = () => ({
   submissionVersion: { create: jest.fn().mockResolvedValue({}) },
   outbox: { create: jest.fn().mockResolvedValue({}) },
   caOperation: { update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+  // P3-2：投递事务内行锁复查 stage/deadline
+  $queryRaw: jest.fn().mockResolvedValue([]),
+  bidProject: { findUnique: jest.fn().mockResolvedValue({ stage: 'SUBMIT', deadline: null }) },
 });
 
 const mkSvc = (prisma: any) => new SupplierPortalService(
@@ -75,7 +78,7 @@ describe('submitBidV3（评审修复轮）', () => {
       // 投递前置意向闸（2026-11-12 Task 4）：submitBid 先经 isIntentApplicable——null=非公开项目→豁免（空桩先例同 T8/T9）
       bidDocument: { findFirst: jest.fn().mockResolvedValue(null) },
       fileAsset: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-1' }]),
+        findMany: jest.fn().mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-1', category: 'bid_document' }]), // P3-4：category 闸用例化
         findUnique: jest.fn().mockResolvedValue({ id: 'fa-mine', key: 'v3-staging/x.outer' }),
       },
       tx: t,

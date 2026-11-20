@@ -32,7 +32,8 @@ import { getMinBiddersForMethod } from './decrypt-quorum.util';
 import { assertCommitteeComposition, isWaterProject, MIN_COMMITTEE_WATER } from './committee-composition.util';
 import { sortSupplierRowsBySubmission } from './supplier-row-order.util';
 import { stripOpeningConfirmSignature } from '../supplier-portal/opening-confirm-signature.util';
-import { assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, stageAtLeast, type BidStage } from './bid-state';
+import { assertArchiveScopeStage, assertBidStageTransition, assertSignGateClosed, lockAndReassertStage, type BidStage } from './bid-state';
+import { signLoopExpertScope } from './sign-loop.util';
 import { resolveProjectCreatorId, resolveActiveUserId } from './bid-project-notify.util';
 import { computeArchiveChain, genesisHash as archiveGenesisHash } from './bid-archive.digest';
 import { openField } from '../common/crypto/field-crypto';
@@ -90,7 +91,6 @@ function formatNoteTime(d: Date): string {
 @Injectable()
 export class BidService {
   /** P2-5（第四波）：开标主持人操作权 TTL——超时未刷新即可被他人接管（惰性判定） */
-  private static readonly ACTIVE_HOST_TTL_MS = 15 * 60 * 1000;
 
   constructor(
     private prisma: PrismaService,
@@ -3042,12 +3042,23 @@ export class BidService {
       }
     }
 
+    // P3-15：回避排除数据——对该供应商申报回避的专家不进聚合（可评集合=聚合集合）
+    const conflictRows = await this.prisma.bidExpert.findMany({
+      where: { projectId, expertRole: '正选', conflictedSupplierIds: { not: Prisma.DbNull } },
+      select: { id: true, conflictedSupplierIds: true },
+    });
+    const expertConflicts = new Map<string, Set<string>>();
+    for (const e of conflictRows) {
+      const ids = parseConflictedIds(e.conflictedSupplierIds);
+      if (ids.length > 0) expertConflicts.set(e.id, new Set(ids));
+    }
     const ranked = aggregateSupplierScores({
       activeSuppliers,
       recordsBySupplier,
       formulaPriceScores,
       priceItemIds,
       passFailItemIds, // bug#140a：聚合层按 (专家,供应商) 对排除资格短路豁免专家
+      expertConflicts, // P3-15：回避专家评分不进聚合（预览与正式结果同源）
       passFailVerdicts,
       bidPrices,
       isNegotiation: project.procurementMethod === '谈判采购',
@@ -3063,38 +3074,10 @@ export class BidService {
     return this.prisma.bidOpeningSession.findUnique({ where: { projectId } });
   }
 
-  /** 注册主持人为当前操作者（并发检测）。原子抢占——与 releaseActiveHost 同模式。 */
-  async claimActiveHost(projectId: string, userId: string, userName: string): Promise<{ claimed: boolean; existingHost?: string }> {
-    // #10: 原子 updateMany 防止 TOCTOU 竞态（旧实现 findUnique+update 可并发双抢）
-    // P2-5（第四波）：操作权 TTL——他人占用超时（activeHostClaimedAt 早于 now-15min）视同已释放，
-    // 会话死亡残留不再恒占（惰性判定免 cron）。存量行无戳（null）保守不视为过期（旧行为保持，
-    // 避免升级即全量放行）；本人重复 claim 幂等刷新时戳。
-    const res = await this.prisma.bidOpeningSession.updateMany({
-      where: {
-        projectId,
-        OR: [
-          { activeHostId: null },
-          { activeHostId: userId },
-          { activeHostClaimedAt: { lt: new Date(Date.now() - BidService.ACTIVE_HOST_TTL_MS) } },
-        ],
-      },
-      data: { activeHostId: userId, activeHostName: userName, activeHostClaimedAt: new Date() },
-    });
-    if (res.count > 0) return { claimed: true };
-    // 被他人占用 → 回读占用者
-    const session = await this.prisma.bidOpeningSession.findUnique({
-      where: { projectId }, select: { activeHostId: true, activeHostName: true },
-    });
-    return { claimed: false, existingHost: session?.activeHostName ?? session?.activeHostId ?? undefined };
-  }
-
-  /** 释放主持人操作者身份。仅当调用者是当前 activeHost 时才清除。 */
-  async releaseActiveHost(projectId: string, userId: string): Promise<void> {
-    await this.prisma.bidOpeningSession.updateMany({
-      where: { projectId, activeHostId: userId },
-      data: { activeHostId: null, activeHostName: null, activeHostClaimedAt: null },
-    });
-  }
+  // P3-28（2026-11-20 用户裁定删除）：claimActiveHost/releaseActiveHost「主持人操作权互斥」
+  // 机制整体移除——2026-07-29（892b64616）引入后前端从未接线、activeHostId 不被任何业务
+  // 写路径检查（从不锁门的锁）；数据层并发防护（解密原子抢占/唱标 LOCKED/结果行锁）独立完备。
+  // 未来若需主持端互斥提示，走 WS presence 方案，勿复活 DB 锁。
 
   /** 暂停开标：冻结解密窗口倒计时，暂停期间拒绝解密。 */
   async pauseOpening(projectId: string, actorId?: string, reason?: string) {
@@ -4319,26 +4302,21 @@ export class BidService {
       });
     }
 
-    // F3: 阶段下限守卫——棘轮只拒回退，下限由各端点业务前置负责。
-    // 防止对截标未到、供应商仍可投递的前阶段项目误归档（不可逆终局）。
-    if (scope === 'opening' && !stageAtLeast(project.stage, 'OPENING')) {
-      throw new ConflictException({
-        error: '开标归档要求项目已进入开标阶段',
-        code: 'ARCHIVE_NOT_OPENED',
-      });
-    }
-    if (scope === 'full' && !stageAtLeast(project.stage, 'EVALUATING')) {
-      throw new ConflictException({
-        error: '完整归档要求项目已进入评标阶段；开标后不评标请改用开标归档（scope=opening）',
-        code: 'ARCHIVE_NOT_EVALUATING',
-      });
-    }
+    // P1-1（2026-11-20 全链路审查，用户裁定）：scope×stage 严格匹配收口——
+    // 旧「阶段下限」（stageAtLeast）只防误归未开标项目，放行了 EVALUATING+opening
+    // （评标中项目绕过签字/回流/结果三闸直接终局）与 ABORTED+full（流标项目从已作废
+    // 结果派生公示/定标）两条反向绕过。矩阵：opening∈{OPENING,ABORTED}、full∈{EVALUATING}。
+    assertArchiveScopeStage(scope, project.stage);
 
     // Wrap ALL reads + writes in a single transaction to prevent race conditions.
     // The ensureArchiveItems, counts check, item fetch, and all updates happen atomically.
     const now = new Date();
     const result = await this.prisma.$transaction(async (tx) => {
-      await lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
+      const locked = await lockAndReassertStage(tx, id, 'ARCHIVED'); // C1: 事务内行锁后复查阶段（同阶段 ARCHIVED 幂等放行）
+      // P1-1：行锁后在锁内用新鲜阶段复查 scope×stage——外层检查与取锁之间 startEvaluation
+      // （OPENING→EVALUATING）/abortBidProject（→ABORTED）可并发推进，陈旧读会放行错配组合
+      //（ARCHIVED 由 assertArchiveScopeStage 幂等放行——并发第二笔归档不误炸）。
+      assertArchiveScopeStage(scope, locked.stage);
       // 开标归档必须已完成移交（生成开标文件包），否则归档材料不完整。
       // P1-1 例外（2026-11-19 三门户审查）：ABORTED（流标收尾）免移交闸——开标前流标项目
       // 从未组建会话、completeOpening 又仅限 OPENING 态，移交包无生成路径 → 恒 409 死链
@@ -4418,8 +4396,9 @@ export class BidService {
         });
         const pendingExperts = signPacket && !signPacket.closedAt
           ? await tx.bidExpert.findMany({
-              // 名册除名口径（2026-10-27）：婉拒正选不算未签字——否则归档闸永久卡死
-              where: { projectId: id, expertRole: '正选', signStatus: 'PENDING', invitationStatus: { not: 'declined' } },
+              // 名册除名口径（declined 2026-10-27 / pending P2-4 2026-11-20）：
+              // 婉拒与从未确认邀请的正选不算未签字——否则归档闸永久卡死
+              where: { ...signLoopExpertScope(id), signStatus: 'PENDING' },
               select: { expertName: true },
             })
           : [];
@@ -4744,9 +4723,15 @@ export class BidService {
   ) {
     const project = await this.prisma.bidProject.findUnique({
       where: { id: projectId },
-      select: { name: true, projectCode: true, projectManagementItemId: true },
+      select: { name: true, projectCode: true, projectManagementItemId: true, stage: true },
     });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    // P3-25（2026-11-20 全链路审查）：归档前置——定标属完整归档后的收尾动作，原仅公示期+
+    // 一致性闸（手工 API 可对 EVALUATING 项目发中标通知书=定标先于归档）。公告侧 WIN_BID_NOTICE
+    // 发布的前置属公告域另行收口，此处把通知书出口钉在 ARCHIVED 之后。
+    if (project.stage !== 'ARCHIVED') {
+      throw new ConflictException({ error: '中标通知书须在项目完整归档后发出（当前阶段未归档）', code: 'AWARD_BEFORE_ARCHIVE' });
+    }
 
     // 公示期硬闸——公示未发布或未期满不得发出中标通知书（实施条例第54条）
     const publicity = await this.getPublicityStatus(projectId);
@@ -5577,6 +5562,13 @@ export class BidService {
     if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });
     if (round.deadline && new Date() > new Date(round.deadline)) {
       throw new BadRequestException({ error: '报价已截止', code: 'ROUND_DEADLINE_PASSED' });
+    }
+    // P3-24（2026-11-20 全链路审查）：结果冻结直接闸——createRound 侧同闸早已存在（:5458-5461），
+    // 本端点注释自述「提交侧同闸」但未实现（此前靠「结果生成要求全轮 closed」间接封死，
+    // 数据修正流程清零结果与轮次重开之间的窗口内可迟报；补直接闸消除对间接闸的依赖）。
+    const existingResults = await this.prisma.bidEvaluationResult.count({ where: { projectId } });
+    if (existingResults > 0) {
+      throw new ConflictException({ error: '评标结果已生成，报价通道已冻结；如需更正请走数据修正流程', code: 'RESULTS_FROZEN' });
     }
 
     // 验证供应商属于该项目
@@ -6887,6 +6879,13 @@ export class BidService {
 
     await this.prisma.$transaction(async (tx) => {
       await lockAndReassertStage(tx, projectId, 'EVALUATING'); // 事务内行锁复查阶段（防并发归档偷跑）
+      // P3-17（2026-11-20 全链路审查）：同步重置组长末签——旧末签是对改分前分数的背书，
+      // 重开改分后仍有效会让新结果带着陈旧末签直接生成（专家侧撤销路径 expert-admin 会同步
+      // 清 leaderCoSigned，主持侧此前漏了同款）。
+      await tx.bidProject.updateMany({
+        where: { id: projectId, leaderCoSigned: true },
+        data: { leaderCoSigned: false, leaderCoSignedAt: null },
+      });
       await tx.bidExpert.updateMany({
         where: { id: { in: targets.map(t => t.id) } },
         data: { reportConfirmed: false, reportConfirmedAt: null },

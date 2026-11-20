@@ -15,6 +15,7 @@ const prismaMock = {
   openingHallReadCursor: { upsert: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
   bidSupervisionLog: { create: jest.fn() },
   supplier: { findFirst: jest.fn() },
+  user: { findUnique: jest.fn() }, // P2-1：host 域闸公司归属查询
 } as any;
 const gatewayMock = {
   notifyHallMessage: jest.fn(), notifyHallCheckin: jest.fn(),
@@ -28,7 +29,9 @@ const sup = { userId: 'u-sup', role: 'supplier', supplierId: 'sup-1', supplierNa
 const outsider = { userId: 'u-expert', role: 'bid_expert', supplierId: undefined, supplierName: undefined };
 
 function setup() {
-  prismaMock.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING' });
+  // P2-1：项目行带公司/指派字段；host 与项目同公司（c1）默认放行，跨公司用例单独覆盖
+  prismaMock.bidProject.findUnique.mockResolvedValue({ id: 'p1', stage: 'OPENING', companyId: 'c1', assignedHostUserId: 'u-assigned' });
+  prismaMock.user.findUnique.mockResolvedValue({ companyId: 'c1' });
   prismaMock.bidOpeningSession.findUnique.mockResolvedValue({ projectId: 'p1', exchangeControl: 'OPEN' });
   prismaMock.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierId: 'sup-1', supplierName: '测试供应商', checkInAt: null, submitStatus: '已提交' });
   prismaMock.bidSupplier.updateMany.mockResolvedValue({ count: 1 }); // R6：默认抢占成功（首签）
@@ -50,6 +53,32 @@ describe('OpeningHallService', () => {
     }).compile();
     svc = mod.get(OpeningHallService);
     setup();
+  });
+
+  // ── P2-1（2026-11-20 全链路审查）：host 面项目域闸（REST 镜像 WS assertHostProjectScope）──
+  it('P2-1：跨公司 leader 读大厅消息 → 403 COMPANY_SCOPE_FORBIDDEN（原裸 assertHost 只查角色）', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ companyId: 'c-other' }); // 操作人属他司
+    await expect(svc.listMessages({ userId: 'u-lead-b', role: 'leader' }, 'p1', { roomType: 'PUBLIC' }))
+      .rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+    expect(prismaMock.openingHallMessage.findMany).not.toHaveBeenCalled();
+  });
+
+  it('P2-1：跨公司 leader 禁言他司会场 → 403 COMPANY_SCOPE_FORBIDDEN', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ companyId: 'c-other' });
+    await expect(svc.setExchangeControl('p1', 'MUTED', '乙公司leader', 'u-lead-b', { userId: 'u-lead-b', role: 'leader' }))
+      .rejects.toMatchObject({ response: { code: 'COMPANY_SCOPE_FORBIDDEN' } });
+    expect(prismaMock.bidOpeningSession.update).not.toHaveBeenCalled();
+  });
+
+  it('P2-1：被指派主持人（portal=bid）跨公司 → 放行；admin 跨公司 → 放行', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({ companyId: 'c-other' });
+    prismaMock.openingHallMessage.findMany.mockResolvedValue([]); // 放行路径可走到分页查询
+    // assignedHostUserId='u-assigned'（setup 默认）+ portal=bid → 指派豁免
+    await expect(svc.listMessages({ userId: 'u-assigned', role: 'bid_host', portal: 'bid' }, 'p1', { roomType: 'PUBLIC' }))
+      .resolves.toBeDefined();
+    // admin 恒放行
+    await expect(svc.listMessages({ userId: 'u-admin-x', role: 'admin', portal: 'web' }, 'p1', { roomType: 'PUBLIC' }))
+      .resolves.toBeDefined();
   });
 
   it('OPENING 阶段公聊发送成功并广播', async () => {

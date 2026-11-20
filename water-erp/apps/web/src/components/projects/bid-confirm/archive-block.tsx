@@ -74,7 +74,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
       : !signStatus.allClosed
         ? {
             blocked: true,
-            reason: `专家签字未闭环（未签：${signStatus.experts.filter((e) => e.role === '正选' && e.signStatus === 'PENDING').map((e) => e.name).join('、') || '—'}）`,
+            reason: `专家签字未闭环（未签：${signStatus.experts.filter((e) => e.role === '正选' && e.signStatus === 'PENDING' && e.invitationStatus !== 'pending' && e.invitationStatus !== 'declined').map((e) => e.name).join('、') || '—'}）`,
           }
         : !signStatus.packet.handoverFileAssetId
           ? { blocked: true, reason: '评标回流包未生成' }

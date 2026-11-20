@@ -117,6 +117,16 @@ export class OpeningSignService {
     if (role === 'supervisor' && !session.supervisor) {
       throw new BadRequestException({ error: '本项目无监督人，不可上传监督人签字', code: 'NO_SUPERVISOR' });
     }
+    // P3-22（2026-11-20 全链路审查）：MIME 白名单 + 阶段闸——原实现不验 mimetype（任意类型
+    // 文件被当 PDF 存档）且无阶段门（ARCHIVED/ABORTED 后仍可覆盖扫描件列）。对照评标签字
+    // SCAN_MIMES 口径（bid-sign-packet.service:68）。
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.mimetype)) {
+      throw new BadRequestException({ error: '扫描件仅支持 JPG/PNG/PDF', code: 'INVALID_SCAN_MIME' });
+    }
+    const projectStage = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (projectStage?.stage === 'ARCHIVED' || projectStage?.stage === 'ABORTED') {
+      throw new ConflictException({ error: `项目已${projectStage.stage === 'ARCHIVED' ? '归档' : '流标'}，签字扫描件上传通道已关闭`, code: 'PROJECT_TERMINAL' });
+    }
 
     const sha256 = crypto.createHash('sha256').update(file.buffer).digest('hex');
     const objectKey = `opening-sign-scan/${projectId}/${role}.pdf`;

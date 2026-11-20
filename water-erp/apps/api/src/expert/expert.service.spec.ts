@@ -59,7 +59,9 @@ describe('ExpertService', () => {
         groupBy: jest.fn().mockResolvedValue([]),
       },
       bidProject: { findUnique: jest.fn(), update: jest.fn().mockResolvedValue({}) },
-      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn().mockResolvedValue([]), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      bidSupplier: { findFirst: jest.fn(), findMany: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(
+        (where?.id?.in ?? []).map((id: string) => ({ id })), // P3-20：回避名单属本项目过滤——按 in 回显
+      )), count: jest.fn(), update: jest.fn().mockResolvedValue({}) },
       bidInvalidBid: { upsert: jest.fn().mockResolvedValue({}), findUnique: jest.fn(), findFirst: jest.fn().mockResolvedValue(null), update: jest.fn().mockResolvedValue({}), updateMany: jest.fn().mockResolvedValue({ count: 1 }), create: jest.fn().mockResolvedValue({}), count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
       supplierBidSubmission: { findUnique: jest.fn(), findMany: jest.fn() }, // findMany：getReport→resolveOpeningAmountUnitMap（P1-1 单位口径）
       supplier: { findUnique: jest.fn() },
@@ -371,7 +373,7 @@ describe('ExpertService', () => {
       // A3（第四波）：按 where 分形派发（旧 mockResolvedValueOnce 链焊死两次调用次序——生产两查询 where 不同形、无真实耦合）
       prisma.bidSupplier.findMany.mockImplementation((a: any) =>
         a.where?.id
-          ? Promise.resolve([{ supplierName: '丙公司' }])                          // 回避名单名称（where.id.in）
+          ? Promise.resolve([{ id: 'c', supplierName: '丙公司' }])                // P3-20：名册过滤+名称解析合并单查询（须带 id）
           : Promise.resolve([{ id: 'a' }, { id: 'b' }, { id: 'c' }]));            // 重算分母（where.decryptStatus；c 即将回避）
       prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si1' }, { id: 'si2' }]);
       prisma.bidScoreRecord.count.mockResolvedValue(4);                            // a、b 各 2 项已评
@@ -390,7 +392,7 @@ describe('ExpertService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: ['s-1'] });
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, avoidanceConfirmed: true, conflictedSupplierIds: ['s-1'] });
-      prisma.bidSupplier.findMany.mockResolvedValue([{ supplierName: '甲公司' }]);
+      prisma.bidSupplier.findMany.mockResolvedValue([{ id: 's-1', supplierName: '甲公司' }]); // P3-20：名册过滤须带 id
 
       await service.confirmAvoidance('user-1', 'proj-1');
 
@@ -3854,7 +3856,8 @@ describe('ExpertService', () => {
       prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' }); // P2-2 活跃供应商闸门
       prisma.bidScoreRecord.findMany.mockResolvedValue([]); // 无评分
-      prisma.bidScoreItem.count.mockResolvedValue(2); // 非 PRICE 项 2 个 → 有项且 0 记录 → 仍拒
+      // P3-18：完整性闸改逐项比对——required 项以 findMany(id) 提供（count 不再被读）
+      prisma.bidScoreItem.findMany.mockResolvedValue([{ id: 'si-a' }, { id: 'si-b' }]); // 非 PRICE 项 2 个 → 有项且 0 记录 → 仍拒
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORING_INCOMPLETE' } });
     });
 
@@ -3867,12 +3870,17 @@ describe('ExpertService', () => {
         { scoreItemId: 'si-q', score: 0, passed: false },
         { scoreItemId: 'si-r', score: 0, passed: true },
       ]);
-      // count 序列：非 PRICE 全量 4 → 触发豁免后改按通过性项 2
-      prisma.bidScoreItem.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+      // P3-18：findMany 按类目分形——非 PRICE 全量 4 项 → 触发豁免后改按通过性项 2（si-q/si-r 已评齐）
+      prisma.bidScoreItem.findMany.mockImplementation((a: any) => Promise.resolve(
+        a.where?.category?.in
+          ? [{ id: 'si-q' }, { id: 'si-r' }]
+          : [{ id: 'si-q' }, { id: 'si-r' }, { id: 'si-t1' }, { id: 'si-t2' }]));
       prisma.bidScoreReview.upsert.mockResolvedValue({ id: 'rv1', status: 'verified' });
       const r = await service.verifyScoreReview('user-1', 'p1', 'sup1');
-      expect(r.status).toBe('verified'); // 修复前 2<4 → SCORING_INCOMPLETE → allVerified 恒 false → 报告确认死锁（2026-11-18 UI 验收实录）
-      expect(prisma.bidScoreItem.count).toHaveBeenNthCalledWith(2, { where: { projectId: 'p1', category: { in: ['QUALIFICATION', 'RESPONSIVE'] } } });
+      expect(r.status).toBe('verified'); // 修复前豁免家 2<4 → SCORING_INCOMPLETE → 报告确认死锁（2026-11-18 UI 验收实录）
+      expect(prisma.bidScoreItem.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ category: { in: ['QUALIFICATION', 'RESPONSIVE'] } }),
+      }));
     });
 
     it('终审对齐（2026-10-20）：非 none + 0 个非 PRICE 项（仅 PRICE 公式标）+ 0 记录 → 放行核对落 verified（progress 已 100 的混合态消除）', async () => {
@@ -3900,8 +3908,13 @@ describe('ExpertService', () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
       prisma.bidExpert.findFirst.mockResolvedValue({ ...signedExpert, id: 'exp1' });
       prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'sup1', projectId: 'p1', decryptStatus: 'SUCCESS' }); // P2-2 活跃供应商闸门
-      prisma.bidScoreRecord.findMany.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }, { id: 'r3' }]); // 已评 3 条
-      prisma.bidScoreItem.count.mockResolvedValue(5); // 共 5 项 → 未评完
+      // P3-18：3 条记录仅覆盖 si-a/si-b/si-c，共 5 项 → si-d/si-e 缺评（旧记录数口径 3<5 同判）
+      prisma.bidScoreRecord.findMany.mockResolvedValue([
+        { id: 'r1', scoreItemId: 'si-a' }, { id: 'r2', scoreItemId: 'si-b' }, { id: 'r3', scoreItemId: 'si-c' },
+      ]);
+      prisma.bidScoreItem.findMany.mockResolvedValue([
+        { id: 'si-a' }, { id: 'si-b' }, { id: 'si-c' }, { id: 'si-d' }, { id: 'si-e' },
+      ]);
       await expect(service.verifyScoreReview('user-1', 'p1', 'sup1')).rejects.toMatchObject({ response: { code: 'SCORING_INCOMPLETE' } });
     });
   });
