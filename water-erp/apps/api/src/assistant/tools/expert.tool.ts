@@ -146,10 +146,11 @@ export class ExpertTool implements AssistantTool {
           where: { user: companyWhere } as never,
           select: { title: true, user: { select: { company: true, department: { select: { name: true } } } } },
         }),
-        // 评审负荷（在途评审任务）：以 BidExpert 挂在未归档项目上的实际指派数为准
-        // （同 expert-admin 负荷口径；availability 镜像列已退役——E2 2026-11-19 写入口封死）
+        // 评审负荷（在途评审任务）：以 BidExpert 挂在未归档项目上的实际指派数为准——
+        // 同 getLoadDistribution 负荷口径（含 expertProfile 人口过滤 ACTIVE+非停用，E8 2026-11-20
+        // 补齐使自称成真；stage≠ARCHIVED 含流标痕迹、declined 行保留=负荷语义）
         this.prisma.bidExpert.findMany({
-          where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...companyWhere } },
+          where: { project: { stage: { not: 'ARCHIVED' } }, user: { role: 'bid_expert', isActive: true, ...companyWhere, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } } },
           select: { userId: true },
         }),
       ]);
@@ -185,7 +186,8 @@ export class ExpertTool implements AssistantTool {
         else if (c >= 3) load['繁忙']++;
         else load['正常']++;
       }
-      load['空闲'] = Math.max(0, total - assignCount.size);
+      // E8（2026-11-20）：空闲基数=库内可抽取人口（与 :3005 负荷分母同口径；原全量档案会虚增空闲桶）
+      load['空闲'] = Math.max(0, busyCounts.inLibraryActive - assignCount.size);
       const loadRows = Object.entries(load).filter(([, v]) => v > 0);
 
       return {
@@ -196,7 +198,9 @@ export class ExpertTool implements AssistantTool {
             metrics: [
               { label: '专家总数', value: String(total) },
               { label: '可用', value: String(busyCounts.idle) },
-              { label: '在途评审中', value: String(assignCount.size) },
+              // E8（2026-11-20）：在途=派生在途并集（与「可用」同分母，idle+occupied=库内可抽取人口；
+              // 原宽松集合含 ABORTED/declined/池外用户，与可用不同分母致「在途大于分母」式矛盾）
+              { label: '在途评审中', value: String(busyCounts.occupied) },
             ],
           },
           {
@@ -244,9 +248,10 @@ export class ExpertTool implements AssistantTool {
             viz: { kind: 'distribution', category: 'load', value: 'count' },
           },
         ],
-        /* 交叉提示给第二轮 LLM：口径直述（原「占用（登记）」镜像指标已删——零写入者恒 0） */
+        /* 交叉提示给第二轮 LLM：口径直述（E8 2026-11-20 重写——原「负荷口径」措辞在在途改派生后失真；
+         * 保留「在途并集」字样、无「占用」字样=既有 spec 断言约束） */
         data: {
-          note: `可用=库内可抽取人口−在途并集（与 :3005 统计/大屏同口径，停用档案不计）；在途评审中=按未归档项目实际指派统计（负荷口径）。`,
+          note: `可用=库内可抽取人口−在途并集（与 :3005 统计/大屏同口径，停用档案不计）；在途评审中=在途并集人数；专家总数=全部档案（含停用/退库/待审）；负荷分布=未归档项目实际指派（含流标痕迹与婉拒行，与 :3005 负荷同口径）。`,
         },
       };
     }

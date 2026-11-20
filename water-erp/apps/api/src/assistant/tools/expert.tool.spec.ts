@@ -10,7 +10,7 @@ import { ExpertTool } from './expert.tool';
 function makeTool() {
   const prisma: any = {
     expertProfile: {
-      count: jest.fn().mockResolvedValue(3),
+      count: jest.fn().mockResolvedValue(5), // E8：全量档案 5（含停用/退库）——与库内人口分母分叉，防同值空转
       groupBy: jest.fn().mockImplementation(({ by, where }: any) => {
         if (by[0] === 'availability') {
           // where 感知（模拟 DB 过滤）：util 的分母查询带 availability:{not:'停用'}
@@ -67,7 +67,7 @@ it('stats：五卡多维度——概览/专业/归属公司/职称/评审负荷'
   // 概览三指标（⑵收口）：死指标「占用（登记）」已删；可用=派生空闲（分母 3 − 在途 2 = 1）
   const metrics = cards[0].metrics as Array<{ label: string; value: string }>;
   expect(metrics).toEqual([
-    { label: '专家总数', value: '3' },
+    { label: '专家总数', value: '5' }, // E8：总数=全量档案（与分母分叉后自锁）
     { label: '可用', value: '1' },
     { label: '在途评审中', value: '2' },
   ]);
@@ -80,7 +80,7 @@ it('stats：五卡多维度——概览/专业/归属公司/职称/评审负荷'
   // 职称 null → 未登记
   const titleRows = cards[3].rows as Array<Record<string, unknown>>;
   expect(titleRows.find((x) => x.title === '未登记')).toEqual({ title: '未登记', count: 1, pct: '33.3%' });
-  // 负荷阈值同 getLoadDistribution：≥4 过载；空闲 = 总数 − 有指派人数
+  // 负荷阈值同 getLoadDistribution：≥4 过载；空闲 = 库内可抽取人口 − 有指派人数（E8 基数收口）
   const loadRows = cards[4].rows as Array<Record<string, unknown>>;
   const loadMap = Object.fromEntries(loadRows.map((x) => [x.load, x.count]));
   expect(loadMap).toEqual({ 过载: 1, 正常: 1, 空闲: 1 });
@@ -240,4 +240,40 @@ it('E7：availability="空闲" 过滤按 lifecycle 比较——停用档案（�
   const rows = ((r.cards as Array<Record<string, unknown>>)[0].rows) as Array<Record<string, string>>;
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({ name: '王五', state: '空闲' });
+});
+
+it('stats：E8 口径分叉锁定——在途评审中=派生 occupied（宽松会答 4）、负荷空闲基数=库内人口、负荷查询带人口过滤', async () => {
+  const { prisma, tool } = makeTool();
+  // 库内可抽取人口 4（e1/e2/e3/e4）；全量档案 count 已在 base fixture 置 5（含停用/退库）
+  prisma.expertProfile.groupBy.mockImplementation(({ by }: any) => {
+    if (by[0] === 'availability') return Promise.resolve([{ availability: '可用', _count: 4 }]);
+    return Promise.resolve([
+      { specialty: '水利水电工程', _count: 2 },
+      { specialty: '电子信息', _count: 1 },
+    ]);
+  });
+  // busy 路径（select 带 project）：e1 正选 SUBMIT + e2 候补 EVALUATING → occupied=2
+  // load 路径（select 无 project）：混入 e9（仅-ABORTED）与 e10（declined/池外）→ 宽松 distinct=4
+  prisma.bidExpert.findMany.mockImplementation((args: any) =>
+    args?.select?.project
+      ? Promise.resolve([
+          { userId: 'e1', expertRole: '正选', project: { stage: 'SUBMIT' } },
+          { userId: 'e2', expertRole: '候补', project: { stage: 'EVALUATING' } },
+        ])
+      : Promise.resolve([{ userId: 'e1' }, { userId: 'e2' }, { userId: 'e9' }, { userId: 'e10' }]));
+  const r = await tool.execute({ action: 'stats' }, ADMIN);
+  const cards = r.cards as Array<Record<string, unknown>>;
+  const metrics = cards[0].metrics as Array<{ label: string; value: string }>;
+  expect(metrics).toEqual([
+    { label: '专家总数', value: '5' }, // 全量档案（口径披露在 note）
+    { label: '可用', value: '2' }, // 库内 4 − 在途 2
+    { label: '在途评审中', value: '2' }, // 派生在途并集——宽松口径会答 4（含 ABORTED/declined/池外），锁分叉
+  ]);
+  // 负荷查询 where 形状：人口过滤（mock 对 where 全盲，形状断言锁回归）
+  const loadCall = (prisma.bidExpert.findMany.mock.calls as Array<any[]>).find(c => !c[0].select?.project)![0];
+  expect(loadCall.where.user.expertProfile).toEqual({ entryStatus: 'ACTIVE', availability: { not: '停用' } });
+  // 负荷空闲基数=库内人口 4（宽松 distinct=4 → 空闲 0；全量基数会答 1）
+  const loadRows = cards[4].rows as Array<Record<string, unknown>>;
+  const loadMap = Object.fromEntries(loadRows.map((x) => [x.load, x.count]));
+  expect(loadMap).toEqual({ 正常: 4 });
 });
