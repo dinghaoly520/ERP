@@ -140,6 +140,10 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
       {open &&
         pos &&
         createPortal(
+          // 定位壳：fixed 必须走内联 style——globals.css 的 .neu-card-static 是 unlayered
+          // `position:relative`，Tailwind v4 utilities 在 @layer 内恒被其压过（验收实录：
+          // 弹层被相对定位偏移到页面左下角容器外）。内层保 neu-card-static 视觉。
+          <div style={{ position: 'fixed', top: pos.top, right: pos.right, zIndex: 70 }}>
           <div
             ref={popRef}
             role="dialog"
@@ -151,8 +155,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               // 面板全屏被退、计算器却还开着）。relatedTarget 仍在弹层内（键钮间移动）不收。
               if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false);
             }}
-            className="neu-card-static fixed z-[70] w-[248px] !rounded-[16px] p-3 focus:outline-none"
-            style={{ top: pos.top, right: pos.right }}
+            className="neu-card-static w-[248px] !rounded-[16px] p-3 focus:outline-none"
           >
             {/* 显示区：待算式小字 + 主显示（mono 表格数字；终审 F3 truncate 防超宽，title 悬停看全值） */}
             <div className="rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-2 text-right">
@@ -201,6 +204,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 </button>
               ))}
             </div>
+          </div>
           </div>,
           document.body,
         )}
