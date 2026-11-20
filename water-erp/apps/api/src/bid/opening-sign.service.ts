@@ -81,6 +81,13 @@ export class OpeningSignService {
 
   /** 生成开标记录签字页 PDF（docx → LibreOffice 转换）。返回 FileAsset。 */
   async generateSignPage(projectId: string, actorId?: string) {
+    // N7（2026-11-20b 复核轮）：终态闸——本方法持久化覆盖 opening-sign-page/{projectId}.pdf
+    // （同 key upsert 改 sha256），归档/流标后重建=变异已归档证据件指纹（镜像 registerSign
+    // PROJECT_ARCHIVED_IMMUTABLE 与 uploadSignScan P3-22 阶段闸——三件套收口）。
+    const stageRow = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { stage: true } });
+    if (stageRow?.stage === 'ARCHIVED' || stageRow?.stage === 'ABORTED') {
+      throw new ConflictException({ error: `项目已${stageRow.stage === 'ARCHIVED' ? '归档' : '流标'}，签字页生成通道已关闭`, code: 'PROJECT_TERMINAL' });
+    }
     const snap = await this.buildSnapshot(projectId);
     const doc = this.buildDocx(snap);
     const docxBuffer = await Packer.toBuffer(doc);

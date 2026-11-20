@@ -58,6 +58,23 @@ describe('OpeningSignService — P1-3①A 开标记录纸面签字', () => {
     (svc as any).logger = { log: jest.fn(), warn: jest.fn(), error: jest.fn() };
   });
 
+  describe('generateSignPage — N7 终态闸', () => {
+    it('ARCHIVED 后拒绝 PROJECT_TERMINAL 且不触存储（防归档证据件指纹变异）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...PROJECT, stage: 'ARCHIVED' });
+      await expect(svc.generateSignPage('p1', 'u1'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
+      expect(storage.upload).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.upsert).not.toHaveBeenCalled();
+    });
+
+    it('ABORTED（流标）同样拒绝', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ ...PROJECT, stage: 'ABORTED' });
+      await expect(svc.generateSignPage('p1', 'u1'))
+        .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
+      expect(storage.upload).not.toHaveBeenCalled();
+    });
+  });
+
   describe('uploadSignScan', () => {
     it('host 扫描上传 → FileAsset upsert（category=opening_sign_scan）+ 会话 hostSignScanFileId 更新', async () => {
       prisma.fileAsset.upsert.mockResolvedValue({ id: 'fa-scan-host' });
