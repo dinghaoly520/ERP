@@ -32,6 +32,7 @@ export function getAnnouncementLabel(
 
   if (category === "procurement_document") {
     if (tenderType === "INVITED_BIDDING") return "邀请招标公告";
+    if (tenderType === "PUBLIC_BIDDING") return "招标公告";
     if (tenderType === "INTERNAL_BIDDING") return "竞价采购公告";
     if (tenderType === "SINGLE_SOURCE") return "直接采购公告";
     if (tenderType === "INQUIRY_PURCHASE") return "询比采购公告";

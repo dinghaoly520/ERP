@@ -14,12 +14,14 @@ import {
   createEmptyInquiryPurchaseDraft,
   createEmptyInternalBiddingDraft,
   createEmptyInvitedBiddingDraft,
+  createEmptyPublicBiddingDraft,
   createEmptyTenderDrafts,
   SINGLE_SOURCE_SECTIONS,
   INQUIRY_PURCHASE_SECTIONS,
   migrateInquiryDraft,
   INTERNAL_BIDDING_SECTIONS,
   INVITED_BIDDING_SECTIONS,
+  PUBLIC_BIDDING_SECTIONS,
   TENDER_DOCUMENT_TYPES,
 } from '@/lib/tender-write/templates';
 import { exportTenderDocument } from '@/lib/api/tender-write';
@@ -96,6 +98,7 @@ const TENDER_OPENING_KEY: Record<string, string> = {
   INQUIRY_PURCHASE: 'responseSubmissionTime',
   INTERNAL_BIDDING: 'responseSubmissionTime',
   INVITED_BIDDING: 'responseSubmissionTime',
+  PUBLIC_BIDDING: 'responseSubmissionTime',
 };
 
 const asDraftPayload = (d: TenderDraftsState) => d as unknown as Record<string, unknown>;
@@ -422,6 +425,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
                 INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
                 INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+                PUBLIC_BIDDING: createEmptyPublicBiddingDraft,
               }[type];
               const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
               return {
@@ -460,6 +464,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
                 INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
                 INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
                 INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+                PUBLIC_BIDDING: createEmptyPublicBiddingDraft,
               }[type];
               const base = { ...(emptyFn?.() ?? {}), ...(prev[typeKey] ?? {}) };
               return { ...prev, [typeKey]: { ...base, [f.fieldKey]: cleaned } };
@@ -489,6 +494,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     if (selectedType === 'INQUIRY_PURCHASE') return INQUIRY_PURCHASE_SECTIONS;
     if (selectedType === 'INTERNAL_BIDDING') return INTERNAL_BIDDING_SECTIONS;
     if (selectedType === 'INVITED_BIDDING') return INVITED_BIDDING_SECTIONS;
+    if (selectedType === 'PUBLIC_BIDDING') return PUBLIC_BIDDING_SECTIONS;
     return [];
   }, [selectedType]);
 
@@ -508,6 +514,9 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     }
     if (selectedType === 'INVITED_BIDDING') {
       return { ...createEmptyInvitedBiddingDraft(), ...(drafts.INVITED_BIDDING ?? {}) };
+    }
+    if (selectedType === 'PUBLIC_BIDDING') {
+      return { ...createEmptyPublicBiddingDraft(), ...(drafts.PUBLIC_BIDDING ?? {}) };
     }
     return createEmptyCompetitiveNegotiationDraft();
   }, [selectedType, drafts]);
@@ -530,6 +539,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
           INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
           INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+          PUBLIC_BIDDING: createEmptyPublicBiddingDraft,
         }[selectedType];
         return {
           ...prev,
@@ -578,6 +588,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
           INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
           INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
           INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+          PUBLIC_BIDDING: createEmptyPublicBiddingDraft,
         }[selectedType];
         return {
           ...prev,
@@ -727,6 +738,7 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft,
       INTERNAL_BIDDING: createEmptyInternalBiddingDraft,
       INVITED_BIDDING: createEmptyInvitedBiddingDraft,
+      PUBLIC_BIDDING: createEmptyPublicBiddingDraft,
     }[selectedType];
     setDrafts((prev) => ({ ...prev, [typeKey]: emptyFn?.() ?? {} }));
     if (project.id) {

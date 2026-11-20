@@ -1794,7 +1794,7 @@ export function ProjectDetailPanel({
               </div>
 
               {/* 供应商邀请/参与 */}
-              {['谈判采购', '询比采购', '直接采购', '邀请招标', '竞价采购'].includes(item.procurementMethod) && (
+              {['谈判采购', '询比采购', '直接采购', '邀请招标', '竞价采购', '公开招标'].includes(item.procurementMethod) && (
               <div className="rounded-[16px] px-4 py-3.5"
                 style={{background:"oklch(1 0 0 / 0.32)",boxShadow:"inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)"}}>
                 <div className="flex items-center gap-2.5 mb-3">

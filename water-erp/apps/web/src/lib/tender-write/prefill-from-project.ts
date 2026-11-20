@@ -15,11 +15,13 @@ import {
   createEmptyInquiryPurchaseDraft,
   createEmptyInternalBiddingDraft,
   createEmptyInvitedBiddingDraft,
+  createEmptyPublicBiddingDraft,
   COMPETITIVE_NEGOTIATION_SECTIONS,
   SINGLE_SOURCE_SECTIONS,
   INQUIRY_PURCHASE_SECTIONS,
   INTERNAL_BIDDING_SECTIONS,
   INVITED_BIDDING_SECTIONS,
+  PUBLIC_BIDDING_SECTIONS,
 } from './templates';
 
 /**
@@ -101,6 +103,7 @@ const SECTIONS_BY_TYPE: Record<TenderDocumentType, TenderSectionConfig[]> = {
   INQUIRY_PURCHASE: INQUIRY_PURCHASE_SECTIONS,
   INTERNAL_BIDDING: INTERNAL_BIDDING_SECTIONS,
   INVITED_BIDDING: INVITED_BIDDING_SECTIONS,
+  PUBLIC_BIDDING: PUBLIC_BIDDING_SECTIONS,
 };
 
 /** 从该类型的编辑器配置中查找字段的 aiPrompt（templates.ts 为唯一来源）。 */

@@ -42,11 +42,13 @@ import {
   createEmptyInquiryPurchaseDraft,
   createEmptyInternalBiddingDraft,
   createEmptyInvitedBiddingDraft,
+  createEmptyPublicBiddingDraft,
   createEmptyTenderDrafts,
   SINGLE_SOURCE_SECTIONS,
   INQUIRY_PURCHASE_SECTIONS,
   INTERNAL_BIDDING_SECTIONS,
   INVITED_BIDDING_SECTIONS,
+  PUBLIC_BIDDING_SECTIONS,
   TENDER_DOCUMENT_TYPES,
   migrateInquiryDraft,
 } from "@/lib/tender-write/templates";
@@ -204,6 +206,7 @@ export default function TenderWritePage() {
           INQUIRY_PURCHASE: fillCompany(prev.INQUIRY_PURCHASE),
           INTERNAL_BIDDING: fillCompany(prev.INTERNAL_BIDDING),
           INVITED_BIDDING: fillCompany(prev.INVITED_BIDDING),
+          PUBLIC_BIDDING: fillCompany(prev.PUBLIC_BIDDING),
         };
       });
     });
@@ -235,6 +238,9 @@ export default function TenderWritePage() {
     }
     if (selectedType === "INVITED_BIDDING") {
       return INVITED_BIDDING_SECTIONS;
+    }
+    if (selectedType === "PUBLIC_BIDDING") {
+      return PUBLIC_BIDDING_SECTIONS;
     }
     return [];
   }, [selectedType]);
@@ -269,6 +275,12 @@ export default function TenderWritePage() {
       return {
         ...createEmptyInvitedBiddingDraft(),
         ...(drafts.INVITED_BIDDING ?? {}),
+      };
+    }
+    if (selectedType === "PUBLIC_BIDDING") {
+      return {
+        ...createEmptyPublicBiddingDraft(),
+        ...(drafts.PUBLIC_BIDDING ?? {}),
       };
     }
     return createEmptyCompetitiveNegotiationDraft();

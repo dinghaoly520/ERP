@@ -69,6 +69,7 @@ const TENDER_OPENING_KEY: Record<TenderDocumentType, string> = {
   INQUIRY_PURCHASE: 'bidOpeningTime',
   INTERNAL_BIDDING: 'responseSubmissionTime',
   INVITED_BIDDING: 'responseSubmissionTime',
+  PUBLIC_BIDDING: 'responseSubmissionTime',
 };
 
 /** 读取采购文件编写草稿里的开标时间原文（草稿不存在/损坏返回 ''）——按当前轮取键 */

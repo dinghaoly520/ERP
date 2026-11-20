@@ -48,6 +48,8 @@ export const ANNOUNCEMENT_AVAILABILITY: Record<
   COMPETITIVE_NEGOTIATION: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INQUIRY_PURCHASE: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INTERNAL_BIDDING: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
+  // 公开招标（2026-11-20）：公告公示组织供应商参与——五类公告全开（含采购公告）
+  PUBLIC_BIDDING: ["procurement_document", "failed_bid", "winning_bid", "change_notice", "addendum"],
   INVITED_BIDDING: ["failed_bid", "winning_bid", "change_notice", "addendum"],
   SINGLE_SOURCE: ["failed_bid", "winning_bid", "change_notice", "addendum"],
 };

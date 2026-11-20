@@ -37,12 +37,16 @@ export type InvitedBiddingSectionKey =
   | "requirements"
   | "quotation";
 
+// 公开招标（2026-11-20）：章节结构与邀请招标完全一致（同一问卷，仅模板 docx 与口吻不同）
+export type PublicBiddingSectionKey = InvitedBiddingSectionKey;
+
 export type TenderSectionKey =
   | CompetitiveNegotiationSectionKey
   | SingleSourceSectionKey
   | InquiryPurchaseSectionKey
   | InternalBiddingSectionKey
-  | InvitedBiddingSectionKey;
+  | InvitedBiddingSectionKey
+  | PublicBiddingSectionKey;
 
 export type TenderSectionState =
   | "idle"
@@ -68,7 +72,8 @@ export type TenderDocumentType =
   | "INTERNAL_BIDDING"
   | "INQUIRY_PURCHASE"
   | "SINGLE_SOURCE"
-  | "INVITED_BIDDING";
+  | "INVITED_BIDDING"
+  | "PUBLIC_BIDDING";
 
 export type TenderTemplateAvailability = "ready" | "pending";
 
@@ -241,6 +246,8 @@ export type InternalBiddingFieldKey =
   | "quotationLetterType";
 
 export type InvitedBiddingFieldKey = InternalBiddingFieldKey;
+// 公开招标（2026-11-20）：字段集与邀请招标完全一致
+export type PublicBiddingFieldKey = InvitedBiddingFieldKey;
 
 export type TenderFieldKey =
   | CompetitiveNegotiationFieldKey
@@ -248,6 +255,7 @@ export type TenderFieldKey =
   | InquiryPurchaseFieldKey
   | InternalBiddingFieldKey
   | InvitedBiddingFieldKey
+  | PublicBiddingFieldKey
   | "scoringItems"; // 询比综合评分法评审标准（结构化行编辑器，值走 Draft.scoringItems）
 
 export type CompetitiveNegotiationDraft = Record<
@@ -271,10 +279,12 @@ export type InternalBiddingDraft = Record<InternalBiddingFieldKey, string> & {
 };
 
 export type InvitedBiddingDraft = InternalBiddingDraft;
+// 公开招标（2026-11-20）：问卷草稿与邀请招标同构
+export type PublicBiddingDraft = InvitedBiddingDraft;
 
-export type ReadyTenderDocumentType = "COMPETITIVE_NEGOTIATION" | "SINGLE_SOURCE" | "INQUIRY_PURCHASE" | "INTERNAL_BIDDING" | "INVITED_BIDDING";
+export type ReadyTenderDocumentType = "COMPETITIVE_NEGOTIATION" | "SINGLE_SOURCE" | "INQUIRY_PURCHASE" | "INTERNAL_BIDDING" | "INVITED_BIDDING" | "PUBLIC_BIDDING";
 
-export type ReadyTenderDraft = CompetitiveNegotiationDraft | SingleSourceDraft | InquiryPurchaseDraft | InternalBiddingDraft | InvitedBiddingDraft;
+export type ReadyTenderDraft = CompetitiveNegotiationDraft | SingleSourceDraft | InquiryPurchaseDraft | InternalBiddingDraft | InvitedBiddingDraft | PublicBiddingDraft;
 
 export type TenderDraftRecord = Partial<CompetitiveNegotiationDraft>;
 
@@ -284,6 +294,7 @@ export type TenderDraftsState = {
   INQUIRY_PURCHASE: InquiryPurchaseDraft;
   SINGLE_SOURCE: SingleSourceDraft;
   INVITED_BIDDING: InvitedBiddingDraft;
+  PUBLIC_BIDDING: PublicBiddingDraft;
 };
 
 export type TenderFieldConfig<K extends TenderFieldKey = TenderFieldKey> = {

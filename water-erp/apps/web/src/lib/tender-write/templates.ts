@@ -4,6 +4,7 @@ import type {
   InquiryPurchaseDraft,
   InternalBiddingDraft,
   InvitedBiddingDraft,
+  PublicBiddingDraft,
   TenderDocumentTypeMeta,
   TenderDraftsState,
   TenderSectionConfig,
@@ -43,6 +44,12 @@ export const TENDER_DOCUMENT_TYPES: TenderDocumentTypeMeta[] = [
     label: "邀请招标",
     availability: "ready",
     description: "采购金额较大、需求明确的项目，邀请特定供应商参与竞价择优选择。",
+  },
+  {
+    type: "PUBLIC_BIDDING",
+    label: "公开招标",
+    availability: "ready",
+    description: "采购金额较大、需求明确的项目，发布招标公告公开征集投标人竞价择优选择。",
   },
   {
     type: "INQUIRY_PURCHASE",
@@ -761,6 +768,7 @@ export function createEmptyTenderDrafts(): TenderDraftsState {
     INQUIRY_PURCHASE: createEmptyInquiryPurchaseDraft(),
     SINGLE_SOURCE: createEmptySingleSourceDraft(),
     INVITED_BIDDING: createEmptyInvitedBiddingDraft(),
+    PUBLIC_BIDDING: createEmptyPublicBiddingDraft(),
   };
 }
 
@@ -1120,4 +1128,12 @@ export const INVITED_BIDDING_SECTIONS = INTERNAL_BIDDING_SECTIONS;
 
 export function createEmptyInvitedBiddingDraft(): InvitedBiddingDraft {
   return createEmptyInternalBiddingDraft();
+}
+
+// 公开招标（2026-11-20）：问卷与邀请招标完全一致，仅模板 docx（招标人口吻）与
+// 公告可用性（有采购公告类别）不同
+export const PUBLIC_BIDDING_SECTIONS = INVITED_BIDDING_SECTIONS;
+
+export function createEmptyPublicBiddingDraft(): PublicBiddingDraft {
+  return createEmptyInvitedBiddingDraft();
 }

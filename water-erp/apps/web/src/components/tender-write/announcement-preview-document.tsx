@@ -241,14 +241,18 @@ function InvitedOrInternalBiddingAnnouncementPreview({
 
   // 文案对齐导出模板（2026-11-12）：谈判落本组件时曾兜到「竞价」说法——模板实际为
   // 「谈判采购公告」+「采用竞争性谈判方式」；竞价模板标题为「内部竞标（竞价）公告」另议不动
+  // 公开招标（2026-11-20 用户裁定）：法定口吻——招标公告/招标人/进行招标，现公告如下
+  const isPublic = tenderType === "PUBLIC_BIDDING";
   const docLabel =
     tenderType === "INQUIRY_PURCHASE"
       ? "询比采购公告"
       : tenderType === "INVITED_BIDDING"
         ? "邀请招标公告"
-        : tenderType === "COMPETITIVE_NEGOTIATION"
-          ? "谈判采购公告"
-          : "竞价采购公告";
+        : isPublic
+          ? "招标公告"
+          : tenderType === "COMPETITIVE_NEGOTIATION"
+            ? "谈判采购公告"
+            : "竞价采购公告";
 
   return (
     <div className="mx-auto max-w-[72ch] space-y-5">
@@ -269,11 +273,14 @@ function InvitedOrInternalBiddingAnnouncementPreview({
             ? "询比采购"
             : tenderType === "INVITED_BIDDING"
               ? "邀请招标"
-              : tenderType === "COMPETITIVE_NEGOTIATION"
-                ? "竞争性谈判"
-                : "竞价采购"}
+              : isPublic
+                ? "公开招标"
+                : tenderType === "COMPETITIVE_NEGOTIATION"
+                  ? "竞争性谈判"
+                  : "竞价采购"}
           方式对
-          {PV(draft.projectName, "{{项目名称}}", "projectName")}进行采购，现公示如下：
+          {PV(draft.projectName, "{{项目名称}}", "projectName")}
+          {isPublic ? "进行招标，现公告如下：" : "进行采购，现公示如下："}
         </p>
       </div>
 
@@ -283,21 +290,21 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           一、项目信息
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>采 购 人：{company}</p>
+          <p>{isPublic ? "招 标 人" : "采 购 人"}：{company}</p>
           <p>
             项目名称：{PV(draft.projectName, "{{项目名称}}", "projectName")}
           </p>
         </div>
       </div>
 
-      {/* 二、采购的货物或者服务的要求 */}
+      {/* 二、采购的货物或者服务的要求（公开招标：招标内容及要求） */}
       <div>
         <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[rgba(95,126,188,0.7)]">
-          二、采购的货物或者服务的要求
+          {isPublic ? "二、招标内容及要求" : "二、采购的货物或者服务的要求"}
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
           <p>
-            1、采购内容包括：{PV(draft.projectOverview, "{{项目概况和采购内容}}", "projectOverview", true)}
+            {isPublic ? "1、招标内容包括：" : "1、采购内容包括："}{PV(draft.projectOverview, "{{项目概况和采购内容}}", "projectOverview", true)}
           </p>
           <p>
             2、最高限价：人民币
@@ -353,7 +360,7 @@ function InvitedOrInternalBiddingAnnouncementPreview({
           六、联系方式
         </div>
         <div className="mt-2 space-y-1 text-[0.92rem] leading-8">
-          <p>采购人：{company}</p>
+          <p>{isPublic ? "招标人" : "采购人"}：{company}</p>
           <p>联系人：{PV(draft.contactName, "{{联系人}}", "contactName")}</p>
           <p>联系电话：{PV(draft.contactPhone, "{{联系电话}}", "contactPhone")}</p>
           <p>电子邮箱：{PV(draft.contactEmail, "{{联系邮箱}}", "contactEmail")}</p>

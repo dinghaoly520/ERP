@@ -390,10 +390,10 @@ export function TenderPreviewDocument({
       );
     }
 
-    if (documentType === 'INTERNAL_BIDDING' || documentType === 'INVITED_BIDDING') {
+    if (documentType === 'INTERNAL_BIDDING' || documentType === 'INVITED_BIDDING' || documentType === 'PUBLIC_BIDDING') {
       return (
         <InternalBiddingPreview
-          isInvited={documentType === 'INVITED_BIDDING'}
+          variant={documentType === 'INTERNAL_BIDDING' ? 'internal' : documentType === 'INVITED_BIDDING' ? 'invited' : 'public'}
           draft={draft as InternalBiddingDraft}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
@@ -1594,20 +1594,23 @@ function InternalBiddingPreview({
   onSectionClick,
   onValueChange,
   projectCode,
-  isInvited = false,
+  variant = 'internal',
 }: {
   draft: InternalBiddingDraft;
   activeSectionKey: TenderSectionKey;
   onSectionClick?: (key: TenderSectionKey) => void;
   onValueChange?: (fieldKey: TenderFieldKey, value: string) => void;
-  isInvited?: boolean;
+  /** 术语口径：竞价采购（默认）/ 邀请招标 / 公开招标（2026-11-20） */
+  variant?: 'internal' | 'invited' | 'public';
   /** 项目编号：封面名称下方裸编号（透传自主组件） */
   projectCode?: string;
 }) {
-  // 术语映射：邀请招标 vs 竞价采购
-  const T = isInvited
+  // 术语映射：竞价采购 / 邀请招标 / 公开招标（法定口吻——与 docx 模板同步）
+  const T = variant === 'invited'
     ? { docTitle: '邀请招标文件', party: '投标人', file: '投标文件', chapter: '招标邀请', buyer: '招标人' }
-    : { docTitle: '竞价采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
+    : variant === 'public'
+      ? { docTitle: '招标文件', party: '投标人', file: '投标文件', chapter: '招标公告', buyer: '招标人' }
+      : { docTitle: '竞价采购文件', party: '供应商', file: '响应文件', chapter: '采购邀请', buyer: '采购人' };
 
   return (
     <div className="pb-4">
@@ -1948,7 +1951,7 @@ function InternalBiddingPreview({
         <PreviewSection
           sectionKey="requirements"
           chapterLabel="第四章"
-          title={isInvited ? "招标需求" : "采购需求"}
+          title={variant === 'internal' ? '采购需求' : '招标需求'}
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}
         >
