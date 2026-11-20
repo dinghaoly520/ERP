@@ -6824,6 +6824,17 @@ export class BidService {
       }
       // 换出组长时同步摘除其 isLead，防止组长标记残留在候补行
       await tx.bidExpert.update({ where: { id: e1.id }, data: { expertRole: '候补', ...(e1.isLead ? { isLead: false } : {}) } });
+      // N16（2026-11-20b 复核轮）：替换事实写监督日志——签字包核验事件表（verifyEvents）与
+      // 监督视图的唯一披露源（被换出者经 signLoopExpertScope 不进名册/签字页，无此日志则
+      // 委员会组成变更在法定报告零呈现）。
+      await tx.bidSupervisionLog.create({
+        data: {
+          projectId, time: new Date(), role: '系统', target: `${e1.expertName} → ${e2.expertName}`,
+          action: '专家替换',
+          result: `正选换出/候补递补（${e1.expertRole}→${e2.expertRole}）；签字包核验事件表据此披露委员会变更`,
+          riskFlag: '中',
+        },
+      }).catch(() => {});
       // 替换留痕（2026-10-21 终检补齐）：SWAP_OUT/SWAP_IN 轨迹——角色流转是邀请状态机的
       // 一部分，缺失即审计断链（被换出正选的履历、候补转正的依据均不可溯）
       await tx.expertInvitationLog.create({
