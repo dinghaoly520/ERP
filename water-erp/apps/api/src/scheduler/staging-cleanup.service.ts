@@ -43,7 +43,15 @@ export class StagingCleanupService {
       select: { result: true },
     }).catch(() => [] as Array<{ result: unknown }>);
     for (const op of frozenOps) {
-      const files = (op.result as { files?: Record<string, { assetId?: string }> } | null)?.files;
+      // C1（2026-11-20b code-review 终审）：信封以 JSON 字符串存于 result.canonical
+      //（ca-operation.service:42 attachPayload；消费侧 supplier-portal:2919 JSON.parse 同源），
+      // 原读 result.files 恒 undefined=保护死代码。防御：非对象/解析失败/无 files 跳过。
+      const canonical = (op.result as { canonical?: unknown } | null)?.canonical;
+      if (typeof canonical !== 'string') continue;
+      let files: Record<string, { assetId?: string }> | undefined;
+      try {
+        files = (JSON.parse(canonical) as { files?: Record<string, { assetId?: string }> }).files;
+      } catch { continue; }
       if (!files) continue;
       for (const e of Object.values(files)) if (e?.assetId) referenced.add(e.assetId);
     }

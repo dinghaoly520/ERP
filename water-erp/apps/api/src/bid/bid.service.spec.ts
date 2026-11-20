@@ -1295,9 +1295,21 @@ describe('BidService — stage transitions', () => {
       expect(prisma.bidProject.update).not.toHaveBeenCalled();
     });
 
-    it('N8：ARCHIVED 后补录归档材料项 → PROJECT_TERMINAL', async () => {
+    it('N8/C8：ABORTED 后补录归档材料项 → PROJECT_TERMINAL（死项目不可扰动）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'ABORTED' });
       await expect(service.registerManualArchiveItem('p1', { categoryKey: 'dispute' }, { userId: 'u1', username: 'op' }))
         .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
+    });
+
+    it('N8/C8：ARCHIVED 后补录放行（:3005「归档前后均可用」既有工作流）+ 监督日志高风险留痕', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ id: 'p1', name: 'P', stage: 'ARCHIVED' });
+      prisma.bidArchiveItem.findFirst.mockResolvedValue(null);
+      prisma.bidArchiveItem.create.mockResolvedValue({ id: 'it1' });
+      prisma.bidSupervisionLog.create.mockResolvedValue({});
+      await service.registerManualArchiveItem('p1', { categoryKey: 'dispute' }, { userId: 'u1', username: 'op' });
+      expect(prisma.bidArchiveItem.create).toHaveBeenCalled();
+      const log = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '档案人工登记');
+      expect(log?.[0].data.result).toContain('归档后补登');
     });
 
     it('N4：EVALUATING 但签字包已闭环 → setReportNotes 拒 SIGN_PACKET_CLOSED', async () => {

@@ -92,10 +92,17 @@ describe('StagingCleanupService（T7）', () => {
   });
 
   test('N13-B：CaOperation 冻结载荷（submit/reupload PAYLOAD_READY）引用的暂存不删', async () => {
+    // C1 终审修正：生产 writer 恒写 result.canonical=JSON.stringify(envelope)
+    //（ca-operation.service:42 attachPayload + ca-bid-operation.controller:120-123 唯二 caller），
+    // 无 result.files——夹具改真实形状，防再犯「伪形状空转通过」
+    const mkFrozen = (assetId: string) => ({
+      result: { canonical: JSON.stringify({ files: { technical: { assetId } } }), canonicalSha256: 'x' },
+    });
     const prisma = mkPrisma({ frozenOps: [
-      { result: { files: { technical: { assetId: 'fa-stale' } } } },
-      { result: { files: { business: { assetId: 'fa-other' } } } },
-      { result: 'not-an-object' },
+      mkFrozen('fa-stale'),
+      mkFrozen('fa-other'),
+      { result: { canonical: 'not-json' } },   // 防御：解析失败跳过不炸
+      { result: null },                         // 防御：无载荷跳过
     ] });
     const r = await new StagingCleanupService(prisma as any).cleanupOnce();
     expect(r.removed).toBe(0);

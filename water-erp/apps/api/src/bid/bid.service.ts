@@ -4182,9 +4182,15 @@ export class BidService {
   ) {
     const cat = GB_ARCHIVE_CATEGORIES.find(c => c.key === dto.categoryKey);
     if (!cat) throw new BadRequestException({ error: '档案类别不合法', code: 'BAD_CATEGORY' });
-    await this.assertProjectWritable(projectId); // N8：归档材料集归档后不可增补（与归档时点指纹脱节）
-    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true } });
+    // N8（2026-11-20b 终审 C8 语义修正）：流标死项目不可补录；ARCHIVED 保 :3005
+    //「归档前后均可用」既有工作流（archive-template-card 头注释）放行——事后补登以
+    // 监督日志留痕显影（解决材料集与归档时点指纹脱界的可追溯，而非禁止）。
+    const project = await this.prisma.bidProject.findUnique({ where: { id: projectId }, select: { id: true, name: true, stage: true } });
     if (!project) throw new BadRequestException({ error: '项目不存在', code: 'NOT_FOUND' });
+    if (project.stage === 'ABORTED') {
+      throw new ConflictException({ error: `项目【${project.name}】已流标，归档材料补录通道已关闭`, code: 'PROJECT_TERMINAL' });
+    }
+    const lateArchive = project.stage === 'ARCHIVED';
 
     const existing = await this.prisma.bidArchiveItem.findFirst({
       where: { projectId, gbCategory: cat.key, status: { not: 'ARCHIVED' } },
@@ -4201,7 +4207,9 @@ export class BidService {
     await this.prisma.bidSupervisionLog.create({
       data: {
         projectId, time: new Date(), role: actor?.username ?? '采购人', target: project.name,
-        action: '档案人工登记', result: `${cat.name}${dto.fileAssetId ? '（附材料）' : ''}`, riskFlag: '无',
+        action: '档案人工登记',
+        result: `${lateArchive ? '【归档后补登】' : ''}${cat.name}${dto.fileAssetId ? '（附材料）' : ''}`,
+        riskFlag: lateArchive ? '中' : '无',
       },
     }).catch(() => {});
 
