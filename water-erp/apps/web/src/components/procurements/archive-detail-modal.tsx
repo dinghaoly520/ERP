@@ -302,12 +302,18 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
   const stageKeyOf = (st: { stageKey: string; round?: number | null }) => `${st.stageKey}@${st.round ?? 1}`;
   const selectedStage = data?.stages.find((s) => stageKeyOf(s) === selectedStageKey);
   const hasMultiRounds = !!data && new Set(data.stages.map((st) => st.round ?? 1)).size > 1;
+  // 专家解析（2026-11-20 修复 + 布局裁定）：权威格式为竖线「姓名|部门|专业|职称|角色」
+  // （抽取确认/互换回写同构），旧「姓名 - 部门 / 专业 / 职称」格式兼容；逐行解析
   const experts = data?.extractedInfo['专家信息']
     ? data.extractedInfo['专家信息'].split('\n').filter(Boolean).map((line) => {
         const normalizedLine = line.replace(/^\s*\d+[、.．]\s*/, '');
+        if (normalizedLine.includes('|')) {
+          const [name = '', department = '', specialty = '', title = '', role = ''] = normalizedLine.split('|');
+          return { name: name.trim(), department: department.trim(), specialty: specialty.trim(), title: title.trim(), role: role.trim() };
+        }
         const [namePart, detailPart = ''] = normalizedLine.split(' - ');
         const [department = '', specialty = '', title = ''] = detailPart.split(' / ');
-        return { name: namePart.trim(), department: department.trim(), specialty: specialty.trim(), title: title.trim() };
+        return { name: namePart.trim(), department: department.trim(), specialty: specialty.trim(), title: title.trim(), role: '' };
       })
     : [];
   const biddingUnits = data?.extractedInfo['投标单位']
@@ -554,11 +560,12 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">参与供应商</div>
                         {biddingUnits.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
+                          /* 一行一家（2026-11-20 用户裁定），行间 hairline */
+                          <div>
                             {biddingUnits.map((unit, i) => (
-                              <span key={i} className="rounded-[6px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs text-[color:var(--foreground)]">
+                              <div key={i} className={`py-1 text-[0.85rem] text-[color:var(--foreground)] ${i > 0 ? 'border-t border-[oklch(0.6_0.04_258_/_0.1)]' : ''}`}>
                                 {unit}
-                              </span>
+                              </div>
                             ))}
                           </div>
                         ) : (
@@ -569,21 +576,21 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                       <div className="space-y-2 pt-3 border-t border-[color-mix(in_oklch,var(--muted-foreground)_12%,transparent)]">
                         <div className="text-xs text-[color:var(--muted-foreground)]">专家信息</div>
                         {experts.length > 0 ? (
-                          <div className="flex flex-wrap gap-2">
+                          /* 一行一位专家（2026-11-20 用户裁定）：姓名 + 部门 · 专业 · 职称 + 角色右置，
+                             行间 hairline——不再并行胶囊排布 */
+                          <div>
                             {experts.map((expert, i) => {
-                              const detail = [expert.department, expert.specialty, expert.title].filter(Boolean).join(' / ');
+                              const detail = [expert.department, expert.specialty, expert.title].filter(Boolean).join(' · ');
                               return (
-                                <span
-                                  key={i}
-                                  className="group relative rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-3 py-1 text-xs font-medium text-[var(--accent-strong)] cursor-default hover:bg-[color-mix(in_oklch,var(--accent)_18%,transparent)] transition-colors"
-                                >
-                                  {expert.name}
-                                  {detail && (
-                                    <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 px-2.5 py-1.5 rounded-[8px] bg-[oklch(0.25_0.03_258)] text-xs text-white whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-10 pointer-events-none">
-                                      {detail}
+                                <div key={i} className={`flex items-baseline gap-2 py-1 ${i > 0 ? 'border-t border-[oklch(0.6_0.04_258_/_0.1)]' : ''}`}>
+                                  <span className="shrink-0 text-[0.85rem] font-medium text-[color:var(--foreground)]">{expert.name}</span>
+                                  {detail && <span className="min-w-0 flex-1 truncate text-xs text-[color:var(--muted-foreground)]">{detail}</span>}
+                                  {expert.role && (
+                                    <span className={`shrink-0 text-xs font-semibold ${expert.role.includes('候补') ? 'text-[color:var(--muted-foreground)]' : 'text-[color-mix(in_oklch,var(--accent)_85%,black)]'}`}>
+                                      {expert.role}
                                     </span>
                                   )}
-                                </span>
+                                </div>
                               );
                             })}
                           </div>
