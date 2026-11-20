@@ -10,6 +10,11 @@
  * 语义锚：镜像列「占用」值写入路径已封死（2026-11-19 E2）；「停用」是人口过滤语义
  * （临时需求代表/手工停用/退库不入池），不是库况状态。
  *
+ * **登记：web 库页（repository 状态列/KPI 兜底）为有意分歧呈现**——四态引擎已接
+ * busyStateOf 单源，但池外前缀系页面政策本地保留：!isActive 折入「已停用」、
+ * PENDING/SUSPENDED 独立分区（tab 分区呈现，2026-11-16/18 裁定）、RETIRED tone=red。
+ * 勿按本单源「收口」该前缀；改六态措辞动 LIFECYCLE_LABELS 即全端跟随。
+ *
  * 纯函数（无 Prisma/DOM 依赖）——deriveBusyCounts 等带查询的留在 api 侧 util。
  */
 

@@ -17,7 +17,7 @@ import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/comp
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { UsersRound, PlusCircle, Search, RefreshCw, X, ChevronLeft, ChevronRight, Download, TrendingUp, Trophy, AlertTriangle, History, FileText } from 'lucide-react';
 import { SpecialtyBadge } from '@/components/expert/specialty-badge';
-import { LEVEL_COLOR, LEVEL_LABEL } from '@water-erp/shared';
+import { LEVEL_COLOR, LEVEL_LABEL, busyStateOf, LIFECYCLE_LABELS } from '@water-erp/shared';
 
 
 
@@ -387,18 +387,19 @@ export default function ExpertRepositoryPage() {
                         return <td className="text-center" title={note}><StatusBadge tone="gray">已停用</StatusBadge></td>;
                       }
                       const inFlight = activeInFlightOf(e.bidExperts);
-                      if (inFlight.some(b => b.project?.stage === 'EVALUATING')) {
-                        return <td className="text-center" title="该专家有处于评标阶段的在途项目"><StatusBadge tone="orange">正在评标</StatusBadge></td>;
+                      // 四态引擎走 shared 单源（busyStateOf——跨端收口 2026-11-20：本列此前的
+                      // 手写分类与 E3 对齐后已逐分支等价，现直接调单源消灭第三处手写链）
+                      const four = busyStateOf(inFlight.map(b => ({ expertRole: b.expertRole ?? null, project: { stage: b.project?.stage ?? '' } })));
+                      if (four === LIFECYCLE_LABELS.evaluating) {
+                        return <td className="text-center" title="该专家有处于评标阶段的在途项目"><StatusBadge tone="orange">{four}</StatusBadge></td>;
                       }
-                      // 候补待命（2026-11-18 用户裁定；E3 对齐 deriveBusySets）：有在途但无正选
-                      //（非正选含理论 null 角色全归候补，与 util 的 alternate 口径一致）
-                      if (inFlight.length > 0 && !inFlight.some(b => b.expertRole === '正选')) {
-                        return <td className="text-center" title={`候补待命（在途项目 ${inFlight.length} 个，均为候补身份）`}><StatusBadge tone="cyan">候补待命</StatusBadge></td>;
+                      if (four === LIFECYCLE_LABELS.alternate) {
+                        return <td className="text-center" title={`候补待命（在途项目 ${inFlight.length} 个，均为候补身份）`}><StatusBadge tone="cyan">{four}</StatusBadge></td>;
                       }
-                      if (inFlight.length > 0) {
-                        return <td className="text-center" title={`已被抽取（在途项目 ${inFlight.length} 个，未进入评标）`}><StatusBadge tone="blue">已被抽取</StatusBadge></td>;
+                      if (four === LIFECYCLE_LABELS.assigned) {
+                        return <td className="text-center" title={`已被抽取（在途项目 ${inFlight.length} 个，未进入评标）`}><StatusBadge tone="blue">{four}</StatusBadge></td>;
                       }
-                      return <td className="text-center" title="无在途评标分配"><StatusBadge tone="green">空闲</StatusBadge></td>;
+                      return <td className="text-center" title="无在途评标分配"><StatusBadge tone="green">{four}</StatusBadge></td>;
                     })()}
                     <td onClick={e => e.stopPropagation()} className="text-center">
                       {/* 2026-11-16 两态裁定（供应商库同构）：在库=履职评价+停用；已停用=启用+退库；
@@ -449,17 +450,14 @@ export default function ExpertRepositoryPage() {
   // Hero KPI：总数来自服务端，其余指标基于当前页近似
   // 三态派生（与状态列同口径；E3：滤 declined + 角色分类对齐 deriveBusySets）
   const inFlightOf = (e: ExpertListItem) => activeInFlightOf(e.bidExperts);
-  const idle = experts.filter(e => e.isActive && (e.expertProfile?.entryStatus ?? 'ACTIVE') === 'ACTIVE' && e.expertProfile?.availability !== '停用' && inFlightOf(e).length === 0).length;
+  // 四态计数走 shared 单源 busyStateOf（跨端收口 2026-11-20——兜底块与状态列同引擎）
+  const fourStateOf = (e: ExpertListItem) =>
+    busyStateOf(inFlightOf(e).map(b => ({ expertRole: b.expertRole ?? null, project: { stage: b.project?.stage ?? '' } })));
+  const idle = experts.filter(e => e.isActive && (e.expertProfile?.entryStatus ?? 'ACTIVE') === 'ACTIVE' && e.expertProfile?.availability !== '停用' && fourStateOf(e) === LIFECYCLE_LABELS.idle).length;
   // 候补待命（2026-11-18；E3 对齐）：有在途但无正选、未进评标
-  const alternates = experts.filter(e => {
-    const fl = inFlightOf(e);
-    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && !fl.some(b => b.expertRole === '正选');
-  }).length;
-  const assigned = experts.filter(e => {
-    const fl = inFlightOf(e);
-    return fl.length > 0 && !fl.some(b => b.project?.stage === 'EVALUATING') && fl.some(b => b.expertRole === '正选');
-  }).length;
-  const occupied = experts.filter(e => inFlightOf(e).some(b => b.project?.stage === 'EVALUATING')).length;
+  const alternates = experts.filter(e => fourStateOf(e) === LIFECYCLE_LABELS.alternate).length;
+  const assigned = experts.filter(e => fourStateOf(e) === LIFECYCLE_LABELS.assigned).length;
+  const occupied = experts.filter(e => fourStateOf(e) === LIFECYCLE_LABELS.evaluating).length;
   // E9 评审低置信a：兜底与新标签「未在池」语义对齐——补 RETIRED/PENDING（仅 expStats 未就绪瞬间可见）
   const disabled = experts.filter(e => !e.isActive || e.expertProfile?.availability === '停用' || (e.expertProfile?.entryStatus ?? 'ACTIVE') !== 'ACTIVE').length;
   // totalEvals 已删（2026-11-06 随累计评价胶囊移除；当前页推导值本就随翻页漂移）
