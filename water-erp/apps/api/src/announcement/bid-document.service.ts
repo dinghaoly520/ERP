@@ -361,14 +361,16 @@ export class BidDocumentService {
     // 变更公告的采购文件同链（2026-11-20 变更采购文件）
     if (!doc || !['BID_NOTICE', 'ADDENDUM', 'CHANGE_NOTICE'].includes(doc.announcement.type)) return null;
 
-    // 旧文件已被变更公告替换（2026-11-20）：不可下载，提示去变更公告下载新文件
+    // 旧文件已被变更公告替换（2026-11-20）：不可下载，提示去变更公告下载新文件。
+    // 加固：指向的变更公告已不存在（硬删/级联）→ 视为未替换放行旧文件——避免旧文件
+    // 永久锁死且无新文件可下（变更公告本体删除时其 BidDocument 已级联消失）
     let supersededBy: { announcementId: string; title: string } | null = null;
     if (doc.supersededByAnnouncementId) {
       const ann = await this.prisma.announcement.findUnique({
         where: { id: doc.supersededByAnnouncementId },
         select: { id: true, title: true },
       });
-      supersededBy = ann ? { announcementId: ann.id, title: ann.title } : { announcementId: doc.supersededByAnnouncementId, title: '' };
+      supersededBy = ann ? { announcementId: ann.id, title: ann.title } : null;
     }
 
     const eligibility = await this.checkEligibility(doc, supplierId);
@@ -455,13 +457,16 @@ export class BidDocumentService {
     const doc = await this.prisma.bidDocument.findUnique({ where: { announcementId }, include: { fileAsset: true, announcement: { select: { metadata: true } } } });
     if (!doc) throw new NotFoundException({ error: '招标文件不存在', code: 'NOT_FOUND' });
 
-    // 旧采购文件已被变更公告替换（2026-11-20 变更采购文件）：禁下载，指引去变更公告
+    // 旧采购文件已被变更公告替换（2026-11-20 变更采购文件）：禁下载，指引去变更公告。
+    // 加固：指向的变更公告已不存在 → 视为未替换放行（与 getForSupplier 同口径）
     if (doc.supersededByAnnouncementId) {
       const ann = await this.prisma.announcement.findUnique({ where: { id: doc.supersededByAnnouncementId }, select: { title: true } });
-      throw new ConflictException({
-        error: `本采购文件已变更，请前往变更公告${ann?.title ? `「${ann.title}」` : ''}下载新文件`,
-        code: 'DOC_SUPERSEDED',
-      });
+      if (ann) {
+        throw new ConflictException({
+          error: `本采购文件已变更，请前往变更公告「${ann.title}」下载新文件`,
+          code: 'DOC_SUPERSEDED',
+        });
+      }
     }
 
     const elig = await this.checkEligibility(doc, supplierId);

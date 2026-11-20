@@ -2295,19 +2295,25 @@ export class SupplierPortalService {
     if (!bidDoc) return null;
 
     // 变更采购文件换源（2026-11-20 用户裁定）：原采购公告文件已被变更公告替换 →
-    // 项目机会直接取变更公告上的新文件（下载走同一链路，getForSupplier 已放开 CHANGE_NOTICE）
-    if (bidDoc.supersededByAnnouncementId) {
-      const supersededDoc = await this.prisma.bidDocument.findUnique({
-        where: { announcementId: bidDoc.supersededByAnnouncementId },
-        select: { announcement: { select: { status: true, type: true } } },
+    // 项目机会直接取变更公告上的新文件（下载走同一链路，getForSupplier 已放开 CHANGE_NOTICE）。
+    // 加固：追链至最终文件（正常发布联动恒一跳；此处防御历史/异常成链，限深 5 防环）
+    let resolveAnnouncementId = announcement.id;
+    for (let hop = 0; hop < 5; hop++) {
+      const doc = await this.prisma.bidDocument.findUnique({
+        where: { announcementId: resolveAnnouncementId },
+        select: { supersededByAnnouncementId: true, announcement: { select: { status: true } } },
       });
-      if (supersededDoc?.announcement.status === 'PUBLISHED') {
-        return this.bidDocumentService.getForSupplier(bidDoc.supersededByAnnouncementId, supplierId);
-      }
+      if (!doc?.supersededByAnnouncementId || doc.announcement.status !== 'PUBLISHED') break;
+      const next = await this.prisma.bidDocument.findUnique({
+        where: { announcementId: doc.supersededByAnnouncementId },
+        select: { announcement: { select: { status: true } } },
+      });
+      if (!next || next.announcement.status !== 'PUBLISHED') break;
+      resolveAnnouncementId = doc.supersededByAnnouncementId;
     }
 
     // 委托 BidDocumentService 处理权限/付费/下载状态
-    return this.bidDocumentService.getForSupplier(announcement.id, supplierId);
+    return this.bidDocumentService.getForSupplier(resolveAnnouncementId, supplierId);
   }
 
   // Bid Submissions

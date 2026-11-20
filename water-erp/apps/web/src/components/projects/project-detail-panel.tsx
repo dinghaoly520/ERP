@@ -1203,6 +1203,13 @@ export function ProjectDetailPanel({
                 onInitiate={handleInitiateChange}
                 onPublishAnnouncement={async (rec) => {
                   const cs = rec.changeset ?? [];
+                  // 变更采购文件（2026-11-20 加固）：changeset 带 tenderDocument → 按文件名
+                  // 解析附件注入引用键（发布优先路径由弹窗 patchExtra 直带；此处补齐稍后发布路径）
+                  const tenderEntry = cs.find((c) => c.field === 'tenderDocument');
+                  const tenderAtt = tenderEntry
+                    ? tenderDocOptions.find((o) => o.fileName === tenderEntry.to && !o.isCurrent)
+                      ?? tenderDocOptions.find((o) => o.fileName === tenderEntry.to)
+                    : undefined;
                   setChangeWizardCtx({
                     category: rec.type === 'CHANGE' ? 'change_notice' : 'addendum',
                     recordId: rec.id,
@@ -1215,6 +1222,12 @@ export function ProjectDetailPanel({
                         ? cs.map(c => `${c.label}：${c.from || '（空）'} → ${c.to || '（空）'}`).join('\n')
                         : rec.reason,
                       sourceAnnouncement: await fetchSourceAnnouncement(),
+                      ...(tenderAtt ? {
+                        selectedTenderObjectKey: tenderAtt.objectKey,
+                        selectedTenderFileName: tenderAtt.fileName,
+                        selectedTenderMimeType: tenderAtt.mimeType ?? '',
+                        tenderDocumentAttachmentId: tenderAtt.id,
+                      } : {}),
                     },
                   });
                   setAnnouncementCategory(rec.type === 'CHANGE' ? 'change_notice' : 'addendum');

@@ -1590,48 +1590,68 @@ export class AnnouncementService {
       changeAnn?.relatedProjectCode ||
       ((changeAnn?.metadata as Record<string, any> | null)?.projectCode as string | undefined) ||
       (meta.projectCode as string | undefined);
-    if (!code) return;
-
-    // 旧采购公告的采购文件置 superseded（多候选全置——撞号场景宁多勿漏；已置者不动）
-    const candidates = await this.prisma.announcement.findMany({
-      where: {
-        type: 'BID_NOTICE',
-        status: 'PUBLISHED',
-        OR: [
-          { relatedProjectCode: code },
-          { metadata: { path: ['projectCode'], equals: code } },
-        ],
-      },
-      select: { id: true },
-    });
-    for (const cand of candidates) {
-      await this.prisma.bidDocument.updateMany({
-        where: { announcementId: cand.id, supersededByAnnouncementId: null },
-        data: { supersededByAnnouncementId: changeAnnouncementId },
-      });
+    if (!code) {
+      this.logger.warn(`变更公告 ${changeAnnouncementId} 采购文件换源：无项目编号可定位旧文件`);
+      return;
     }
 
-    // ③PMI 03 步正式文件指针切换：附件 id 优先（变更登记链路写入 meta.tenderDocumentAttachmentId），
-    //    缺失时按 objectKey 反查该 PMI「采购文件」阶段附件
-    const pmi = await this.prisma.projectManagementItem.findFirst({
-      where: { projectCode: code },
-      select: { id: true },
-    });
-    if (!pmi) return;
-    const stage = await this.prisma.projectManagementStage.findFirst({
-      where: { projectManagementItemId: pmi.id, stageKey: 'TENDER_DOCUMENT' },
-      orderBy: { round: 'desc' },
-      select: { id: true, attachments: { select: { id: true, objectKey: true } } },
-    });
-    if (!stage) return;
-    const targetAtt =
-      (meta.tenderDocumentAttachmentId && stage.attachments.find((a) => a.id === meta.tenderDocumentAttachmentId)) ||
-      stage.attachments.find((a) => a.objectKey === sourceKey);
-    if (!targetAtt) return;
-    await this.prisma.projectManagementStage.update({
-      where: { id: stage.id },
-      data: { officialTenderAttachmentId: targetAtt.id },
-    });
+    // 旧采购文件置 superseded（步间隔离——本步失败仅告警，①新文件已就位不回滚）。
+    // 候选含此前变更公告的文件（多轮变更加固 2026-11-20）：每轮变更总揽接管所有旧文件，
+    // supersede 链恒为一跳——项目机会/下载闸无需追链；已置者不动（幂等）
+    try {
+      const candidates = await this.prisma.announcement.findMany({
+        where: {
+          type: { in: ['BID_NOTICE', 'CHANGE_NOTICE'] },
+          id: { not: changeAnnouncementId },
+          status: 'PUBLISHED',
+          OR: [
+            { relatedProjectCode: code },
+            { metadata: { path: ['projectCode'], equals: code } },
+          ],
+        },
+        select: { id: true },
+      });
+      for (const cand of candidates) {
+        await this.prisma.bidDocument.updateMany({
+          where: { announcementId: cand.id, supersededByAnnouncementId: null },
+          data: { supersededByAnnouncementId: changeAnnouncementId },
+        });
+      }
+    } catch (e) {
+      this.logger.warn(`变更公告 ${changeAnnouncementId} 旧采购文件禁下载标记失败（新文件已挂本公告，可人工重试）: ${(e as Error).message}`);
+    }
+
+    // ③PMI 03 步正式文件指针切换（失败仅告警）：附件 id 优先（变更登记链路写入
+    //    meta.tenderDocumentAttachmentId），缺失时按 objectKey 反查该 PMI「采购文件」阶段附件
+    try {
+      const pmi = await this.prisma.projectManagementItem.findFirst({
+        where: { projectCode: code },
+        select: { id: true },
+      });
+      if (!pmi) {
+        this.logger.warn(`变更公告 ${changeAnnouncementId} 采购文件换源：项目 ${code} 无 PMI，正式文件指针未切换`);
+        return;
+      }
+      const stage = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: pmi.id, stageKey: 'TENDER_DOCUMENT' },
+        orderBy: { round: 'desc' },
+        select: { id: true, attachments: { select: { id: true, objectKey: true } } },
+      });
+      if (!stage) return;
+      const targetAtt =
+        (meta.tenderDocumentAttachmentId && stage.attachments.find((a) => a.id === meta.tenderDocumentAttachmentId)) ||
+        stage.attachments.find((a) => a.objectKey === sourceKey);
+      if (!targetAtt) {
+        this.logger.warn(`变更公告 ${changeAnnouncementId} 采购文件换源：objectKey ${sourceKey} 不在项目 ${code} 的采购文件阶段，指针未切换`);
+        return;
+      }
+      await this.prisma.projectManagementStage.update({
+        where: { id: stage.id },
+        data: { officialTenderAttachmentId: targetAtt.id },
+      });
+    } catch (e) {
+      this.logger.warn(`变更公告 ${changeAnnouncementId} PMI 正式文件指针切换失败: ${(e as Error).message}`);
+    }
   }
 
   private async syncBidProject(annId: string, announcement: { id: string; title: string; publishDate: Date | null; metadata?: any; relatedProjectCode?: string | null; authorId?: string | null; companyId?: string | null; companyName?: string | null; type?: string | null }) {
