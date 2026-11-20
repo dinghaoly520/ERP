@@ -46,6 +46,7 @@ import { BID_TAIL_STAGE_KEYS, LOCKED_STAGES, PROJECT_WORKFLOW_STAGES } from './p
 import { getStageComplianceRules } from './stage-compliance-rules';
 import { stripAnnouncementTitlePrefix } from '../common/announcement-title.util';
 import { stripMojibake } from '../common/text-clean.util';
+import { writeAttachmentCopy } from '../common/attachment-object-store';
 
 type ProjectManagementStatusValue = 'ACTIVE' | 'ARCHIVED' | 'RECYCLED' | 'TERMINATED';
 type ProjectStageStatusValue = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
@@ -7474,16 +7475,21 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     await writeFile(absolutePath, file.buffer);
 
-    return {
-      absolutePath,
-      attachment: {
-        fileName: normalizedFileName,
-        objectKey: `project-management/${storedFileName}`,
-        mimeType: file.mimetype,
-        fileSize: file.size,
-        uploadedById,
-      } satisfies StoredAttachment,
-    };
+    const attachment = {
+      fileName: normalizedFileName,
+      objectKey: `project-management/${storedFileName}`,
+      mimeType: file.mimetype,
+      fileSize: file.size,
+      uploadedById,
+    } satisfies StoredAttachment;
+
+    // 双轨制（2026-11-20）：本地主轨写成功后 best-effort 落 MinIO 副本，失败不阻断
+    const copied = await writeAttachmentCopy(attachment.objectKey, file.buffer, file.mimetype);
+    if (!copied) {
+      this.logger.warn(`[persistUploadedFile] MinIO 副本失败（不阻断）: ${attachment.objectKey}`);
+    }
+
+    return { absolutePath, attachment };
   }
 
   async getProjectAttributions(user?: AuthenticatedUser, requestedCompanyId?: string) {

@@ -4,6 +4,13 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
 import { getTenderTextCachePath } from './docx/file-utils';
 import { ProjectManagementService } from './project-management.service';
+import { writeAttachmentCopy } from '../common/attachment-object-store';
+
+jest.mock('../common/attachment-object-store', () => ({
+  readAttachmentBuffer: jest.fn(),
+  writeAttachmentCopy: jest.fn(),
+  removeAttachmentCopy: jest.fn(),
+}));
 import { BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 
 const SAMPLE_DEMAND_TEXT = `采购需求申请表
@@ -2830,6 +2837,45 @@ describe('listBidProjectRefs 公告闸字段（2026-10-23 统一流）', () => {
           operatorId: 'u-1', operatorName: '采购中心领导 02',
         }),
       });
+    });
+  });
+
+  describe('persistUploadedFile MinIO 副本双写', () => {
+    const writeCopyMock = writeAttachmentCopy as unknown as jest.Mock;
+    const file = {
+      originalname: '测试.pdf',
+      buffer: Buffer.from('dual-track'),
+      mimetype: 'application/pdf',
+      size: 10,
+    } as Express.Multer.File;
+
+    beforeEach(() => {
+      writeCopyMock.mockReset();
+    });
+
+    it('本地写成功后以 (objectKey, buffer, mimetype) 落 MinIO 副本恰一次', async () => {
+      writeCopyMock.mockResolvedValue(true);
+      const { service } = makeService();
+
+      const result = await (service as unknown as {
+        persistUploadedFile: (f: Express.Multer.File, p: string, u?: string) => Promise<{ absolutePath: string; attachment: { objectKey: string } }>;
+      }).persistUploadedFile(file, 'tender_document', 'u-1');
+
+      expect(result.attachment.objectKey).toMatch(/^project-management\/\d+-tender_document-/);
+      expect(writeCopyMock).toHaveBeenCalledTimes(1);
+      expect(writeCopyMock).toHaveBeenCalledWith(result.attachment.objectKey, file.buffer, file.mimetype);
+    });
+
+    it('副本失败（false）不阻断——persistUploadedFile 照常返回', async () => {
+      writeCopyMock.mockResolvedValue(false);
+      const { service } = makeService();
+
+      const result = await (service as unknown as {
+        persistUploadedFile: (f: Express.Multer.File, p: string, u?: string) => Promise<{ absolutePath: string; attachment: { objectKey: string } }>;
+      }).persistUploadedFile(file, 'tender_document', 'u-1');
+
+      expect(result.attachment.objectKey).toMatch(/^project-management\//);
+      expect(result.absolutePath).toContain('uploads');
     });
   });
 });
