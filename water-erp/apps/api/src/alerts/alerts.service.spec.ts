@@ -48,9 +48,10 @@ describe('AlertsService', () => {
       const qualWhere = prisma.supplierQualification.count.mock.calls[0][0].where;
       expect(qualWhere.supplier.status).toEqual({ in: ['APPROVED', 'DISABLED', 'BLACKLIST'] });
       expect(qualWhere.supplier.companyLinks).toEqual({ some: { companyId: { in: ['co-1'] }, status: 'APPROVED' } });
-      // 过载专家：限在编评标专家（role+isActive），专家库已公司隔离（User.companyId）不跨视野计数
+      // 过载专家：限在编评标专家（role+isActive）+ 人口过滤（E8 跟进票 2026-11-20：与
+      // getLoadDistribution 逐字同口径——注释宣称成真；停用-ACTIVE/退库/待审不虚增过载）
       const expertWhere = prisma.bidExpert.findMany.mock.calls[0][0].where;
-      expect(expertWhere.user).toEqual({ role: 'bid_expert', isActive: true, companyId: { in: ['co-1'] } });
+      expect(expertWhere.user).toEqual({ role: 'bid_expert', isActive: true, companyId: { in: ['co-1'] }, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } });
     });
 
     it('无 actor（内部调用）：人口口径同样生效，公司过滤不注入', async () => {
@@ -59,7 +60,7 @@ describe('AlertsService', () => {
       expect(qualWhere.supplier.status).toEqual({ in: ['APPROVED', 'DISABLED', 'BLACKLIST'] });
       expect(qualWhere.supplier.companyLinks).toBeUndefined();
       const expertWhere = prisma.bidExpert.findMany.mock.calls[0][0].where;
-      expect(expertWhere.user).toEqual({ role: 'bid_expert', isActive: true });
+      expect(expertWhere.user).toEqual({ role: 'bid_expert', isActive: true, expertProfile: { entryStatus: 'ACTIVE', availability: { not: '停用' } } });
     });
   });
 
