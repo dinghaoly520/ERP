@@ -552,7 +552,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   /* 公司对比页（2026-11-19 设计落地）：维度切换 + 双企 PK 选择——数据复用
    * 公司龙虎榜 ranking（admin 全榜）；leader 无榜时退单企卡 */
   const [cmpDim, setCmpDim] = useState<"amount" | "rounds" | "savings" | "rate" | "abnormal">("amount");
-  /* 供应商集中度选中行（2026-11-19 用户裁定：撤长列，选择展示——默认榜首 */
+  /* 供应商集中度选中行（选择展示）——默认榜首 */
   const [concPick, setConcPick] = useState<string | null>(null);
   const [cmpA, setCmpA] = useState<string | null>(null);
   const [cmpB, setCmpB] = useState<string | null>(null);
@@ -1010,9 +1010,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{scaleTotal} 项已成交</span>
             </div>
 
-            {/* 供应商集中度（2026-11-19 用户裁定）：撤长列改选择展示——CR3 头卡 +
-                供应商下拉选择 + 单家详情瓷片（点击开下钻） */}
-            <SectionCard icon={Handshake} title="供应商集中度" index={0} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>}>
+            {/* 供应商集中度（2026-11-19 用户裁定恢复选择式）：CR3 头卡 + 下拉选家 +
+                单家三数详情瓷片（点开下钻）；标题行点击展开/收起 */}
+            <SectionCard icon={Handshake} title="供应商集中度" index={0} collapsible defaultOpen={false} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top 10</span>}>
               {supplierConc.top10.length ? (
                 (() => {
                   const rows = supplierConc.top10;
@@ -1073,7 +1073,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </SectionCard>
 
             {/* 项目规模分析（归档） */}
-            <SectionCard icon={BarChart3} title="项目规模分析" index={1} right={<span className="shrink-0 text-[13px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>}>
+            <SectionCard icon={BarChart3} title="项目规模分析" index={1} right={<span className="shrink-0 text-[13px] font-bold text-[var(--warning)]">{scaleTotal} 项</span>} collapsible defaultOpen={false}>
               {scaleTotal > 0 ? (
                 <div className="space-y-1">
                   {(() => {
@@ -1102,7 +1102,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </SectionCard>
 
             {/* 采购方式分布（归档，环形图） */}
-            <SectionCard icon={Layers} title="采购方式分布" index={2}>
+            <SectionCard icon={Layers} title="采购方式分布" index={2} collapsible defaultOpen={false}>
               {methodDonut ? (
                 <div className="flex items-center gap-3">
                   <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="采购方式分布环形图">
@@ -1129,7 +1129,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </SectionCard>
 
             {/* 各部门采购分布（归档，按成交金额） */}
-            <SectionCard icon={Building2} title="各部门采购分布" index={3} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按成交金额</span>}>
+            <SectionCard icon={Building2} title="各部门采购分布" index={3} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按成交金额</span>} collapsible defaultOpen={false}>
               {arcDeptDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
@@ -1151,7 +1151,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </SectionCard>
 
             {/* 归属项目分布（归档，按轮次 Top6） */}
-            <SectionCard icon={FolderKanban} title="归属项目分布" index={4} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按轮次</span>}>
+            <SectionCard icon={FolderKanban} title="归属项目分布" index={4} right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">按轮次</span>} collapsible defaultOpen={false}>
               {arcProjectDist.length ? (
                 <div className="space-y-1.5">
                   {(() => {
@@ -1184,7 +1184,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             {analysisPm ? (
               <>
                 {/* 阶段分布（进行中） */}
-                <SectionCard icon={Gauge} title="阶段分布" index={0}>
+                <SectionCard icon={Gauge} title="阶段分布" index={0} collapsible defaultOpen={false}>
                   {pmDist.stage.length ? (
                     <div className="space-y-1.5">
                       {pmDist.stage.map((d) => {
@@ -1206,7 +1206,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 </SectionCard>
 
                 {/* 采购方式分布（进行中，横条） */}
-                <SectionCard icon={Layers} title="采购方式分布" index={1}>
+                <SectionCard icon={Layers} title="采购方式分布" index={1} collapsible defaultOpen={false}>
                   {pmDist.method.length ? (
                     <div className="space-y-1.5">
                       {pmDist.method.map((d) => {
@@ -1228,7 +1228,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 </SectionCard>
 
                 {/* 部门分布（进行中） */}
-                <SectionCard icon={Building2} title="部门分布" index={2}>
+                <SectionCard icon={Building2} title="部门分布" index={2} collapsible defaultOpen={false}>
                   {pmDist.dept.length ? (
                     <div className="space-y-1.5">
                       {pmDist.dept.map((d) => {
@@ -1250,7 +1250,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 </SectionCard>
 
                 {/* 项目规模分析（进行中） */}
-                <SectionCard icon={BarChart3} title="项目规模分析" index={3}>
+                <SectionCard icon={BarChart3} title="项目规模分析" index={3} collapsible defaultOpen={false}>
                   {pmDist.scale.some((b) => b.count > 0) ? (
                     <div className="space-y-1.5">
                       {pmDist.scale.map((b) => {
@@ -1278,7 +1278,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 </SectionCard>
 
                 {/* 归属项目分布（进行中） */}
-                <SectionCard icon={FolderKanban} title="归属项目分布" index={4}>
+                <SectionCard icon={FolderKanban} title="归属项目分布" index={4} collapsible defaultOpen={false}>
                   {pmDist.project.length ? (
                     <div className="space-y-1.5">
                       {pmDist.project.map((d) => {
