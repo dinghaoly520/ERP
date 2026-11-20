@@ -787,11 +787,19 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                             ) : null}
                           </motion.div>
                         ))}
+                      </div>
+                      ) : (
+                        <div className={`flex flex-col items-center justify-center px-4 ${selectedStage.stageAnalysis ? 'py-8' : 'py-16'}`}>
+                          <FileText size={32} className="text-[color-mix(in_oklch,var(--muted-foreground)_50%,transparent)]" />
+                          <div className="mt-3 text-[0.85rem] text-[color:var(--muted-foreground)]">该步骤暂无文件</div>
+                        </div>
+                      )}
 
-                        {/* 终止详情专属·阶段级步骤分析：仅缓存直出（2026-11-20 用户裁定「台账不做
-                            分析」）——载荷 stageAnalysis 命中即渲染，未生成不显示任何占位；
-                            分析生成归项目管理详情的步骤分析链路 */}
-                        {data.kind === 'terminated' && selectedStage.stageAnalysis ? (
+                      {/* 终止详情专属·阶段级步骤分析：仅缓存直出（2026-11-20 用户裁定「台账不做
+                          分析」）——与文件数无关：无附件但有分析缓存的阶段（如供应商邀请/专家选取）
+                          同样直出；未生成不显示任何占位；分析生成归项目管理详情链路 */}
+                      {data.kind === 'terminated' && selectedStage.stageAnalysis ? (
+                        <div className="px-3 pb-3 pt-0">
                           <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--background)_60%,transparent)] shadow-[inset_0_1px_0_oklch(1_0_0_/_0.5)] px-3 py-2.5">
                             <div className="text-xs font-semibold uppercase tracking-wide text-[color-mix(in_oklch,var(--accent)_70%,black)] mb-1.5">
                               步骤分析
@@ -800,14 +808,8 @@ export function ArchiveDetailModal({ procurementRoundId, onClose }: ArchiveDetai
                               {selectedStage.stageAnalysis}
                             </p>
                           </div>
-                        ) : null}
-                      </div>
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-16 px-4">
-                          <FileText size={32} className="text-[color-mix(in_oklch,var(--muted-foreground)_50%,transparent)]" />
-                          <div className="mt-3 text-[0.85rem] text-[color:var(--muted-foreground)]">该步骤暂无文件</div>
                         </div>
-                      )}
+                      ) : null}
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-16 px-4">
