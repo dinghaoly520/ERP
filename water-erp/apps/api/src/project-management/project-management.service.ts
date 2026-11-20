@@ -4636,6 +4636,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
+      // 终止即预热步骤分析（fire-and-forget）：台账「缓存直出」内容在用户查看前就绪
+      this.warmTerminatedStepAnalysis(projectId, stages);
+
       return { ...updated, notifiedCount, abortedBidProjects: activeBidProjects.map((bp) => bp.name) };
     });
   }
@@ -6011,6 +6014,37 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
+   * 终止项目步骤分析后台预热（2026-11-20「文件分析内容自动加载」）：fire-and-forget——
+   * 对已完成且有附件但缓存缺失的阶段后台跑 analyze-step。台账界面零分析操作（用户裁定），
+   * 内容由系统侧预生成、下次打开载荷直出。进程内 in-flight 键去重防连开重复打 LLM；
+   * 失败不阻断，下次查看再触发。
+   */
+  private stepAnalysisWarming = new Set<string>();
+  private warmTerminatedStepAnalysis(
+    projectId: string,
+    stages: Array<{ stageKey: string; round: number | null; status: string; attachments: unknown[] }>,
+  ): void {
+    for (const st of stages) {
+      if (st.status !== 'COMPLETED' || st.attachments.length === 0) continue;
+      const warmKey = `${projectId}:${st.stageKey}:${st.round ?? 1}`;
+      if (this.stepAnalysisWarming.has(warmKey)) continue;
+      this.stepAnalysisWarming.add(warmKey);
+      void (async () => {
+        try {
+          const cached = await this.readStepAnalysisCache(projectId, st.stageKey);
+          if (!cached) {
+            await this.analyzeStep(projectId, st.stageKey, false, st.round ?? undefined);
+          }
+        } catch (err) {
+          this.logger.warn(`终止项目步骤分析预热失败 ${warmKey}: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          this.stepAnalysisWarming.delete(warmKey);
+        }
+      })();
+    }
+  }
+
+  /**
    * Get archive detail for a procurement round (from archived project management item)
    * Reads and parses the archived TXT file
    */
@@ -6041,6 +6075,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
         },
       });
       if (terminatedItem?.status === 'TERMINATED') {
+        // 后台预热缺缓存的已完成阶段（fire-and-forget，本次响应仍用现有缓存直出）
+        this.warmTerminatedStepAnalysis(terminatedItem.id, terminatedItem.stages);
         return await this.buildTerminatedDetail(terminatedItem);
       }
       throw new NotFoundException('未找到对应的归档项目。');
