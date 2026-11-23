@@ -278,34 +278,43 @@ export class AuthService {
    * 账号形态：username=手机号、role=admin（移动驾驶舱全库视角）、displayName 带称谓；find-or-create
    * （db:seed 重灌后下次登录自愈），密码哈希随机不可知——三个账号不走 /auth/login 密码路径。
    * 会话与 :3005 web 登录同构：rotatePortalSession 轮换 webSessionId（单设备互踢）+ sid 随 JWT。 */
-  private static readonly MOBILE_SMS_ACCOUNTS: Record<string, string> = {
-    '19981208777': '王华董事长',
-    '13882199205': '张宏董事长',
-    '13368360619': '系统管理员', // 测试用手机号（2026-11-23 用户裁定：短信链路测试一律走此号，勿扰董事长手机）
+  private static readonly MOBILE_SMS_ACCOUNTS: Record<string, { displayName: string; org: string }> = {
+    '19981208777': { displayName: '王华董事长', org: '水发集团' },
+    '13882199205': { displayName: '张宏董事长', org: '设计公司' },
+    '13368360619': { displayName: '系统管理员', org: '水发集团' }, // 测试用手机号（短信链路测试一律走此号，勿扰董事长手机）
   };
-  private static readonly MOBILE_PASSWORD_ACCOUNTS: Record<string, { displayName: string; password: string }> = {
-    '13368360619': { displayName: '系统管理员', password: '123456' },
+  private static readonly MOBILE_PASSWORD_ACCOUNTS: Record<string, { displayName: string; org: string; password: string }> = {
+    '13368360619': { displayName: '系统管理员', org: '水发集团', password: '123456' },
   };
 
-  /** :3011 手机号身份解析：sms=短信验证码登录 / password=固定密码登录 / null=名单外。 */
-  mobileIdentityFor(phone: string): { mode: 'sms' | 'password'; displayName: string } | null {
+  /** :3011 手机号身份解析：sms=短信验证码登录 / password=固定密码登录 / null=名单外；org=抬头组织标注。 */
+  mobileIdentityFor(phone: string): { mode: 'sms' | 'password'; displayName: string; org: string } | null {
     const sms = AuthService.MOBILE_SMS_ACCOUNTS[phone];
-    if (sms) return { mode: 'sms', displayName: sms };
+    if (sms) return { mode: 'sms', displayName: sms.displayName, org: sms.org };
     const pwd = AuthService.MOBILE_PASSWORD_ACCOUNTS[phone];
-    if (pwd) return { mode: 'password', displayName: pwd.displayName };
+    if (pwd) return { mode: 'password', displayName: pwd.displayName, org: pwd.org };
     return null;
   }
 
-  /** find-or-create 移动驾驶舱账号（username=手机号；密码哈希随机不可知）。冻结账号拒绝登录。 */
-  private async ensureMobileUser(phone: string, displayName: string) {
+  /** find-or-create 移动驾驶舱账号（username=手机号；密码哈希随机不可知）。冻结账号拒绝登录；
+   *  公司快照（company 列）= 白名单 org——抬头组织标注数据源，存量行偏差自愈改写。 */
+  private async ensureMobileUser(phone: string, displayName: string, org: string) {
     // username 复合唯一 [username, role]（非单列唯一）——role 收窄到本账号族（admin）
     const existing = await this.prisma.user.findFirst({
       where: { username: phone, role: 'admin' },
-      select: { id: true, username: true, role: true, isFrozen: true },
+      select: { id: true, username: true, role: true, isFrozen: true, displayName: true, company: true },
     });
     if (existing) {
       if (existing.isFrozen) {
         throw new UnauthorizedException({ error: '该账号已被冻结，请联系管理员', code: 'ACCOUNT_FROZEN' });
+      }
+      // 存量行公司快照/称谓与白名单不符 → 自愈改写（2026-11-23 抬头组织标注裁定）
+      if (existing.company !== org || existing.displayName !== displayName) {
+        return this.prisma.user.update({
+          where: { id: existing.id },
+          data: { company: org, displayName },
+          select: { id: true, username: true, role: true },
+        });
       }
       return existing;
     }
@@ -315,6 +324,7 @@ export class AuthService {
         displayName,
         role: 'admin',
         isActive: true,
+        company: org, // 抬头组织标注（/auth/me 透出 → :3011 抬头胶囊）
         passwordHash: hashSync(randomUUID(), 10), // 随机不可知——手机号登录不走密码路径
       },
       select: { id: true, username: true, role: true },
@@ -338,7 +348,7 @@ export class AuthService {
       throw new BadRequestException({ code: 'MOBILE_PHONE_NOT_ALLOWED', error: '该手机号不在登录名单中，无法接收短信验证码' });
     }
     await this.verificationService.validateMobileLoginCode(phone, code);
-    const user = await this.ensureMobileUser(phone, identity.displayName);
+    const user = await this.ensureMobileUser(phone, identity.displayName, identity.org);
     if (user.role !== 'admin') {
       throw new ForbiddenException({ error: '该账号无权访问移动驾驶舱', code: 'PORT_ROLE_MISMATCH' });
     }
@@ -355,7 +365,7 @@ export class AuthService {
     if (password !== pwdIdentity.password) {
       throw new UnauthorizedException({ error: '密码错误', code: 'MOBILE_PASSWORD_MISMATCH' });
     }
-    const user = await this.ensureMobileUser(phone, pwdIdentity.displayName);
+    const user = await this.ensureMobileUser(phone, pwdIdentity.displayName, pwdIdentity.org);
     if (user.role !== 'admin') {
       throw new ForbiddenException({ error: '该账号无权访问移动驾驶舱', code: 'PORT_ROLE_MISMATCH' });
     }

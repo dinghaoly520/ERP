@@ -118,7 +118,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 </span>
                 {user ? (
                   <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">
-                    {ROLE_LABELS[user.role] ?? user.role}
+                    {/* 组织标注优先（2026-11-23 用户裁定：王华董事长→水发集团、张宏董事长→设计公司），无归属回退角色 */}
+                    {user.company || ROLE_LABELS[user.role] || user.role}
                   </span>
                 ) : null}
               </div>

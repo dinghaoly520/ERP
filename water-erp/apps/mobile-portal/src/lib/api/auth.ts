@@ -13,6 +13,8 @@ export type AuthUser = {
   username: string;
   displayName: string;
   role: AuthRole;
+  /** 公司快照（:3011 抬头组织标注数据源；无归属为 null → 抬头回退角色标签） */
+  company: string | null;
 };
 
 /** admin 专属公司选择器数据（同 web CompanySelect：GET /companies） */
