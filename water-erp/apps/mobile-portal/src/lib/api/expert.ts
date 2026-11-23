@@ -6,8 +6,9 @@ export type ExpertListItem = {
   displayName: string;
   username: string;
   companyId: string | null;
-  /** 归属公司 / 部门（列表接口已带；名录卡多公司标公司、单公司标部门，2026-11-23） */
-  company?: { id: string; name: string } | null;
+  /** 归属公司名（User.company 为字符串快照列——关系字段另名 companyRef，列表 select 的是快照；
+   *  与 :3005 库页同读法）/ 部门（关系对象）。名录卡多公司标公司、单公司标部门，2026-11-23 */
+  company?: string | null;
   department?: { id: string; name: string } | null;
   isActive: boolean;
   expertProfile: {

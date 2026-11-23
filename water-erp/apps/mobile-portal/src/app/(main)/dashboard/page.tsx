@@ -1889,7 +1889,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           const profile = e.expertProfile;
                           const grade = e.avgGrade ?? e.latestEval?.level;
                           const gradeColor = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : grade ? 'var(--warning)' : 'var(--muted-foreground)';
-                          const org = companyIds.length !== 1 ? (e.company?.name ?? "未归属公司") : (e.department?.name ?? "未归属部门");
+                          const org = companyIds.length !== 1
+                            ? ((e.company ?? "").trim() || "未归属公司")
+                            : (e.department?.name ?? "未归属部门");
                           return (
                             <button key={e.id} type="button" onClick={() => setExpertPick(e)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
                               <div className="flex items-start gap-2.5">
@@ -1898,13 +1900,14 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                 </span>
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{e.displayName}</span>
+                                  {/* 组织胶囊与专业/职称同行（2026-11-23 用户裁定）：胶囊优先占宽，专业/职称截断 */}
                                   <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
-                                    {profile?.specialty ? <span className="max-w-[6rem] truncate">{profile.specialty}</span> : null}
+                                    <span className="inline-flex max-w-[9.5rem] shrink-0 items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
+                                      <Building2 size={11} className="shrink-0" />
+                                      <span className="truncate">{org}</span>
+                                    </span>
+                                    {profile?.specialty ? <span className="max-w-[5.5rem] truncate">{profile.specialty}</span> : null}
                                     {profile?.title ? <span className="truncate">{profile.title}</span> : null}
-                                  </span>
-                                  <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
-                                    <Building2 size={11} className="shrink-0" />
-                                    <span className="truncate">{org}</span>
                                   </span>
                                 </span>
                                 {grade ? (
