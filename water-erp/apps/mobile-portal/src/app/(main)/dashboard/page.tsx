@@ -1760,92 +1760,99 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             {/* ══ 专家库（2026-11-20 丰富化；2026-11-23 用户裁定删总览区）：职称+专业+评价+公司 多图表 ══ */}
             {expertStats ? (
               <>
-                {/* 公司分布：排名卡（八色条） */}
-                {expertCompanies?.length ? (
-                  <AnalysisZone icon={Building2} title="公司分布" count={`${expertCompanies.length} 家`} color="var(--accent)">
-                    <div className="space-y-1.5">
-                      {expertCompanies.map((c, i) => {
-                        const max = expertCompanies[0].count;
-                        const total = expertCompanies.reduce((s2, x) => s2 + x.count, 0) || 1;
-                        return (
-                          <div key={c.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                {/* 结构分布（2026-11-23 用户裁定：公司/专业/职称三图收进一个瓷面容器，
+                    与数据分析同款折叠行——默认收起、点开展开） */}
+                <AnalysisZone icon={PieChart} title="专家分布" count={`${expertStats.total} 人`} color="var(--accent)">
+                  <ZoneRow icon={Building2} title="公司分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{expertCompanies?.length ?? 0} 家</span>}>
+                    {expertCompanies?.length ? (
+                      <div className="space-y-1.5">
+                        {expertCompanies.map((c, i) => {
+                          const max = expertCompanies[0].count;
+                          const total = expertCompanies.reduce((s2, x) => s2 + x.count, 0) || 1;
+                          return (
+                            <div key={c.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{c.name}</span>
+                                <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
+                                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((c.count / total) * 100).toFixed(1)}%</span>
+                              </div>
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(c.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <EmptyState text="暂无公司归属数据" />
+                    )}
+                  </ZoneRow>
+
+                  <ZoneRow icon={BarChart3} title="专业分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top {expertStats.specialties.length}</span>}>
+                    {expertStats.specialties.length ? (
+                      <div className="space-y-1.5">
+                        {expertStats.specialties.map((sp, i) => (
+                          <div key={sp.name ?? "未填"} className="rounded-[12px] m-tile px-3 py-2.5">
                             <div className="flex items-center gap-2.5">
-                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{c.name}</span>
-                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
-                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((c.count / total) * 100).toFixed(1)}%</span>
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{sp.name ?? "未填"}</span>
+                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
+                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{Math.round((sp.count / (expertStats.specialties.reduce((s2, x) => s2 + x.count, 0) || 1)) * 100)}%</span>
                             </div>
                             <div className="mt-1.5 flex items-center gap-2">
                               <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(c.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
+                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${sp.pct}%`, background: barFill(barColorAt(i)) }} />
                               </span>
                             </div>
                           </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState text="暂无专业数据" />
+                    )}
+                  </ZoneRow>
+
+                  <ZoneRow icon={Award} title="职称分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{expertStats.titles.reduce((s2, x) => s2 + x.count, 0)} 人</span>}>
+                    {expertStats.titles?.length ? (
+                      (() => {
+                        const total = expertStats.titles.reduce((s2, x) => s2 + x.count, 0) || 1;
+                        let acc = 0;
+                        const segs = expertStats.titles.map((t, i) => {
+                          const sweep = (t.count / total) * 360;
+                          const seg = { t, a0: acc, a1: acc + Math.max(sweep, 0.001), color: DONUT_COLORS[i % DONUT_COLORS.length] };
+                          acc += sweep;
+                          return seg;
+                        });
+                        return (
+                          <div className="flex items-center gap-3">
+                            <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="职称分布环形图">
+                              {segs.map((seg, i) => (
+                                <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />
+                              ))}
+                              <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{expertStats.total}</text>
+                              <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">在库</text>
+                            </svg>
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              {segs.map((seg, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
+                                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.t.name}</span>
+                                  <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.t.count}人</span>
+                                  <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.t.count / total) * 100)}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         );
-                      })}
-                    </div>
-                  </AnalysisZone>
-                ) : null}
-
-                {/* 专业分布：排名卡（金条） */}
-                {expertStats.specialties.length ? (
-                  <AnalysisZone icon={BarChart3} title="专业分布" count={`Top ${expertStats.specialties.length}`} color="var(--gold)">
-                    <div className="space-y-1.5">
-                      {expertStats.specialties.map((sp, i) => (
-                        <div key={sp.name ?? "未填"} className="rounded-[12px] m-tile px-3 py-2.5">
-                          <div className="flex items-center gap-2.5">
-                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{sp.name ?? "未填"}</span>
-                            <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
-                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{Math.round((sp.count / (expertStats.specialties.reduce((s2, x) => s2 + x.count, 0) || 1)) * 100)}%</span>
-                          </div>
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                              <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${sp.pct}%`, background: barFill(barColorAt(i)) }} />
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </AnalysisZone>
-                ) : null}
-
-                {/* 职称分布：环形图 */}
-                {expertStats.titles?.length ? (
-                  <AnalysisZone icon={Award} title="职称分布" count={`${expertStats.titles.reduce((s2, x) => s2 + x.count, 0)} 人`} color="var(--warning)">
-                    {(() => {
-                      const total = expertStats.titles.reduce((s2, x) => s2 + x.count, 0) || 1;
-                      let acc = 0;
-                      const segs = expertStats.titles.map((t, i) => {
-                        const sweep = (t.count / total) * 360;
-                        const seg = { t, a0: acc, a1: acc + Math.max(sweep, 0.001), color: DONUT_COLORS[i % DONUT_COLORS.length] };
-                        acc += sweep;
-                        return seg;
-                      });
-                      return (
-                        <div className="flex items-center gap-3">
-                          <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="职称分布环形图">
-                            {segs.map((seg, i) => (
-                              <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />
-                            ))}
-                            <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{expertStats.total}</text>
-                            <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">在库</text>
-                          </svg>
-                          <div className="min-w-0 flex-1 space-y-1.5">
-                            {segs.map((seg, i) => (
-                              <div key={i} className="flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
-                                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.t.name}</span>
-                                <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.t.count}人</span>
-                                <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.t.count / total) * 100)}%</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </AnalysisZone>
-                ) : null}
+                      })()
+                    ) : (
+                      <EmptyState text="暂无职称数据" />
+                    )}
+                  </ZoneRow>
+                </AnalysisZone>
 
                 {/* 专家名录：搜索+点击开详情 */}
                 <AnalysisZone icon={Users} title="专家名录" count={`${expertTotal} 人`} color="var(--accent)">
