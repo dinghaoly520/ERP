@@ -1143,7 +1143,23 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </AnalysisZone>
 
             {/* ── 维度对比：维度切换横条（全公司，率维不合计）── */}
-            <AnalysisZone icon={BarChart3} title="维度对比" count={`${rows.length} 家`} color="var(--gold)">
+            <AnalysisZone
+              icon={BarChart3}
+              title="维度对比"
+              count={`${rows.length} 家`}
+              color="var(--gold)"
+              right={
+                /* 维度下拉置于区块标题右侧（2026-11-23 用户终版裁定） */
+                <InlineSelect
+                  label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "成交额"}
+                  active={cmpDim !== "awardAmount"}
+                  options={CMP_DIMS.map((d) => ({ value: d.key, label: d.label }))}
+                  selected={[cmpDim]}
+                  onSelect={(next) => setCmpDim((next[0] ?? "awardAmount") as typeof cmpDim)}
+                  ariaLabel="对比维度"
+                />
+              }
+            >
               {(() => {
                 const key = cmpDim;
                 const max = Math.max(...rows.map((x) => x[key]), 1);
@@ -2567,19 +2583,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     return (
       <div>
         <div className="mb-3 flex items-center justify-end gap-2">
-          {/* 维度下拉置顶并靠左（2026-11-23 用户裁定）：与时间/全部公司同行，维度对比卡头不再承载 */}
-          {panel === "company" ? (
-            <div className="mr-auto">
-              <InlineSelect
-                label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "成交额"}
-                active={cmpDim !== "awardAmount"}
-                options={CMP_DIMS.map((d) => ({ value: d.key, label: d.label }))}
-                selected={[cmpDim]}
-                onSelect={(next) => setCmpDim((next[0] ?? "awardAmount") as typeof cmpDim)}
-                ariaLabel="对比维度"
-              />
-            </div>
-          ) : null}
           {scopeSelectors}
           {panel === "risk" ? (
             <InlineSelect
