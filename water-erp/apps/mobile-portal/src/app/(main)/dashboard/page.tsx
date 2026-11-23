@@ -1121,19 +1121,20 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <div className="space-y-1.5">
                 {rows.map((r, i) => (
                   <div key={r.companyId || r.company} className="rounded-[12px] m-tile px-3 py-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-bold ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
                       <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.company}</span>
                       <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{fmtWan(r.awardAmount)}</span>
                     </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-[2.15rem] text-[11px] text-[var(--muted-foreground)]">
+                    {/* 元信息单色（unslop 2026-11-23：一行内仅成交额用主色、异常用语义红，其余中性） */}
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-8 text-[12px] text-[var(--muted-foreground)]">
                       <span className="tabular-nums">{r.rounds} 轮</span>
                       <span className="tabular-nums">已成交 {r.awarded}</span>
-                      <span className="tabular-nums">节资 <span className="font-semibold text-[var(--success)]">{fmtWan(r.savings)}</span></span>
-                      <span className="tabular-nums">节资率 <span className={r.savingsRate >= 15 ? "font-semibold text-[var(--success)]" : r.savingsRate >= 8 ? "font-semibold text-[var(--accent)]" : "font-semibold text-[var(--warning)]"}>{r.savingsRate}%</span></span>
-                      {r.abnormal > 0 ? <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-1.5 py-0.5 font-bold tabular-nums text-[var(--danger)]">异常 {r.abnormal}</span> : null}
+                      <span className="tabular-nums">节资 {fmtWan(r.savings)}</span>
+                      <span className="tabular-nums">节资率 {r.savingsRate}%</span>
+                      {r.abnormal > 0 ? <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-1.5 py-0.5 font-semibold tabular-nums text-[var(--danger)]">异常 {r.abnormal}</span> : null}
                     </div>
-                    <div className="mt-1.5 ml-[2.15rem] h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                    <div className="mt-1.5 ml-8 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
                       <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${top.awardAmount > 0 ? (r.awardAmount / top.awardAmount) * 100 : 0}%`, background: barFill(barColorAt(i)) }} />
                     </div>
                   </div>
@@ -1142,23 +1143,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </AnalysisZone>
 
             {/* ── 维度对比：维度切换横条（全公司，率维不合计）── */}
-            <AnalysisZone
-              icon={BarChart3}
-              title="维度对比"
-              count={`${rows.length} 家`}
-              color="var(--gold)"
-              right={
-                /* 维度下拉置顶（2026-11-23 用户裁定：原 Chip 行换下拉框）；合计行右注家数 */
-                <InlineSelect
-                  label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "成交额"}
-                  active={cmpDim !== "awardAmount"}
-                  options={CMP_DIMS.map((d) => ({ value: d.key, label: d.label }))}
-                  selected={[cmpDim]}
-                  onSelect={(next) => setCmpDim((next[0] ?? "awardAmount") as typeof cmpDim)}
-                  ariaLabel="对比维度"
-                />
-              }
-            >
+            <AnalysisZone icon={BarChart3} title="维度对比" count={`${rows.length} 家`} color="var(--gold)">
               {(() => {
                 const key = cmpDim;
                 const max = Math.max(...rows.map((x) => x[key]), 1);
@@ -1179,7 +1164,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
                       </div>
                     ))}
-                    {key !== "savingsRate" ? (
+                    {key !== "savingsRate" && rows.length > 1 ? (
                       <div className="pt-1 text-[12px] text-[var(--muted-foreground)]">{rows.length} 家合计 {fmt(total)}{key === "abnormal" ? " 项" : ""}</div>
                     ) : null}
                   </div>
@@ -1188,8 +1173,11 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </AnalysisZone>
 
             {/* ── 双企 PK：任选两家逐项对比，优胜方加粗着色 + 顶部计分 ── */}
-            <AnalysisZone icon={Scale} title="双企对比" count={`${rows.length >= 2 ? "任选两家" : "仅一家"}`} color="var(--success)">
-              {(() => {
+            <AnalysisZone icon={Scale} title="双企对比" count={`${rows.length} 家`} color="var(--success)">
+              {rows.length < 2 ? (
+                /* 退化态（unslop 2026-11-23）：口径下不足两家时不渲染整套对比，直接说明原因 */
+                <EmptyState text={`当前口径下只有 ${rows.length} 家公司，选择更多公司后可对比`} />
+              ) : (() => {
                 // 默认 Top2 两家不同公司；已选公司不在当前口径时回退
                 const a = rows.find((r) => r.companyId === cmpA) ?? rows[0];
                 const b =
@@ -1213,42 +1201,45 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 const same = idOf(a) === idOf(b);
                 return (
                   <div className="space-y-2.5">
-                    <div className="flex items-center gap-1.5">
+                    {/* 甲 / 乙 两方（签名细节，采购合同语言）：选择器上方小标 + 计分行同标 */}
+                    <div className="flex items-end gap-1.5">
                       <div className="min-w-0 flex-1">
-                        <InlineSelect label={a.company} active={!!cmpA} options={opts} selected={[idOf(a)]} onSelect={(next) => setCmpA(next[0] ?? null)} ariaLabel="对比方 A" />
+                        <div className="mb-1 px-1 text-[11px] font-semibold text-[var(--muted-foreground)]">甲</div>
+                        <InlineSelect label={a.company} active={!!cmpA} options={opts} selected={[idOf(a)]} onSelect={(next) => setCmpA(next[0] ?? null)} ariaLabel="对比方甲" />
                       </div>
                       <button
                         type="button"
                         onClick={() => { setCmpA(idOf(b)); setCmpB(idOf(a)); }}
-                        aria-label="交换对比方"
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] m-tile text-[var(--muted-foreground)] active:scale-95"
+                        aria-label="交换甲乙"
+                        className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] m-tile text-[var(--muted-foreground)] active:scale-95"
                       >
                         <ArrowLeftRight size={14} />
                       </button>
                       <div className="min-w-0 flex-1">
-                        <InlineSelect label={b.company} active={!!cmpB} options={opts} selected={[idOf(b)]} onSelect={(next) => setCmpB(next[0] ?? null)} ariaLabel="对比方 B" />
+                        <div className="mb-1 px-1 text-[11px] font-semibold text-[var(--muted-foreground)]">乙</div>
+                        <InlineSelect label={b.company} active={!!cmpB} options={opts} selected={[idOf(b)]} onSelect={(next) => setCmpB(next[0] ?? null)} ariaLabel="对比方乙" />
                       </div>
                     </div>
                     {!same ? (
-                      <div className="flex items-center justify-center gap-2 rounded-[10px] px-3 py-2 text-[13px]">
-                        <span className={`tabular-nums ${aWon > bWon ? "font-black text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{a.company.slice(0, 6)} 优胜 {aWon}</span>
-                        <span className="text-[12px] font-bold text-[var(--muted-foreground)]">VS</span>
-                        <span className={`tabular-nums ${bWon > aWon ? "font-black text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{b.company.slice(0, 6)} 优胜 {bWon}</span>
+                      <div className="flex items-center justify-center gap-3 rounded-[10px] px-3 py-2 text-[13px] tabular-nums">
+                        <span className={aWon > bWon ? "font-bold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}>甲 优胜 {aWon}</span>
+                        <span className="text-[12px] text-[var(--muted-foreground)]">·</span>
+                        <span className={bWon > aWon ? "font-bold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}>乙 优胜 {bWon}</span>
                         <span className="text-[12px] text-[var(--muted-foreground)]">· 持平 {tie}</span>
                       </div>
                     ) : (
-                      <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-center text-[12px] text-[var(--warning)]">请选择两家不同公司进行对比</div>
+                      <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-center text-[12px] text-[var(--warning)]">甲乙相同，换一家再比</div>
                     )}
-                    <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2 text-[14px]">
+                    <div className={`space-y-0.5 rounded-[12px] m-tile px-3 py-2 text-[14px] ${same ? "opacity-50" : ""}`}>
                       {metrics.map((m) => (
                         <div key={m.label} className="flex items-center gap-2 py-0.5">
-                          <span className={`min-w-0 flex-1 truncate text-right tabular-nums ${m.aWin === true && !same ? "font-black text-[var(--accent)]" : "text-[var(--foreground)]"}`}>{m.va}</span>
+                          <span className={`min-w-0 flex-1 truncate text-right tabular-nums ${m.aWin === true && !same ? "font-bold text-[var(--accent)]" : "font-medium text-[var(--foreground)]"}`}>{m.va}</span>
                           <span className="w-[4rem] shrink-0 text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</span>
-                          <span className={`min-w-0 flex-1 truncate tabular-nums ${m.aWin === false && !same ? "font-black text-[var(--accent)]" : "text-[var(--foreground)]"}`}>{m.vb}</span>
+                          <span className={`min-w-0 flex-1 truncate tabular-nums ${m.aWin === false && !same ? "font-bold text-[var(--accent)]" : "font-medium text-[var(--foreground)]"}`}>{m.vb}</span>
                         </div>
                       ))}
                     </div>
-                    <p className="px-1 text-[12px] text-[var(--muted-foreground)]">优胜项加粗高亮（异常以少为优）；节资率=节资/成交预算</p>
+                    <p className="px-1 text-[12px] text-[var(--muted-foreground)]">加粗为优胜项，异常以少为优</p>
                   </div>
                 );
               })()}
@@ -2576,6 +2567,19 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     return (
       <div>
         <div className="mb-3 flex items-center justify-end gap-2">
+          {/* 维度下拉置顶并靠左（2026-11-23 用户裁定）：与时间/全部公司同行，维度对比卡头不再承载 */}
+          {panel === "company" ? (
+            <div className="mr-auto">
+              <InlineSelect
+                label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "成交额"}
+                active={cmpDim !== "awardAmount"}
+                options={CMP_DIMS.map((d) => ({ value: d.key, label: d.label }))}
+                selected={[cmpDim]}
+                onSelect={(next) => setCmpDim((next[0] ?? "awardAmount") as typeof cmpDim)}
+                ariaLabel="对比维度"
+              />
+            </div>
+          ) : null}
           {scopeSelectors}
           {panel === "risk" ? (
             <InlineSelect
