@@ -25,6 +25,7 @@ import { BidDocEditSection, AddendumRefDocSection } from '@/components/notice/bi
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 import { isOverdueScheduledDraft } from '@/lib/notice/schedule';
+import { formatYuanExact } from '@/lib/format';
 
 /* 类型/状态标签 */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
@@ -266,9 +267,9 @@ function renderMeta(ann: AnnouncementListItem) {
                   ? "待定"
                   : parsed.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
               }
+              // 预算/成交金额：原始数字精确显示（千分位 + 元，不四舍五入——2026-11-23 用户裁定）
               if ((f.key === "budget" || f.key === "amount") && raw) {
-                const n = Number(raw);
-                if (!isNaN(n) && n >= 10000) display = (n / 10000).toFixed(0) + " 万元";
+                display = formatYuanExact(raw);
               }
               const isCode = f.key === "projectCode" || f.key === "docNo";
               const isMoney = f.key === "budget" || f.key === "amount";

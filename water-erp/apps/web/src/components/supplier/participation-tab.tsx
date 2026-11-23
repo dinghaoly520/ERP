@@ -50,39 +50,18 @@ export function ParticipationTab({ supplierId }: { supplierId: string }) {
         </div>
       )}
 
-      {/* 统计瓷片（照邀请回执 tab 形态） */}
-      <div className="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-4">
-        <div className="neu-card-static !rounded-xl p-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">确认参与（意向）</p>
-          <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none text-[var(--accent)]">{kpi.intentTotal}</p>
-          <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次公开项目确认</p>
-        </div>
-        <div className="neu-card-static !rounded-xl p-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">回执确认参加</p>
-          <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none">{kpi.rsvpAcceptedTotal}</p>
-          <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次邀请确认</p>
-        </div>
-        <div className="neu-card-static !rounded-xl p-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">实际投递</p>
-          <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none" style={{ color: 'var(--success)' }}>{kpi.submittedTotal}</p>
-          <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次标书投递</p>
-        </div>
-        <div className="neu-card-static !rounded-xl p-4 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">确认未投递</p>
-          <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none" style={{ color: 'var(--danger)' }}>{kpi.noShowTotal}</p>
-          <p className="text-[10px] text-[var(--muted-foreground)] mt-1">
-            {kpi.noShowActiveCount > 0
-              ? `履约进度 ${kpi.noShowActiveCount}/${kpi.blacklistThreshold}——再次确认未投递将自动列入黑名单`
-              : `含历史 ${kpi.noShowTotal - kpi.noShowActiveCount} 条`}
-          </p>
-        </div>
-      </div>
+      {/* 统计瓷片 KPI 卡片已删（2026-11-23 用户裁定）；黑名单进度提示随事故明细卡头保留 */}
 
       {/* 事故明细 */}
       <div className="neu-card-static !rounded-2xl p-4">
         <div className="mb-3 flex items-center gap-2">
           <AlertTriangle size={14} className="text-[var(--danger)]" />
           <h4 className="text-sm font-semibold text-[var(--foreground)]">确认参与未投递记录</h4>
+          {kpi.noShowActiveCount > 0 && (
+            <span className="text-[11px] font-semibold text-[var(--danger)]">
+              履约进度 {kpi.noShowActiveCount}/{kpi.blacklistThreshold}——再次确认未投递将自动列入黑名单
+            </span>
+          )}
           <span className="neu-tab-count ml-auto">{data.incidents.length} 条</span>
         </div>
         {data.incidents.length === 0 ? (

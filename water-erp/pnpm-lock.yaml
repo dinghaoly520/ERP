@@ -423,6 +423,9 @@ importers:
       '@water-erp/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@water-erp/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       lucide-react:
         specifier: ^1.8.0
         version: 1.17.0(react@19.2.4)

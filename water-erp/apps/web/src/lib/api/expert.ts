@@ -496,19 +496,6 @@ export function addViolation(expertId: string, data: { type: string; detail: str
   return api.post<{ success: boolean }>(`/expert-admin/${expertId}/violation`, data);
 }
 
-/* 通知偏好 */
-export function getNotifyPrefs(userId: string) {
-  return api.get<{ inApp: boolean; sms: boolean; phone: boolean }>(`/expert-admin/${userId}/notify-prefs`);
-}
-export function updateNotifyPrefs(userId: string, data: { inApp?: boolean; sms?: boolean; phone?: boolean }) {
-  return api.patch<{ success: boolean }>(`/expert-admin/${userId}/notify-prefs`, data);
-}
-
-export interface NotifyHistoryItem { channel: string; status: string; error: string | null; time: string }
-export function getNotifyHistory(userId: string) {
-  return api.get<NotifyHistoryItem[]>(`/expert-admin/${userId}/notify-history`);
-}
-
 /* 退库管理 */
 export function getRetireCandidates() {
   return api.get<any[]>('/expert-admin/retire-candidates');
@@ -555,10 +542,6 @@ export function setCommitteeAssignment(projectId: string, data: { assignments: {
   return api.put<{ success: boolean }>(`/expert-admin/projects/${projectId}/committee/assignment`, data);
 }
 
-/* AI 采纳率 */
-export function getAiAdoptionRate(expertId?: string) {
-  return api.get<any>(`/expert-admin/ai-adoption${expertId ? `?expertId=${expertId}` : ''}`);
-}
 export function getExpertRanking(period: 'month' | 'quarter' | 'all' = 'month', companyId?: string) {
   return api.get<any[]>(`/expert-admin/ranking?period=${period}${companyId && companyId !== 'all' ? `&companyId=${companyId}` : ''}`);
 }

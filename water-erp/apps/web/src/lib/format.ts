@@ -17,3 +17,21 @@ export function formatWan(
   if (!Number.isFinite(num)) return empty;
   return num >= 10000 ? `${(num / 10000).toFixed(digits)}万` : `${num.toFixed(0)}元`;
 }
+
+/**
+ * 金额（元）精确显示（2026-11-23 用户裁定：公告顶部预算金额保持原始数字、不做四舍五入）：
+ * 千分位分组 + 小数位原样 + 「元」。按字符串处理、不经 Number 往返，任何位数都不丢精度
+ * （原 `/10000).toFixed(0) + 万元` 把 356,789 元显示成「36 万元」）。
+ * 仅纯数字串/数值走分组；含单位或文字的自由文本（「约120万元」）原样返回；空值返回空串。
+ */
+export function formatYuanExact(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  const s = String(raw).trim();
+  const m = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(s);
+  if (!m) return s;
+  const sign = m[1] === '-' ? '-' : '';
+  // 去无意义前导零——千分位分组按规范整数位算（「007000」→「7,000」而非「00,7000」）
+  const intPart = m[2].replace(/^0+(?=\d)/, '');
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${sign}${grouped}${m[3] !== undefined ? `.${m[3]}` : ''} 元`;
+}

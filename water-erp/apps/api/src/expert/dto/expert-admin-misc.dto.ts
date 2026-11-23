@@ -96,13 +96,6 @@ export class RecordViolationDto {
   @IsIn(['warning', 'danger']) severity!: 'warning' | 'danger';
 }
 
-/** 更新专家通知偏好 */
-export class NotifyPrefsDto {
-  @IsOptional() @IsBoolean() inApp?: boolean;
-  @IsOptional() @IsBoolean() sms?: boolean;
-  @IsOptional() @IsBoolean() phone?: boolean;
-}
-
 /** 资质 OCR 自动录入 */
 export class OcrIntakeDto {
   @IsString() imageBase64!: string;

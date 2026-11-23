@@ -336,6 +336,38 @@ describe('ExpertAdminService', () => {
       expect(res.availability.availableRate).toBe(0); // 零分母护栏（基数 1>0 但 idle 0 → 0%）
     });
 
+    it('getBigscreenStats：专业分布 Top 10；职称为原始职称值前 9 + 其他归并 + titleKindCount（2026-11-23 用户裁定——弃四类归并：高级经济师不是高级工程师）', async () => {
+      (prisma as any).bidScoreRecord = { findMany: jest.fn().mockResolvedValue([]) };
+      prisma.user.count.mockResolvedValue(184);
+      prisma.expertProfile.groupBy.mockImplementation(({ by, take }: any) => {
+        if (by[0] === 'specialty') {
+          const all = Array.from({ length: 12 }, (_, i) => ({ specialty: `专业${i + 1}`, _count: 20 - i }));
+          return Promise.resolve(all.slice(0, take ?? all.length)); // 模拟 prisma take 截取
+        }
+        if (by[0] === 'title') {
+          return Promise.resolve([
+            { title: '高级工程师', _count: 93 }, { title: '工程师', _count: 57 }, { title: '经济师', _count: 11 }, { title: '会计师', _count: 10 },
+            { title: '正高级工程师', _count: 4 }, { title: '高级经济师', _count: 2 }, { title: '审计师', _count: 2 }, { title: '高级政工师', _count: 1 },
+            { title: '讲师', _count: 1 }, { title: null, _count: 3 }, { title: '  ', _count: 1 },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+      prisma.bidExpert.findMany.mockResolvedValue([]);
+      const res = await service.getBigscreenStats();
+      // 专业：请求 take 10（原 4）
+      expect(res.specialties).toHaveLength(10);
+      expect(res.specialties[0]).toEqual({ name: '专业1', count: 20, pct: 100 });
+      // 职称：原始值按人数前 9（高级经济师不再并入高级工程师），空值/空白与其余种类归「其他」
+      expect(res.titles).toEqual([
+        { name: '高级工程师', count: 93 }, { name: '工程师', count: 57 }, { name: '经济师', count: 11 }, { name: '会计师', count: 10 },
+        { name: '正高级工程师', count: 4 }, { name: '高级经济师', count: 2 }, { name: '审计师', count: 2 }, { name: '高级政工师', count: 1 },
+        { name: '讲师', count: 1 }, { name: '其他', count: 4 },
+      ]);
+      // 职称种类数 = 有名职称去重数（不含其他/空值）
+      expect(res.titleKindCount).toBe(9);
+    });
+
     it('getStatistics：评价统计按槽位去重（2026-10-21 统计闸裁定，此前本端点为唯一漏网）', async () => {
       prisma.user.count.mockResolvedValue(5);
       prisma.expertProfile.groupBy.mockResolvedValue([]);

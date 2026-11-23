@@ -5,13 +5,13 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { CopyIconButton } from '@/components/copy-icon-button';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
 import { listSpecialties } from '@/lib/api/expert';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldCheck, History, Ban, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL, lifecycleLabelOf, LIFECYCLE_LABELS } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -114,17 +114,19 @@ function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ si
   );
 }
 
-type Tab = 'info' | 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'risk' | 'violations' | 'notify';
+// 2026-11-23 用户裁定（8→6）：删「AI采纳率」tab（KPI 删后无实际内容）；「大事记」并入「画像」；
+// 「风险预警」并入「违规记录」=「风险与违规」。旧 tab 键经 LEGACY_TAB 归组（深链/会话残留兼容）
+type Tab = 'info' | 'overview' | 'portrait' | 'evaluations' | 'risk';
+const LEGACY_TAB: Record<string, Tab> = {
+  info: 'info', overview: 'overview', portrait: 'portrait', evaluations: 'evaluations', risk: 'risk',
+  timeline: 'portrait', violations: 'risk', 'ai-adoption': 'evaluations',
+};
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'info', label: '基本信息', icon: User },
   { key: 'overview', label: '评审项目', icon: TrendingUp },
-  { key: 'timeline', label: '大事记', icon: Award },
-  { key: 'portrait', label: '专家画像', icon: TrendingUp },
+  { key: 'portrait', label: '画像', icon: TrendingUp },
   { key: 'evaluations', label: '评价历史', icon: History },
-  { key: 'ai-adoption', label: 'AI采纳率', icon: Sparkles },
-  { key: 'risk', label: '风险预警', icon: AlertTriangle },
-  { key: 'violations', label: '违规记录', icon: ShieldAlert },
-  { key: 'notify', label: '通知偏好', icon: Bell },
+  { key: 'risk', label: '风险与违规', icon: AlertTriangle },
 ];
 
 type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; notes: string; regionCode: string; expertLevel: string };
@@ -164,10 +166,13 @@ export default function ExpertDetailPage() {
   const [loadError, setLoadError] = useState(false);
   const [tab, setTabState] = useState<Tab>(() => {
     if (typeof window !== 'undefined') {
-      // ?tab= 深链优先（2026-11-03 通知直达评审项目 tab），回退上次会话页签
-      const fromUrl = new URL(window.location.href).searchParams.get('tab') as Tab | null;
-      if (fromUrl && TABS.some((t) => t.key === fromUrl)) return fromUrl;
-      return (sessionStorage.getItem('expert-detail-tab') as Tab) || 'info';
+      // ?tab= 深链优先（2026-11-03 通知直达评审项目 tab），回退上次会话页签；
+      // 旧 tab 键（timeline/violations/ai-adoption）经 LEGACY_TAB 归组到合并后目标
+      const fromUrl = new URL(window.location.href).searchParams.get('tab');
+      if (fromUrl && LEGACY_TAB[fromUrl]) return LEGACY_TAB[fromUrl];
+      const stored = sessionStorage.getItem('expert-detail-tab');
+      if (stored && LEGACY_TAB[stored]) return LEGACY_TAB[stored];
+      return 'info';
     }
     return 'info';
   });
@@ -178,10 +183,6 @@ export default function ExpertDetailPage() {
   const [portrait, setPortrait] = useState<ExpertPortrait | null>(null);
   const [evaluations, setEvaluations] = useState<any[]>([]);
   const [violations, setViolations] = useState<any[]>([]);
-  const [notifyPrefs, setNotifyPrefs] = useState({ inApp: true, sms: false, phone: false });
-  const [notifyHistory, setNotifyHistory] = useState<NotifyHistoryItem[]>([]);
-  // AI 采纳率
-  const [aiAdoption, setAiAdoption] = useState<any>(null);
   const [risk, setRisk] = useState<ExpertRiskBrief | null>(null);
   const [riskError, setRiskError] = useState('');
   // Tab 失败态：区分「加载中 / 出错 / 真空」，出错不记缓存、可重试
@@ -257,13 +258,18 @@ export default function ExpertDetailPage() {
     let failed = false;
     const track = (p: Promise<unknown>) => p.catch(() => { failed = true; });
     const tasks: Promise<unknown>[] = [];
-    if (tab === 'portrait') tasks.push(track(getExpertPortrait(expertId).then(setPortrait)));
+    if (tab === 'portrait') {
+      tasks.push(track(getExpertPortrait(expertId).then(setPortrait)));
+      // 大事记时间线并入画像（2026-11-23）：评价与违规作时间线事件源
+      tasks.push(track(getExpertEvaluations(expertId).then(setEvaluations)));
+      tasks.push(track(getViolations(expertId).then(setViolations)));
+    }
     if (tab === 'evaluations') tasks.push(track(getExpertEvaluations(expertId).then(setEvaluations)));
-    if (tab === 'timeline') { tasks.push(track(getExpertEvaluations(expertId).then(setEvaluations))); tasks.push(track(getViolations(expertId).then(setViolations))); }
-    if (tab === 'violations') tasks.push(track(getViolations(expertId).then(setViolations)));
-    if (tab === 'ai-adoption') tasks.push(track(getAiAdoptionRate(expertId).then(setAiAdoption)));
-    if (tab === 'risk') tasks.push(track(getRiskBrief(expertId).then(setRisk).catch((e: any) => { setRiskError(e?.message || '风险简报生成失败'); throw e; })));
-    if (tab === 'notify') { tasks.push(track(getNotifyPrefs(expertId).then(setNotifyPrefs))); tasks.push(track(getNotifyHistory(expertId).then(setNotifyHistory))); }
+    if (tab === 'risk') {
+      tasks.push(track(getRiskBrief(expertId).then(setRisk).catch((e: any) => { setRiskError(e?.message || '风险简报生成失败'); throw e; })));
+      // 违规记录并入「风险与违规」（2026-11-23）
+      tasks.push(track(getViolations(expertId).then(setViolations)));
+    }
     Promise.all(tasks).finally(() => {
       setTabLoading(false);
       if (failed) setTabError(prev => ({ ...prev, [tab]: true }));
@@ -282,7 +288,7 @@ export default function ExpertDetailPage() {
   useEffect(() => {
     loadedTabsRef.current = new Set(['overview']);
     setTabError({});
-    setPortrait(null); setEvaluations([]); setViolations([]); setAiAdoption(null);
+    setPortrait(null); setEvaluations([]); setViolations([]);
     setRisk(null); setRiskError('');
   }, [expertId]);
 
@@ -296,13 +302,6 @@ export default function ExpertDetailPage() {
       getViolations(expertId).then(setViolations).catch(() => {});
     } catch (e: any) { toast.error(e?.message || '添加失败'); }
     setVioSaving(false);
-  };
-
-  const saveNotifyPrefs = async () => {
-    try {
-      await updateNotifyPrefs(expertId, notifyPrefs);
-      toast.success('通知偏好已保存');
-    } catch (e: any) { toast.error(e?.message || '保存失败'); }
   };
 
   const openEditProfile = () => {
@@ -597,26 +596,7 @@ export default function ExpertDetailPage() {
               </div>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {([
-              ['累计受邀', expert.invitationSummary.invited],
-              ['确认参加', expert.invitationSummary.confirmed],
-              ['婉拒/弃权', expert.invitationSummary.declined],
-              ['中途毁约', expert.invitationSummary.overrideAfterConfirm],
-              ['连续拒绝', expert.invitationSummary.consecutiveDeclined],
-            ] as [string, number][]).map(([label, value]) => (
-              <div key={label} className="rounded-[10px] px-3 py-2 text-center"
-                style={{
-                  background: (label === '连续拒绝' && value >= 3) || (label === '中途毁约' && value > 0)
-                    ? 'color-mix(in oklch, var(--danger) 7%, transparent)'
-                    : 'oklch(1 0 0 / 0.45)',
-                }}>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">{label}</div>
-                <div className="text-[1.3rem] font-black tabular-nums leading-tight"
-                  style={{ color: (label === '连续拒绝' && value >= 3) || (label === '中途毁约' && value > 0) ? 'var(--danger)' : 'var(--foreground)' }}>{value}</div>
-              </div>
-            ))}
-          </div>
+          {/* KPI 数字瓷片已删（2026-11-23 用户裁定）：预警徽章/横幅/毁约明细保留 */}
           {(expert.invitationSummary.breachEvents?.length ?? 0) > 0 && (
             <div className="mt-3 space-y-2">
               <div className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">邀请毁约记录（确认参加后被改为拒绝）</div>
@@ -738,92 +718,11 @@ export default function ExpertDetailPage() {
         </div>
       )}
 
-      {tab === 'timeline' && (() => {
-        const timelineEvents: { time: string; type: string; title: string; detail: string; tone: 'accent' | 'green' | 'orange' | 'red' | 'gray' }[] = [];
-
-        // 1. 注册
-        timelineEvents.push({ time: new Date(expert.createdAt).toISOString(), type: '入库', title: '加入专家库', detail: `以「${expert.expertProfile?.specialty || ''}」专业入库`, tone: 'accent' });
-
-        // 2. 评审项目分配
-        for (const a of expert.assignments) {
-          timelineEvents.push({
-            time: a.project.openTime || a.id,
-            type: '项目分配',
-            title: `参与评审「${a.project.name}」`,
-            detail: `专业:${a.major} · 状态:${STAGE_LABEL[a.project.stage] || a.project.stage} · 进度:${a.progress}% · 得分:${Number(a.totalScore)}`,
-            tone: a.progress >= 100 ? 'green' : 'orange',
-          });
-        }
-
-        // 3. 评价记录
-        for (const ev of evaluations) {
-          timelineEvents.push({
-            time: ev.createdAt,
-            type: '履职评价',
-            title: `${LEVEL_LABEL[ev.overallGrade] || ev.overallGrade}级`,
-            detail: `出勤${ev.attendanceGrade || '—'}/质量${ev.qualityGrade || '—'}/廉洁${ev.disciplineGrade || '—'} · 评价人:${ev.evaluator?.displayName || '—'}${ev.comment ? ' · ' + ev.comment : ''}`,
-            tone: ev.overallGrade === 'A' ? 'green' : ev.overallGrade === 'B' ? 'accent' : ev.overallGrade === 'E' ? 'red' : ev.overallGrade === 'D' ? 'orange' : 'orange',
-          });
-        }
-
-        // 4. 违规记录
-        for (const v of violations) {
-          const d = v.details || {};
-          timelineEvents.push({
-            time: v.createdAt,
-            type: '违规记录',
-            title: d.type || '违规',
-            detail: `${d.detail || ''} · 严重程度:${d.severity === 'danger' ? '严重' : '警告'} · 记录人:${v.user?.displayName || '系统'}`,
-            tone: d.severity === 'danger' ? 'red' : 'orange',
-          });
-        }
-
-        timelineEvents.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-
-        const toneColors: Record<string, string> = { accent: 'var(--accent)', green: 'var(--success)', orange: 'var(--warning)', red: 'var(--danger)', gray: 'var(--muted-foreground)' };
-        const typeIcons: Record<string, string> = { '入库': '●', '项目分配': '◉', '履职评价': '◆', '违规记录': '▲' };
-
-        return timelineEvents.length === 0 ? (
-          <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">暂无大事记数据</div>
-        ) : (
-          <div className="neu-table-card p-5">
-            <div className="relative pl-6 border-l-2 border-[var(--muted)]/20 space-y-4">
-              {timelineEvents.map((ev, i) => (
-                <div key={i} className="relative">
-                  <span className="absolute left-[-1.35rem] top-1 text-[10px]" style={{ color: toneColors[ev.tone] }}>{typeIcons[ev.type] || '●'}</span>
-                  <div className="text-[10px] text-[var(--muted-foreground)]/60 tabular-nums mb-0.5">
-                    {new Date(ev.time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <StatusBadge tone={ev.tone === 'accent' ? 'blue' : ev.tone as any}>{ev.type}</StatusBadge>
-                    <span className="text-sm font-bold text-[var(--foreground)]">{ev.title}</span>
-                  </div>
-                  <p className="text-xs text-[var(--muted-foreground)] mt-0.5 leading-relaxed">{ev.detail}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
+      {/* 大事记时间线已并入「画像」tab（2026-11-23 用户裁定：数据与评审项目/评价/违规同源，独立 tab 撤销） */}
 
       {tab === 'portrait' && portrait && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ['参与项目', `${portrait.participationCount} 个`],
-              ['完成率', `${Math.round(portrait.completionRate * 100)}%`],
-              ['A 级次数', portrait.gradeCounts?.A != null ? `${portrait.gradeCounts.A} 次` : '—'],
-              ['常委资格', portrait.isStandingExpert ? '是' : '否'],
-              ['评分偏离度', portrait.meanDeviation != null ? `${portrait.meanDeviation > 0 ? '+' : ''}${portrait.meanDeviation}` : '—'],
-              ['偏离样本', `${portrait.deviationSamples} 条`],
-              ['获评次数', `${portrait.evalCount} 次`],
-            ].map(([label, value]) => (
-              <div key={label} className="kpi-card flex flex-col gap-1 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-                <span className="text-[1.35rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
-              </div>
-            ))}
-          </div>
+          {/* KPI 卡片已删（2026-11-23 用户裁定）——画像保留等级趋势 + 大事记时间线（原独立 tab 并入） */}
           {portrait.recentLevels.length > 0 && (
             <div className="neu-table-card p-4">
               <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">近期评价等级趋势</span>
@@ -834,6 +733,74 @@ export default function ExpertDetailPage() {
               </div>
             </div>
           )}
+          {(() => {
+            const timelineEvents: { time: string; type: string; title: string; detail: string; tone: 'accent' | 'green' | 'orange' | 'red' | 'gray' }[] = [];
+
+            // 1. 注册
+            timelineEvents.push({ time: new Date(expert.createdAt).toISOString(), type: '入库', title: '加入专家库', detail: `以「${expert.expertProfile?.specialty || ''}」专业入库`, tone: 'accent' });
+
+            // 2. 评审项目分配
+            for (const a of expert.assignments) {
+              timelineEvents.push({
+                time: a.project.openTime || a.id,
+                type: '项目分配',
+                title: `参与评审「${a.project.name}」`,
+                detail: `专业:${a.major} · 状态:${STAGE_LABEL[a.project.stage] || a.project.stage} · 进度:${a.progress}% · 得分:${Number(a.totalScore)}`,
+                tone: a.progress >= 100 ? 'green' : 'orange',
+              });
+            }
+
+            // 3. 评价记录
+            for (const ev of evaluations) {
+              timelineEvents.push({
+                time: ev.createdAt,
+                type: '履职评价',
+                title: `${LEVEL_LABEL[ev.overallGrade] || ev.overallGrade}级`,
+                detail: `出勤${ev.attendanceGrade || '—'}/质量${ev.qualityGrade || '—'}/廉洁${ev.disciplineGrade || '—'} · 评价人:${ev.evaluator?.displayName || '—'}${ev.comment ? ' · ' + ev.comment : ''}`,
+                tone: ev.overallGrade === 'A' ? 'green' : ev.overallGrade === 'B' ? 'accent' : ev.overallGrade === 'E' ? 'red' : ev.overallGrade === 'D' ? 'orange' : 'orange',
+              });
+            }
+
+            // 4. 违规记录
+            for (const v of violations) {
+              const d = v.details || {};
+              timelineEvents.push({
+                time: v.createdAt,
+                type: '违规记录',
+                title: d.type || '违规',
+                detail: `${d.detail || ''} · 严重程度:${d.severity === 'danger' ? '严重' : '警告'} · 记录人:${v.user?.displayName || '系统'}`,
+                tone: d.severity === 'danger' ? 'red' : 'orange',
+              });
+            }
+
+            timelineEvents.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+            const toneColors: Record<string, string> = { accent: 'var(--accent)', green: 'var(--success)', orange: 'var(--warning)', red: 'var(--danger)', gray: 'var(--muted-foreground)' };
+            const typeIcons: Record<string, string> = { '入库': '●', '项目分配': '◉', '履职评价': '◆', '违规记录': '▲' };
+
+            return timelineEvents.length === 0 ? (
+              <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">暂无大事记数据</div>
+            ) : (
+              <div className="neu-table-card p-5">
+                <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">大事记</span>
+                <div className="relative pl-6 border-l-2 border-[var(--muted)]/20 space-y-4 mt-3">
+                  {timelineEvents.map((ev, i) => (
+                    <div key={i} className="relative">
+                      <span className="absolute left-[-1.35rem] top-1 text-[10px]" style={{ color: toneColors[ev.tone] }}>{typeIcons[ev.type] || '●'}</span>
+                      <div className="text-[10px] text-[var(--muted-foreground)]/60 tabular-nums mb-0.5">
+                        {new Date(ev.time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <StatusBadge tone={ev.tone === 'accent' ? 'blue' : ev.tone as any}>{ev.type}</StatusBadge>
+                        <span className="text-sm font-bold text-[var(--foreground)]">{ev.title}</span>
+                      </div>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-0.5 leading-relaxed">{ev.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
       {tab === 'portrait' && !portrait && !tabError.portrait && (
@@ -848,19 +815,7 @@ export default function ExpertDetailPage() {
 
       {tab === 'risk' && risk && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ['评分偏离度', risk.signals.meanDeviation != null ? `${risk.signals.meanDeviation > 0 ? '+' : ''}${risk.signals.meanDeviation}` : '—'],
-              ['偏离风险', risk.signals.deviationRisk === 'high' ? '高' : risk.signals.deviationRisk === 'medium' ? '中' : '低'],
-              ['近期E级评价', `${risk.signals.recentECount} 次`],
-              ['违规记录', `${risk.signals.violationCount} 条`],
-            ].map(([label, value]) => (
-              <div key={label} className="kpi-card flex flex-col gap-1 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-                <span className="text-[1.35rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
-              </div>
-            ))}
-          </div>
+          {/* KPI 卡片已删（2026-11-23 用户裁定）——风险面保留 AI/规则简报 + 违规记录（原独立 tab 并入） */}
           <div className="neu-table-card p-4 space-y-2">
             <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">风险简报{risk.aiBrief ? '（AI 生成）' : '（规则判定）'}</span>
             <p className="text-sm leading-relaxed text-[var(--foreground)]">{risk.aiBrief || risk.ruleBrief}</p>
@@ -933,44 +888,10 @@ export default function ExpertDetailPage() {
         </div>
       )}
 
-      {tab === 'ai-adoption' && (
-        tabLoading ? <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div> :
-        tabError['ai-adoption'] ? (
-          <div className="neu-table-card py-14 text-center">
-            <p className="text-sm font-semibold text-[var(--danger)] mb-3">加载失败，点击重试</p>
-            <button onClick={() => retryTab('ai-adoption')} className="neu-btn-xs is-info"><RefreshCw size={12} />重试</button>
-          </div>
-        ) :
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[
-              ['评分记录', aiAdoption?.overall?.total ?? 0, '参与评分项数'],
-              ['AI采纳', aiAdoption?.overall?.accepted ?? 0, '与AI建议一致'],
-              ['采纳率', `${aiAdoption?.overall?.adoptionRate ?? 0}%`, '与 AI 建议一致比例'],
-              ['平均偏离', aiAdoption?.overall?.total > 0 ? '±' + Math.round(aiAdoption?.byExpert?.find((e: any) => e.expertId === expertId)?.avgAbsDelta || 0) : '—', '偏离度绝对值'],
-            ].map(([label, value, sub]) => (
-              <div key={label} className="kpi-card flex flex-col gap-1 p-3">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-                <span className="text-[1.35rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{String(value)}</span>
-                <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub}</span>
-              </div>
-            ))}
-          </div>
-          {!aiAdoption || aiAdoption.overall.total === 0 ? (
-            <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">该专家暂无AI评分对比数据</div>
-          ) : (
-            <div className="neu-table-card p-4">
-              <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">说明</span>
-              <p className="text-xs text-[var(--muted-foreground)] mt-2 leading-relaxed">
-                AI 采纳率反映专家评分与 AI 建议分的一致程度（偏差 ±10% 内视为一致），仅作参考指标。
-                专家独立评分是评审制度的基本要求，采纳率高低本身不构成好坏判定——偏离 AI 既可能是专业判断的差异，也可能是 AI 建议失准。请结合具体评审场景综合研判。
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* 「AI采纳率」tab 已删（2026-11-23 用户裁定）：KPI 删后仅剩免责说明文字、且逐项目明细
+          （接口 byExpert）从未渲染——纯摆设无信息量；深链 ?tab=ai-adoption 经 LEGACY_TAB 归组至评价历史 */}
 
-      {tab === 'violations' && (
+      {tab === 'risk' && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold tracking-[0.06em] uppercase text-[var(--muted-foreground)]">违规记录 · {tabLoading ? '—' : `${violations.length} 条`}</span>
@@ -991,11 +912,6 @@ export default function ExpertDetailPage() {
           )}
           {tabLoading ? (
             <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]"><RefreshCw size={14} className="animate-spin inline mr-2" />加载中...</div>
-          ) : tabError.violations ? (
-            <div className="neu-table-card py-14 text-center">
-              <p className="text-sm font-semibold text-[var(--danger)] mb-3">加载失败，点击重试</p>
-              <button onClick={() => retryTab('violations')} className="neu-btn-xs is-info"><RefreshCw size={12} />重试</button>
-            </div>
           ) : violations.length === 0 ? (
             <div className="neu-table-card py-14 text-center text-sm text-[var(--muted-foreground)]">暂无违规记录</div>
           ) : (
@@ -1020,68 +936,6 @@ export default function ExpertDetailPage() {
           )}
         </div>
       )}
-
-      {tab === 'notify' && (
-        <div className="neu-table-card p-5 space-y-4">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><Bell size={14} className="text-[var(--accent)]" /></div>
-            <span className="text-sm font-bold text-[var(--foreground)]">通知偏好设置</span>
-          </div>
-          <div className="space-y-3">
-            {[
-              { key: 'inApp' as const, icon: Bell, label: 'OA站内信', desc: '通过站内信接收评审任务通知' },
-              { key: 'sms' as const, icon: MessageSquare, label: '短信通知', desc: '通过短信接收评审任务通知' },
-              { key: 'phone' as const, icon: Phone, label: '电话通知', desc: '通过语音电话接收紧急通知' },
-            ].map(ch => (
-              <div key={ch.key} className="flex items-center justify-between rounded-xl bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-                <div className="flex items-center gap-3">
-                  <ch.icon size={18} className="text-[var(--muted-foreground)]" />
-                  <div>
-                    <div className="text-sm font-semibold text-[var(--foreground)]">{ch.label}</div>
-                    <div className="text-[11px] text-[var(--muted-foreground)]">{ch.desc}</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setNotifyPrefs(prev => ({ ...prev, [ch.key]: !prev[ch.key] }))}
-                  className="neu-toggle"
-                  data-on={notifyPrefs[ch.key]}
-                  aria-pressed={notifyPrefs[ch.key]}
-                  aria-label={`${ch.label}通知`}
-                >
-                  <span className="neu-toggle__knob" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button onClick={saveNotifyPrefs} className="neu-btn-soft w-full justify-center">保存偏好设置</button>
-
-          {/* 通知发送历史 */}
-          <hr className="wb-section-rule" />
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <History size={13} className="text-[var(--muted-foreground)]" />
-              <span className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">最近通知记录</span>
-            </div>
-            {notifyHistory.length === 0 ? (
-              <p className="text-xs text-[var(--muted-foreground)]">该专家暂无通知发送记录</p>
-            ) : (
-              <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                {notifyHistory.map((item, i) => {
-                  const chLabel = item.channel === 'in_app' ? '站内信' : item.channel === 'sms' ? '短信' : item.channel === 'phone' ? '电话' : item.channel;
-                  return (
-                    <div key={i} className="flex items-center gap-3 rounded-lg bg-[color-mix(in_oklch,var(--surface)_60%,transparent)] px-3 py-1.5 text-xs">
-                      <span className="font-semibold text-[var(--foreground)] capitalize">{chLabel}</span>
-                      <StatusBadge tone={item.status === 'sent' ? 'green' : item.status === 'failed' ? 'red' : 'orange'}>{item.status === 'sent' ? '已送达' : item.status === 'failed' ? '失败' : item.status}</StatusBadge>
-                      <span className="tabular-nums text-[var(--muted-foreground)] ml-auto">{new Date(item.time).toLocaleDateString('zh-CN')} {new Date(item.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
 
       {/* 邀请代回应/代变更弹窗（2026-10-21 留痕通道：必填理由） */}
       {inviteProxy && (

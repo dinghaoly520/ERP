@@ -18,6 +18,7 @@ import {
   type AnnouncementType,
 } from '@/lib/api/announcement';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
+import { formatYuanExact } from '@/lib/format';
 import { UploadProgressRow } from '../upload/upload-progress-row';
 import { uploadProjectStageAttachment, getPmBidProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getBidProjectDetail } from '@/lib/api/bid';
@@ -334,7 +335,7 @@ const PORTAL_META_FIELDS: Record<string, PortalMetaField[]> = {
     { key: 'changeReason', label: '补遗事由', area: true },
   ],
 };
-/** 元数据值格式化（门户同款：日期 locale 化、预算/金额万元化） */
+/** 元数据值格式化（门户同款：日期 locale 化、预算/金额原始数字精确显示——不四舍五入，2026-11-23 用户裁定） */
 function portalFormatMetaValue(field: PortalMetaField, raw: unknown): string {
   if (raw == null || raw === '') return '';
   if (field.date) {
@@ -343,8 +344,7 @@ function portalFormatMetaValue(field: PortalMetaField, raw: unknown): string {
     return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
   if ((field.key === 'budget' || field.key === 'amount') && raw) {
-    const n = Number(raw);
-    if (!isNaN(n) && n >= 10000) return (n / 10000).toFixed(0) + ' 万元';
+    return formatYuanExact(raw);
   }
   return String(raw);
 }

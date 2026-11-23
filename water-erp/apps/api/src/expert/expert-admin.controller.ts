@@ -25,7 +25,6 @@ import {
   ImportCsvDto,
   ImportBatchApproveDto,
   RecordViolationDto,
-  NotifyPrefsDto,
   OcrIntakeDto,
   AiSuggestEvaluationDto,
   AnalyzeExtractionFilesDto,
@@ -331,12 +330,6 @@ export class ExpertAdminController {
     return this.expertAdminService.getLoadDistribution(req.user, companyId);
   }
 
-  @Get('ai-adoption')
-  @ApiOperation({ summary: 'AI 采纳率（专家分 vs AI 建议分；公司隔离）' })
-  getAiAdoptionRate(@Query('expertId') expertId?: string, @Request() req: any = {}) {
-    return this.expertAdminService.getAiAdoptionRate(expertId, req.user);
-  }
-
   @Get('violations')
   @ApiOperation({ summary: '违规记录列表（公司隔离）' })
   getViolations(@Query('expertId') expertId?: string, @Request() req: any = {}) {
@@ -488,24 +481,6 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '记录专家违规（公司隔离）' })
   recordViolation(@Param('id') id: string, @Body() dto: RecordViolationDto, @Request() req: any) {
     return this.expertAdminService.recordViolation(id, dto, req.user?.sub, req.user);
-  }
-
-  @Get(':id/notify-history')
-  @ApiOperation({ summary: '专家通知发送历史（最近 50 条；公司隔离）' })
-  getNotifyHistory(@Param('id') id: string, @Request() req: any = {}) {
-    return this.expertAdminService.getNotifyHistory(id, req.user);
-  }
-
-  @Get(':id/notify-prefs')
-  @ApiOperation({ summary: '专家通知偏好（公司隔离）' })
-  getNotifyPrefs(@Param('id') id: string, @Request() req: any = {}) {
-    return this.expertAdminService.getNotifyPrefs(id, req.user);
-  }
-
-  @Patch(':id/notify-prefs')
-  @ApiOperation({ summary: '更新专家通知偏好（公司隔离）' })
-  updateNotifyPrefs(@Param('id') id: string, @Body() dto: NotifyPrefsDto, @Request() req: any = {}) {
-    return this.expertAdminService.updateNotifyPrefs(id, dto, req.user);
   }
 
   @Patch(':id/status')

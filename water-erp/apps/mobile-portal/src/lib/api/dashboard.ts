@@ -244,6 +244,25 @@ export type DashboardData = {
     awardedSupplierName: string | null;
     participantCount: number;
   }>;
+  /** 节资公司榜（2026-11-23 用户裁定：节资排行板块——全部/多选公司时展示）
+   *  口径同 summary.totalSavings（AWARDED·预算≥成交），按节资额降序，随时间/公司选择器适配 */
+  companySavingsRanking: Array<{
+    companyId: string;
+    company: string;
+    savings: number;
+    savingsRate: number;
+    count: number;
+  }>;
+  /** 节资部门榜（2026-11-23：恒展示；全部/多选公司时行标「公司 · 部门」，单公司不标）
+   *  行=公司×部门，按节资额降序 Top 10 */
+  departmentSavingsRanking: Array<{
+    department: string;
+    company: string;
+    savings: number;
+    savingsRate: number;
+    count: number;
+    topProject: string;
+  }>;
   riskProjects: Array<{
     project: string;
     department: string;

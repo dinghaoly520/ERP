@@ -2011,7 +2011,8 @@ export class ExpertAdminService {
         where: { user: { role: 'bid_expert', isActive: true } },
         _count: true,
         orderBy: { _count: { specialty: 'desc' } },
-        take: 4,
+        // Top 10（2026-11-23 用户裁定 :3011 专业分布 4→10；:3010 大屏自切 4 不受影响）
+        take: 10,
       }),
       this.prisma.expertProfile.groupBy({
         by: ['title'],
@@ -2069,21 +2070,21 @@ export class ExpertAdminService {
       ? Math.round(deviations.reduce((s, d) => s + d.meanDeviation, 0) / deviations.length * 10) / 10
       : 0;
 
-    // 职称归类
-    const titleBuckets: Record<string, number> = {};
-    for (const t of titleGroups) {
-      const raw = (t.title ?? '').trim();
-      let cat: string;
-      if (!raw) cat = '未填写';
-      else if (raw.includes('教授') || raw.includes('正高')) cat = '教授级高工';
-      else if (raw.includes('高工') || raw.includes('高级')) cat = '高级工程师';
-      else if (raw.includes('工程师') || raw.includes('中级')) cat = '工程师';
-      else cat = '其他';
-      titleBuckets[cat] = (titleBuckets[cat] ?? 0) + t._count;
-    }
-    const titles = Object.entries(titleBuckets)
-      .map(([name, count]) => ({ name, count }))
+    // 职称分布（2026-11-23 用户裁定：:3011 前 9 种 + 其他）——按原始职称值计（弃四类归并：
+    // 旧口径把高级经济师/高级政工师并进「高级工程师」，职称结构失真），空值/空白与其余
+    // 种类归「其他」（无余量不出行）；titleKindCount=有名职称去重数（不含其他/空值）
+    const namedTitles = titleGroups
+      .filter((t) => (t.title ?? '').trim())
+      .map((t) => ({ name: (t.title ?? '').trim(), count: t._count }))
       .sort((a, b) => b.count - a.count);
+    const blankTitleCount = titleGroups
+      .filter((t) => !(t.title ?? '').trim())
+      .reduce((s, t) => s + t._count, 0);
+    const restTitleCount = namedTitles.slice(9).reduce((s, t) => s + t.count, 0) + blankTitleCount;
+    const titles = [
+      ...namedTitles.slice(0, 9),
+      ...(restTitleCount > 0 ? [{ name: '其他', count: restTitleCount }] : []),
+    ];
 
     return {
       total,
@@ -2101,6 +2102,7 @@ export class ExpertAdminService {
       specialties,
       evaluation: { levelCounts, excellentRatio, total: evalTotal, avgScoreDeviation: avgDeviation },
       titles,
+      titleKindCount: namedTitles.length,
     };
   }
 
@@ -3269,51 +3271,6 @@ export class ExpertAdminService {
     }
   }
 
-  /** AI 采纳率（基于 BidScoreDelta：专家分 vs AI 建议分；公司隔离） */
-  async getAiAdoptionRate(expertId?: string, user?: AuthenticatedUser) {
-    const f = await this.expertScopeFilter(user);
-    if (expertId && user) await this.assertExpertInScope(expertId, user);
-    // BidScoreDelta.expertId 指向 BidExpert.id，需映射到 userId 供前端按专家过滤
-    // 公司过滤须挂在 user 关系上（BidExpert 无 companyId 直列）
-    const assignments = await this.prisma.bidExpert.findMany({
-      where: expertId ? { userId: expertId } : { user: { role: 'bid_expert', ...f } },
-      select: { id: true, userId: true },
-    });
-    const expertIdToUser = new Map(assignments.map(a => [a.id, a.userId]));
-
-    const deltas = await this.prisma.bidScoreDelta.findMany({
-      where: assignments.length > 0 ? { expertId: { in: assignments.map(a => a.id) } } : undefined,
-      select: { expertId: true, delta: true, accepted: true },
-    });
-
-    const total = deltas.length;
-    const accepted = deltas.filter(d => d.accepted).length;
-
-    const byUser = new Map<string, number[]>();
-    for (const d of deltas) {
-      const uid = expertIdToUser.get(d.expertId);
-      if (!uid) continue;
-      const arr = byUser.get(uid) ?? [];
-      arr.push(Math.abs(Number(d.delta)));
-      byUser.set(uid, arr);
-    }
-    const byExpert = [...byUser.entries()].map(([id, vals]) => ({
-      expertId: id,
-      avgAbsDelta: vals.length > 0 ? Math.round(vals.reduce((s, x) => s + x, 0) / vals.length) : 0,
-    }));
-
-    return {
-      overall: {
-        total,
-        accepted,
-        adoptionRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
-      },
-      byExpert,
-      // 可观测：LLM 调用/错误/降级计数与最近耗时（供前端评估 AI 健康度）
-      llm: this.extractionAi.getMetrics(),
-    };
-  }
-
   /* AI 深化能力（OCR 录入 / 风险预警 / 抽取复盘，均带规则兜底降级） */
 
   /** 资质 OCR 自动录入：识别证书/证件图片 → LLM 结构化 → 返回表单字段供前端回填。
@@ -3763,49 +3720,6 @@ ${combined}`,
       aiSummary = null;
     }
     return { summary, experts: rows, aiSummary };
-  }
-
-  /* ── 通知偏好（UserSettings.notificationPrefs）── */
-
-  async getNotifyPrefs(userId: string, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    const settings = await this.prisma.userSettings.findUnique({ where: { userId } });
-    const prefs = (settings?.notificationPrefs as Record<string, boolean> | null) ?? {};
-    return { inApp: prefs.inApp ?? true, sms: prefs.sms ?? false, phone: prefs.phone ?? false };
-  }
-
-  async updateNotifyPrefs(userId: string, dto: { inApp?: boolean; sms?: boolean; phone?: boolean }, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    const existing = await this.prisma.userSettings.findUnique({ where: { userId } });
-    const current = (existing?.notificationPrefs as Record<string, boolean> | null) ?? {};
-    const merged = { ...current, ...dto };
-    await this.prisma.userSettings.upsert({
-      where: { userId },
-      update: { notificationPrefs: merged },
-      create: { userId, notificationPrefs: merged },
-    });
-    return { success: true };
-  }
-
-  /** 专家通知发送历史（最近 50 条），供详情页查看（公司隔离） */
-  async getNotifyHistory(userId: string, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const logs = await this.prisma.notificationDeliveryLog.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: { channel: true, status: true, error: true, createdAt: true },
-    });
-    return logs.map(l => ({
-      channel: l.channel,
-      status: l.status,
-      error: l.error,
-      time: l.createdAt.toISOString(),
-    }));
   }
 
   /* 操作历史（审计，只读） */

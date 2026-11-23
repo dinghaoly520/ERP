@@ -4,7 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnalysisZone, ZoneRow } from "@/components/m/analysis-zone";
 import { fetchAnnouncements, fetchAnnouncementDetail, ANNOUNCEMENT_TABS, typeOf, matchesTab, type AnnouncementItem, type AnnouncementDetail } from "@/lib/api/announcement";
-import { fetchSupplierLibrary, SUPPLIER_STATUS_LABELS, type SupplierItem } from "@/lib/api/supplier";
+import {
+  fetchSupplierLibrary,
+  fetchSupplierLibraryStats,
+  fetchSupplierIndustries,
+  fetchSupplierEnterpriseTypes,
+  fetchSupplierEvalStats,
+  SUPPLIER_STATUS_LABELS,
+  type SupplierItem,
+  type SupplierLibraryStats,
+  type SupplierIndustryBucket,
+  type SupplierEvalStats,
+} from "@/lib/api/supplier";
+import { normalizeEnterpriseType } from "@/lib/enterprise-type";
+import { LEVEL_LABEL } from "@water-erp/shared";
 import {
   Award, Search, ClipboardList, Megaphone, ChartNoAxesCombined,
   AlertCircle,
@@ -25,7 +38,6 @@ import {
   PieChart,
   Radio,
   Gauge,
-  GraduationCap,
   TrendingUp,
   Trophy,
   Users,
@@ -51,6 +63,7 @@ import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, type ProgressStats } from "@/lib/api/progress";
 import { RANGES, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
+import { SAVINGS_BAR_COLORS, barColorAt, barFill } from "@/lib/bar-style";
 
 /** PMI 阶段键→中文（数据分析进行中区；与进展页 STAGE_META 同 canon 词面） */
 function PMI_STAGE_LABELS_OF(key: string): string {
@@ -62,17 +75,12 @@ function PMI_STAGE_LABELS_OF(key: string): string {
   return m[key] ?? key;
 }
 
-/** 部门分布指示条色板（2026-11-19 用户裁定：丰富色彩）——八色循环，与 DONUT_COLORS 同族 */
-const DEPT_BAR_COLORS = [
-  "var(--accent)",
-  "var(--gold)",
-  "oklch(0.55 0.14 285)",
-  "oklch(0.55 0.11 168)",
-  "var(--warning)",
-  "oklch(0.55 0.1 228)",
-  "oklch(0.58 0.14 25)",
-  "oklch(0.6 0.12 188)",
-];
+/* 比例条色板/填充统一走 @/lib/bar-style（2026-11-23 所有比例条增色裁定） */
+
+/** 专家名录每页条数（2026-11-23 用户裁定） */
+const EXPERT_PAGE_SIZE = 10;
+/** 供应商名录每页条数（2026-11-23 用户裁定：与专家名录同款） */
+const SUPPLIER_PAGE_SIZE = 10;
 
 const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
   running: "运行中项目",
@@ -92,6 +100,8 @@ import { Chip } from "@/components/m/chip";
 import { ErrorBanner } from "@/components/m/error-banner";
 import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
+import { ExpertDetailSheet } from "@/components/m/expert-detail-sheet";
+import { SupplierDetailSheet } from "@/components/m/supplier-detail-sheet";
 import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { usePolling } from "@/hooks/use-polling";
@@ -134,6 +144,8 @@ const DONUT_COLORS = [
   "var(--gold)",
   "oklch(0.55 0.12 285)",
   "oklch(0.6 0.12 188)",
+  "oklch(0.55 0.11 168)",
+  "oklch(0.58 0.14 25)",
 ];
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
@@ -241,6 +253,56 @@ function ProjectRow({
         <span className={`shrink-0 text-[14px] ${statusColor(status)}`}>{status}</span>
       </div>
       {extra ? <div className="mt-0.5 text-[14px] text-[var(--danger)]">{extra}</div> : null}
+    </div>
+  );
+}
+
+/* ── 节资榜行（公司榜/部门榜共用，2026-11-23）：前三徽章 + 名称（+公司胶囊）+ 节资额
+ *    + 元信息行（N 项 · 节资率）+ 占比条（相对榜首）── */
+
+function SavingsRankRow({
+  rank,
+  name,
+  chip,
+  savings,
+  max,
+  meta,
+  color,
+}: {
+  rank: number;
+  name: string;
+  chip?: string;
+  savings: number;
+  max: number;
+  meta: string;
+  /** 条体色（SAVINGS_BAR_COLORS 按行序——前三与徽章同色） */
+  color: string;
+}) {
+  return (
+    <div className="rounded-[12px] m-tile px-3 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black ${rank === 1 ? "bg-[color-mix(in_oklch,var(--success)_18%,transparent)] text-[var(--success)]" : rank === 2 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : rank === 3 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}
+        >
+          {rank}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-semibold leading-snug text-[var(--foreground)]">{name}</span>
+          <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+            {chip ? (
+              <span className="max-w-[8.5rem] shrink-0 truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[var(--accent)]">{chip}</span>
+            ) : null}
+            <span className="truncate tabular-nums">{meta}</span>
+          </span>
+        </span>
+        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--success)]"><span className="font-semibold text-[var(--muted-foreground)]">节资 </span>{fmtWan(savings)}</span>
+      </div>
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+        <span
+          className="block h-full rounded-full transition-[width] duration-300"
+          style={{ width: `${max > 0 ? (savings / max) * 100 : 0}%`, background: barFill(color) }}
+        />
+      </div>
     </div>
   );
 }
@@ -363,8 +425,21 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   }, [rankingRange, retryTick]);
 
 
-  /* 专家搜索+列表（2026-11-20 用户裁定：可搜索全部专家+点开看信息） */
+  /* 专家搜索+列表（2026-11-20 用户裁定：可搜索全部专家+点开看信息；2026-11-23 裁定每页 10 人）
+     ——服务端分页 + 服务端搜索（300ms 防抖）：原取 50 条本地筛/切 20，库 180 人只能搜到前 50。
+     查询态合一 {search,page,scope}：词变回第 1 页、公司口径变回第 1 页（scope 不匹配时页码派生为 1，
+     不在 effect 内同步 setState） */
   const [expertSearch, setExpertSearch] = useState("");
+  const companyKey = companyIds.join(",");
+  const [expertQuery, setExpertQuery] = useState<{ search: string; page: number; scope: string }>({ search: "", page: 1, scope: "" });
+  const expertPage = expertQuery.scope === companyKey ? expertQuery.page : 1;
+  useEffect(() => {
+    const kw = expertSearch.trim();
+    const t = window.setTimeout(() => {
+      setExpertQuery((q) => (q.search === kw && q.scope === companyKey ? q : { search: kw, page: 1, scope: companyKey }));
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [expertSearch, companyKey]);
   const [expertList, setExpertList] = useState<ExpertListItem[] | null>(null);
   const [expertTotal, setExpertTotal] = useState(0);
   const [expertPick, setExpertPick] = useState<ExpertListItem | null>(null);
@@ -372,11 +447,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     if (analysisOpen !== "experts") return;
     let active = true;
     setExpertList(null);
-    fetchExpertList({ pageSize: 50, companyId: companyIds.length ? companyIds.join(",") : undefined })
+    fetchExpertList({
+      pageSize: EXPERT_PAGE_SIZE,
+      page: expertPage,
+      search: expertQuery.search || undefined,
+      companyId: companyIds.length ? companyKey : undefined,
+    })
       .then((r) => { if (active) { setExpertList(r.items); setExpertTotal(r.total); } })
       .catch(() => { if (active) setExpertList([]); });
     return () => { active = false; };
-  }, [analysisOpen, companyIds]);
+  }, [analysisOpen, companyIds, companyKey, expertQuery.search, expertPage]);
+  const expertPages = Math.max(1, Math.ceil(expertTotal / EXPERT_PAGE_SIZE));
 
   /* 口径窗（置于消费方 effect 之前——依赖数组渲染期取值不可前向引用） */
   const queryRange = useMemo<{ startDate?: string; endDate?: string }>(
@@ -582,18 +663,68 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .catch(() => setAnnDetail(null))
       .finally(() => setAnnDetailLoading(false));
   };
-  /* 供应商库（2026-11-19 用户裁定：放真供应商库——非 dashboard 成交统计） */
+  /* 供应商板块（2026-11-19 放真供应商库；2026-11-23 用户裁定：加「供应商分布」分析板块 + 名录重设计
+     + 详情弹层）。名录=服务端分页每页 10 + 服务端搜索（300ms 防抖，同专家名录），库视图
+     status=exclude:PENDING,RETURNED（与 :3005 供应商库「全部」tab 同口径，总数=stats.total） */
+  const [supplierLibStats, setSupplierLibStats] = useState<SupplierLibraryStats | null>(null);
+  const [supplierIndustries, setSupplierIndustries] = useState<SupplierIndustryBucket[] | null>(null);
+  const [supplierEntTypes, setSupplierEntTypes] = useState<Array<{ name: string; count: number }> | null>(null);
+  const [supplierEvalStats, setSupplierEvalStats] = useState<SupplierEvalStats | null>(null);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierQuery, setSupplierQuery] = useState<{ search: string; page: number; scope: string }>({ search: "", page: 1, scope: "" });
+  const supplierPage = supplierQuery.scope === companyKey ? supplierQuery.page : 1;
   const [supplierLib, setSupplierLib] = useState<SupplierItem[] | null>(null);
   const [supplierTotal, setSupplierTotal] = useState(0);
-  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierPick, setSupplierPick] = useState<SupplierItem | null>(null);
   useEffect(() => {
-    if (analysisOpen !== "supplier" || supplierLib) return;
+    const kw = supplierSearch.trim();
+    const t = window.setTimeout(() => {
+      setSupplierQuery((q) => (q.search === kw && q.scope === companyKey ? q : { search: kw, page: 1, scope: companyKey }));
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [supplierSearch, companyKey]);
+  /* 四统计（库状态/行业/企业类型/评价等级）随公司口径与重试重取；企业类型原始桶客户端归并主类 */
+  useEffect(() => {
+    if (analysisOpen !== "supplier") return;
     let active = true;
-    fetchSupplierLibrary({ pageSize: 50, status: 'APPROVED' })
+    const cid = companyKey || undefined;
+    Promise.all([
+      fetchSupplierLibraryStats(cid),
+      fetchSupplierIndustries(cid),
+      fetchSupplierEnterpriseTypes(cid).catch(() => ({ counts: {} as Record<string, number> })),
+      fetchSupplierEvalStats(cid).catch(() => ({ levelCounts: {} as Record<string, number>, excellentRatio: 0, total: 0 })),
+    ])
+      .then(([st, ind, ent, ev]) => {
+        if (!active) return;
+        setSupplierLibStats(st);
+        setSupplierIndustries(ind);
+        const merged = new Map<string, number>();
+        for (const [raw, n] of Object.entries(ent.counts)) {
+          const k = normalizeEnterpriseType(raw);
+          merged.set(k, (merged.get(k) ?? 0) + n);
+        }
+        setSupplierEntTypes([...merged.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count));
+        setSupplierEvalStats(ev);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [analysisOpen, companyKey, retryTick]);
+  useEffect(() => {
+    if (analysisOpen !== "supplier") return;
+    let active = true;
+    setSupplierLib(null);
+    fetchSupplierLibrary({
+      pageSize: SUPPLIER_PAGE_SIZE,
+      page: supplierPage,
+      search: supplierQuery.search || undefined,
+      status: "exclude:PENDING,RETURNED",
+      companyId: companyIds.length ? companyKey : undefined,
+    })
       .then((r) => { if (active) { setSupplierLib(r.items); setSupplierTotal(r.total); } })
       .catch(() => { if (active) setSupplierLib([]); });
     return () => { active = false; };
-  }, [analysisOpen, supplierLib]);
+  }, [analysisOpen, companyIds, companyKey, supplierQuery.search, supplierPage]);
+  const supplierPages = Math.max(1, Math.ceil(supplierTotal / SUPPLIER_PAGE_SIZE));
   const [annType, setAnnType] = useState<string>("all");
   /* 公司口径联动：选择器变化时重取（2026-11-20 业务对齐） */
   useEffect(() => {
@@ -711,7 +842,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   }, [data]);
 
 
-  const savingsTop = (data?.savingsRanking ?? []).slice(0, 5);
+  /* 节资率项目排行 Top 10（2026-11-23 用户裁定：5→10，后端同步放开 8→10） */
+  const savingsTop = (data?.savingsRanking ?? []).slice(0, 10);
 
   /* 口径选择器（首页挂总览卡头；页面模式挂顶行） */
   const scopeSelectors = (
@@ -1053,7 +1185,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           <div key={x.name} className="flex items-center gap-2">
                             <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.name}</span>
                             <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                              <span className="block h-full rounded-[5px] opacity-80 m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: color }} />
+                              <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(color) }} />
                             </span>
                             <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
                           </div>
@@ -1170,7 +1302,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       </div>
                       <div className="mt-1.5 flex items-center gap-2">
                         <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-full bg-[var(--gold)] opacity-75" style={{ width: `${(x.amount / (supplierConc.total || 1)) * 100}%` }} />
+                          <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(x.amount / (supplierConc.total || 1)) * 100}%`, background: barFill(barColorAt(i)) }} />
                         </span>
                         <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">占比 {((x.amount / (supplierConc.total || 1)) * 100).toFixed(1)}%</span>
                       </div>
@@ -1199,7 +1331,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           <span className="block text-[13px] text-[var(--muted-foreground)]">{seg.range}</span>
                         </span>
                         <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.amount / totalAmt) * 100}%`, background: seg.color }} />
+                          <span className="block h-full rounded-[5px]" style={{ width: `${(seg.amount / totalAmt) * 100}%`, background: barFill(seg.color) }} />
                         </span>
                         <span className="w-[4rem] shrink-0 text-right leading-tight">
                           <span className="block text-[14px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
@@ -1283,7 +1415,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                 className="block h-full rounded-full transition-[width] duration-300"
                                 style={{
                                   width: `${barPct}%`,
-                                  background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length],
+                                  background: barFill(barColorAt(i)),
                                 }}
                               />
                             </span>
@@ -1318,7 +1450,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         </div>
                         <div className="mt-1.5 flex items-center gap-2">
                           <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                            <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                            <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
                           </span>
                         </div>
                       </div>
@@ -1413,7 +1545,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               </div>
                               <div className="mt-1.5 flex items-center gap-2">
                                 <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%`, background: barFill(barColorAt(i)) }} />
                                 </span>
                               </div>
                             </div>
@@ -1439,7 +1571,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                 <span className="block text-[13px] text-[var(--muted-foreground)]">{b.range}</span>
                               </span>
                               <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                                <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(parseBudgetLabel(b.amountLabel) / totalAmt) * 100}%`, background: b.color }} />
+                                <span className="block h-full rounded-[5px]" style={{ width: `${(parseBudgetLabel(b.amountLabel) / totalAmt) * 100}%`, background: barFill(b.color) }} />
                               </span>
                               <span className="w-[4rem] shrink-0 text-right leading-tight">
                                 <span className="block text-[14px] font-bold tabular-nums" style={{ color: b.color }}>{b.count}项</span>
@@ -1470,7 +1602,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               </div>
                               <div className="mt-1.5 flex items-center gap-2">
                                 <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
                                 </span>
                               </div>
                             </div>
@@ -1490,41 +1622,67 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "ranking" ? (
               <>
-            {/* ══ 节资排行（2026-11-19 口径联动裁定）：
-             *  全部/多选公司 → 公司排行 + 节资额排行 + 节资率排行（部门标公司名）
-             *  仅选一家 → 部门排行（该公司内）+ 节资额排行 + 节资率排行（部门不重复标公司）══ */}
+            {/* ══ 节资排行（2026-11-23 用户裁定）：
+             *  全部/多选公司 → 公司排行 + 部门排行（行标公司）+ 节资率项目排行 Top 10
+             *  仅选一家 → 部门排行（不标公司）+ 节资率项目排行 Top 10（不显示公司排行）
+             *  公司/部门榜源自主数据 companySavingsRanking/departmentSavingsRanking——与总览
+             *  节资额同口径、随时间/公司选择器实时适配（原龙虎榜年榜源退役，首页龙虎榜卡不受影响）══ */}
             {(() => {
-
+              const singleCo = companyIds.length === 1;
+              const companyRows = data?.companySavingsRanking ?? [];
+              const deptRows = data?.departmentSavingsRanking ?? [];
               return (
                 <>
-            {/* ── 节资额排行（按节约金额排序）── */}
-            {(() => {
-              const bySavings = [...(ranking?.rows ?? [])].sort((a, b) => b.savings - a.savings).filter((r) => r.savings > 0);
-              if (!bySavings.length) return null;
-              const max = bySavings[0].savings;
-              return (
-                <AnalysisZone icon={TrendingUp} title="节资额排行" count={`Top ${Math.min(bySavings.length, 10)}`} color="var(--success)">
+            {/* ── 公司排行（按节资额降序；仅全部/多选公司时展示）── */}
+            {!singleCo ? (
+              <AnalysisZone icon={Scale} title="公司排行" count={`Top ${Math.min(companyRows.length, 10)}`} color="var(--accent)">
+                {!data ? (
+                  <div className="py-2"><Skeleton lines={5} height={56} /></div>
+                ) : companyRows.length ? (
                   <div className="space-y-1.5">
-                    {bySavings.slice(0, 10).map((r, i) => (
-                      <div key={r.companyId} className="rounded-[12px] m-tile px-3 py-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--success)_18%,transparent)] text-[var(--success)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
-                          <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--success)]">+{fmtWan(r.savings)}</span>
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                            <span className="block h-full rounded-full bg-[var(--success)] opacity-75 transition-[width] duration-300" style={{ width: `${(r.savings / max) * 100}%` }} />
-                          </span>
-                        </div>
-                      </div>
+                    {companyRows.slice(0, 10).map((r, i) => (
+                      <SavingsRankRow
+                        key={r.companyId || r.company}
+                        rank={i + 1}
+                        name={r.company}
+                        savings={r.savings}
+                        max={companyRows[0].savings}
+                        meta={`${r.count} 项 · 节资率 ${r.savingsRate}%`}
+                        color={barColorAt(i, SAVINGS_BAR_COLORS)}
+                      />
                     ))}
                   </div>
-                </AnalysisZone>
-              );
-            })()}
+                ) : (
+                  <EmptyState text="暂无节资数据" />
+                )}
+              </AnalysisZone>
+            ) : null}
 
-            {/* ── 节资率项目排行（部门处标公司名——多公司时；单公司不重复标）── */}
+            {/* ── 部门排行（按节资额降序；恒展示，全部/多选公司时行标公司胶囊）── */}
+            <AnalysisZone icon={Building2} title="部门排行" count={`Top ${Math.min(deptRows.length, 10)}`} color="var(--success)">
+              {!data ? (
+                <div className="py-2"><Skeleton lines={6} height={56} /></div>
+              ) : deptRows.length ? (
+                <div className="space-y-1.5">
+                  {deptRows.slice(0, 10).map((r, i) => (
+                    <SavingsRankRow
+                      key={`${r.company}·${r.department}`}
+                      rank={i + 1}
+                      name={r.department}
+                      chip={singleCo ? undefined : r.company}
+                      savings={r.savings}
+                      max={deptRows[0].savings}
+                      meta={`${r.count} 项 · 节资率 ${r.savingsRate}%`}
+                      color={barColorAt(i, SAVINGS_BAR_COLORS)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState text="暂无节资数据" />
+              )}
+            </AnalysisZone>
+
+            {/* ── 节资率项目排行 Top 10（部门处标公司名——多公司时；单公司不重复标）── */}
             <AnalysisZone icon={Trophy} title="节资率项目排行" count={`Top ${Math.min(savingsTop.length, 10)}`} color="var(--gold)">
               {savingsTop.length ? (
                 (() => {
@@ -1553,7 +1711,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                   <span className="max-w-[8.5rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
                                     {companyIds.length !== 1 && item.company ? `${item.company} · ` : ""}{deptLabel}
                                   </span>
-                                  <span className="truncate text-[11px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
+                                  <span className="truncate text-[11px] text-[var(--muted-foreground)]">节资 {item.savingsLabel}</span>
                                 </span>
                               </span>
                               <span className="relative flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center">
@@ -1637,235 +1795,394 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "supplier" ? (
               <>
-            {/* ══ 供应商（2026-11-19 用户裁定：真供应商库列表——搜索+排名卡+状态色）══ */}
-            {supplierLib ? (
-              <AnalysisZone icon={Handshake} title="供应商库" count={`${supplierTotal} 家`} color="var(--success)">
-
-                {(() => {
-                  const kw = supplierSearch.trim();
-                  const filtered = kw ? supplierLib.filter((sp) => sp.name.includes(kw) || (sp.shortName ?? "").includes(kw)) : supplierLib;
-                  return filtered.length ? (
-                    <div className="space-y-1.5">
-                      {filtered.slice(0, 20).map((sp, i) => {
-                        const approved = sp.status === 'APPROVED';
-                        return (
-                          <div key={sp.id} className="rounded-[12px] m-tile px-3 py-2.5">
-                            <div className="flex items-center gap-2.5">
-                              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold ${i < 3 ? "bg-[color-mix(in_oklch,var(--success)_14%,transparent)] text-[var(--success)]" : "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]"}`}>
-                                {sp.name.slice(0, 2)}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{sp.name}</span>
-                                <span className="mt-0.5 flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
-                                  {sp.legalRepresentative ? <span>{sp.legalRepresentative}</span> : null}
-                                  {sp.companies?.length ? <span className="truncate">{sp.companies[0].name}</span> : null}
-                                </span>
-                              </span>
-                              <span
-                                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                                  approved
-                                    ? "bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[var(--success)]"
-                                    : "bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-[var(--warning)]"
-                                }`}
-                              >
-                                {SUPPLIER_STATUS_LABELS[sp.status]}
-                              </span>
-                            </div>
+            {/* ══ 供应商（2026-11-23 用户裁定：分析板块「供应商分布」五图折叠行 + 名录服务端分页 + 详情弹层）══ */}
+            {/* 供应商分布：行业 / 企业类型 / 库内状态 / 履约评价 / 中标排行——与专家分布同款瓷面容器折叠行 */}
+            <AnalysisZone icon={PieChart} title="供应商分布" count={`${supplierLibStats?.total ?? 0} 家`} color="var(--success)">
+              <ZoneRow icon={Layers} title="行业分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{supplierIndustries?.length ?? 0} 个行业</span>}>
+                {supplierIndustries?.length ? (
+                  <div className="space-y-1.5">
+                    {supplierIndustries.slice(0, 10).map((b, i) => {
+                      const total = supplierIndustries.reduce((s2, x) => s2 + x._count.suppliers, 0) || 1;
+                      const max = supplierIndustries[0]._count.suppliers;
+                      return (
+                        <div key={b.id} className="rounded-[12px] m-tile px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--success)_16%,transparent)] text-[var(--success)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{b.name}</span>
+                            <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{b._count.suppliers} 家</span>
+                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((b._count.suppliers / total) * 100).toFixed(1)}%</span>
                           </div>
-                        );
-                      })}
-                      {filtered.length > 20 ? (
-                        <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 20 · 共 {filtered.length} 家</div>
-                      ) : null}
+                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                            <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(b._count.suppliers / max) * 100}%`, background: barFill(barColorAt(i)) }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {supplierIndustries.length > 10 ? <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 10 · 共 {supplierIndustries.length} 个行业</div> : null}
+                  </div>
+                ) : (
+                  <EmptyState text="暂无行业数据" />
+                )}
+              </ZoneRow>
+
+              <ZoneRow icon={Building2} title="企业类型分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{supplierEntTypes?.length ?? 0} 类</span>}>
+                {supplierEntTypes?.length ? (
+                  <div className="space-y-1.5">
+                    {supplierEntTypes.slice(0, 10).map((t, i) => {
+                      const total = supplierEntTypes.reduce((s2, x) => s2 + x.count, 0) || 1;
+                      const max = supplierEntTypes[0].count;
+                      return (
+                        <div key={t.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--success)_16%,transparent)] text-[var(--success)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{t.name}</span>
+                            <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{t.count} 家</span>
+                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((t.count / total) * 100).toFixed(1)}%</span>
+                          </div>
+                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                            <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(t.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <EmptyState text="暂无企业类型数据" />
+                )}
+              </ZoneRow>
+
+              <ZoneRow icon={Scale} title="库内状态" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{supplierLibStats?.total ?? 0} 家</span>}>
+                {(() => {
+                  const st = supplierLibStats;
+                  if (!st) return <div className="py-2"><Skeleton lines={3} height={40} /></div>;
+                  const segs = [
+                    { name: "在库", count: st.approved, color: "var(--success)" },
+                    { name: "已停用", count: st.disabled, color: "var(--muted-foreground)" },
+                    { name: "黑名单", count: st.blacklist, color: "var(--danger)" },
+                  ].filter((x) => x.count > 0);
+                  const total = segs.reduce((s2, x) => s2 + x.count, 0) || 1;
+                  let acc = 0;
+                  return (
+                    <div className="flex items-center gap-3">
+                      <svg viewBox="0 0 150 150" className="w-[120px] shrink-0" role="img" aria-label="供应商库内状态环形图">
+                        {segs.map((seg, i) => {
+                          const sweep = (seg.count / total) * 360;
+                          const a0 = acc;
+                          acc += sweep;
+                          return <path key={i} d={donutPath(75, 75, 64, 42, a0, a0 + Math.max(sweep, 0.001))} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />;
+                        })}
+                        <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{st.total}</text>
+                        <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">库内供应商</text>
+                      </svg>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        {segs.map((seg) => (
+                          <div key={seg.name} className="flex items-center gap-2">
+                            <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
+                            <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.name}</span>
+                            <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.count} 家</span>
+                            <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.count / total) * 100)}%</span>
+                          </div>
+                        ))}
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 pt-1 text-[11px] text-[var(--muted-foreground)]">
+                          {st.temporaryApproved > 0 ? <span>含临时供应商 {st.temporaryApproved} 家</span> : null}
+                          {st.pending > 0 ? <span>待审核 {st.pending} 家</span> : null}
+                          {st.returned > 0 ? <span>已退回 {st.returned} 家</span> : null}
+                        </div>
+                      </div>
                     </div>
-                  ) : (
-                    <EmptyState text={kw ? `无匹配「${kw}」的供应商` : "供应商库为空"} />
                   );
                 })()}
-              </AnalysisZone>
-            ) : (
-              <div className="py-2"><Skeleton lines={6} height={40} /></div>
-            )}
+              </ZoneRow>
+
+              <ZoneRow icon={Gauge} title="履约评价等级" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{supplierEvalStats?.total ?? 0} 次</span>}>
+                {supplierEvalStats && supplierEvalStats.total > 0 ? (
+                  (() => {
+                    const rows = (["A", "B", "C", "D", "E"] as const).map((g) => ({ g, n: supplierEvalStats.levelCounts[g] ?? 0 })).filter((x) => x.n > 0);
+                    const max = rows[0].n;
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="rounded-[10px] px-3 py-2 text-[13px]" style={{ background: "color-mix(in oklch, var(--success) 6%, transparent)" }}>
+                          <span className="text-[var(--muted-foreground)]">优良率（A/B）</span>
+                          <span className="ml-auto float-right text-[16px] font-black tabular-nums text-[var(--success)]">{supplierEvalStats.excellentRatio}%</span>
+                        </div>
+                        {rows.map(({ g, n }) => {
+                          const color = g === "A" || g === "B" ? "var(--success)" : g === "C" ? "var(--accent)" : g === "D" ? "var(--warning)" : "var(--danger)";
+                          return (
+                            <div key={g} className="rounded-[12px] m-tile px-3 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black" style={{ background: `color-mix(in oklch, ${color} 14%, transparent)`, color }}>{g}</span>
+                                <span className="min-w-0 flex-1 text-[14px] font-semibold text-[var(--foreground)]">{LEVEL_LABEL[g] ?? g}</span>
+                                <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{n}</span>
+                                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{Math.round((n / (supplierEvalStats?.total || 1)) * 100)}%</span>
+                              </div>
+                              <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(n / max) * 100}%`, background: barFill(color) }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <EmptyState text="暂无履约评价" />
+                )}
+              </ZoneRow>
+
+              <ZoneRow icon={Trophy} title="中标排行" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top {Math.min(supplierConc.top10.length, 10)}</span>}>
+                {supplierConc.top10.length ? (
+                  <div className="space-y-1.5">
+                    {supplierConc.top10.map((x, i) => (
+                      <div key={x.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{x.name}</span>
+                          <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--success)]">{fmtWan(x.amount)}</span>
+                          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">中标 {x.wins} 次</span>
+                        </div>
+                        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                          <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${supplierConc.top10[0].amount > 0 ? (x.amount / supplierConc.top10[0].amount) * 100 : 0}%`, background: barFill(barColorAt(i)) }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState text="暂无成交记录" />
+                )}
+              </ZoneRow>
+            </AnalysisZone>
+
+            {/* 供应商名录：服务端分页每页 10；卡片=首字头像 + 行业胶囊 · 类型 · 地区 + 评价等级 + 库状态 */}
+            <AnalysisZone icon={Handshake} title="供应商名录" count={`${supplierTotal} 家`} color="var(--success)">
+              {supplierLib ? (
+                supplierLib.length ? (
+                  <div className="space-y-1.5">
+                    {supplierLib.map((sp) => {
+                      const grade = sp._avgGrade ?? sp._latestEvalLevel;
+                      const gradeColor = grade === "A" || grade === "B" ? "var(--success)" : grade === "C" ? "var(--accent)" : grade ? "var(--warning)" : "var(--muted-foreground)";
+                      const statusCls = sp.status === "APPROVED" ? "bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[var(--success)]" : sp.status === "DISABLED" ? "bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] text-[var(--muted-foreground)]" : "bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] text-[var(--danger)]";
+                      return (
+                        <button key={sp.id} type="button" onClick={() => setSupplierPick(sp)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
+                          <div className="flex items-start gap-2.5">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[13px] font-black text-[var(--success)]">
+                              {sp.name.replace(/^(四川省|四川|中国)/, "").slice(0, 2)}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{sp.name}</span>
+                              <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                <span className="inline-flex max-w-[7.5rem] shrink-0 items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--success)_9%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--success)]">
+                                  <Layers size={11} className="shrink-0" />
+                                  <span className="truncate">{sp.industry?.trim() || "未填写行业"}</span>
+                                </span>
+                                <span className="max-w-[5.5rem] truncate">{normalizeEnterpriseType(sp.enterpriseType)}</span>
+                                {sp.region ? <span className="truncate">{sp.region}</span> : null}
+                              </span>
+                            </span>
+                            {grade ? (
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ background: `color-mix(in oklch, ${gradeColor} 12%, transparent)`, color: gradeColor }}>
+                                {grade}
+                              </span>
+                            ) : null}
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${statusCls}`}>{SUPPLIER_STATUS_LABELS[sp.status] ?? sp.status}</span>
+                            <ChevronRight size={13} className="mt-2 shrink-0 text-[var(--muted-foreground)]" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                    <div className="flex items-center justify-between gap-2 px-1 pt-1 text-[12px] text-[var(--muted-foreground)]">
+                      <span className="tabular-nums">第 {supplierPage} / {supplierPages} 页 · 共 {supplierTotal} 家</span>
+                      <span className="flex items-center gap-1.5">
+                        <Chip
+                          disabled={supplierPage <= 1}
+                          onClick={() => setSupplierQuery((q) => ({ search: q.search, page: supplierPage - 1, scope: companyKey }))}
+                          className="!min-h-[30px] !px-3 !text-[13px]"
+                        >
+                          上一页
+                        </Chip>
+                        <Chip
+                          disabled={supplierPage >= supplierPages}
+                          onClick={() => setSupplierQuery((q) => ({ search: q.search, page: supplierPage + 1, scope: companyKey }))}
+                          className="!min-h-[30px] !px-3 !text-[13px]"
+                        >
+                          下一页
+                        </Chip>
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyState text={supplierQuery.search ? `无匹配「${supplierQuery.search}」的供应商` : "供应商库为空"} />
+                )
+              ) : (
+                <div className="py-2"><Skeleton lines={4} height={56} /></div>
+              )}
+            </AnalysisZone>
               </>
             ) : null}
             {analysisOpen === "experts" ? (
               <>
-            {/* ══ 专家库（2026-11-20 丰富化）：总览+职称+专业+评价+公司 多图表 ══ */}
+            {/* ══ 专家库（2026-11-20 丰富化；2026-11-23 用户裁定删总览区）：职称+专业+评价+公司 多图表 ══ */}
             {expertStats ? (
               <>
-                {/* 总览：双格 + 三率行 */}
-                <AnalysisZone icon={GraduationCap} title="专家库总览" count={`${expertStats.total} 人`} color="var(--gold)">
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
-                        <div className="text-[18px] font-black tabular-nums text-[var(--success)]">{expertStats.availability.available}</div>
-                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">可抽取</div>
+                {/* 结构分布（2026-11-23 用户裁定：公司/专业/职称三图收进一个瓷面容器，
+                    与数据分析同款折叠行——默认收起、点开展开） */}
+                <AnalysisZone icon={PieChart} title="专家分布" count={`${expertStats.total} 人`} color="var(--accent)">
+                  <ZoneRow icon={Building2} title="公司分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{expertCompanies?.length ?? 0} 家</span>}>
+                    {expertCompanies?.length ? (
+                      <div className="space-y-1.5">
+                        {expertCompanies.map((c, i) => {
+                          const max = expertCompanies[0].count;
+                          const total = expertCompanies.reduce((s2, x) => s2 + x.count, 0) || 1;
+                          return (
+                            <div key={c.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                                <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{c.name}</span>
+                                <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
+                                <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((c.count / total) * 100).toFixed(1)}%</span>
+                              </div>
+                              <div className="mt-1.5 flex items-center gap-2">
+                                <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(c.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
-                        <div className="text-[18px] font-black tabular-nums text-[var(--warning)]">{expertStats.availability.occupied}</div>
-                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">评标占用</div>
-                      </div>
-                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
-                        <div className="text-[18px] font-black tabular-nums text-[var(--muted-foreground)]">{expertStats.availability.disabled}</div>
-                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">池外</div>
-                      </div>
-                    </div>
-                    <div className="space-y-0.5 rounded-[10px] m-tile px-3 py-2 text-[13px]">
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">可抽取率</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.availability.availableRate}%</span>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">履职优良率（A/B）</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.excellentRatio}%</span>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">平均评分偏离度</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.avgScoreDeviation}</span>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">评价总数</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.total}</span>
-                      </div>
-                    </div>
-                  </div>
-                </AnalysisZone>
+                    ) : (
+                      <EmptyState text="暂无公司归属数据" />
+                    )}
+                  </ZoneRow>
 
-                {/* 公司分布：排名卡（八色条） */}
-                {expertCompanies?.length ? (
-                  <AnalysisZone icon={Building2} title="公司分布" count={`${expertCompanies.length} 家`} color="var(--accent)">
-                    <div className="space-y-1.5">
-                      {expertCompanies.map((c, i) => {
-                        const max = expertCompanies[0].count;
-                        const total = expertCompanies.reduce((s2, x) => s2 + x.count, 0) || 1;
-                        return (
-                          <div key={c.name} className="rounded-[12px] m-tile px-3 py-2.5">
+                  <ZoneRow icon={BarChart3} title="专业分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">Top {expertStats.specialties.length}</span>}>
+                    {expertStats.specialties.length ? (
+                      <div className="space-y-1.5">
+                        {expertStats.specialties.map((sp, i) => (
+                          <div key={sp.name ?? "未填"} className="rounded-[12px] m-tile px-3 py-2.5">
                             <div className="flex items-center gap-2.5">
-                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--accent)_16%,transparent)] text-[var(--accent)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{c.name}</span>
-                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{c.count} 人</span>
-                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{((c.count / total) * 100).toFixed(1)}%</span>
+                              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
+                              <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{sp.name ?? "未填"}</span>
+                              <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
+                              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{Math.round((sp.count / (expertStats.specialties.reduce((s2, x) => s2 + x.count, 0) || 1)) * 100)}%</span>
                             </div>
                             <div className="mt-1.5 flex items-center gap-2">
                               <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(c.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${sp.pct}%`, background: barFill(barColorAt(i)) }} />
                               </span>
                             </div>
                           </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState text="暂无专业数据" />
+                    )}
+                  </ZoneRow>
+
+                  <ZoneRow icon={Award} title="职称分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{expertStats.titleKindCount} 种</span>}>
+                    {expertStats.titles?.length ? (
+                      (() => {
+                        const total = expertStats.titles.reduce((s2, x) => s2 + x.count, 0) || 1;
+                        let acc = 0;
+                        const segs = expertStats.titles.map((t, i) => {
+                          const sweep = (t.count / total) * 360;
+                          const seg = { t, a0: acc, a1: acc + Math.max(sweep, 0.001), color: t.name === "其他" ? "oklch(0.78 0.015 258)" : DONUT_COLORS[i % DONUT_COLORS.length] };
+                          acc += sweep;
+                          return seg;
+                        });
+                        return (
+                          <div className="flex items-center gap-3">
+                            <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="职称分布环形图">
+                              {segs.map((seg, i) => (
+                                <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />
+                              ))}
+                              <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{expertStats.total}</text>
+                              <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">在库</text>
+                            </svg>
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              {segs.map((seg, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                  <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
+                                  <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.t.name}</span>
+                                  <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.t.count}人</span>
+                                  <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.t.count / total) * 100)}%</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         );
-                      })}
-                    </div>
-                  </AnalysisZone>
-                ) : null}
-
-                {/* 专业分布：排名卡（金条） */}
-                {expertStats.specialties.length ? (
-                  <AnalysisZone icon={BarChart3} title="专业分布" count={`Top ${expertStats.specialties.length}`} color="var(--gold)">
-                    <div className="space-y-1.5">
-                      {expertStats.specialties.map((sp, i) => (
-                        <div key={sp.name ?? "未填"} className="rounded-[12px] m-tile px-3 py-2.5">
-                          <div className="flex items-center gap-2.5">
-                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[11px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                            <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{sp.name ?? "未填"}</span>
-                            <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--foreground)]">{sp.count}人</span>
-                            <span className="shrink-0 text-[11px] font-semibold tabular-nums text-[var(--muted-foreground)]">{Math.round((sp.count / (expertStats.specialties.reduce((s2, x) => s2 + x.count, 0) || 1)) * 100)}%</span>
-                          </div>
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                              <span className="block h-full rounded-full bg-[var(--gold)] opacity-75 transition-[width] duration-300" style={{ width: `${sp.pct}%` }} />
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </AnalysisZone>
-                ) : null}
-
-                {/* 职称分布：环形图 */}
-                {expertStats.titles?.length ? (
-                  <AnalysisZone icon={Award} title="职称分布" count={`${expertStats.titles.reduce((s2, x) => s2 + x.count, 0)} 人`} color="var(--warning)">
-                    {(() => {
-                      const total = expertStats.titles.reduce((s2, x) => s2 + x.count, 0) || 1;
-                      let acc = 0;
-                      const segs = expertStats.titles.map((t, i) => {
-                        const sweep = (t.count / total) * 360;
-                        const seg = { t, a0: acc, a1: acc + Math.max(sweep, 0.001), color: DONUT_COLORS[i % DONUT_COLORS.length] };
-                        acc += sweep;
-                        return seg;
-                      });
-                      return (
-                        <div className="flex items-center gap-3">
-                          <svg viewBox="0 0 150 150" className="w-[130px] shrink-0" role="img" aria-label="职称分布环形图">
-                            {segs.map((seg, i) => (
-                              <path key={i} d={donutPath(75, 75, 64, 42, seg.a0, seg.a1)} fill={seg.color} opacity={0.88} className="m-seg-in" style={{ animationDelay: `${i * 60}ms` }} />
-                            ))}
-                            <text x={75} y={71} textAnchor="middle" fontSize={20} fontWeight={700} fill="var(--foreground)">{expertStats.total}</text>
-                            <text x={75} y={86} textAnchor="middle" fontSize={12} fill="var(--muted-foreground)">在库</text>
-                          </svg>
-                          <div className="min-w-0 flex-1 space-y-1.5">
-                            {segs.map((seg, i) => (
-                              <div key={i} className="flex items-center gap-2">
-                                <span className="h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: seg.color }} />
-                                <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-[var(--foreground)]">{seg.t.name}</span>
-                                <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted-foreground)]">{seg.t.count}人</span>
-                                <span className="w-[2.5rem] shrink-0 text-right text-[14px] font-bold tabular-nums text-[var(--muted-foreground)]">{Math.round((seg.t.count / total) * 100)}%</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </AnalysisZone>
-                ) : null}
+                      })()
+                    ) : (
+                      <EmptyState text="暂无职称数据" />
+                    )}
+                  </ZoneRow>
+                </AnalysisZone>
 
                 {/* 专家名录：搜索+点击开详情 */}
+                {/* 专家名录：服务端分页每页 10（2026-11-23 用户裁定）；组织标注——全部/多选公司标公司、单公司标部门 */}
                 <AnalysisZone icon={Users} title="专家名录" count={`${expertTotal} 人`} color="var(--accent)">
                   {expertList ? (
-                    (() => {
-                      const kw = expertSearch.trim();
-                      const filtered = kw ? expertList.filter((e) =>
-                        e.displayName.includes(kw) ||
-                        (e.expertProfile?.specialty ?? "").includes(kw) ||
-                        (e.expertProfile?.employer ?? "").includes(kw) ||
-                        (e.expertProfile?.title ?? "").includes(kw)
-                      ) : expertList;
-                      return filtered.length ? (
-                        <div className="space-y-1.5">
-                          {filtered.slice(0, 20).map((e, i) => {
-                            const profile = e.expertProfile;
-                            const grade = e.avgGrade ?? e.latestEval?.level;
-                            const gradeColor = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : grade ? 'var(--warning)' : 'var(--muted-foreground)';
-                            return (
-                              <button key={e.id} type="button" onClick={() => setExpertPick(e)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
-                                <div className="flex items-center gap-2.5">
-                                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]"}`}>
-                                    {e.displayName.slice(0, 1)}
-                                  </span>
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{e.displayName}</span>
-                                    <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
-                                      {profile?.specialty ? <span className="max-w-[6rem] truncate">{profile.specialty}</span> : null}
-                                      {profile?.title ? <span className="truncate">{profile.title}</span> : null}
+                    expertList.length ? (
+                      <div className="space-y-1.5">
+                        {expertList.map((e) => {
+                          const profile = e.expertProfile;
+                          const grade = e.avgGrade ?? e.latestEval?.level;
+                          const gradeColor = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : grade ? 'var(--warning)' : 'var(--muted-foreground)';
+                          const org = companyIds.length !== 1
+                            ? ((e.company ?? "").trim() || "未归属公司")
+                            : (e.department?.name ?? "未归属部门");
+                          return (
+                            <button key={e.id} type="button" onClick={() => setExpertPick(e)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
+                              <div className="flex items-start gap-2.5">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[14px] font-bold text-[var(--accent)]">
+                                  {e.displayName.slice(0, 1)}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{e.displayName}</span>
+                                  {/* 组织胶囊与专业/职称同行（2026-11-23 用户裁定）：胶囊优先占宽，专业/职称截断 */}
+                                  <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                    <span className="inline-flex max-w-[9.5rem] shrink-0 items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
+                                      <Building2 size={11} className="shrink-0" />
+                                      <span className="truncate">{org}</span>
                                     </span>
+                                    {profile?.specialty ? <span className="max-w-[5.5rem] truncate">{profile.specialty}</span> : null}
+                                    {profile?.title ? <span className="truncate">{profile.title}</span> : null}
                                   </span>
-                                  {grade ? (
-                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ background: `color-mix(in oklch, ${gradeColor} 12%, transparent)`, color: gradeColor }}>
-                                      {grade}
-                                    </span>
-                                  ) : null}
-                                  <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
-                                </div>
-                              </button>
-                            );
-                          })}
-                          {filtered.length > 20 ? <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 20 · 共 {filtered.length} 人</div> : null}
+                                </span>
+                                {grade ? (
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ background: `color-mix(in oklch, ${gradeColor} 12%, transparent)`, color: gradeColor }}>
+                                    {grade}
+                                  </span>
+                                ) : null}
+                                <ChevronRight size={13} className="mt-2 shrink-0 text-[var(--muted-foreground)]" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                        <div className="flex items-center justify-between gap-2 px-1 pt-1 text-[12px] text-[var(--muted-foreground)]">
+                          <span className="tabular-nums">第 {expertPage} / {expertPages} 页 · 共 {expertTotal} 人</span>
+                          <span className="flex items-center gap-1.5">
+                            <Chip
+                              disabled={expertPage <= 1}
+                              onClick={() => setExpertQuery((q) => ({ search: q.search, page: expertPage - 1, scope: companyKey }))}
+                              className="!min-h-[30px] !px-3 !text-[13px]"
+                            >
+                              上一页
+                            </Chip>
+                            <Chip
+                              disabled={expertPage >= expertPages}
+                              onClick={() => setExpertQuery((q) => ({ search: q.search, page: expertPage + 1, scope: companyKey }))}
+                              className="!min-h-[30px] !px-3 !text-[13px]"
+                            >
+                              下一页
+                            </Chip>
+                          </span>
                         </div>
-                      ) : (
-                        <EmptyState text={kw ? `无匹配「${kw}」的专家` : "暂无专家"} />
-                      );
-                    })()
+                      </div>
+                    ) : (
+                      <EmptyState text={expertQuery.search ? `无匹配「${expertQuery.search}」的专家` : "暂无专家"} />
+                    )
                   ) : (
-                    <div className="py-2"><Skeleton lines={4} height={40} /></div>
+                    <div className="py-2"><Skeleton lines={4} height={56} /></div>
                   )}
                 </AnalysisZone>
 
@@ -1892,7 +2209,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               </div>
                               <div className="mt-1.5 flex items-center gap-2">
                                 <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(n / max) * 100}%`, background: color }} />
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(n / max) * 100}%`, background: barFill(color) }} />
                                 </span>
                               </div>
                             </div>
@@ -1912,57 +2229,24 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     </>
   );
 
-  /* 专家详情弹层（2026-11-20） */
+  /* 专家详情弹层（2026-11-23：对齐 :3005 详情信息量——基本信息/关键节点/评价历史/评审项目，
+     独立组件 expert-detail-sheet；key=专家 id 切换即重置状态） */
   const expertDetailSheet = (
-    <BottomSheet open={!!expertPick} onClose={() => setExpertPick(null)} title={<span>{expertPick?.displayName ?? ""}</span>}>
-      {expertPick ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {expertPick.expertProfile?.specialty ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--gold)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--gold)]">{expertPick.expertProfile.specialty}</span>
-            ) : null}
-            {expertPick.expertProfile?.title ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent)]">{expertPick.expertProfile.title}</span>
-            ) : null}
-            {expertPick.avgGrade || expertPick.latestEval?.level ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--success)]">
-                评价 {expertPick.avgGrade ?? expertPick.latestEval?.level}
-              </span>
-            ) : null}
-            {(() => {
-              /* 2026-11-23：退库≠停用（对齐 :3005 专家库口径「已退库＞已停用」）——退库联动
-                 isActive=false 且 availability='停用'，纯账号维度会把两者折叠成一个「已停用」 */
-              const p = expertPick.expertProfile;
-              if (p?.entryStatus === "RETIRED" || p?.retiredAt) {
-                return <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--danger)]">已退库</span>;
-              }
-              if (!expertPick.isActive) {
-                return <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--muted-foreground)]">已停用</span>;
-              }
-              return null;
-            })()}
-          </div>
-          <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
-            {expertPick.expertProfile?.employer ? (
-              <div className="flex justify-between gap-3">
-                <span className="text-[var(--muted-foreground)]">工作单位</span>
-                <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile.employer}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between gap-3">
-              <span className="text-[var(--muted-foreground)]">库内状态</span>
-              <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile?.entryStatus === "RETIRED" || expertPick.expertProfile?.retiredAt ? "已退库" : (expertPick.expertProfile?.availability ?? "在库")}</span>
-            </div>
-            {expertPick.latestEval ? (
-              <div className="flex justify-between gap-3">
-                <span className="text-[var(--muted-foreground)]">最新评价</span>
-                <span className="font-medium tabular-nums text-[var(--foreground)]">{expertPick.latestEval.level} · {expertPick.latestEval.createdAt.slice(0, 10)}</span>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </BottomSheet>
+    <ExpertDetailSheet
+      key={`expert-${expertPick?.id ?? "none"}`}
+      expertId={expertPick?.id ?? null}
+      baseline={expertPick ?? undefined}
+      onClose={() => setExpertPick(null)}
+    />
+  );
+  /* 供应商详情弹层（2026-11-23：对齐 :3005 supplier/[id]——基本信息/关键节点/资质材料/参与情况/履约评价） */
+  const supplierDetailSheet = (
+    <SupplierDetailSheet
+      key={`supplier-${supplierPick?.id ?? "none"}`}
+      supplierId={supplierPick?.id ?? null}
+      baseline={supplierPick ?? undefined}
+      onClose={() => setSupplierPick(null)}
+    />
   );
 
   /* 公告详情弹层（2026-11-20） */
@@ -2203,7 +2487,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             <div className="grid grid-cols-2 gap-2">
               <MetricCard label="控制价" value={activeSaving.controlAmountLabel} />
               <MetricCard label="中标价" value={activeSaving.awardAmountLabel} tone="accent" />
-              <MetricCard label="节约额" value={activeSaving.savingsLabel} tone="success" />
+              <MetricCard label="节资额" value={activeSaving.savingsLabel} tone="success" />
               <MetricCard label="节资率" value={`${activeSaving.savingsRate}%`} tone="success" />
             </div>
             <div className="space-y-1 rounded-[12px] m-tile px-3 py-2.5 text-[15px]">
@@ -2336,7 +2620,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             <input
               value={supplierSearch}
               onChange={(e) => setSupplierSearch(e.target.value)}
-              placeholder="搜索供应商名称"
+              placeholder="搜索供应商名称/信用代码"
               aria-label="搜索供应商名称"
               className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
             />
@@ -2351,6 +2635,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
         {drillSheets}
         {annDetailSheet}
         {expertDetailSheet}
+        {supplierDetailSheet}
       </div>
     );
   }
