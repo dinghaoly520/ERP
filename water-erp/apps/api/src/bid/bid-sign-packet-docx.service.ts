@@ -30,7 +30,7 @@ export interface SignPacketSnapshot {
   leaderCoSignedAt: string | null;
   /** A-151：评标报告章节附注（一~九节末「附注：」段；十节正文续写）——未设置时字段缺省 */
   reportNotes?: Array<{ section: string; content: string }>;
-  openingRecords: Array<{ supplierName: string; amount: string; amountUnit?: string | null; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string; objectionReason?: string | null }>;
+  openingRecords: Array<{ supplierName: string; amount: string; amountUnit?: string | null; period: string; qualityTarget: string; bondStatus: string; confirmStatus: string; objectionReason?: string | null; handleResult?: string | null }>;
   bids: Array<{ supplierName: string; amount: string; period: string; submittedAt: string | null }>;
   invalidBids: Array<{ supplierName: string; reason: string | null }>;
   scoreStandard: Array<{ category: string; name: string; maxScore: number; points: string[] }>;
@@ -169,9 +169,15 @@ export class BidSignPacketDocxService {
         rows: [
           this.headerRow(['供应商', '投标报价', '工期', '质量目标', '保证金', '开标确认', '开标异议']),
           ...s.openingRecords.map(r => new TableRow({
-            // N17（2026-11-20b 复核轮）：增「开标异议」列——异议终态入纸质法定件（裁决详情见监督日志/回流包）
+            // N17（2026-11-20b 复核轮）：增「开标异议」列——异议终态入纸质法定件。
+            // F5（递延收口）：三态全覆盖——处置中显事由；裁决后（异议已处理-确认/退回）仍显
+            // 事由+裁决说明（handleResult），不再回落 '—'（事由从纸面消失=证据不自含）。
             children: [r.supplierName, r.amount, r.period, r.qualityTarget, r.bondStatus, r.confirmStatus,
-              r.confirmStatus === '供应商提出异议' ? (r.objectionReason ? `异议处置中：${r.objectionReason}` : '异议处置中') : '—']
+              r.confirmStatus === '供应商提出异议'
+                ? (r.objectionReason ? `异议处置中：${r.objectionReason}` : '异议处置中')
+                : (r.confirmStatus === '异议已处理-确认' || r.confirmStatus === '异议已处理-退回')
+                  ? `曾有异议（${r.confirmStatus}）：${r.objectionReason ?? '—'}${r.handleResult ? ` · 裁决：${r.handleResult}` : ''}`
+                  : '—']
               .map(v => new TableCell({ children: [this.para(v)] })),
           })),
         ],
