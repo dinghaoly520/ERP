@@ -845,10 +845,26 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
     expect(prisma.announcement.update).not.toHaveBeenCalled();
   });
 
-  // ── 裁定1（2026-11-19 三门户审查）：回收站与删除闸同口径 + restore 终止复查 ──────
-  it('hide：BID_NOTICE+PUBLISHED 且项目投标进行中（SUBMIT）→ 409 BID_IN_PROGRESS，零写入', async () => {
+  // ── 裁定1（2026-11-19 三门户审查）→ 2026-11-23 用户裁定收窄：回收站闸改为
+  //    「已点开标确认（OPENING/EVALUATING）或已到开标时间」才禁收——BidProject.stage=SUBMIT
+  //    只是投标侧进度标记，PMI 流程可能尚在专家抽取等前置步骤，截标前允许隐藏纠错 ──────
+  it('hide：SUBMIT 且未到开标时间（PMI 尚在专家抽取等前置步骤）→ 放行（推翻 2026-11-19 SUBMIT 拦截）', async () => {
     prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: 'SWHI-XB-1', metadata: null });
-    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT' });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', openTime: new Date(Date.now() + 86_400_000) });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', status: 'HIDDEN' });
+    await expect(service.hide('a1', op)).resolves.toMatchObject({ status: 'HIDDEN' });
+  });
+
+  it('hide：SUBMIT 但已到开标时间 → 409 BID_IN_PROGRESS，零写入', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: 'SWHI-XB-1', metadata: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'SUBMIT', openTime: new Date(Date.now() - 60_000) });
+    await expect(service.hide('a1', op)).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('hide：OPENING（已点开标确认）→ 409 BID_IN_PROGRESS，零写入', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: 'SWHI-XB-1', metadata: null });
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', openTime: new Date(Date.now() - 60_000) });
     await expect(service.hide('a1', op)).rejects.toMatchObject({ response: { code: 'BID_IN_PROGRESS' } });
     expect(prisma.announcement.update).not.toHaveBeenCalled();
   });

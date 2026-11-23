@@ -1306,20 +1306,23 @@ export class AnnouncementService {
   }
 
   /** 隐藏/下架共用落地：状态流转 + metadata.recycle 留痕（原状态/动作/时间/操作人）+ 历史动作 */
-  /** 裁定1（2026-11-19 三门户审查，用户认可）：回收站与删除闸同口径——已发布采购公告且关联项目
-   *  投标进行中（SUBMIT/OPENING/EVALUATING）→ 409。v2「任意状态可用」拍板（2026-09-26）的前提已被
-   *  2026-10-20 供应商端公告隔离改变（resolveOwnAnnouncement 硬过滤 PUBLISHED，隐藏=供应商公告轨道
-   *  断流，效果与删除同质）；纠错走补遗公告、撤销采购走流标/项目终止（均自带通知与联动）。
-   *  阶段集与 remove() 删除闸共用 BID_NOTICE_ACTIVE_BID_STAGES 单一口径。 */
+  /** 回收站闸（2026-11-23 用户裁定收窄，推翻 2026-11-19 裁定1 的 SUBMIT 拦截）：已发布采购公告
+   *  仅在「已点开标确认（进入 OPENING/EVALUATING）或已到开标时间」时禁收。BidProject.stage 是
+   *  投标侧进度标记、与 PMI 九阶段不同轴——stage=SUBMIT 不代表开标评标实质开始（PMI 可能尚在
+   *  专家抽取等前置步骤），截标前允许隐藏纠错；纠错完成后走补遗公告，撤销采购走流标/项目终止。
+   *  remove() 删除闸仍用 BID_NOTICE_ACTIVE_BID_STAGES 全集（办法第49条不得损毁，口径有意分叉）。 */
   private async assertBidNoticeNotInActiveBid(ann: { type: string; status: string; relatedProjectCode?: string | null }): Promise<void> {
     if (ann.type !== 'BID_NOTICE' || ann.status !== 'PUBLISHED' || !ann.relatedProjectCode) return;
     const project = await this.prisma.bidProject.findUnique({
       where: { projectCode: ann.relatedProjectCode },
-      select: { stage: true },
+      select: { stage: true, openTime: true },
     });
-    if (project && (BID_NOTICE_ACTIVE_BID_STAGES as string[]).includes(project.stage)) {
+    if (!project) return;
+    const opened = project.stage === 'OPENING' || project.stage === 'EVALUATING'; // 开标确认已点击
+    const openTimeArrived = !!project.openTime && project.openTime.getTime() <= Date.now();
+    if (opened || openTimeArrived) {
       throw new ConflictException({
-        error: '该项目已进入投标/开标/评标流程，公告不可移入回收站——如需纠错请发布补遗公告；撤销采购请走流标或项目终止（自带通知与联动）',
+        error: '该项目已开标（开标确认已点击或开标时间已到），公告不可移入回收站——如需纠错请发布补遗公告；撤销采购请走流标或项目终止（自带通知与联动）',
         code: 'BID_IN_PROGRESS',
       });
     }
