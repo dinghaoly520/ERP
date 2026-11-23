@@ -39,7 +39,9 @@ export interface LlmCallOptions {
   maxTokens?: number;
   /** 默认 180_000 ms */
   timeoutMs?: number;
-  /** 覆盖 env LLM_MAX_RETRIES（如 0：延迟敏感的调用放弃重试） */
+  /** 覆盖 env LLM_MAX_RETRIES（模型级重试预算：坏 JSON/截断/429/5xx/已发出请求的失败）。
+   *  连接建立阶段失败（ECONNREFUSED 等，请求未发出）另走 LLM_CONNECT_RETRIES 预算，
+   *  仅 retries: 0（延迟敏感、明确放弃重试）连连接预算一并关闭——见 withRetry。 */
   retries?: number;
 }
 
@@ -102,6 +104,19 @@ function intEnv(
   const v = Number(config.get<string>(name));
   return Number.isInteger(v) && v >= min ? v : fallback;
 }
+
+/**
+ * 连接建立阶段失败的系统错误码（2026-11-20）：请求根本没发出去——零 token 成本、
+ * 零副作用、与模型输出质量无关，故单列重试预算（LlmService.retryBudget）。
+ * ECONNRESET/socket hang up 不在内：请求可能已发出（服务端可能已计费），维持模型级预算。
+ */
+const CONNECT_PHASE_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EAI_AGAIN',
+]);
 
 function parseRetryAfter(header: string | null): number | undefined {
   if (!header) return undefined;
@@ -207,6 +222,8 @@ export class LlmService {
   private readonly logger = new Logger(LlmService.name);
   private readonly deepseek: DeepSeekConfig | null;
   private readonly maxRetries: number;
+  /** 连接建立阶段失败（请求未发出）的独立重试预算，见 CONNECT_PHASE_CODES */
+  private readonly connectRetries: number;
   private readonly retryBaseMs: number;
   private readonly retryAfterCapMs = 8_000;
   private readonly semaphore: LlmSemaphore;
@@ -229,6 +246,7 @@ export class LlmService {
         }
       : null;
     this.maxRetries = intEnv(config, 'LLM_MAX_RETRIES', 2);
+    this.connectRetries = intEnv(config, 'LLM_CONNECT_RETRIES', 4, 0);
     this.retryBaseMs = Math.max(1, intEnv(config, 'LLM_RETRY_BASE_MS', 500, 1));
     this.semaphore = new LlmSemaphore(
       Math.max(1, intEnv(config, 'LLM_MAX_CONCURRENCY', 10, 1)),
@@ -389,13 +407,13 @@ export class LlmService {
     options: LlmCallOptions | undefined,
     callerSignal?: AbortSignal,
   ): Promise<T> {
-    const retries = options?.retries ?? this.maxRetries;
     let attempt = 0;
     for (;;) {
       try {
         return await this.semaphore.run(fn, callerSignal);
       } catch (err) {
         const retryable = (err as { retryable?: boolean })?.retryable === true;
+        const retries = this.retryBudget(err, options);
         if (!retryable || attempt >= retries || callerSignal?.aborted) {
           throw err;
         }
@@ -409,6 +427,22 @@ export class LlmService {
         await sleep(delay, callerSignal);
       }
     }
+  }
+
+  /**
+   * 本轮错误适用的重试预算（2026-11-20 生产实录：B 机容器到 api.deepseek.com 的两个
+   * EdgeOne 节点间歇 ECONNREFUSED——一阵 81 行的长发作 + 数日零星「前两次扑空、第三次
+   * 救回」，而原 1+2 次退避窗口仅约 3s）。连接建立阶段失败另走独立预算 connectRetries
+   * + 指数退避（500/1000/2000/4000ms，累计 ≈8-10s），不与模型级预算互相挤占。
+   * 调用方显式 retries ≥1 限制的是昂贵的模型级重试，不因此掐掉连接预算；
+   * retries: 0（延迟敏感、明确放弃重试）连接预算一并关闭。
+   */
+  private retryBudget(err: unknown, options?: LlmCallOptions | undefined): number {
+    const explicit = options?.retries;
+    if ((err as { connectCode?: string })?.connectCode) {
+      return explicit === 0 ? 0 : Math.max(explicit ?? 0, this.connectRetries);
+    }
+    return explicit ?? this.maxRetries;
   }
 
   /**
@@ -622,8 +656,11 @@ export class LlmService {
       // 网络层失败（fetch failed 等）
       const e = new ServiceUnavailableException(
         `DeepSeek LLM network error: ${String((err as Error)?.message ?? err).slice(0, 200)}`,
-      ) as ServiceUnavailableException & { retryable: boolean };
+      ) as ServiceUnavailableException & { retryable: boolean; connectCode?: string };
       e.retryable = true;
+      // 连接建立阶段失败打标（请求未发出）——withRetry 据此切到独立重试预算
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code && CONNECT_PHASE_CODES.has(code)) e.connectCode = code;
       throw e;
     } finally {
       clearTimeout(timeout);

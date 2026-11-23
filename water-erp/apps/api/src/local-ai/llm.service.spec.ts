@@ -43,6 +43,11 @@ const truncRes = (): ResponseSpec => ({
 const HANG = Symbol('hang');
 const NETWORK_ERROR = Symbol('network-error');
 
+/** 连接建立阶段失败（请求未发出）：Node 系统错误形态——带 code/address/port。
+ *  2026-11-20 生产实录：B 机容器到 api.deepseek.com 的两个 EdgeOne 节点间歇 ECONNREFUSED。 */
+const connectError = (code: string) =>
+  Object.assign(new Error(`connect ${code} 1.2.3.4:443`), { code, address: '1.2.3.4', port: 443 });
+
 interface CapturedRequest {
   opts: any;
   payload: any;
@@ -62,7 +67,7 @@ class TransportMock {
       callIndex: number,
       payload: any,
       req: any,
-    ) => ResponseSpec | symbol | undefined,
+    ) => ResponseSpec | Error | symbol | undefined,
   ) {
     this.request.mockImplementation((opts: any, cb: (res: any) => void) => {
       const req = new EventEmitter() as any;
@@ -72,6 +77,7 @@ class TransportMock {
         const spec = this.responder(this.calls.length, payload, req);
         this.calls.push({ opts, payload, req });
         if (spec === NETWORK_ERROR) req.emit('error', new TypeError('fetch failed'));
+        else if (spec instanceof Error) req.emit('error', spec); // Node 系统错误（ECONNREFUSED 等）原样上抛
         else if (spec !== HANG && spec !== undefined) this.deliver(req, cb, spec as ResponseSpec);
       });
       req.destroy = jest.fn();
@@ -244,6 +250,61 @@ describe('LlmService', () => {
       service.chat('s', 'u', 0.3, undefined, undefined, { timeoutMs: 10, retries: 1 }),
     ).rejects.toThrow(/timed out/);
     expect(httpsMock.request).toHaveBeenCalledTimes(2);
+  });
+
+  /* =====================================================================
+     连接建立阶段失败（2026-11-20 生产实录）：B 机容器到 api.deepseek.com 两个
+     EdgeOne 节点间歇 ECONNREFUSED——一阵 81 行的长发作 + 数日零星「前两次扑空、
+     第三次救回」。连接失败时请求根本没发出（零 token 成本、零副作用），且与
+     模型输出质量无关：给独立预算 LLM_CONNECT_RETRIES（默认 4）+ 指数退避，
+     不与「坏 JSON / 5xx / 已发出请求超时」抢 LLM_MAX_RETRIES。
+     ===================================================================== */
+  it('ECONNREFUSED ×4 后成功：连接类失败按独立预算 1+4 次重试（原 1+2 次在第 3 次就放弃）', async () => {
+    httpsMock = new TransportMock(https, (i) => (i < 4 ? connectError('ECONNREFUSED') : okRes('recovered')));
+    await expect(service.chat('s', 'u')).resolves.toBe('recovered');
+    expect(httpsMock.request).toHaveBeenCalledTimes(5);
+  });
+
+  it('ECONNREFUSED 持续：1+4 次后放弃，末次错误仍为 network error', async () => {
+    httpsMock = new TransportMock(https, () => connectError('ECONNREFUSED'));
+    await expect(service.chat('s', 'u')).rejects.toThrow(/network error.*ECONNREFUSED/);
+    expect(httpsMock.request).toHaveBeenCalledTimes(5);
+  });
+
+  it('非连接阶段网络错误（ECONNRESET：请求可能已发出）维持原预算 1+2 次', async () => {
+    httpsMock = new TransportMock(https, () => connectError('ECONNRESET'));
+    await expect(service.chat('s', 'u')).rejects.toThrow(/network error/);
+    expect(httpsMock.request).toHaveBeenCalledTimes(3);
+  });
+
+  it('显式 retries: 1（限制昂贵的模型级重试）不掐连接预算——仍 1+4 次', async () => {
+    httpsMock = new TransportMock(https, (i) => (i < 4 ? connectError('ECONNREFUSED') : okRes('recovered')));
+    await expect(service.chat('s', 'u', 0.3, undefined, undefined, { retries: 1 })).resolves.toBe('recovered');
+    expect(httpsMock.request).toHaveBeenCalledTimes(5);
+  });
+
+  it('显式 retries: 0（延迟敏感、明确放弃重试）：连接失败也只试一次', async () => {
+    httpsMock = new TransportMock(https, () => connectError('ECONNREFUSED'));
+    await expect(service.chat('s', 'u', 0.3, undefined, undefined, { retries: 0 })).rejects.toThrow(/network error/);
+    expect(httpsMock.request).toHaveBeenCalledTimes(1);
+  });
+
+  it('LLM_CONNECT_RETRIES 可调（=1 → 1+1 次）', async () => {
+    service = await makeService({ LLM_CONNECT_RETRIES: '1' });
+    httpsMock = new TransportMock(https, () => connectError('ECONNREFUSED'));
+    await expect(service.chat('s', 'u')).rejects.toThrow(/network error/);
+    expect(httpsMock.request).toHaveBeenCalledTimes(2);
+  });
+
+  it('连接类退避 500/1000/2000/4000ms + 抖动：四轮累计 ≈ 8-10s 窗口（秒级抖动可跨越）', async () => {
+    const svc = await makeService({ LLM_RETRY_BASE_MS: '500' });
+    const delay = (attempt: number) =>
+      (svc as unknown as { retryDelay: (err: unknown, attempt: number) => number }).retryDelay(connectError('ECONNREFUSED'), attempt);
+    const inRange = (v: number, lo: number, hi: number) => v >= lo && v < hi;
+    expect(inRange(delay(1), 500, 1000)).toBe(true);
+    expect(inRange(delay(2), 1000, 1500)).toBe(true);
+    expect(inRange(delay(3), 2000, 2500)).toBe(true);
+    expect(inRange(delay(4), 4000, 4500)).toBe(true);
   });
 
   /* =====================================================================
