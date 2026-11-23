@@ -13,6 +13,7 @@ import { OptionalAuth } from '../common/decorators/optional-auth.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CreateAnnouncementDto, UpdateAnnouncementDto } from './dto/create-announcement.dto';
+import { AttachFromObjectDto } from './dto/attach-from-object.dto';
 import { AnnouncementHistoryService } from './announcement-history.service';
 import { CompanyScopeService } from '../company/company-scope';
 import { PrismaService } from '../prisma/prisma.service';
@@ -158,7 +159,7 @@ export class AnnouncementController {
   @ApiOperation({ summary: '从已有对象挂载公告附件（引用项目采购文件）' })
   async attachFromObject(
     @Param('id') id: string,
-    @Body() body: { objectKey: string; fileName?: string; title?: string; mimeType?: string; size?: number },
+    @Body() body: AttachFromObjectDto,
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     await this.assertAnnouncementScope(id, user);
