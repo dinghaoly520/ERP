@@ -158,7 +158,7 @@ export function PasswordResetRequestDialog({ open, onClose, initialUsername = ""
           <div>
             <p className="font-semibold">申请已提交</p>
             <p className="mt-1 text-sm text-slate-600">
-              管理员审核通过后，将按你填写的新密码更新账号；届时请使用新密码登录并及时修改。
+              管理员审核通过后，会按你填写的新密码重置，请尽快登录并再次修改。
             </p>
           </div>
         </div>
@@ -225,7 +225,7 @@ export function PasswordResetRequestDialog({ open, onClose, initialUsername = ""
           </label>
           <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
             申请前须先通过电话核验身份，请致电采购中心 <a className="underline" href="tel:02866666666">028-66666666</a>。
-            验证码将发送至该手机号，须为申请人本人号码；申请提交后经采购管理人员审核，通过后生效。仅已入库的供应商账号可申请密码重置。
+            验证码将发送至该手机号，须为申请人本人号码；申请提交后经采购管理人员审核，通过后生效。仅已入库的供应商账号可申请。
           </p>
           <label className="block text-sm font-medium">
             新密码

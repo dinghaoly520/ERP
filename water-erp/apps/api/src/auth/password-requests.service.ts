@@ -103,7 +103,7 @@ export class PasswordRequestsService {
     });
     if (!matched || (matched.role === 'supplier' && matched.supplier?.status !== 'APPROVED')) {
       throw new BadRequestException({
-        error: '未找到可受理密码重置申请的账号。请核对登录账号是否正确（供应商账号须已入库方可申请）；如有疑问请联系采购中心。',
+        error: '未找到可申请密码重置的账号，请核对登录账号。供应商账号须已入库方可申请，如有疑问请联系采购中心。',
         code: 'RESET_NOT_ELIGIBLE',
       });
     }

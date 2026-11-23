@@ -379,13 +379,13 @@ function CompanyLinksPanel({ myRole, onChanged }: { myRole?: string; onChanged: 
                         <div className="flex items-center justify-center gap-1.5">
                           <button type="button" onClick={() => { setActing({ row, type: 'approve' }); setReason(''); }}
                             disabled={!actionable}
-                            title={actionable ? undefined : `当前为${meta?.short ?? '—'}级，须由该级审批人操作（后端按级校验）`}
+                            title={actionable ? undefined : `当前为${meta?.short ?? '—'}级，须由该级审批人操作`}
                             className="neu-btn-xs is-success">
                             <Check size={12} />通过
                           </button>
                           <button type="button" onClick={() => { setActing({ row, type: 'reject' }); setReason(''); }}
                             disabled={!actionable}
-                            title={actionable ? undefined : `当前为${meta?.short ?? '—'}级，须由该级审批人操作（后端按级校验）`}
+                            title={actionable ? undefined : `当前为${meta?.short ?? '—'}级，须由该级审批人操作`}
                             className="neu-btn-xs is-danger">
                             <X size={12} />驳回
                           </button>
@@ -1077,11 +1077,11 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
               </div>
             ) : selected.status === 'RETURNED' ? (
               <div className="rc-detail-foot text-center text-[11px] text-[var(--muted-foreground)]">
-                补正中：等待供应商重新提交（退回原因：{selected.returnReason || '—'}）；重提后回到{STAGE_META[(selected.reviewStage ?? 'STAFF') as string]?.short ?? '初审'}续审
+                供应商补正中，重提后回到{STAGE_META[(selected.reviewStage ?? 'STAFF') as string]?.short ?? '初审'}续审。退回原因：{selected.returnReason || '—'}
               </div>
             ) : (
               <div className="rc-detail-foot text-center text-[11px] text-[var(--muted-foreground)]">
-                当前为{STAGE_META[selStage]?.short ?? '—'}级，非本级审批人（后端按级校验）
+                当前为{STAGE_META[selStage]?.short ?? '—'}级，需由该级审批人处理
               </div>
             )}
           </div>
