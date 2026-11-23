@@ -480,7 +480,7 @@ export default function SupplierDetailPage() {
           className="neu-segment"
           role="group"
           aria-label="供应商信息分区"
-          data-count="6"
+          data-count={String(tabs.length)}
           data-index={String(Math.max(0, tabs.findIndex(t => t.key === activeTab)))}
         >
           <span className="neu-segment-thumb" aria-hidden="true" />

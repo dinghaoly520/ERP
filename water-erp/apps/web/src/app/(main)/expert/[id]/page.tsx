@@ -442,7 +442,7 @@ export default function ExpertDetailPage() {
           className="neu-segment"
           role="group"
           aria-label="专家信息分区"
-          data-count="9"
+          data-count={String(TABS.length)}
           data-index={String(Math.max(0, TABS.findIndex(t => t.key === tab)))}
         >
           <span className="neu-segment-thumb" aria-hidden="true" />
