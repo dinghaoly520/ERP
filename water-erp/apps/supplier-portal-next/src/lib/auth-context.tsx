@@ -5,7 +5,8 @@ import { authApi } from "@/lib/api/auth";
 import { ApiError } from "@/lib/api";
 import { rememberSupplierSession, clearSupplierToken } from "@/lib/session-store";
 
-export type LoginResult = "ok" | "invalid" | "pending" | "expired" | "frozen";
+/** blocked = 密码正确但账号被处置（停用/黑名单/驳回/退回补正），message 为后端指路文案 */
+export type LoginResult = "ok" | "invalid" | "pending" | "expired" | "frozen" | { blocked: string };
 
 interface AuthContextValue {
   user: any | null;
@@ -73,6 +74,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (code === "ACCOUNT_PENDING") return "pending";
         if (code === "TEMPORARY_EXPIRED") return "expired";
         if (code === "ACCOUNT_FROZEN") return "frozen";
+        // 处置态专用码（2026-11-23 补齐，同族收口：停用/黑名单/驳回/退回补正）——密码正确但
+        // 账号被处置，后端 auth.controller 文案已带指路（补正走注册页等），透传明示；
+        // 此前落 "invalid" 会误报「用户名或密码错误」（2026-10-22 后端分流的前端漏网消费面）
+        if (
+          code === "ACCOUNT_DISABLED" || code === "ACCOUNT_BLACKLISTED" ||
+          code === "SUPPLIER_REJECTED" || code === "SUPPLIER_RETURNED"
+        ) {
+          return { blocked: e.message || "该账号当前无法登录，请联系采购中心" };
+        }
       }
       return "invalid";
     }
