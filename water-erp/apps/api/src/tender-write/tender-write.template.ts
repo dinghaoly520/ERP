@@ -292,6 +292,17 @@ function formatHierarchicalText(text: string): string {
   // Break before first-level numbers: 1. 2. 3. (digit + period + space)
   result = result.replace(/(\d+\.\s)/g, '\n$1');
 
+  // 句内粘连编号项断行（2026-11-23 用户裁定：「资格条件：1.持有…；2.未被…」挤在一句）：
+  // 前一字符为中文/句读收尾（非数字/小数点/拉丁——URL、小数天然不命中）且 N. 后非数字
+  // （小数防误伤）时断行；「第3、4名」类列举（前字符=第）不断
+  result = result.replace(/([㐀-鿿；。：，、））"?])(\d+)([.．])(?!\d)/g, (whole, prev: string, n: string, sep: string) =>
+    prev && !/[第\d.．]/.test(prev) ? `${prev}\n${n}${sep}` : whole,
+  );
+
+  // 句末短标签断行（2026-11-23）：「……注册。资格条件：」——句号后跟 2~6 汉字标签+冒号
+  // 时断行，标签独立成行（报名方式/资格条件分立）
+  result = result.replace(/。([㐀-鿿]{2,6}：)/g, '。\n$1');
+
   // Break before circled numbers (①②③④⑤⑥⑦⑧⑨⑩)
   result = result.replace(/([①②③④⑤⑥⑦⑧⑨⑩]+)/g, '\n$1');
 

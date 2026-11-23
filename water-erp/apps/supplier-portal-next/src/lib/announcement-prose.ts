@@ -84,18 +84,32 @@ export function normalizeAnnouncementContentHtml(html: string, title?: string | 
 const NUMBERED_LINE_START_RE = /^(?:[（(]?\d+[）)、.．]|[①②③④⑤⑥⑦⑧⑨⑩]|[一二三四五六七八九十]+[、）)])/;
 
 function splitNumberedBrLines(html: string): string {
-  if (!html.includes('<br')) return html;
-  return html.replace(/<p([^>]*)>([\s\S]*?)<\/p>/g, (whole, _attrs: string, inner: string) => {
-    if (!/<br\s*\/?>/i.test(inner)) return whole;
-    const segs = inner.split(/<br\s*\/?>/i);
-    let out = '';
-    for (let i = 0; i < segs.length; i++) {
-      if (i > 0) {
-        const text = segs[i].replace(/<[^>]+>/g, '').trim();
-        out += NUMBERED_LINE_START_RE.test(text) ? '</p><p>' : '<br/>';
+  if (!html.includes('<p')) return html;
+  return html.replace(/<p([^>]*)>([\s\S]*?)<\/p>/g, (whole, attrs: string, inner: string) => {
+    let out = inner;
+    // 1) br 断行的编号行拆段（既有）
+    if (/<br\s*\/?>/i.test(out)) {
+      const segs = out.split(/<br\s*\/?>/i);
+      let joined = '';
+      for (let i = 0; i < segs.length; i++) {
+        if (i > 0) {
+          const text = segs[i].replace(/<[^>]+>/g, '').trim();
+          joined += NUMBERED_LINE_START_RE.test(text) ? '</p><p>' : '<br/>';
+        }
+        joined += segs[i];
       }
-      out += segs[i];
+      out = joined;
     }
-    return `<p>${out}</p>`;
+    // 2) 句内粘连拆段（2026-11-23 存量兜底，仅纯文本段）：「资格条件：1.持有…；2.未被…」
+    //    挤在一句的形态——编号项（句点式，小数/「第N」防误伤）前拆段并归一「N）」；
+    //    句号后跟 2~6 汉字短标签（「。资格条件：」）拆段。守卫与生成侧 formatHierarchicalText 同口径。
+    if (!/<[a-z]/i.test(out)) {
+      out = out
+        .replace(/([㐀-鿿；。：，、））\"?])(\d+)([.．])(?!\d)/g, (w2: string, prev: string, n: string) =>
+          prev && !/[第\d.．]/.test(prev) ? `${prev}</p><p>${n}）` : w2)
+        .replace(/。([㐀-鿿]{2,6}：)/g, '。</p><p>$1');
+    }
+    if (out === inner) return whole;
+    return `<p${attrs}>${out}</p>`;
   });
 }

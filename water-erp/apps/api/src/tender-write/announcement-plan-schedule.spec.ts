@@ -99,4 +99,36 @@ describe('公告正文下一级序号归一「N. / N、」→「N）」（2026-1
     // 句点式仍归一
     expect(text).toContain('3）备用条款');
   });
+
+  it('报名方式值句内粘连拆行：句末短标签（资格条件：）与编号项（1.持有，无空格句点式）各自成行且序号归一', async () => {
+    const xml = await loadTemplateXml(COMPETITIVE_NEGOTIATION_ANNOUNCEMENT_TEMPLATE_FILE);
+    const rendered = renderTemplateXml(xml, buildInvitedBiddingAnnouncementPlan({
+      projectName: '电梯维保',
+      scheduleRequirementsType: 'have',
+      scheduleRequirements: 'x',
+      registrationMethod: '报名方式：访问https://ssyc.scsfjt.com四川水发集团“蜀水云采·智慧水发”的供应商门户进行注册、查询项目、确认投标意向和文件投递。资格条件：1.持有有效营业执照或事业单位法人证书；2.未被“国家企业信用信息公示系统”列入严重违法失信名单。',
+    } as any));
+    const text = rendered.replace(/<[^>]+>/g, '');
+    // URL 不被误断、内容完整
+    expect(text).toContain('https://ssyc.scsfjt.com');
+    // 句点式无空格编号项归一为 1）2）且不在句中粘连
+    expect(text).toContain('1）持有有效营业执照');
+    expect(text).toContain('2）未被');
+    expect(text).not.toContain('1.持有');
+    // 资格条件标签与编号项各自独立成行（w:br 断行——剥标签后不可见，断言打在原始 XML 上）
+    expect(rendered).toContain('文件投递。</w:t><w:br/><w:t');
+    expect(rendered).toMatch(/<w:t[^>]*>资格条件：<\/w:t><w:br\/><w:t[^>]*>1）持有有效营业执照/);
+    expect(rendered).toMatch(/<w:br\/><w:t[^>]*>2）未被/);
+  });
+
+  it('「第3、4名」类列举不断行（前字符=第 防误伤）', async () => {
+    const xml = await loadTemplateXml(COMPETITIVE_NEGOTIATION_ANNOUNCEMENT_TEMPLATE_FILE);
+    const rendered = renderTemplateXml(xml, buildInvitedBiddingAnnouncementPlan({
+      projectName: 'x',
+      scheduleRequirementsType: 'have',
+      scheduleRequirements: '评审按第3、4章执行。',
+    } as any));
+    const text = rendered.replace(/<[^>]+>/g, '');
+    expect(text).toContain('评审按第3、4章执行');
+  });
 });
