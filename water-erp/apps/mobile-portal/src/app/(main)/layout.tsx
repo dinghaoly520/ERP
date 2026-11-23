@@ -21,11 +21,16 @@ const ROLE_LABELS: Record<string, string> = {
   supplier: "供应商",
 };
 
-/** 墙上时间事实行：`2026-11-18 周三 14:32`（本地时区，30s 步进防分钟边界滞后） */
-function wallclock(d: Date): string {
+/** 墙上时间（本地时区，30s 步进防分钟边界滞后）——日期事实行与仪表示时钟分开呈现 */
+function wallclockDate(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   const wd = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"][d.getDay()];
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${wd} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${wd}`;
+}
+
+function clockTime(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
@@ -106,12 +111,26 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               <Crown size={18} strokeWidth={1.5} className="text-[var(--gold)]" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">
-                {user?.displayName ?? ""}
+              {/* 姓名 + 角色事实胶囊（2026-11-23 抬头重排：角色从副行提为名旁胶囊，日期单独成行） */}
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span className="min-w-0 truncate text-[18px] font-bold tracking-[-0.01em] text-[var(--foreground)]">
+                  {user?.displayName ?? ""}
+                </span>
+                {user ? (
+                  <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">
+                    {ROLE_LABELS[user.role] ?? user.role}
+                  </span>
+                ) : null}
               </div>
-              <div className="mt-0.5 truncate text-[14px] tabular-nums text-[var(--muted-foreground)]">
-                {user ? `${ROLE_LABELS[user.role] ?? user.role} · ${wallclock(now)}` : ""}
-              </div>
+              <div className="mt-1 truncate text-[13px] tabular-nums text-[var(--muted-foreground)]">{wallclockDate(now)}</div>
+            </div>
+            {/* 右侧仪表示时钟：大号时:分 + 活点（30s 实时步进） */}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span className="relative flex h-1.5 w-1.5" aria-hidden>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-60 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--success)]" />
+              </span>
+              <span className="text-[20px] font-bold leading-none tabular-nums text-[var(--foreground)]">{clockTime(now)}</span>
             </div>
           </div>
         ) : null}
