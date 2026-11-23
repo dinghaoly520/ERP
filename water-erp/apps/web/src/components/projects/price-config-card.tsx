@@ -136,10 +136,13 @@ export function EvaluationBasisFields({
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const softLocked = viewOnly || softLockedOf(detail?.stage);
-  /** 第三波（P1-2）窄口：EVALUATING 且现值缺失时仅「最高限价」允许补设——与后端
+  /** M-1（终审 2026-11-23）：限价补设窄口（P1-2）在查看模式下显式压制——该窗口此前 UI 侧已是
+   *  死路（EVALUATING 时 03 卡被开标锁拦、面板不可达），U1 查看入口不应意外复活它；评标中途
+   *  改限价影响价格公式结果，只读访问者（leader/admin 看他人项目）尤不可触发。
+   *  第三波（P1-2）窄口语义不变：EVALUATING 且现值缺失时仅「最高限价」允许补设——与后端
    *  updatePriceConfig 同口径（载荷仅含 ceilingPrice 且现值为空才放行）；ARCHIVED 恒锁。
    *  save() 按字段 dirty 构造载荷，其余键在锁定期输入禁用不可能 dirty → 载荷必然窄口合规 */
-  const ceilingBackfillable = detail?.stage === "EVALUATING" && detail?.ceilingPrice == null;
+  const ceilingBackfillable = !viewOnly && detail?.stage === "EVALUATING" && detail?.ceilingPrice == null;
   const formulaVisible = evaluationMethod !== "" && !FORMULA_HIDDEN_METHODS.has(evaluationMethod);
 
   // 当前表单的规范 config 形态（供 dirty 对比与保存复用；显式填写的参数才入 config）
@@ -228,7 +231,10 @@ export function EvaluationBasisFields({
     <div className="space-y-3">
       {softLocked && (
         <div className="wb-alert wb-alert--warning flex items-center gap-2 text-xs">
-          <Lock size={13} /> {ceilingBackfillable
+          <Lock size={13} /> {/* M-4（终审）：viewOnly 下锁因是查看模式而非阶段——原文案「已进入评标/归档阶段」失实 */}
+          {viewOnly
+            ? "查看模式——此处仅可查看评标办法与价格分配置；如需修改请先重开「采购文件」步骤（评标开始后按法定程序办理）。"
+            : ceilingBackfillable
             ? "项目已进入评标阶段——评标办法与价格分公式已锁定；此前未设置最高限价，仍可补设（基准价偏离法/比例法生成评标结果所必需）"
             : LOCKED_NOTICE}
         </div>

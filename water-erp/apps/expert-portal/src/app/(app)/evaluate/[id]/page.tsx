@@ -2104,8 +2104,9 @@ export default function ExpertEvaluatePage() {
                 </div>
               </div>
               {/* D3a（2026-11-23）：零可评总结态——全部供应商不可评时给出总结横幅与出路指引，
-                  不再让专家面对整片置灰打分表猜发生了什么（1030 项目三家全 AI 废标本）。 */}
-              {project.suppliers.length > 0 && scorableSupplierCount === 0 && (
+                  不再让专家面对整片置灰打分表猜发生了什么（1030 项目三家全 AI 废标本）。
+                  M-2（终审）：与 D1 单家横幅同口径挂 !scoreLocked——已确认报告的专家已无行动意义。 */}
+              {!scoreLocked && project.suppliers.length > 0 && scorableSupplierCount === 0 && (
                 <div className="exp-alert exp-alert--warn mb-4">
                   当前项目已无可评供应商（全部废标/回避/异常）——请通过开评标管理端联系主持人处理（组长复议可恢复误废标，或按流标程序办理）。
                 </div>
