@@ -669,6 +669,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   }
   const scorePct = totalSlots > 0 ? Math.round((scoredSlots / totalSlots) * 100) : 0;
 
+  /** D2（2026-11-23）：结果↔供应商 join 完整性守卫——results.supplierId 失配于项目供应商集时
+   *  （陈旧/脏数据），排序退化插入序、名次回退客户端估算但标签仍「官方评标结果」、均分取客户端
+   *  值，静默拼成混合显示（大数据平台项目实测排名 2/1/2 + 明细列翻倍）。显式告警替代静默降级。 */
+  const orphanResultCount = results.filter(r => !suppliers.some(s => s.id === r.supplierId)).length;
+
   /** 官方排名（含废标置后）或实时排名 */
   const rankedSuppliers = [...suppliers].sort((a, b) => {
     if (results.length > 0) {
@@ -1501,6 +1506,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
               <AlertTriangle size={11} className="shrink-0" />
               <span>评标结果读取失败——当前展示为实时预览排名，请刷新重试；若持续失败请联系管理员。</span>
+            </div>
+          )}
+          {/* D2（2026-11-23）：孤儿结果告警——失配时排名/均分/明细均为降级展示，勿当官方数据读 */}
+          {orphanResultCount > 0 && (
+            <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>检测到 {orphanResultCount} 条评标结果与当前供应商名单不匹配（数据可能过期）——名次与均分展示可能失真，请重新生成评标结果或联系管理员。</span>
             </div>
           )}
           {/* 官方口径预览拉取失败可见化——此前 catch→null 静默回退客户端均分序，两次刷新数据源/量纲切换无感知 */}
