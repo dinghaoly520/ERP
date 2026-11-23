@@ -1340,6 +1340,11 @@ export class AnnouncementService {
     const meta = { ...((ann.metadata as Record<string, any>) ?? {}) };
     meta.recycle = { from: ann.status, action: target, at: new Date().toISOString(), by: recycleOpName };
     const result = await this.prisma.announcement.update({ where: { id }, data: { status: target, metadata: meta as any } });
+    // I-2：回收/下线变更公告同款清链（变更视同撤销——restore 不自动重链，重新发变更再链）
+    await this.prisma.bidDocument.updateMany({
+      where: { supersededByAnnouncementId: id },
+      data: { supersededByAnnouncementId: null },
+    }).catch(e => this.logger.warn(`回收清 supersede 链失败（不阻塞）: ${(e as Error).message}`));
     await this.prisma.announcementHistory.create({
       data: {
         announcementId: id, action: target === 'HIDDEN' ? 'HIDE' : 'OFFLINE',
@@ -1891,6 +1896,15 @@ export class AnnouncementService {
         }
 
         await tx.announcement.delete({ where: { id } });
+
+        // I-2（2026-11-23 增量审查）：删除变更公告 → 清 supersededByAnnouncementId 反向链。
+        // 语义：变更公告消失=变更视同撤销，旧采购文件回归「当前版」可下载——不清链则
+        // bid-document 读端查不到目标公告→supersededBy=null 复活旧件（但换源指引入口消失）、
+        // 回收站(HIDDEN)变体则 supersededBy 非 null→下载全死锁。删/收统一清链，两端同语义。
+        await tx.bidDocument.updateMany({
+          where: { supersededByAnnouncementId: id },
+          data: { supersededByAnnouncementId: null },
+        });
 
         // 公告删除联动清通知（2026-11-04 堆积治理）：链接指向本公告的站内信一并删除——
         // 公告已删、通知滞留即死链（8 月 7385 条死链堆积的成因）。站内信是触达渠道非留痕
