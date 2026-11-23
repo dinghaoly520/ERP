@@ -84,3 +84,23 @@ test("首段与标题非前缀关系（异构存量）→ 不猜测、原样返�
   const plain = normalizeAnnouncementContentHtml("纯文本无段落", "标题");
   assert.equal(plain, "纯文本无段落");
 });
+
+test("单项列表包壳的节标题解包（docx 列表样式存量）：ol/ul 单 li 命中「N、」形态 → 普通段落接管加粗缩进", () => {
+  // 生产实录（2026-11-23 竞价公告）：模板「四、五、六」行用 Word 列表样式，mammoth 产
+  // <ol><li><strong>四、公示期限</strong></li></ol>——列表项非 <p>，加粗标记不命中且吃列表缩进错位
+  const html = "<p>三、报名方式及条件</p><p>报名方式等。</p>"
+    + "<ol><li><strong>四、公示期限</strong></li></ol>"
+    + "<p>本公告有效期。</p>"
+    + "<ol><li><strong>五、开标时间及地点</strong></li></ol>";
+  const out = normalizeAnnouncementContentHtml(html, null);
+  assert.ok(out.includes('<p class="ann-prose-h"><strong>四、公示期限</strong></p>'), out);
+  assert.ok(out.includes('<p class="ann-prose-h"><strong>五、开标时间及地点</strong></p>'), out);
+  assert.ok(!out.includes("<ol>"), out);
+});
+
+test("列表解包防误伤：多项真列表与非标题单 li 不动", () => {
+  const multi = normalizeAnnouncementContentHtml("<ol><li>一、条件甲</li><li>二、条件乙</li></ol>", null);
+  assert.ok(multi.includes("<ol>"), multi);
+  const plain = normalizeAnnouncementContentHtml("<ol><li>普通列表项</li></ol>", null);
+  assert.ok(plain.includes("<ol>"), plain);
+});
