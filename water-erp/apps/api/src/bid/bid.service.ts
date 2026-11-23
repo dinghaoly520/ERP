@@ -5591,6 +5591,10 @@ export class BidService {
 
   /** 供应商提交报价 */
   async submitQuote(projectId: string, roundId: string, bidSupplierId: string, quotePrice: number) {
+    // F9（递延收口·标注）：供应商报价的**活路径**=supplier-portal.controller 内联实现
+    //（2026-10-19 起自带阶段闸，错误码 PROJECT_NOT_ACTIVE）——本方法为纵深防御/单测锚，
+    // 两路径同语义不同码（此处 STAGE_NOT_OPENING 与 createRound 同码）系历史并存，有意保留；
+    // 若未来收敛单源，以 supplier-portal 侧为准收编此处。
     const round = await this.prisma.bidRound.findUnique({ where: { id: roundId } });
     if (!round || round.projectId !== projectId) throw new BadRequestException({ error: '轮次不存在', code: 'NOT_FOUND' });
     if (round.status !== 'open') throw new ConflictException({ error: '轮次不在开放状态', code: 'ROUND_NOT_OPEN' });

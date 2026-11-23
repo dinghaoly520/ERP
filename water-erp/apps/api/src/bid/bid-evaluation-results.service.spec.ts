@@ -609,6 +609,19 @@ describe('BidEvaluationResultsService — evaluation results', () => {
       expect(prisma.bidEvaluationResult.createMany).not.toHaveBeenCalled();
     });
 
+    it('C7 递延收口：谈判采购 2 家有效成交 → 不写「明显缺乏竞争」留痕（非招标方式多家竞争非法定要求）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue(buildProject({
+        procurementMethod: '谈判采购',
+        suppliers: [
+          { id: 's1', supplierName: '甲', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+          { id: 's2', supplierName: '乙', decryptStatus: 'SUCCESS', submitStatus: '已提交', confirmStatus: 'CONFIRMED' },
+        ],
+      }));
+      await service.generateEvaluationResults('p1', 'u1');
+      const warn = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '有效标不足法定家数提示');
+      expect(warn).toBeUndefined();
+    });
+
     it('N1：招标类有效标 2/3 家 → 放行生成 + 高风险留痕「不足法定」', async () => {
       prisma.bidProject.findUnique.mockResolvedValue(buildProject({
         procurementMethod: '公开招标',

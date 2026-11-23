@@ -503,8 +503,11 @@ export class BidEvaluationResultsService {
     }
     // N1：有效标不足法定家数（12 号令 27 条「明显缺乏竞争可否决」为裁量项）——留痕不硬拦，
     // 继续与否由评标委员会决定；此提示随归档哈希链入证据链。
+    // C7（递延收口）：仅招标类方式（邀请/公开招标）写「明显缺乏竞争」——谈判/询比/竞价
+    // 非招标方式多家竞争非法定要求（2 家成交合法），留痕口径按方式差异化。
     const minBidders = getMinBiddersForMethod(project.procurementMethod);
-    if (qualifiedRanked.length < minBidders) {
+    const isTenderMethod = project.procurementMethod === '邀请招标' || project.procurementMethod === '公开招标';
+    if (isTenderMethod && qualifiedRanked.length < minBidders) {
       await this.prisma.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '系统', target: project.name,
