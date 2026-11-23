@@ -82,10 +82,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     <div className="flow-page ambient-grid flex h-dvh flex-col overflow-hidden">
       <div className="flow-glow" aria-hidden />
       <header className="z-40 flex h-11 shrink-0 items-center gap-2 border-b border-[color-mix(in_oklch,var(--border)_60%,transparent)] bg-[color-mix(in_oklch,var(--background)_86%,transparent)] pl-[max(0.875rem,env(safe-area-inset-left))] pr-[max(0.875rem,env(safe-area-inset-right))] backdrop-blur-md">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))] shadow-[0_6px_16px_rgba(69,99,158,0.15)]">
+        {/* 图标呼吸 + 标题彩色流转（2026-11-23 用户裁定：同登录页语言） */}
+        <div className="m-brand-breath flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] border border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.94),rgba(238,244,255,0.86))]">
           <Image src="/procurement-brand-logo.png" alt="蜀水云采" width={24} height={24} className="rounded-[6px] object-cover" priority />
         </div>
-        <div className="min-w-0 flex-1 truncate text-[16px] font-bold tracking-[0.02em] text-[var(--foreground)]">蜀水云采 · 专属驾驶舱</div>
+        <div className="login-title login-title--gradient min-w-0 flex-1 truncate text-[16px] font-bold tracking-[0.02em]">蜀水云采 · 专属驾驶舱</div>
         <button
           type="button"
           onClick={handleLogout}

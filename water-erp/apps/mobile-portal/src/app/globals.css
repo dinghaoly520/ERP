@@ -531,6 +531,15 @@ select.m-input { appearance: auto; }
   box-shadow: 0 0 0 2px color-mix(in oklch, var(--step-color, var(--warning)) 30%, transparent);
 }
 
+/* 顶栏品牌图标呼吸（2026-11-23 用户裁定：同登录页语言，subtle 缩放+投影起伏） */
+@keyframes m-brand-breath {
+  0%, 100% { transform: scale(1); box-shadow: 0 6px 16px rgba(69, 99, 158, 0.15); }
+  50% { transform: scale(1.07); box-shadow: 0 8px 22px rgba(69, 99, 158, 0.28); }
+}
+.m-brand-breath {
+  animation: m-brand-breath 3.6s ease-in-out infinite;
+}
+
 /* 底部弹层面板：圆角把手 + 上滑入场 + 安全区（无边框，方向性上浮影） */
 @keyframes m-sheet-up {
   from { transform: translateY(100%); }
@@ -648,7 +657,8 @@ select.m-input { appearance: auto; }
   .m-sheet-panel,
   .m-sheet-panel[data-closing="true"],
   .m-draw-line,
-  .m-seg-in { animation: none; }
+  .m-seg-in,
+  .m-brand-breath { animation: none; }
   /* cgzxui 原则 5：装饰性过渡降级（加载 spinner 属功能性反馈，保留） */
   .m-tile,
   .m-chip,
