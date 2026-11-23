@@ -201,13 +201,19 @@ export default function ProgressPage() {
      方式/部门/经办人为 PMI 清单筛选，不作用于标段统计）。四 KPI=运行中(标前+标中)/标前/标中/标后，
      点选仅高亮；30s 轮询开评标实名录点亮红点 */
   const [bidStage, setBidStage] = useState<BidStageStatus | null>(null);
+  /* 板块选择器 → 态势过滤（方式多选/部门按名/经办人按 id；dimensions 到达后部门 id 才能译出名） */
+  const bidPmiFilter = useMemo(
+    () => ({ procurementMethods: methodIds, departments: departmentIds.map(deptNameOf), createdBy: handlerIds }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [methodIds, departmentIds, handlerIds, dimensions],
+  );
   useEffect(() => {
     let active = true;
-    fetchBidStageStatus(filterCompanyId, queryRange.startDate, queryRange.endDate)
+    fetchBidStageStatus(filterCompanyId, queryRange.startDate, queryRange.endDate, bidPmiFilter)
       .then((st) => { if (active) setBidStage(st); })
       .catch(() => undefined);
     return () => { active = false; };
-  }, [retryTick, filterCompanyId, queryRange.startDate, queryRange.endDate]);
+  }, [retryTick, filterCompanyId, queryRange.startDate, queryRange.endDate, bidPmiFilter]);
   const [bidBucket, setBidBucket] = useState<BidStageBucket>("running");
   const [live, setLive] = useState<{ projects: BidLiveProject[] } | null>(null);
   usePolling(

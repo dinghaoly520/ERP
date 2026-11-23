@@ -71,19 +71,32 @@ export class DashboardController {
 
   /** :3011 实时运行态势四 KPI——标段生命周期盘点（标前/标中/标后/运行中 + 同比环比流量） */
   @Get('bid-stage-status')
-  @ApiOperation({ summary: ':3011 实时态势标段盘点（运行中/标前/标中/标后 + 同比环比流量）' })
+  @ApiOperation({ summary: ':3011 实时态势标段盘点（运行中/标前/标中/标后 + 同比环比流量）；pmi=1 进展页模式——时间/方式/部门/经办人走 PMI 关系过滤且 headline 按窗计（2026-11-23）' })
   async getBidStageStatus(
     @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
     @Query('companyId') companyId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
+    @Query('pmi') pmi?: string,
+    @Query('procurementMethod') procurementMethod?: string, // 采购方式逗号多选（进展页多选并行）
+    @Query('department') department?: string, // 部门名逗号多选（进展页部门筛选按名匹配 PMI.requesterDepartment）
+    @Query('createdBy') createdBy?: string, // 经办人 id 逗号多选（PMI.createdById）
   ) {
     if (!canViewGlobalBusinessData(user.role)) {
       throw new ForbiddenException('普通账号无法查看数据库页面。');
     }
     const scope = await this.companyScope.resolveScope(user, companyId, portalSourceOf(req));
-    return this.dashboardService.getBidStageStatus(this.companyScope.filter(scope), startDate, endDate);
+    const csv = (v?: string) => v?.split(',').map((x) => x.trim()).filter(Boolean) ?? [];
+    // pmi=1：进展页模式（对象存在即切换语义，空字段也算）——态势卡内容跟随页级全部选择器
+    const pmiFilter = pmi === '1'
+      ? {
+          procurementMethods: csv(procurementMethod),
+          departments: csv(department),
+          createdBy: csv(createdBy),
+        }
+      : undefined;
+    return this.dashboardService.getBidStageStatus(this.companyScope.filter(scope), startDate, endDate, pmiFilter);
   }
 
   /** :3011 实时态势 KPI 下方项目列表——桶内最新 N 项 + 复合状态行（规则见 service注释） */

@@ -40,11 +40,26 @@ export type BidStageCounts = { running: number; pre: number; in: number; post: n
 export type BidStageStatus = BidStageCounts & {
   flow: { cur: BidStageCounts; yoy: BidStageCounts; prev: BidStageCounts } | null;
 };
-export async function fetchBidStageStatus(companyId?: string, startDate?: string, endDate?: string): Promise<BidStageStatus> {
+/** 进展页模式过滤（2026-11-23 用户裁定：态势卡跟随板块选择器）——传入对象即切换语义：
+ *  时间按 PMI 立项日、方式/部门/经办人走 PMI 关系过滤，headline 四数也按窗计 */
+export type BidStagePmiFilter = { procurementMethods?: string[]; departments?: string[]; createdBy?: string[] };
+
+export async function fetchBidStageStatus(
+  companyId?: string,
+  startDate?: string,
+  endDate?: string,
+  pmiFilter?: BidStagePmiFilter,
+): Promise<BidStageStatus> {
   const params = new URLSearchParams();
   if (companyId) params.set('companyId', companyId);
   if (startDate) params.set('startDate', startDate);
   if (endDate) params.set('endDate', endDate);
+  if (pmiFilter) {
+    params.set('pmi', '1');
+    if (pmiFilter.procurementMethods?.length) params.set('procurementMethod', pmiFilter.procurementMethods.join(','));
+    if (pmiFilter.departments?.length) params.set('department', pmiFilter.departments.join(','));
+    if (pmiFilter.createdBy?.length) params.set('createdBy', pmiFilter.createdBy.join(','));
+  }
   const q = params.toString();
   return api.get<BidStageStatus>(`/dashboard/bid-stage-status${q ? `?${q}` : ''}`);
 }
