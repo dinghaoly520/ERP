@@ -81,7 +81,7 @@ const CMP_STEMS = ["甲", "乙", "丙", "丁"];
 const CMP_MAX = 4;
 const CMP_DIMS: Array<{ key: CmpDim; label: string }> = [
   { key: "awardAmount", label: "成交额" },
-  { key: "rounds", label: "轮次" },
+  { key: "rounds", label: "总项目数" }, /* 2026-11-23 用户裁定：轮次→总项目数 */
   { key: "savings", label: "节资" },
   { key: "savingsRate", label: "节资率" },
   { key: "abnormal", label: "异常" },
@@ -725,8 +725,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .catch(() => { if (active) setAnnouncements([]); });
     return () => { active = false; };
   }, [analysisOpen, companyIds]);
-  /* 企业对比多选（2026-11-23 用户裁定：双企扩为 2–5 家）；为空/口径变动时派生补足成交额前两名 */
-  const [cmpPicks, setCmpPicks] = useState<string[]>([]);
+  /* 企业对比多选（2026-11-23 用户裁定：0–4 家自由选择，不做最少两家强制；null=未动过——
+     首次默认成交额前两名，用户清空（[]）后尊重空态显示引导，不再自动回填） */
+  const [cmpPicks, setCmpPicks] = useState<string[] | null>(null);
 
   /* 数据分析页（2026-11-19 重构裁定）：归档区走 dashboard 轮次、进行中区走 PMI
    * 进展清单——开层懒取一次（会话内缓存） */
@@ -1130,13 +1131,12 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               // 可选名单（2026-11-23 用户裁定零值不显）：口径内有业务数据（轮次/成交/异常）或集团成员企业
               // （主表有简称的 9 家）——子公司/测试公司零数据不入名单；名单按成交额榜序
               const options = rows.filter((r) => r.rounds > 0 || r.awardAmount > 0 || r.abnormal > 0 || r.shortName);
-              // 已选公司仍在名单内者保留；不足 2 家按榜序补足；上限 CMP_MAX
-              const kept = cmpPicks.filter((id) => options.some((r) => idOf(r) === id));
-              const pickIds = [...kept, ...options.filter((r) => !kept.includes(idOf(r))).slice(0, Math.max(0, 2 - kept.length)).map(idOf)].slice(0, CMP_MAX);
+              // 已选仍在名单内者保留（口径变动剔除失效项）；null=未动过默认前两名；选中即尊重、可清空到 0
+              const pickIds = (cmpPicks ?? options.slice(0, 2).map(idOf)).filter((id) => options.some((r) => idOf(r) === id)).slice(0, CMP_MAX);
               const picks = pickIds.map((id) => options.find((r) => idOf(r) === id)).filter((r): r is CmpRow => !!r);
               // 指标×企业矩阵：各指标最优（异常以少为优）加粗；全平行无优胜
               const metricDefs: Array<{ label: string; get: (r: CmpRow) => number; fmt: (v: number) => string; lower?: boolean }> = [
-                { label: "轮次", get: (r) => r.rounds, fmt: String },
+                { label: "总项目数", get: (r) => r.rounds, fmt: String },
                 { label: "已成交", get: (r) => r.awarded, fmt: String },
                 { label: "成交额", get: (r) => r.awardAmount, fmt: fmtWan },
                 { label: "成交预算", get: (r) => r.awardedBudget, fmt: fmtWan },
@@ -1220,7 +1220,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 options.length >= 2 ? (
                   <InlineSelect
                     multiple
-                    label={picks.length <= 3 ? picks.map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ") : `${picks.slice(0, 2).map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ")} 等 ${picks.length} 家`}
+                    label={picks.length === 0 ? "选择企业" : picks.length <= 3 ? picks.map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ") : `${picks.slice(0, 2).map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ")} 等 ${picks.length} 家`}
                     active
                     options={options.map((r) => ({ value: idOf(r), label: r.company }))}
                     selected={picks.map(idOf)}
@@ -1232,9 +1232,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             >
               {options.length < 2 ? (
                 <EmptyState text={`当前口径下只有 ${options.length} 家可比公司，选择更多公司后可对比`} />
+              ) : picks.length < 2 ? (
+                /* 0/1 家的引导态（2026-11-23 用户裁定：可清空，不再强制回填两家） */
+                <div className="rounded-[12px] m-tile px-3 py-6 text-center">
+                  <div className="text-[14px] font-semibold text-[var(--foreground)]">
+                    {picks.length === 0 ? "从右上角选择 2–4 家企业开始对比" : `已选 ${picks.length} 家，再选一家即可对比`}
+                  </div>
+                  <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">名单为有业务数据或集团成员企业，默认成交额前两名</div>
+                </div>
               ) : (
                 <div className="space-y-2.5">
-                  <div className="px-1 text-[12px] text-[var(--muted-foreground)]">可选 2–4 家（有业务数据或集团成员企业），默认成交额前两名</div>
+                  <div className="px-1 text-[12px] text-[var(--muted-foreground)]">已选 {picks.length} 家 · 最多 {CMP_MAX} 家</div>
                   <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none]">
                     <div className="rounded-[12px] m-tile px-3 py-2 text-[14px]" style={{ minWidth: `${76 + picks.length * 92}px` }}>
                       <div className="flex items-center gap-2 border-b border-[oklch(0.6_0.04_258_/_0.12)] pb-1.5">
