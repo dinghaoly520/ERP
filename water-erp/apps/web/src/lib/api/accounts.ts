@@ -77,6 +77,8 @@ export type SupplierAccount = {
     name: string;
     creditCode: string;
     isTemporary: boolean;
+    /** 供应商入库状态（PENDING/APPROVED/DISABLED/BLACKLIST/REJECTED/RETURNED）——账号列表状态列据此区分停用/黑名单与待审核 */
+    status: string;
     companyId: string | null;
     companyName: string | null;
     /** 归属中的公司（APPROVED SupplierCompanyLink，2026-11-04 多归属）；companyId/companyName 为主归属快照 */
