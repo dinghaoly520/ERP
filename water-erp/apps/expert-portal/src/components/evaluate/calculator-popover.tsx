@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calculator, ChevronDown, Grip, X } from 'lucide-react';
+import { Calculator, ChevronDown, Delete, Grip, X } from 'lucide-react';
 import { evaluateCalc, normalizeExprChars, type AngleMode, type CalcHistoryEntry } from '@/lib/calculator-core';
 
 /**
@@ -20,6 +20,7 @@ interface CalcKey {
   cls?: string;
   isAngle?: boolean; // DEG/RAD 切换键
   act?: 'backspace' | 'clear' | 'equals';
+  icon?: 'delete'; // 退格键用实形图标替代 ⌫ 字符（字符过小不显眼）
 }
 
 const K = (label: string, cls?: string, ins?: string): CalcKey => ({ label, cls, ins });
@@ -27,7 +28,7 @@ const SCI_ROWS: CalcKey[][] = [
   [K('sin', '', 'sin('), K('cos', '', 'cos('), K('tan', '', 'tan('), K('π')],
   [K('ln', '', 'ln('), K('log', '', 'log('), K('√', '', '√('), K('x²', '', '^2')],
   [K('1/x', '', '1÷('), K('xʸ', 'is-info', '^'), K('%'), { label: 'DEG', cls: 'is-info', isAngle: true }],
-  [K('(', 'is-info'), K(')', 'is-info'), { label: '⌫', cls: 'is-warning', act: 'backspace' }, { label: 'C', cls: 'is-danger', act: 'clear' }],
+  [K('(', 'is-info'), K(')', 'is-info'), { label: '⌫', cls: 'is-warning font-bold', act: 'backspace', icon: 'delete' }, { label: 'C', cls: 'is-danger', act: 'clear' }],
 ];
 const KEY_ROWS: CalcKey[][] = [
   [K('7'), K('8'), K('9'), K('÷', 'is-info')],
@@ -388,7 +389,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                   onClick={() => onKeyButton(k)}
                   className={`neu-btn-xs !px-0 font-mono !text-[15px] ${k.cls ?? ''}`}
                 >
-                  {k.isAngle ? angleMode : k.label}
+                  {k.icon === 'delete' ? <Delete size={17} strokeWidth={2} /> : k.isAngle ? angleMode : k.label}
                 </button>
               ))}
             </div>
