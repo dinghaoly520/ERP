@@ -36,7 +36,8 @@ const typeLabel = ANN_TYPE_LABEL;
 const statusTone = ANN_STATUS_TONE;
 const statusLabel = ANN_STATUS_LABEL;
 
-interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string; required?: boolean }
+/** noHeader：仅编辑表单维护、不在顶部元数据区块展示（正文已载同文的长文本块） */
+interface MetaField { key: string; label: string; area?: boolean; date?: boolean; ph?: string; required?: boolean; noHeader?: boolean }
 
 /** datetime-local 值归一：存量纯日期（2026-07-01）补 T00:00，否则控件显示空；已合规/空原样 */
 function toDateInputValue(raw: string): string {
@@ -63,7 +64,9 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   ],
   BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
-    { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
+    // 采购内容/范围、投标人资格要求：正文「项目概况」「报名方式及条件」已载同文，顶部不再重复平铺
+    // （2026-11-23 用户裁定）——仅从顶部剔除，编辑表单与保存照常维护这两项
+    { key: 'scope', label: '采购内容/范围', area: true, noHeader: true }, { key: 'qualification', label: '投标人资格要求', area: true, noHeader: true },
     { key: 'downloadDeadline', label: '采购文件下载时间' }, // 区间数据（downloadPeriod 优先）——保留自由文本，不用单时刻选择器
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
   ],
@@ -240,7 +243,7 @@ function renderMeta(ann: AnnouncementListItem) {
       { key: 'newDeadline', label: '调整后递交截止（存量）', date: true },
     );
   }
-  const allFields = baseFields.filter(hasVal);
+  const allFields = baseFields.filter(f => !f.noHeader).filter(hasVal);
   if (allFields.length === 0) return null;
   const shortFields = allFields.filter(f => !f.area);
   const areaFields = allFields.filter(f => f.area);
