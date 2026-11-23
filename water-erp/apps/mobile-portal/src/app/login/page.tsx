@@ -146,7 +146,7 @@ export default function LoginPage() {
     e.preventDefault();
     if (loading) return;
     if (!password) {
-      setError("请输入密码");
+      setError("请输入验证码");
       return;
     }
     setError(null);
@@ -287,7 +287,7 @@ export default function LoginPage() {
           {mode === "password" ? (
             <div className="login-rise--3 w-full">
               <label htmlFor="login-password" className="sr-only">
-                密码
+                验证码
               </label>
               <div className="login-field-shell">
                 <span aria-hidden className="login-field-shell__icon-rail login-field-shell__icon-rail--accent">
@@ -298,8 +298,8 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                  placeholder="输入密码"
+                  autoComplete="one-time-code"
+                  placeholder="输入验证码"
                   className="login-field-input w-full bg-transparent pb-4 pl-[3rem] pr-[3.25rem] pt-4 text-[16px] text-[color:var(--foreground)] outline-none placeholder:text-[color-mix(in_oklch,var(--muted-foreground)_55%,transparent)]"
                 />
                 <button
