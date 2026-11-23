@@ -102,7 +102,7 @@ export default function AnnouncementDetailPage() {
                 {item.offlinedReason === 'PUBLICITY_ENDED' ? '该公告公示期已过，不再显示公示内容' : '该公告已下线'}
               </p>
               <p className="text-sm text-[#8a96aa]">
-                公告标题与发布信息保留备查；公示期满不代表截标/开标时间已到，投标供应商请登录供应商门户在「项目机会」查看完整公告与采购文件。
+                公示期满不代表截标/开标时间已到，投标供应商请登录供应商门户在「项目机会」查看完整公告与采购文件。
               </p>
             </div>
           )}
