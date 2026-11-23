@@ -101,6 +101,7 @@ export function ProjectStageTimeline({
   onArchive,
   canArchive,
   onOpenScoreStandard,
+  onViewScoreStandard,
   onReopenStage,
   isStageLocked,
   currentRound,
@@ -123,6 +124,9 @@ export function ProjectStageTimeline({
    *  2026-09-24 定稿：03 卡原「采购文件修改」按钮位改为「评分标准」入口，点击弹出评分标准面板。 */
   /** 打开评分标准面板（round=被点 03 行轮次）；仅 03 步骤进行中可开——完成后隐藏，与「采购文件编写」一致（2026-09-28） */
   onOpenScoreStandard?: (round: number) => void;
+  /** U1（2026-11-23）：只读查看评分标准——03 步骤已完成卡的「查看评分标准」入口（面板 viewOnly 态：
+   *  全部写入口收起、不走 ensure 建链）。完成后 :3005 此前无任何回看途径，重开步骤警告过重。 */
+  onViewScoreStandard?: (round: number) => void;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
   /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。
@@ -427,6 +431,20 @@ export function ProjectStageTimeline({
                               className="pm-stage-action-btn shrink-0"
                             >
                               评分标准
+                            </span>
+                          )}
+                          {/* U1（2026-11-23）：已完成卡的只读回看入口——完成后的「想看不能看」
+                              只能靠重开步骤（警告「后续步骤全部重置」过重）或去 :3007 现场端。 */}
+                          {stageKey === 'TENDER_DOCUMENT' && !isDirectTender && entry.isCompleted && onViewScoreStandard && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => { e.stopPropagation(); onViewScoreStandard(entry.round); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onViewScoreStandard(entry.round); } }}
+                              className="pm-stage-action-btn shrink-0"
+                              title="只读查看本轮评分标准与评标办法"
+                            >
+                              查看评分标准
                             </span>
                           )}
                         </div>

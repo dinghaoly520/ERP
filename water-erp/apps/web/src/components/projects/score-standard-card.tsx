@@ -26,6 +26,9 @@ type Props = {
   extractSource?: { attachmentId: string; fileName: string; isOfficial?: boolean } | null;
   /** 该轮「采购文件」步骤附件（extractSource 未定时作提取源候选） */
   tenderCandidates?: ProjectManagementAttachment[];
+  /** U1（2026-11-23）：查看模式——步骤完成后的只读回看。短路「进入即绑定」ensure（查看动作
+   *  不得建 BP）；无 BP 时显示无可查看提示；子块（办法/公式/编辑器）全部只读。 */
+  viewOnly?: boolean;
   onChanged: () => void;
 };
 
@@ -35,7 +38,7 @@ type Props = {
  * （原空态长文+「创建开评标项目并开始配置」二跳已撤，用户裁定 03 本阶段直接绑定即配；
  * 04 公告发布/邀请 syncBidProject 关联同一 BP 不双建，保留为未开面板者的兜底路径）。
  */
-export function ScoreStandardCard({ project, round, bidProject, detail, priceItemCount, extractSource, tenderCandidates, onChanged }: Props) {
+export function ScoreStandardCard({ project, round, bidProject, detail, priceItemCount, extractSource, tenderCandidates, viewOnly, onChanged }: Props) {
   const [linkError, setLinkError] = useState<string | null>(null);
   /** 防同轮重复触发（StrictMode 双挂载）；换轮=面板经 null 态重挂载，新实例 ref 清零 */
   const attemptedRoundRef = useRef<number | null>(null);
@@ -67,13 +70,14 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
   }
 
   useEffect(() => {
-    if (bidProject || roundEvaluated || attemptedRoundRef.current === round) return;
+    // viewOnly（U1）短路「进入即绑定」——查看动作不得 ensure 建 BP；无 BP 走只读提示分支
+    if (viewOnly || bidProject || roundEvaluated || attemptedRoundRef.current === round) return;
     attemptedRoundRef.current = round;
     void linkNow();
     // 故意不在 cleanup 里取消在途请求：StrictMode 双挂载/面板中途关闭时 toast 与 onChanged
     // 仍应落地（onChanged 只驱动父级重拉，幂等无害；unmount 后 setState 为 no-op）。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bidProject, roundEvaluated, round]);
+  }, [bidProject, roundEvaluated, round, viewOnly]);
 
   return (
     <SectionCard
@@ -83,7 +87,11 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
       accentSoft="var(--stage-evaluation-soft)"
     >
       {!bidProject ? (
-        roundEvaluated ? (
+        viewOnly ? (
+          <p className="text-xs leading-6 text-[var(--muted-foreground)]">
+            该轮未关联开评标项目，暂无可查看的评分标准。
+          </p>
+        ) : roundEvaluated ? (
           <p className="text-xs leading-6 text-[var(--muted-foreground)]">
             该轮开标评标已完成，但未关联开评标项目（历史数据）。为避免产生不一致数据，此处不再自动创建；如需补建请经公告/邀请发布流程关联。
           </p>
@@ -108,7 +116,7 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
           {/* ① 评标口径：评标办法 + 最高限价 + 价格分计算方式（2026-09-26 公式表单化并入本块；EVALUATING 起锁定）。
               块标题「评标办法与最高限价」2026-09-28 二次裁定删除（与卡标题语义重复）；保存按钮
               与「评分去极值」同行右对齐（三次裁定终版，位于块底）。 */}
-          <EvaluationBasisFields detail={detail ?? bidProject} onChanged={onChanged} priceItemCount={priceItemCount} fallbackCeilingPrice={project.budgetAmount} />
+          <EvaluationBasisFields detail={detail ?? bidProject} onChanged={onChanged} priceItemCount={priceItemCount} fallbackCeilingPrice={project.budgetAmount} viewOnly={viewOnly} />
           {/* ② 评分项与得分点（OPENING 起锁定；校验通过后开标前仍可改，改即作废校验）。
               2026-09-28 用户裁定：① 块标题删除后本节标题升格为主分节——加图标 + 放大字体（text-sm）。 */}
           <hr className="wb-section-rule" />
@@ -132,6 +140,7 @@ export function ScoreStandardCard({ project, round, bidProject, detail, priceIte
                 variant="embedded"
                 extractSource={extractSource}
                 tenderCandidates={tenderCandidates}
+                viewOnly={viewOnly}
               />
             )}
           </div>

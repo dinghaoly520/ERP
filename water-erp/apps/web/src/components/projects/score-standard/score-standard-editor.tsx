@@ -58,9 +58,13 @@ type Props = {
   extractSource?: { attachmentId: string; fileName: string; isOfficial?: boolean } | null;
   /** 该轮「采购文件」步骤附件（extractSource 未定时作提取源候选） */
   tenderCandidates?: ProjectManagementAttachment[];
+  /** U1（2026-11-23）：查看模式——步骤已完成后的只读回看入口用。与阶段锁同一门控（locked 合成），
+   *  但锁定提示语义不同（查看模式 vs 已开标锁定）；且不走 ensureBidProject 兜底（防查看动作
+   *  凭空建 SUBMIT 幽灵 BP——无 BP 场景由外层卡片拦截不渲染本编辑器）。 */
+  viewOnly?: boolean;
 };
 
-export function ScoreStandardEditor({ project, round, bidProject, onChanged, variant = 'standalone', extractSource, tenderCandidates }: Props) {
+export function ScoreStandardEditor({ project, round, bidProject, onChanged, variant = 'standalone', extractSource, tenderCandidates, viewOnly }: Props) {
   const [bpId, setBpId] = useState<string | null>(bidProject?.id ?? null);
   const [stage, setStage] = useState('');
   /** 最近一次通过完整性校验的版本时间戳（2026-09-28 用户裁定方案 A：scoreStandardPublishedAt
@@ -100,7 +104,9 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
     setEditingId(null);
     (async () => {
       try {
-        const bp = bidProject ?? (await ensureBidProject(project.id, round));
+        // viewOnly 不 ensure 兜底：无 BP 的「查看」不该产生写入（幽灵 BP 防呆，外层卡片亦拦截）
+        const bp = bidProject ?? (viewOnly ? null : await ensureBidProject(project.id, round));
+        if (!bp) { setLoading(false); return; }
         const [detail, its] = await Promise.all([getBidProjectDetail(bp.id), listScoreItems(bp.id)]);
         if (cancelled) return;
         setBpId(bp.id);
@@ -121,8 +127,9 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
   }, [project.id, round, bidProject?.id, bidProject?.stage]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // 开标（OPENING）后锁定；校验不锁定——通过后开标前仍可修改（修改即作废校验标记，需重新校验）
-  const locked = stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
+  // 开标（OPENING）后锁定；校验不锁定——通过后开标前仍可修改（修改即作废校验标记，需重新校验）。
+  // viewOnly（U1，2026-11-23）与阶段锁同一门控——查看模式下全部写入口（增删改/校验/模板/AI 提取）收起。
+  const locked = viewOnly || stage === 'OPENING' || stage === 'EVALUATING' || stage === 'ARCHIVED';
   const scoredTotal = useMemo(
     () => items.filter((i) => Number(i.maxScore) > 0).reduce((s, i) => s + Number(i.maxScore), 0),
     [items],
@@ -414,16 +421,18 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
 
   const toolbar = (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      {/* 左侧：模板与提取 */}
+      {/* 左侧：模板与提取（viewOnly 全隐藏——应用模板是写操作，存为模板对纯查看属噪音） */}
       <div className="flex flex-wrap items-center gap-2">
-        {items.length > 0 && (
+        {!viewOnly && items.length > 0 && (
           <button onClick={() => setShowSaveTpl(true)} className="neu-btn-xs gap-1.5">
             <Save size={13} />存为模板
           </button>
         )}
-        <button onClick={() => setShowLib(true)} className="neu-btn-xs gap-1.5">
-          <FileSpreadsheet size={13} />应用模板
-        </button>
+        {!viewOnly && (
+          <button onClick={() => setShowLib(true)} className="neu-btn-xs gap-1.5">
+            <FileSpreadsheet size={13} />应用模板
+          </button>
+        )}
         {!locked && (
           <button
             onClick={handleBulkExtract}
@@ -465,7 +474,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
             )}
           </span>
         )}
-        {!locked && (
+        {!locked ? (
           <>
             <button onClick={() => { setShowAdd(true); setDraft({ category: 'TECHNICAL', name: '', maxScore: 0 }); }} className="neu-btn-soft gap-1.5">
               <Plus size={14} />新增评分项
@@ -485,7 +494,15 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
               </button>
             )}
           </>
-        )}
+        ) : viewOnly && validatedAt ? (
+          /* 查看模式保留校验状态信息（U1）：仅展示校验通过徽标，不带操作 */
+          <span
+            className="neu-btn-soft is-success !cursor-default"
+            title={`当前版本已通过完整性校验（${new Date(validatedAt).toLocaleString('zh-CN')}）`}
+          >
+            <Check size={14} strokeWidth={2} /> 已校验
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -723,9 +740,11 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
         <div className="wb-alert wb-alert--warning flex items-center gap-2 !text-sm !font-semibold">
           <Lock size={14} />
           <span>
-            {validatedAt
-              ? `评分标准最后校验通过于 ${new Date(validatedAt).toLocaleString('zh-CN')},项目已进入「${STAGE_LABEL[stage] || stage}」阶段,锁定不可修改。`
-              : `项目处于「${STAGE_LABEL[stage] || stage}」阶段,评分标准已锁定,不可修改。${stage === 'EVALUATING' ? ' 专家已开始打分。' : ''}`}
+            {viewOnly
+              ? '查看模式——「采购文件」步骤已完成，此处仅可查看评分标准与评标办法；如需修改请先重开该步骤（开标后评分标准锁定不可再改）。'
+              : validatedAt
+                ? `评分标准最后校验通过于 ${new Date(validatedAt).toLocaleString('zh-CN')},项目已进入「${STAGE_LABEL[stage] || stage}」阶段,锁定不可修改。`
+                : `项目处于「${STAGE_LABEL[stage] || stage}」阶段,评分标准已锁定,不可修改。${stage === 'EVALUATING' ? ' 专家已开始打分。' : ''}`}
           </span>
         </div>
       )}

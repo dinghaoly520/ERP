@@ -103,8 +103,8 @@ function validateParams(k: string, penaltyRate: string, noPenaltyRange: string):
 }
 
 export function EvaluationBasisFields({
-  detail, onChanged, priceItemCount, fallbackCeilingPrice,
-}: { detail: PriceConfigSource | null; onChanged: () => void; priceItemCount?: number; fallbackCeilingPrice?: number | null }) {
+  detail, onChanged, priceItemCount, fallbackCeilingPrice, viewOnly,
+}: { detail: PriceConfigSource | null; onChanged: () => void; priceItemCount?: number; fallbackCeilingPrice?: number | null; /** U1（2026-11-23）：查看模式——全部输入与保存配置收口（与阶段锁同一 softLocked 门控） */ viewOnly?: boolean }) {
   const [ceilingPrice, setCeilingPrice] = useState("");
   const [evaluationMethod, setEvaluationMethod] = useState("");
   const [formulaCalc, setFormulaCalc] = useState("manual");
@@ -135,7 +135,7 @@ export function EvaluationBasisFields({
   }, [detail?.id, detail?.ceilingPrice, detail?.evaluationMethod, detail?.priceFormulaConfig, prefillCeiling]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const softLocked = softLockedOf(detail?.stage);
+  const softLocked = viewOnly || softLockedOf(detail?.stage);
   /** 第三波（P1-2）窄口：EVALUATING 且现值缺失时仅「最高限价」允许补设——与后端
    *  updatePriceConfig 同口径（载荷仅含 ceilingPrice 且现值为空才放行）；ARCHIVED 恒锁。
    *  save() 按字段 dirty 构造载荷，其余键在锁定期输入禁用不可能 dirty → 载荷必然窄口合规 */
