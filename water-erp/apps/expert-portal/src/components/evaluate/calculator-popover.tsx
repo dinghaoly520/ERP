@@ -28,13 +28,13 @@ const SCI_ROWS: CalcKey[][] = [
   [K('sin', '', 'sin('), K('cos', '', 'cos('), K('tan', '', 'tan('), K('π')],
   [K('ln', '', 'ln('), K('log', '', 'log('), K('√', '', '√('), K('x²', '', '^2')],
   [K('1/x', '', '1÷('), K('xʸ', 'is-info', '^'), K('%'), { label: 'DEG', cls: 'is-info', isAngle: true }],
-  [K('(', 'is-info'), K(')', 'is-info'), { label: '⌫', cls: 'is-warning font-bold', act: 'backspace', icon: 'delete' }, { label: 'C', cls: 'is-danger', act: 'clear' }],
+  [K('(', 'is-info'), K(')', 'is-info'), { label: '⌫', cls: 'is-warning font-bold', act: 'backspace', icon: 'delete' }, K('+', 'is-info')],
 ];
 const KEY_ROWS: CalcKey[][] = [
   [K('7'), K('8'), K('9'), K('÷', 'is-info')],
   [K('4'), K('5'), K('6'), K('×', 'is-info')],
   [K('1'), K('2'), K('3'), K('−', 'is-info')],
-  [K('+', 'is-info'), K('0'), K('.'), { label: '=', cls: 'is-info font-bold', act: 'equals' }],
+  [{ label: 'C', cls: 'is-danger', act: 'clear' }, K('0'), K('.'), { label: '=', cls: 'is-info font-bold', act: 'equals' }],
 ];
 
 /** 窗口尺寸约束（右下角 grip 拖拽缩放） */
