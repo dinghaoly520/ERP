@@ -125,6 +125,8 @@ const DONUT_COLORS = [
   "var(--gold)",
   "oklch(0.55 0.12 285)",
   "oklch(0.6 0.12 188)",
+  "oklch(0.55 0.11 168)",
+  "oklch(0.58 0.14 25)",
 ];
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
@@ -1816,14 +1818,14 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                     )}
                   </ZoneRow>
 
-                  <ZoneRow icon={Award} title="职称分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{expertStats.titles.reduce((s2, x) => s2 + x.count, 0)} 人</span>}>
+                  <ZoneRow icon={Award} title="职称分布" right={<span className="shrink-0 text-[13px] font-semibold text-[var(--muted-foreground)]">{expertStats.titleKindCount} 种</span>}>
                     {expertStats.titles?.length ? (
                       (() => {
                         const total = expertStats.titles.reduce((s2, x) => s2 + x.count, 0) || 1;
                         let acc = 0;
                         const segs = expertStats.titles.map((t, i) => {
                           const sweep = (t.count / total) * 360;
-                          const seg = { t, a0: acc, a1: acc + Math.max(sweep, 0.001), color: DONUT_COLORS[i % DONUT_COLORS.length] };
+                          const seg = { t, a0: acc, a1: acc + Math.max(sweep, 0.001), color: t.name === "其他" ? "oklch(0.78 0.015 258)" : DONUT_COLORS[i % DONUT_COLORS.length] };
                           acc += sweep;
                           return seg;
                         });

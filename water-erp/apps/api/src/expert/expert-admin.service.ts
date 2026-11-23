@@ -2011,7 +2011,8 @@ export class ExpertAdminService {
         where: { user: { role: 'bid_expert', isActive: true } },
         _count: true,
         orderBy: { _count: { specialty: 'desc' } },
-        take: 4,
+        // Top 10（2026-11-23 用户裁定 :3011 专业分布 4→10；:3010 大屏自切 4 不受影响）
+        take: 10,
       }),
       this.prisma.expertProfile.groupBy({
         by: ['title'],
@@ -2069,21 +2070,21 @@ export class ExpertAdminService {
       ? Math.round(deviations.reduce((s, d) => s + d.meanDeviation, 0) / deviations.length * 10) / 10
       : 0;
 
-    // 职称归类
-    const titleBuckets: Record<string, number> = {};
-    for (const t of titleGroups) {
-      const raw = (t.title ?? '').trim();
-      let cat: string;
-      if (!raw) cat = '未填写';
-      else if (raw.includes('教授') || raw.includes('正高')) cat = '教授级高工';
-      else if (raw.includes('高工') || raw.includes('高级')) cat = '高级工程师';
-      else if (raw.includes('工程师') || raw.includes('中级')) cat = '工程师';
-      else cat = '其他';
-      titleBuckets[cat] = (titleBuckets[cat] ?? 0) + t._count;
-    }
-    const titles = Object.entries(titleBuckets)
-      .map(([name, count]) => ({ name, count }))
+    // 职称分布（2026-11-23 用户裁定：:3011 前 9 种 + 其他）——按原始职称值计（弃四类归并：
+    // 旧口径把高级经济师/高级政工师并进「高级工程师」，职称结构失真），空值/空白与其余
+    // 种类归「其他」（无余量不出行）；titleKindCount=有名职称去重数（不含其他/空值）
+    const namedTitles = titleGroups
+      .filter((t) => (t.title ?? '').trim())
+      .map((t) => ({ name: (t.title ?? '').trim(), count: t._count }))
       .sort((a, b) => b.count - a.count);
+    const blankTitleCount = titleGroups
+      .filter((t) => !(t.title ?? '').trim())
+      .reduce((s, t) => s + t._count, 0);
+    const restTitleCount = namedTitles.slice(9).reduce((s, t) => s + t.count, 0) + blankTitleCount;
+    const titles = [
+      ...namedTitles.slice(0, 9),
+      ...(restTitleCount > 0 ? [{ name: '其他', count: restTitleCount }] : []),
+    ];
 
     return {
       total,
@@ -2101,6 +2102,7 @@ export class ExpertAdminService {
       specialties,
       evaluation: { levelCounts, excellentRatio, total: evalTotal, avgScoreDeviation: avgDeviation },
       titles,
+      titleKindCount: namedTitles.length,
     };
   }
 

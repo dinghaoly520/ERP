@@ -1588,8 +1588,10 @@
 
       // Left column: 专业分布 bars
       var specEl = $id('expertSpecBars');
-      if (specEl && d.specialties && d.specialties.length) {
-        specEl.innerHTML = d.specialties.map(function(s,i){
+      // 后端 2026-11-23 起返回 Top 10（:3011 专业分布裁定）；大屏面板按 4 行版式自切
+      var specRows = (d.specialties || []).slice(0, 4);
+      if (specEl && specRows.length) {
+        specEl.innerHTML = specRows.map(function(s,i){
           return '<div class="su-bar-row ex-bar-enter"><span>' + s.name + '</span><div class="su-bar"><i style="--w:' + s.pct + '%;background:linear-gradient(90deg,' + (specColors[i]||specColors[0]) + ')"></i></div><b>' + s.count + '</b></div>';
         }).join('');
         specEl.querySelectorAll('b').forEach(function(el,i){
@@ -1600,9 +1602,11 @@
 
       // Right column: 职称结构 bars
       var titleEl = $id('expertTitleBars');
-      if (titleEl && d.titles && d.titles.length) {
-        var maxTitle = d.titles[0].count;
-        titleEl.innerHTML = d.titles.map(function(t,i){
+      // 后端同日起职称按原始值返回（前 9 种 + 其他）；大屏同样自切 4 行
+      var titleRows = (d.titles || []).slice(0, 4);
+      if (titleEl && titleRows.length) {
+        var maxTitle = titleRows[0].count;
+        titleEl.innerHTML = titleRows.map(function(t,i){
           var pct = Math.round(t.count / maxTitle * 100);
           return '<div class="su-bar-row ex-bar-enter"><span>' + t.name + '</span><div class="su-bar"><i style="--w:' + pct + '%;background:linear-gradient(90deg,' + (titleColors[i]||titleColors[0]) + ')"></i></div><b>' + t.count + '</b></div>';
         }).join('');

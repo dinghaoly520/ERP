@@ -52,7 +52,10 @@ export type ExpertLibraryStats = {
     total: number;
     avgScoreDeviation: number;
   };
+  /** 职称分布（2026-11-23 裁定：原始职称值前 9 种 + 其他归并行） */
   titles: Array<{ name: string; count: number }>;
+  /** 职称种类数（有名职称去重，不含其他/空值）——职称分布右注 */
+  titleKindCount: number;
 };
 export type ExpertCompanyCount = { name: string; count: number };
 
