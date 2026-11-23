@@ -464,6 +464,7 @@ body { overscroll-behavior-y: none; }
     inset -2px -2px 5px oklch(1 0 0 / 0.55);
 }
 .m-chip:active { transform: scale(0.96); }
+.m-chip:disabled { opacity: 0.4; pointer-events: none; }
 
 /* 凸起瓷片（web .neu-tile 同配方）：浅实底 + 内高光 + 方向性双影，无边框；
    data-pressable 的行/卡按下内凹（三态完整） */
@@ -1574,3 +1575,5 @@ body.m-kb-open .m-chat-shell {
     background-position: 0% 50%;
   }
 }
+
+/* watcher nudge 2026-11-23 */

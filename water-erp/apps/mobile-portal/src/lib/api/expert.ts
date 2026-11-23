@@ -6,6 +6,9 @@ export type ExpertListItem = {
   displayName: string;
   username: string;
   companyId: string | null;
+  /** 归属公司 / 部门（列表接口已带；名录卡多公司标公司、单公司标部门，2026-11-23） */
+  company?: { id: string; name: string } | null;
+  department?: { id: string; name: string } | null;
   isActive: boolean;
   expertProfile: {
     id: string;

@@ -64,6 +64,9 @@ function PMI_STAGE_LABELS_OF(key: string): string {
 
 /* 比例条色板/填充统一走 @/lib/bar-style（2026-11-23 所有比例条增色裁定） */
 
+/** 专家名录每页条数（2026-11-23 用户裁定） */
+const EXPERT_PAGE_SIZE = 10;
+
 const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
   running: "运行中项目",
   pre: "标前项目",
@@ -406,8 +409,21 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   }, [rankingRange, retryTick]);
 
 
-  /* 专家搜索+列表（2026-11-20 用户裁定：可搜索全部专家+点开看信息） */
+  /* 专家搜索+列表（2026-11-20 用户裁定：可搜索全部专家+点开看信息；2026-11-23 裁定每页 10 人）
+     ——服务端分页 + 服务端搜索（300ms 防抖）：原取 50 条本地筛/切 20，库 180 人只能搜到前 50。
+     查询态合一 {search,page,scope}：词变回第 1 页、公司口径变回第 1 页（scope 不匹配时页码派生为 1，
+     不在 effect 内同步 setState） */
   const [expertSearch, setExpertSearch] = useState("");
+  const companyKey = companyIds.join(",");
+  const [expertQuery, setExpertQuery] = useState<{ search: string; page: number; scope: string }>({ search: "", page: 1, scope: "" });
+  const expertPage = expertQuery.scope === companyKey ? expertQuery.page : 1;
+  useEffect(() => {
+    const kw = expertSearch.trim();
+    const t = window.setTimeout(() => {
+      setExpertQuery((q) => (q.search === kw && q.scope === companyKey ? q : { search: kw, page: 1, scope: companyKey }));
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [expertSearch, companyKey]);
   const [expertList, setExpertList] = useState<ExpertListItem[] | null>(null);
   const [expertTotal, setExpertTotal] = useState(0);
   const [expertPick, setExpertPick] = useState<ExpertListItem | null>(null);
@@ -415,11 +431,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     if (analysisOpen !== "experts") return;
     let active = true;
     setExpertList(null);
-    fetchExpertList({ pageSize: 50, companyId: companyIds.length ? companyIds.join(",") : undefined })
+    fetchExpertList({
+      pageSize: EXPERT_PAGE_SIZE,
+      page: expertPage,
+      search: expertQuery.search || undefined,
+      companyId: companyIds.length ? companyKey : undefined,
+    })
       .then((r) => { if (active) { setExpertList(r.items); setExpertTotal(r.total); } })
       .catch(() => { if (active) setExpertList([]); });
     return () => { active = false; };
-  }, [analysisOpen, companyIds]);
+  }, [analysisOpen, companyIds, companyKey, expertQuery.search, expertPage]);
+  const expertPages = Math.max(1, Math.ceil(expertTotal / EXPERT_PAGE_SIZE));
 
   /* 口径窗（置于消费方 effect 之前——依赖数组渲染期取值不可前向引用） */
   const queryRange = useMemo<{ startDate?: string; endDate?: string }>(
@@ -1858,53 +1880,68 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 </AnalysisZone>
 
                 {/* 专家名录：搜索+点击开详情 */}
+                {/* 专家名录：服务端分页每页 10（2026-11-23 用户裁定）；组织标注——全部/多选公司标公司、单公司标部门 */}
                 <AnalysisZone icon={Users} title="专家名录" count={`${expertTotal} 人`} color="var(--accent)">
                   {expertList ? (
-                    (() => {
-                      const kw = expertSearch.trim();
-                      const filtered = kw ? expertList.filter((e) =>
-                        e.displayName.includes(kw) ||
-                        (e.expertProfile?.specialty ?? "").includes(kw) ||
-                        (e.expertProfile?.employer ?? "").includes(kw) ||
-                        (e.expertProfile?.title ?? "").includes(kw)
-                      ) : expertList;
-                      return filtered.length ? (
-                        <div className="space-y-1.5">
-                          {filtered.slice(0, 20).map((e, i) => {
-                            const profile = e.expertProfile;
-                            const grade = e.avgGrade ?? e.latestEval?.level;
-                            const gradeColor = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : grade ? 'var(--warning)' : 'var(--muted-foreground)';
-                            return (
-                              <button key={e.id} type="button" onClick={() => setExpertPick(e)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
-                                <div className="flex items-center gap-2.5">
-                                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[14px] font-bold ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[var(--accent)]"}`}>
-                                    {e.displayName.slice(0, 1)}
+                    expertList.length ? (
+                      <div className="space-y-1.5">
+                        {expertList.map((e) => {
+                          const profile = e.expertProfile;
+                          const grade = e.avgGrade ?? e.latestEval?.level;
+                          const gradeColor = grade === 'A' || grade === 'B' ? 'var(--success)' : grade === 'C' ? 'var(--accent)' : grade ? 'var(--warning)' : 'var(--muted-foreground)';
+                          const org = companyIds.length !== 1 ? (e.company?.name ?? "未归属公司") : (e.department?.name ?? "未归属部门");
+                          return (
+                            <button key={e.id} type="button" onClick={() => setExpertPick(e)} className="w-full rounded-[12px] m-tile px-3 py-2.5 text-left active:scale-[0.99]">
+                              <div className="flex items-start gap-2.5">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[14px] font-bold text-[var(--accent)]">
+                                  {e.displayName.slice(0, 1)}
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{e.displayName}</span>
+                                  <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
+                                    {profile?.specialty ? <span className="max-w-[6rem] truncate">{profile.specialty}</span> : null}
+                                    {profile?.title ? <span className="truncate">{profile.title}</span> : null}
                                   </span>
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-[15px] font-semibold text-[var(--foreground)]">{e.displayName}</span>
-                                    <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[var(--muted-foreground)]">
-                                      {profile?.specialty ? <span className="max-w-[6rem] truncate">{profile.specialty}</span> : null}
-                                      {profile?.title ? <span className="truncate">{profile.title}</span> : null}
-                                    </span>
+                                  <span className="mt-1 inline-flex max-w-full items-center gap-1 rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
+                                    <Building2 size={11} className="shrink-0" />
+                                    <span className="truncate">{org}</span>
                                   </span>
-                                  {grade ? (
-                                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ background: `color-mix(in oklch, ${gradeColor} 12%, transparent)`, color: gradeColor }}>
-                                      {grade}
-                                    </span>
-                                  ) : null}
-                                  <ChevronRight size={13} className="shrink-0 text-[var(--muted-foreground)]" />
-                                </div>
-                              </button>
-                            );
-                          })}
-                          {filtered.length > 20 ? <div className="px-1 pt-0.5 text-[12px] text-[var(--muted-foreground)]">已显示前 20 · 共 {filtered.length} 人</div> : null}
+                                </span>
+                                {grade ? (
+                                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black" style={{ background: `color-mix(in oklch, ${gradeColor} 12%, transparent)`, color: gradeColor }}>
+                                    {grade}
+                                  </span>
+                                ) : null}
+                                <ChevronRight size={13} className="mt-2 shrink-0 text-[var(--muted-foreground)]" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                        <div className="flex items-center justify-between gap-2 px-1 pt-1 text-[12px] text-[var(--muted-foreground)]">
+                          <span className="tabular-nums">第 {expertPage} / {expertPages} 页 · 共 {expertTotal} 人</span>
+                          <span className="flex items-center gap-1.5">
+                            <Chip
+                              disabled={expertPage <= 1}
+                              onClick={() => setExpertQuery((q) => ({ search: q.search, page: expertPage - 1, scope: companyKey }))}
+                              className="!min-h-[30px] !px-3 !text-[13px]"
+                            >
+                              上一页
+                            </Chip>
+                            <Chip
+                              disabled={expertPage >= expertPages}
+                              onClick={() => setExpertQuery((q) => ({ search: q.search, page: expertPage + 1, scope: companyKey }))}
+                              className="!min-h-[30px] !px-3 !text-[13px]"
+                            >
+                              下一页
+                            </Chip>
+                          </span>
                         </div>
-                      ) : (
-                        <EmptyState text={kw ? `无匹配「${kw}」的专家` : "暂无专家"} />
-                      );
-                    })()
+                      </div>
+                    ) : (
+                      <EmptyState text={expertQuery.search ? `无匹配「${expertQuery.search}」的专家` : "暂无专家"} />
+                    )
                   ) : (
-                    <div className="py-2"><Skeleton lines={4} height={40} /></div>
+                    <div className="py-2"><Skeleton lines={4} height={56} /></div>
                   )}
                 </AnalysisZone>
 
