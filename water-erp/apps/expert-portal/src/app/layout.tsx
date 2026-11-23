@@ -6,10 +6,12 @@ import './globals.css';
 
 // 平板 UA/触摸自动检测已删（2026-10-19，触摸屏笔记本/Chromebook 误判）；2026-10-26 自动改道亦删
 //（isTabletMode 等判定移除）——/tablet 与桌面互为直接入口，cookie 仅翻链接文案；进入平板=扫码迁移或登录页链接/直链。
+// 勿给可变字体加显式 weight 数组（2026-11-23）：Google CSS API 对离散字重查询现返回同一 woff2 URL×4 份
+//（4 字重×4 子集=16 块仅 4 个 URL），Turbopack 字体替换器按 query 查 import map 断言「恰一条」即炸
+//——Docker 镜像构建 16 错实录。不传 weight=可变字体轴、URL 唯一；web/mobile 同字体无 weight 恒绿。
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-body',
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {
