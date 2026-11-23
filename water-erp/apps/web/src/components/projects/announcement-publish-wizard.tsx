@@ -19,6 +19,7 @@ import {
 } from '@/lib/api/announcement';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { formatYuanExact } from '@/lib/format';
+import { normalizeAnnouncementContentHtml } from '@/lib/announcement-prose';
 import { UploadProgressRow } from '../upload/upload-progress-row';
 import { uploadProjectStageAttachment, getPmBidProject, type UploadStageAttachmentResult } from '@/lib/api/project-management';
 import { getBidProjectDetail } from '@/lib/api/bid';
@@ -355,6 +356,12 @@ const PORTAL_PREVIEW_CONTENT_CSS = `
 .portal-announce-preview h3 { margin: 28px 0 12px; padding-left: 12px; border-left: 4px solid #064ea2; font-size: 17px; font-weight: 800; color: #123a6e; line-height: 1.5; }
 .portal-announce-preview h4 { margin: 18px 0 8px; font-size: 15px; font-weight: 800; color: #26364e; }
 .portal-announce-preview p { margin: 0 0 14px; font-size: 15px; line-height: 2; color: #26364e; text-align: left; }
+/* 公文排版（2026-11-23 用户裁定，与 :3002/:3004 详情页同款）：标题居中、「一、」节标题加粗
+   +缩进 2 字符、正文首行缩进 2 字符、数字/西文 Times New Roman（Times 置前——CJK 回落中文字体） */
+.portal-announce-preview .announcement-detail-content { font-family: "Times New Roman", "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
+.portal-announce-preview .announcement-detail-content p { text-indent: 2em; }
+.portal-announce-preview .announcement-detail-content .ann-prose-title { text-indent: 0; text-align: center; font-weight: 700; font-size: 17px; line-height: 1.6; color: #18243a; }
+.portal-announce-preview .announcement-detail-content .ann-prose-h { font-weight: 700; }
 .portal-announce-preview ul, .portal-announce-preview ol { margin: 0 0 16px 1.2em; line-height: 2; color: #26364e; }
 .portal-announce-preview table { width: 100%; border-collapse: collapse; margin: 4px 0 18px; }
 .portal-announce-preview td, .portal-announce-preview th { border: 1px solid #dbe4ef; padding: 8px 12px; font-size: 14px; line-height: 1.7; color: #26364e; }
@@ -362,39 +369,9 @@ const PORTAL_PREVIEW_CONTENT_CSS = `
 .portal-announce-preview td p { margin: 0; line-height: 1.7; text-align: inherit; }
 `;
 
-/* ── 正文展示归一（2026-10-30 纵深）：生成端已根治监督块粘连，此处兜底——
-      与后端 announcement-content-html.util / 两门户详情页同口径：≥2 个监督
-      标签同段时非段首标签前断行 + 剔除纯空白段。幂等（含 <br/> 的段不再命中）。 ── */
-const SUPERVISION_LABELS = ['监督部门：', '地址：', '联系人：', '监督电话：'];
-
-function breakGluedSupervisionLabels(html: string): string {
-  if (!html.includes('<p')) return html;
-  return html.replace(/<p([^>]*)>([^<]*)<\/p>/g, (para, attrs: string, text: string) => {
-    const hits = SUPERVISION_LABELS.filter((l) => text.includes(l));
-    if (hits.length < 2) return para;
-    let out = text;
-    for (const label of SUPERVISION_LABELS) {
-      const parts = out.split(label);
-      if (parts.length < 2) continue;
-      const firstAtParaStart = parts[0].trim() === '';
-      out = parts.reduce((acc, part, i) => {
-        if (i === 0) return part;
-        const br = i === 1 && firstAtParaStart ? '' : '<br/>';
-        return `${acc}${br}${label}${part}`;
-      }, '');
-    }
-    return `<p${attrs}>${out}</p>`;
-  });
-}
-
-function stripBlankParagraphs(html: string): string {
-  if (!html.includes('<p')) return html;
-  return html.replace(/<p[^>]*>[\s 　]*<\/p>/g, '');
-}
-
-function normalizePortalContentHtml(html: string): string {
-  return stripBlankParagraphs(breakGluedSupervisionLabels(html));
-}
+/* ── 正文展示归一 + 公文排版结构化：2026-11-23 起走 @/lib/announcement-prose（与两门户
+      详情页同款——粘连标题拆分居中/「一、」节标题加粗缩进/正文首行缩进/数字 Times），
+      监督块兜底归一并入 lib。预览即所得：预览变换与发布入库内容一致。 ── */
 
 /** 今天 + n 天后的截止时刻（YYYY-MM-DDTHH:MM），时分默认 23:59
  *  （datetime-local 时分上限为 23:59，无法表示 24:00，以 23:59 表示当天截止） */
@@ -2383,7 +2360,7 @@ function PortalAnnouncementPreview({
           {/* 正文（渲染前归一——2026-10-30 纵深：兜生成端旧码/异常形态） */}
           <div
             className="announcement-detail-content text-[15px] leading-relaxed text-[#18243a]"
-            dangerouslySetInnerHTML={{ __html: normalizePortalContentHtml(contentHtml) }}
+            dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(contentHtml, title) }}
           />
 
           {/* 异议联系方式（发布时自澄清说明快照，门户详情页同款展示） */}
