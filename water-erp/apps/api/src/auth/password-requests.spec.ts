@@ -244,3 +244,68 @@ describe('submitReset 资格闸（2026-11-23 用户裁定：仅已入库供应�
     expect(verifyRegistrationCode).toHaveBeenCalledWith('13800138000', '123456');
   });
 });
+
+describe('密码重置审批办结联动（2026-11-23：待办内容已完成即不再是待办）', () => {
+  const REQ_ID = 'pr-1';
+  const mkSvc = (prismaOver: Record<string, unknown> = {}) => {
+    const prisma = {
+      passwordResetRequest: {
+        findUnique: jest.fn(),
+        count: jest.fn().mockResolvedValue(1), // 缺省：还有其他 PENDING（通用 link 不消）
+        update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'APPROVED' }),
+        create: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'PENDING', requestedAt: new Date() }),
+      },
+      user: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}) },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ companyId: 'co1' }) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      notification: { create: jest.fn().mockResolvedValue({}) },
+      ...prismaOver,
+    };
+    const notifications = {
+      create: jest.fn().mockResolvedValue({}),
+      resolveActionable: jest.fn().mockResolvedValue({ count: 1 }),
+    };
+    const verification = { verifyRegistrationCode: jest.fn().mockResolvedValue({ ok: true }) };
+    const service = new PasswordRequestsService(prisma as any, verification as any, notifications as any);
+    return { prisma, notifications, service };
+  };
+
+  it('reject 供应商重置申请 → 消两条精确 link 待办；尚有其他 PENDING 时通用 link 不消；落审计', async () => {
+    const { prisma, notifications, service } = mkSvc();
+    prisma.passwordResetRequest.findUnique.mockResolvedValue({ id: REQ_ID, status: 'PENDING', matchedUserId: 'mu-1', requestedUsername: '成都华西物资供应有限公司', requestedPasswordHash: null });
+
+    await service.rejectReset(REQ_ID, 'rev-1', '资料不符');
+
+    expect(prisma.passwordResetRequest.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: REQ_ID }, data: expect.objectContaining({ status: 'REJECTED' }),
+    }));
+    const links = notifications.resolveActionable.mock.calls.map((c: unknown[]) => c[1] as string);
+    expect(links).toContain(`/supplier/approval?requestId=${REQ_ID}`);
+    expect(links).toContain(`/admin/accounts?tab=password&requestId=${REQ_ID}`);
+    expect(links).not.toContain('/supplier/approval'); // 还有其他 PENDING → 通用兜底不消
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'PASSWORD_RESET_REJECTED', resourceId: '成都华西物资供应有限公司' }),
+    }));
+  });
+
+  it('approve 最后一条 PENDING → 精确 + 通用兜底全消，并通知申请人', async () => {
+    const { prisma, notifications, service } = mkSvc({
+      passwordResetRequest: {
+        findUnique: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'PENDING', matchedUserId: 'mu-1', requestedUsername: '成都华西物资供应有限公司', requestedPasswordHash: 'x'.repeat(60), requestedPasswordVault: null }),
+        count: jest.fn().mockResolvedValue(0),
+        update: jest.fn().mockResolvedValue({ id: REQ_ID, status: 'APPROVED', reviewedById: 'rev-1' }),
+      },
+      user: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}) },
+      auditLog: { create: jest.fn().mockResolvedValue({}) },
+      notification: { create: jest.fn().mockResolvedValue({}) },
+      supplier: { findUnique: jest.fn().mockResolvedValue({ companyId: 'co1' }) },
+    });
+
+    await service.approveReset(REQ_ID, 'rev-1');
+
+    const links = notifications.resolveActionable.mock.calls.map((c: unknown[]) => c[1] as string);
+    expect(links).toContain(`/supplier/approval?requestId=${REQ_ID}`);
+    expect(links).toContain('/supplier/approval'); // 无其他 PENDING → 通用兜底消解
+    expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'PASSWORD_RESET_APPROVED' }));
+  });
+});

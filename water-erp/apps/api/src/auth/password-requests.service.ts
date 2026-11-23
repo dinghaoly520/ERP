@@ -125,12 +125,14 @@ export class PasswordRequestsService {
     // 提交通知（2026-10-15 修复「提交后采购端未发现待审记录」）：此前提交侧零通知，
     // 审批入口又分裂（供应商账号→审批中心·密码重置；内部/未匹配→账号管理·安全审批），
     // 采购端无任何被动渠道知晓。通知失败不阻断提交（申请已落库）。
-    try { await this.notifyResetReviewers(matched, username, applicantName); } catch { /* 不阻断 */ }
+    try { await this.notifyResetReviewers(created.id, matched, username, applicantName); } catch { /* 不阻断 */ }
     return created;
   }
 
-  /** 重置申请提交通知：供应商账号 → 归属公司审批人（无则 admin 兜底）；内部/未匹配 → admin 全体。 */
+  /** 重置申请提交通知：供应商账号 → 归属公司审批人（无则 admin 兜底）；内部/未匹配 → admin 全体。
+   *  link 携 requestId（2026-11-23 办结联动）：审批动作后按精确 link 消解本申请的待办。 */
   private async notifyResetReviewers(
+    requestId: string,
     matched: { id: string; role: string } | null,
     username: string,
     applicantName: string,
@@ -138,7 +140,7 @@ export class PasswordRequestsService {
     let recipientIds: string[] = [];
     let title = '密码重置申请待审批';
     let content = `「${username}」的忘记密码重置申请已提交（申请人：${applicantName}），请前往账号管理·安全审批处理。`;
-    let link = '/admin/accounts';
+    let link = `/admin/accounts?tab=password&requestId=${requestId}`;
 
     if (matched?.role === 'supplier') {
       const sup = await this.prisma.supplier.findUnique({
@@ -154,7 +156,7 @@ export class PasswordRequestsService {
       }
       title = '供应商密码重置申请待审批';
       content = `「${username}」的忘记密码重置申请已提交（申请人：${applicantName}），请前往供应商审批中心·信息更新审批·密码重置处理。`;
-      link = '/supplier/approval';
+      link = `/supplier/approval?requestId=${requestId}`;
     }
 
     if (recipientIds.length === 0) {
@@ -356,11 +358,31 @@ export class PasswordRequestsService {
     } catch {
       // 通知失败不阻塞审批
     }
-    return this.prisma.passwordResetRequest.update({
+    const result = await this.prisma.passwordResetRequest.update({
       where: { id },
       data: { status: 'APPROVED', reviewedAt: new Date(), reviewedById: reviewerId },
       select: { id: true, status: true, reviewedById: true, reviewedAt: true },
     });
+    // 办结联动（2026-11-23）：审批动作完成即消解本申请的提交待办——待办内容已实际完成，
+    // 不再是待办。精确 link 按 requestId 消解（跨收件人一次办结）；存量通用 link 待办仅在
+    // 已无其他 PENDING 申请时统一清理（防批量误消，2026-09-29 教训）。
+    await this.resolveResetTodos(id);
+    return result;
+  }
+
+  /** 消解密码重置申请的提交待办：两条精确 link（供应商件/内部件两种创建形态）+ 存量通用
+   *  link 兜底（仅当已无其他 PENDING 申请）。消解失败不阻断审批结果。 */
+  private async resolveResetTodos(id: string) {
+    const legacyResetCleanup =
+      (await this.prisma.passwordResetRequest.count({ where: { status: 'PENDING', id: { not: id } } })) === 0;
+    await Promise.allSettled([
+      this.notifications?.resolveActionable('PASSWORD_RESET_PENDING', `/supplier/approval?requestId=${id}`),
+      this.notifications?.resolveActionable('PASSWORD_RESET_PENDING', `/admin/accounts?tab=password&requestId=${id}`),
+      ...(legacyResetCleanup ? [
+        this.notifications?.resolveActionable('PASSWORD_RESET_PENDING', '/supplier/approval'),
+        this.notifications?.resolveActionable('PASSWORD_RESET_PENDING', '/admin/accounts'),
+      ] : []),
+    ]);
   }
 
   async rejectReset(id: string, reviewerId: string, note?: string, scope?: 'supplier') {
@@ -368,11 +390,23 @@ export class PasswordRequestsService {
     const req = await this.prisma.passwordResetRequest.findUnique({ where: { id } });
     if (!req) throw new NotFoundException({ error: '申请不存在', code: 'NOT_FOUND' });
     if (req.status !== 'PENDING') throw new BadRequestException({ error: '该申请已处理', code: 'ALREADY_REVIEWED' });
-    return this.prisma.passwordResetRequest.update({
+    const result = await this.prisma.passwordResetRequest.update({
       where: { id },
       data: { status: 'REJECTED', decisionNote: note ?? null, reviewedAt: new Date(), reviewedById: reviewerId },
       select: { id: true, status: true, reviewedAt: true, decisionNote: true },
     });
+    // 办结联动（同 approve 口径）+ 拒绝留痕补齐（批准侧本亦无 audit，先补拒绝侧）
+    await this.resolveResetTodos(id);
+    await this.prisma.auditLog.create({
+      data: {
+        userId: reviewerId,
+        action: 'PASSWORD_RESET_REJECTED',
+        resourceType: '密码重置审批',
+        resourceId: req.requestedUsername,
+        details: { requestId: id, note: note ?? null },
+      },
+    }).catch(() => {});
+    return result;
   }
 
   // ── 资料变更申请（2026-08-24）：个人中心所有资料修改一律走审批 ──
