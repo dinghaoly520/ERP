@@ -1210,20 +1210,30 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             {/* ── 双企 PK：任选两家逐项对比，优胜方加粗着色 + 顶部计分 ── */}
             {/* ── 企业对比（2026-11-23 用户裁定：双企扩为 2–5 家）——多选 + 指标×企业矩阵，
                 天干甲乙丙丁戊为列标（签名细节），各指标最优加粗主色，底部计分 ── */}
-            <AnalysisZone icon={Scale} title="企业对比" count={`${picks.length} 家`} color="var(--success)">
-              {options.length < 2 ? (
-                <EmptyState text={`当前口径下只有 ${options.length} 家可比公司，选择更多公司后可对比`} />
-              ) : (
-                <div className="space-y-2.5">
+            <AnalysisZone
+              icon={Scale}
+              title="企业对比"
+              count={`${picks.length} 家`}
+              color="var(--success)"
+              right={
+                /* 企业多选下拉置于区块标题右侧（2026-11-23 用户裁定）；不足两家可比时右槽退回计数 */
+                options.length >= 2 ? (
                   <InlineSelect
                     multiple
-                    label={picks.map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ")}
+                    label={picks.length <= 3 ? picks.map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ") : `${picks.slice(0, 2).map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ")} 等 ${picks.length} 家`}
                     active
                     options={options.map((r) => ({ value: idOf(r), label: r.company }))}
                     selected={picks.map(idOf)}
                     onSelect={(next) => setCmpPicks(next.slice(0, CMP_MAX))}
                     ariaLabel="选择对比企业（2 到 5 家）"
                   />
+                ) : undefined
+              }
+            >
+              {options.length < 2 ? (
+                <EmptyState text={`当前口径下只有 ${options.length} 家可比公司，选择更多公司后可对比`} />
+              ) : (
+                <div className="space-y-2.5">
                   <div className="px-1 text-[12px] text-[var(--muted-foreground)]">可选 2–5 家（有业务数据或集团成员企业），默认成交额前两名</div>
                   <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none]">
                     <div className="rounded-[12px] m-tile px-3 py-2 text-[14px]" style={{ minWidth: `${76 + picks.length * 92}px` }}>
