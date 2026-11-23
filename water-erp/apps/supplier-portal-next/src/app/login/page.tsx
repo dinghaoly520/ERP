@@ -128,6 +128,10 @@ function LoginForm() {
         const redirect = params.get("redirect") || "";
         const safeRedirect = redirect.startsWith("/") && !redirect.startsWith("//") ? redirect : "/dashboard";
         router.push(safeRedirect);
+      } else if (typeof result === "object" && result !== null && "blocked" in result) {
+        // 密码正确但账号被处置（停用/黑名单/驳回/退回补正）：透传后端指路文案，
+        // 不误报「密码错误」（2026-11-23 补齐）
+        toast.error(result.blocked);
       } else if (result === "invalid") {
         toast.error("用户名或密码错误");
       } else if (result === "frozen") {

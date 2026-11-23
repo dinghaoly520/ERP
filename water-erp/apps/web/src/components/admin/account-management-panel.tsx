@@ -102,6 +102,22 @@ function formatLoginAt(iso: string): string {
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/**
+ * 供应商账号状态标签（2026-11-23 修复「停用后误显待审核」）：
+ * 供应商处置/管线态（supplier.status）优先于账号级 isFrozen/isActive——停用/黑名单后端联动
+ * User.isActive=false，与注册待审同值，纯账号三态词汇无法分辨。词汇对齐 shared SUPPLIER_STATUS_LABEL。
+ */
+function supplierAccountStatus(s: SupplierAccount): { label: string; cls: string } {
+  const st = s.supplier?.status;
+  if (st === "BLACKLIST") return { label: "黑名单", cls: "bg-[rgba(215,89,89,0.1)] text-[color:var(--danger)]" };
+  if (st === "DISABLED") return { label: "已停用", cls: "bg-[rgba(100,116,139,0.12)] text-[#64748b]" };
+  if (st === "REJECTED") return { label: "审核不通过", cls: "bg-[rgba(100,116,139,0.12)] text-[#64748b]" };
+  if (st === "RETURNED") return { label: "已退回补正", cls: "bg-[rgba(234,138,42,0.14)] text-[#b45309]" };
+  if (s.isFrozen) return { label: "已冻结", cls: "bg-[rgba(215,89,89,0.1)] text-[color:var(--danger)]" };
+  if (s.isActive) return { label: "已激活", cls: "bg-[rgba(92,181,150,0.12)] text-[#1d7a5f]" };
+  return { label: "待审核", cls: "bg-[rgba(234,179,8,0.12)] text-[#a16207]" };
+}
+
 function statusOf(account: AdminAccount): "frozen" | "pending" | "active" {
   if (account.isFrozen) return "frozen";
   if (!account.isActive) return "pending";
@@ -658,9 +674,14 @@ export function AccountManagementPanel() {
                       <td className="px-4 py-3 text-center text-[color:var(--foreground)]"><span className="block truncate" title={s.displayName || ""}>{s.displayName || "—"}</span></td>
                       <td className="px-4 py-3 text-center text-[color:var(--muted-foreground)]"><span className="block truncate" title={s.phone ?? ""}>{s.phone ?? "—"}</span></td>
                       <td className="px-4 py-3 text-center">
-                        <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${s.isFrozen ? "bg-[rgba(215,89,89,0.1)] text-[color:var(--danger)]" : s.isActive ? "bg-[rgba(92,181,150,0.12)] text-[#1d7a5f]" : "bg-[rgba(234,179,8,0.12)] text-[#a16207]"}`}>
-                          {s.isFrozen ? "已冻结" : s.isActive ? "已激活" : "待审核"}
-                        </span>
+                        {(() => {
+                          const badge = supplierAccountStatus(s);
+                          return (
+                            <span className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold leading-none ${badge.cls}`}>
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <SupplierCompanyMultiSelect

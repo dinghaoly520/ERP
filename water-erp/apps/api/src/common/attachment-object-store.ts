@@ -13,16 +13,24 @@
  * API 主进程与 ai-bid-analysis worker 进程通用。
  * 设计：docs/superpowers/specs/2026-11-20-pmi-attachment-dual-track-design.md
  */
-import { Logger } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 import { readFile, stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 const logger = new Logger('attachment-object-store');
 
 /** 本地优先读附件；两轨皆失返回 null（调用方决定 404 或降级空文本）。 */
 export async function readAttachmentBuffer(objectKey: string): Promise<Buffer | null> {
-  const localPath = resolve(process.cwd(), 'uploads', objectKey);
+  // I-1（2026-11-23 增量审查）：键 containment——objectKey 本应为系统生成
+  //（project-management/<Date.now>-<prefix>-<sanitize>）。任何能令 resolve 逃出
+  // uploads/ 根的键（../ 穿越/绝对路径/空键）都非系统产物=注入尝试，硬拒 400。
+  // 注意必须用 resolve 后的前缀比对（先归一化再比对——裸字符串 startsWith 挡不住 a/../..）。
+  const uploadsRoot = resolve(process.cwd(), 'uploads');
+  const localPath = resolve(uploadsRoot, objectKey);
+  if (localPath !== uploadsRoot && !localPath.startsWith(uploadsRoot + sep)) {
+    throw new BadRequestException({ error: '非法附件键（路径越界）', code: 'INVALID_OBJECT_KEY' });
+  }
   const st = await stat(localPath).catch(() => null);
   if (st?.isFile()) {
     try {

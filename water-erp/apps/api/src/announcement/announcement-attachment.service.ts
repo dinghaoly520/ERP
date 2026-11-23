@@ -7,6 +7,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
 
 /** 普通公告附件（公开可下载，无加密/权限/付费）—— 复用既有 FileAsset */
+/**
+ * I-1（2026-11-23 增量审查）：from-object 引用源白名单——「引用采购文件」唯一合法键空间
+ * = PMI 阶段附件轨（project-management/<Date.now>-<prefix>-<sanitize>，前端向导
+ * selectedTenderObjectKey 即此轨）。白名单制（非 denylist）：未来新增敏感命名空间默认拒，
+ * 新增合法引用源须显式扩此清单过评审。加密/证据类键（v3-staging/sealed-backup/签字包/
+ * 回流包/专家留痕等）由此天然全拒——挡「读得到但不该公开」的复制挂公告披露链。
+ */
+const ALLOWED_SOURCE_PREFIXES = ['project-management/'];
+
 @Injectable()
 export class AnnouncementAttachmentService {
   private readonly logger = new Logger(AnnouncementAttachmentService.name);
@@ -49,6 +58,14 @@ export class AnnouncementAttachmentService {
     const announcement = await this.prisma.announcement.findUnique({ where: { id: announcementId } });
     if (!announcement) {
       throw new NotFoundException({ error: '公告不存在', code: 'NOT_FOUND' });
+    }
+
+    // I-1：引用源白名单闸（DTO 正则已挡穿越；此闸挡合法 MinIO 键的越权公开复制）
+    if (!ALLOWED_SOURCE_PREFIXES.some(prefix => dto.objectKey.startsWith(prefix))) {
+      throw new BadRequestException({
+        error: `禁止引用该对象（objectKey 须以 ${ALLOWED_SOURCE_PREFIXES.join('/')} 之一开头——仅允许引用 PMI 阶段附件）`,
+        code: 'FORBIDDEN_SOURCE_KEY',
+      });
     }
 
     // 双轨（终审 I4）：本地 miss 回退 MinIO 副本——公告向导「引用采购文件」在容器重建后不再断供

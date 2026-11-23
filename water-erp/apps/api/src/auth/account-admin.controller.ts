@@ -153,6 +153,9 @@ export class AccountAdminController {
             isTemporary: true,
             companyId: true,
             companyName: true,
+            // 2026-11-23：账号列表状态列要区分「待审核」与「已停用/黑名单/审核不通过/退回补正」——
+            // 停用/拉黑联动 User.isActive=false，与注册待审同值，不带回 supplier.status 前端无法分辨。
+            status: true,
             // 2026-11-04 多归属：APPROVED 链接集合（归属中公司），非 APPROVED 不入
             companyLinks: { select: { status: true, company: { select: { id: true, name: true } } } },
           },

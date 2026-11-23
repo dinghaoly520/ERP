@@ -153,7 +153,7 @@ describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公�
   beforeEach(async () => {
     prisma = {
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) }, // P1-2：轮次收口 resolver 先查 PMI（null→回退编码直查）
-      announcement: { findUnique: jest.fn(), delete: jest.fn(), count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { viewCount: 0 } }), findMany: jest.fn().mockResolvedValue([]) },
+      announcement: { findUnique: jest.fn(), delete: jest.fn(), count: jest.fn().mockResolvedValue(0), aggregate: jest.fn().mockResolvedValue({ _sum: { viewCount: 0 } }), findMany: jest.fn().mockResolvedValue([]), update: jest.fn() },
       bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn(), update: jest.fn() },
       bidDocument: { updateMany: jest.fn() },
       bidOpeningSession: { deleteMany: jest.fn() },
@@ -176,6 +176,17 @@ describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公�
       ],
     }).compile();
     service = module.get(AnnouncementService);
+  });
+
+  it('I-2：删除变更公告 → 同事务清 supersededByAnnouncementId 反向链（防旧文件复活/下载死锁）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ type: 'CHANGE_NOTICE', relatedProjectCode: null, status: 'PUBLISHED' });
+    await service.remove('ann-change');
+    expect(prisma.bidDocument.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { supersededByAnnouncementId: 'ann-change' },
+        data: { supersededByAnnouncementId: null },
+      }),
+    );
   });
 
 
@@ -827,6 +838,7 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
   beforeEach(async () => {
     prisma = {
       announcement: { findUnique: jest.fn(), update: jest.fn(), count: jest.fn(), findMany: jest.fn() },
+      bidDocument: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) }, // I-2：回收/下线清 supersede 链
       announcementHistory: { create: jest.fn().mockResolvedValue({}) },
       bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null) },
       projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -843,6 +855,18 @@ describe('AnnouncementService — 回收站体系（隐藏/下架/恢复，2026-
   });
 
   const op = { operatorId: 'u1', operatorName: '张三' };
+
+  it('I-2：回收/下线变更公告 → 清 supersededByAnnouncementId 反向链（变更视同撤销）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'CHANGE_NOTICE', status: 'PUBLISHED', metadata: {} });
+    prisma.announcement.update.mockResolvedValue({ id: 'a1', title: 't', type: 'CHANGE_NOTICE', status: 'HIDDEN' });
+    await service.hide('a1', {});
+    expect(prisma.bidDocument.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { supersededByAnnouncementId: 'a1' },
+        data: { supersededByAnnouncementId: null },
+      }),
+    );
+  });
 
   it('hide：任意状态 → HIDDEN，metadata.recycle 记录原状态且保留其余键，历史记 HIDE', async () => {
     prisma.announcement.findUnique.mockResolvedValue({ id: 'a1', title: 't', type: 'POLICY', status: 'DRAFT', metadata: { foo: 1 } });

@@ -112,3 +112,24 @@ describe('writeAttachmentCopy / removeAttachmentCopy', () => {
     warnSpy.mockRestore();
   });
 });
+
+describe('readAttachmentBuffer — I-1 键校验（2026-11-23 增量审查：路径越界公开披露链）', () => {
+  it("objectKey 含 .. 段（路径穿越）→ 400 INVALID_OBJECT_KEY，不触任何存储", async () => {
+    await expect(readAttachmentBuffer('../../../../etc/passwd'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_OBJECT_KEY' } });
+    expect(mockedGetObject).not.toHaveBeenCalled();
+    expect(mockedReadFile).not.toHaveBeenCalled();
+  });
+
+  it('绝对路径 objectKey → 400（resolve 恒出 uploads 根）', async () => {
+    await expect(readAttachmentBuffer('/etc/passwd'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_OBJECT_KEY' } });
+    expect(mockedGetObject).not.toHaveBeenCalled();
+  });
+
+  it('中段 .. 同样拒绝（a/../../b）', async () => {
+    await expect(readAttachmentBuffer('project-management/../../secret'))
+      .rejects.toMatchObject({ response: { code: 'INVALID_OBJECT_KEY' } });
+    expect(mockedGetObject).not.toHaveBeenCalled();
+  });
+});

@@ -81,3 +81,49 @@ describe('AccountAdminController — 掩码回声防御（2026-10-15）', () => 
     expect(openPii(data.email)).toBe('zr@example.com');
   });
 });
+
+/**
+ * 供应商账号列表契约（2026-11-23「停用后误显待审核」修复）：
+ * 停用/黑名单联动 User.isActive=false，与注册待审同值——账号列表若不下发 supplier.status，
+ * 前端状态列无法分辨「待审核」与「已停用/黑名单/审核不通过/退回补正」。
+ */
+describe('AccountAdminController — listSuppliers 下发 supplier.status', () => {
+  let controller: AccountAdminController;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      user: { findMany: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
+      auditLog: { findMany: jest.fn().mockResolvedValue([]) },
+      company: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [AccountAdminController],
+      providers: [CompanyScopeService, { provide: PrismaService, useValue: prisma }],
+    }).compile();
+    controller = module.get(AccountAdminController);
+  });
+
+  it('supplier select 含 status，且响应行透传该字段（停用供应商可分辨）', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'u1', username: '91510100MA6XXXXXX0X', displayName: '联系人', phone: null, email: null,
+        isActive: false, isFrozen: false, createdAt: new Date(), passwordVault: null,
+        supplier: {
+          name: '某建设工程有限公司', creditCode: '91510100MA6XXXXXX0X', isTemporary: false,
+          companyId: null, companyName: null, status: 'DISABLED',
+          companyLinks: [{ status: 'APPROVED', company: { id: 'c1', name: '四川水发建设有限公司' } }],
+        },
+      },
+    ]);
+
+    const rows = await controller.listSuppliers();
+
+    // 契约 1：查询 select 声明了 supplier.status（防后人精简字段时静默丢失）
+    const select = prisma.user.findMany.mock.calls[0][0].select;
+    expect(select.supplier.select.status).toBe(true);
+    // 契约 2：响应行透传（停用供应商在账号列表可分辨，不再落「待审核」兜底）
+    expect(rows[0].supplier?.status).toBe('DISABLED');
+    expect(rows[0].isActive).toBe(false);
+  });
+});
