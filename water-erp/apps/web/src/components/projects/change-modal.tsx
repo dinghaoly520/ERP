@@ -417,24 +417,44 @@ export function ChangeModal({
                             value={values[f.field] ?? ''}
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
-                        /* 变更采购文件（2026-11-20）：从「采购文件」阶段附件单选新文件——
-                           当前正式版标注且不可选（选它=无变化）；无附件时提示先去 03 步上传 */
+                        /* 变更采购文件（2026-11-20；2026-11-23 排版简化）：当前正式版独立
+                           一行展示（不再挤进占位文案），下接「替换为」单选——当前版不可选 */
                         ) : f.widget === 'tender-doc' ? (
-                          <select
-                            className="workbench-input"
-                            disabled={!g.unlocked}
-                            value={values[f.field] ?? ''}
-                            onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
-                          >
-                            <option value="">
-                              {tenderDocOptions && tenderDocOptions.length > 0
-                                ? `选择新采购文件（当前正式版：${tenderDocOptions.find(o => o.isCurrent)?.fileName ?? '未标记'}）`
-                                : '「采购文件」阶段暂无附件——请先在采购文件步骤上传'}
-                            </option>
-                            {(tenderDocOptions ?? []).filter(o => !o.isCurrent).map(o => (
-                              <option key={o.id} value={o.id}>{o.fileName}</option>
-                            ))}
-                          </select>
+                          (() => {
+                            const current = (tenderDocOptions ?? []).find(o => o.isCurrent);
+                            const others = (tenderDocOptions ?? []).filter(o => !o.isCurrent);
+                            if (!others.length) {
+                              return (
+                                <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-3 py-2.5 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
+                                  「采购文件」阶段暂无其他附件可替换——请先在采购文件步骤上传新版本
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="space-y-1.5">
+                                {current && (
+                                  <div className="flex min-w-0 items-center gap-1.5 text-xs" title={current.fileName}>
+                                    <span className="shrink-0 text-[color:var(--muted-foreground)]">当前正式版</span>
+                                    <span className="min-w-0 truncate font-medium text-[color:var(--foreground)]">{current.fileName}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="shrink-0 text-xs text-[color:var(--muted-foreground)]">替换为</span>
+                                  <select
+                                    className="workbench-input !h-[34px] min-w-0 flex-1"
+                                    disabled={!g.unlocked}
+                                    value={values[f.field] ?? ''}
+                                    onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
+                                  >
+                                    <option value="">不替换</option>
+                                    {others.map(o => (
+                                      <option key={o.id} value={o.id}>{o.fileName}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            );
+                          })()
                         ) : f.widget === 'search-select' ? (
                           <SearchSelect
                             options={projectOptions}
