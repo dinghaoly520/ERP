@@ -52,8 +52,9 @@ export function ChangeModal({
   /** 开标确认（BidProject 进入 OPENING 起）——标段分区闸：开标后标前锁死、标后解锁 */
   bidOpened: boolean;
   /** 「采购文件」阶段附件清单（2026-11-20 变更采购文件）：tenderDocument 字段单选源；
-   *  isCurrent=当前正式盖章版（选它=无变化跳过） */
-  tenderDocOptions?: Array<{ id: string; fileName: string; objectKey: string; mimeType?: string | null; isCurrent?: boolean }>;
+   *  isCurrent=当前正式盖章版（选它=无变化跳过）；uploadedAt=上传时间——仅晚于当前
+   *  正式版上传的附件视为新版本可选（2026-11-23 用户裁定） */
+  tenderDocOptions?: Array<{ id: string; fileName: string; objectKey: string; mimeType?: string | null; uploadedAt?: string; isCurrent?: boolean }>;
   onRegistered: (
     result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string; publishStart?: string; publishEnd?: string; patchExtra?: Record<string, string> },
     publish: boolean,
@@ -417,16 +418,22 @@ export function ChangeModal({
                             value={values[f.field] ?? ''}
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
-                        /* 变更采购文件（2026-11-20；2026-11-23 排版简化）：当前正式版独立
-                           一行展示（不再挤进占位文案），下接「替换为」单选——当前版不可选 */
+                        /* 变更采购文件（2026-11-20；2026-11-23 排版简化 + 新版本判定）：
+                           当前正式版独立一行，下接「替换为」单选——仅列晚于当前正式版上传的
+                           附件（上传时间即新版本判据，2026-11-23 用户裁定） */
                         ) : f.widget === 'tender-doc' ? (
                           (() => {
                             const current = (tenderDocOptions ?? []).find(o => o.isCurrent);
-                            const others = (tenderDocOptions ?? []).filter(o => !o.isCurrent);
-                            if (!others.length) {
+                            // 新版本 = 上传时间晚于当前正式版；当前版缺时间戳（旧数据）则不设限
+                            const newer = (tenderDocOptions ?? []).filter(o =>
+                              !o.isCurrent && (!current?.uploadedAt || !o.uploadedAt || o.uploadedAt > current.uploadedAt),
+                            );
+                            if (!newer.length) {
                               return (
                                 <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-3 py-2.5 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
-                                  「采购文件」阶段暂无其他附件可替换——请先在采购文件步骤上传新版本
+                                  {current
+                                    ? '暂无晚于当前正式版上传的新版本附件——请先在采购文件步骤上传新版本'
+                                    : '「采购文件」阶段暂无附件——请先在采购文件步骤上传'}
                                 </div>
                               );
                             }
@@ -447,7 +454,7 @@ export function ChangeModal({
                                     onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                                   >
                                     <option value="">不替换</option>
-                                    {others.map(o => (
+                                    {newer.map(o => (
                                       <option key={o.id} value={o.id}>{o.fileName}</option>
                                     ))}
                                   </select>
