@@ -89,6 +89,21 @@ describe('BidSignPacketDocxService', () => {
     expect(text).toContain('—'); // 无异议家占位
   });
 
+  it('F5 递延收口：开标异议列覆盖终态——裁决后仍显示事由与裁决说明（不再回落 —）', () => {
+    const snap = {
+      ...baseSnapshot,
+      openingRecords: [
+        ...baseSnapshot.openingRecords,
+        { supplierName: '丙公司', amount: '460', period: '90日历天', qualityTarget: '合格', bondStatus: '已缴纳', confirmStatus: '异议已处理-确认', objectionReason: '唱标金额与密封报价不符', handleResult: '以录入值为准' },
+        { supplierName: '丁公司', amount: '450', period: '90日历天', qualityTarget: '合格', bondStatus: '已缴纳', confirmStatus: '异议已处理-退回', objectionReason: '工期口径异议', handleResult: '退回供应商补充' },
+      ],
+    } as any;
+    const text = textOf(svc.buildChildren(snap));
+    expect(text).toContain('曾有异议（异议已处理-确认）：唱标金额与密封报价不符');
+    expect(text).toContain('· 裁决：以录入值为准');
+    expect(text).toContain('曾有异议（异议已处理-退回）：工期口径异议');
+  });
+
   it('generateDocument 输出 docx（PK zip 头，长度合理）', async () => {
     const buf = await svc.generateDocument(baseSnapshot);
     expect(buf.length).toBeGreaterThan(1000);

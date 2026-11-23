@@ -158,6 +158,15 @@ describe('BidSignPacketService.generate', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  // F6（递延收口）：污染复位挪 afterEach——原复位在 N15 用例尾部，断言先红则泄漏外溢
+  //（clearAllMocks 不复位 mockResolvedValue 实现，generateHandover describe 不自设
+  // bidMotion/expertDispute/bidSupervisionLog.findMany 时读到本 describe 的残留即炸）
+  afterEach(() => {
+    (prisma.bidMotion.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.expertDispute.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.bidSupervisionLog.findMany as jest.Mock).mockResolvedValue([]);
+  });
+
   it('stage 非 EVALUATING → 409', async () => {
     (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'OPENING' });
     const svc = makeService();
@@ -242,11 +251,6 @@ describe('BidSignPacketService.generate', () => {
     // N16：专家替换监督日志入核验事件（verifyEvents 过滤器须含 action='专家替换'）
     expect(snap.verifyEvents.some((v: any) => v.action === '专家替换' && v.target === '张三 → 李四')).toBe(true);
 
-    // 泄漏防护：clearAllMocks 不复位 mockResolvedValue 实现——还原默认空集，
-    // 防 generateHandover describe（未自设这三个 mock）读到本用例数据在 :556 炸 createdAt
-    (prisma.bidMotion.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.expertDispute.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.bidSupervisionLog.findMany as jest.Mock).mockResolvedValue([]);
   });
 
   it('P1-17：重复 generate（重生成）走 fileAsset.upsert 不撞 key 唯一约束（非幂等 500 修复）', async () => {

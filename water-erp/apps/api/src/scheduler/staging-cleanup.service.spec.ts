@@ -81,6 +81,13 @@ describe('StagingCleanupService（T7）', () => {
     expect(prisma.fileAsset.findMany).toHaveBeenCalledTimes(2); // 500 + 100 两轮
   });
 
+  test('F7 递延收口：caOperation 保护集查询失败 → 整轮清理失败（fail-closed，不按无引用删）', async () => {
+    const prisma = mkPrisma({});
+    prisma.caOperation.findMany.mockRejectedValue(new Error('db down'));
+    await expect(new StagingCleanupService(prisma as any).cleanupOnce()).rejects.toThrow('db down');
+    expect(minioClient.removeObject).not.toHaveBeenCalled();
+  });
+
   test('F1 终审：满批全被引用（kept 满 500）→ 无进展即停，不得死循环', async () => {
     const many = Array.from({ length: 500 }, (_, i) => ({ id: `fa-kept-${i}`, key: `v3-staging/p1/s${i}/k.outer`, createdAt: OLD }));
     const prisma = mkPrisma({ assets: many, versions: many.map(a => ({ envelope: { files: { technical: { assetId: a.id } } } })) });

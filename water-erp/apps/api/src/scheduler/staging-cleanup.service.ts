@@ -38,10 +38,12 @@ export class StagingCleanupService {
       const files = (v.envelope as { files?: Record<string, { assetId?: string }> } | null)?.files ?? {};
       for (const e of Object.values(files)) if (e?.assetId) referenced.add(e.assetId);
     }
+    // F7（递延收口）：保护集查询 fail-closed——失败即让整轮清理失败（cron catch 记日志跳过本轮），
+    // 不得按「无引用」继续删（与 versions 查询同语义：宁可不删不可漏保护）。
     const frozenOps = await this.prisma.caOperation.findMany({
       where: { purpose: { in: ['submit', 'reupload'] }, status: 'PAYLOAD_READY' },
       select: { result: true },
-    }).catch(() => [] as Array<{ result: unknown }>);
+    });
     for (const op of frozenOps) {
       // C1（2026-11-20b code-review 终审）：信封以 JSON 字符串存于 result.canonical
       //（ca-operation.service:42 attachPayload；消费侧 supplier-portal:2919 JSON.parse 同源），

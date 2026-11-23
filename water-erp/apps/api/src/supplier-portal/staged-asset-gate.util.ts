@@ -25,7 +25,9 @@ export function assertStagedAssetIntact(
       code: 'STAGED_ASSET_MISSING',
     });
   }
-  if (entry.outerSha256 && staged.sha256 !== entry.outerSha256) {
+  // F8（递延收口）：严格比对——声明缺省（undefined/null）同样视为不符（与补传六闸之六同强度，
+  // dual-v3 信封 files[].outerSha256 为必填字段，缺省即信封畸形）
+  if (staged.sha256 !== entry.outerSha256) {
     throw new BadRequestException({
       error: `${role} 外层密文哈希与暂存资产实算值不符（疑似调包或截断）`,
       code: 'OUTER_HASH_MISMATCH',

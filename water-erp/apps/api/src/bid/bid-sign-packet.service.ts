@@ -824,7 +824,9 @@ export class BidSignPacketService {
         const unit = r.amountUnit ?? ((r.bidSupplierId ? amountUnitMapForRecords.get(r.bidSupplierId) : null) ?? null);
         return { supplierName: r.supplierName, amount: formatAmountWithUnit(r.amount, unit), amountUnit: unit, period: r.period, qualityTarget: r.qualityTarget, bondStatus: r.bondStatus, confirmStatus: r.confirmStatus,
           // N17（2026-11-20b 复核轮）：开标异议终态/事由入包（docx 唱标表「开标异议」列渲染依据）
-          objectionReason: (r as { objectionReason?: string | null }).objectionReason ?? null };
+          // F5（递延收口）：handleResult（裁决说明）随包——终态渲染「事由+裁决」闭环
+          objectionReason: (r as { objectionReason?: string | null }).objectionReason ?? null,
+          handleResult: (r as { handleResult?: string | null }).handleResult ?? null };
       }),
       bids: suppliers.map(s => ({ supplierName: s.supplierName, amount: '（见开标记录）', period: '（见开标记录）', submittedAt: s.createdAt.toISOString() })),
       invalidBids: invalidBids.map(b => ({ supplierName: suppliers.find(s => s.id === b.supplierId)?.supplierName ?? '（未知供应商）', reason: b.reason })),

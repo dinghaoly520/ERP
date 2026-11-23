@@ -31,6 +31,16 @@ describe('assertStagedAssetIntact（N12/N13-A v3 暂存闸）', () => {
     }
   });
 
+  test('F8 递延收口：信封声明缺省 outerSha256 → 仍拒（与补传闸同强度，禁缺省跳过）', () => {
+    const staged = { id: 'fa-1', sha256: 'aa'.repeat(32) } as any;
+    try {
+      assertStagedAssetIntact('technical', { assetId: 'fa-1' } as any, staged);
+      throw new Error('should have thrown');
+    } catch (e: any) {
+      expect(e.getResponse?.()).toMatchObject({ code: 'OUTER_HASH_MISMATCH' });
+    }
+  });
+
   test('行在且哈希一致 → 放行（无异常）', () => {
     const staged = { id: 'fa-1', sha256: 'aa'.repeat(32) } as any;
     expect(() => assertStagedAssetIntact('technical', entry, staged)).not.toThrow();
