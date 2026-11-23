@@ -26,6 +26,18 @@ import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 import { isOverdueScheduledDraft, scheduledPublishErrorOf } from '@/lib/notice/schedule';
 import { formatYuanExact } from '@/lib/format';
+import { normalizeAnnouncementContentHtml } from '@/lib/announcement-prose';
+
+/* 正文公文排版（2026-11-23 用户裁定，与 :3002/:3004 详情页及发布预览同款）：
+   粘连标题拆分居中、「一、」节标题加粗+缩进 2 字符、正文首行缩进 2 字符、
+   数字/西文 Times New Roman（Times 置前——CJK 回落中文字体） */
+const NOTICE_DOC_CONTENT_CSS = `
+.notice-doc-content { font-family: "Times New Roman", "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
+.notice-doc-content p { text-indent: 2em; }
+.notice-doc-content .ann-prose-title { text-indent: 0; text-align: center; font-weight: 700; font-size: 17px; line-height: 1.6; color: var(--foreground); }
+.notice-doc-content .ann-prose-h { font-weight: 700; }
+.notice-doc-content table td p, .notice-doc-content table th p { text-indent: 0; }
+`;
 
 /* 类型/状态标签 */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
@@ -373,10 +385,11 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
       {/* 左列：正文 —— 凸起卡片 */}
       <div className="neu-table-card min-w-0">
         <div className="p-5 sm:p-6">
+          <style>{NOTICE_DOC_CONTENT_CSS}</style>
           {ann.content ? (
             <div
-              className="prose prose-sm text-[var(--foreground)] leading-relaxed break-words [&_table]:w-full [&_table]:border-collapse [&_table_td]:border [&_table_td]:border-[var(--border)] [&_table_td]:px-3 [&_table_td]:py-2 [&_table_td]:break-all [&_table_th]:border [&_table_th]:border-[var(--border)] [&_table_th]:px-3 [&_table_th]:py-2 [&_table_th]:bg-[var(--muted)]/60 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-              dangerouslySetInnerHTML={{ __html: ann.content }}
+              className="notice-doc-content prose prose-sm text-[var(--foreground)] leading-relaxed break-words [&_table]:w-full [&_table]:border-collapse [&_table_td]:border [&_table_td]:border-[var(--border)] [&_table_td]:px-3 [&_table_td]:py-2 [&_table_td]:break-all [&_table_th]:border [&_table_th]:border-[var(--border)] [&_table_th]:px-3 [&_table_th]:py-2 [&_table_th]:bg-[var(--muted)]/60 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+              dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(ann.content, ann.title) }}
             />
           ) : (
             <p className="py-12 text-center text-sm text-[var(--muted-foreground)]">暂无正文内容</p>
