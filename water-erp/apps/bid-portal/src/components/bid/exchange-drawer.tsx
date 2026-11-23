@@ -593,7 +593,7 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
             </nav>
             {/* 会话列表↔消息区分割线（2026-11-17）：拖宽左栏看供应商全称；双击复位；键盘 ←/→ */}
             <div
-              role="separator" aria-orientation="vertical" aria-label="拖动调整会话列表宽度（双击重置，方向键微调）" tabIndex={0}
+              role="separator" aria-orientation="vertical" aria-label="拖动调整会话列表宽度，双击重置，方向键微调" tabIndex={0}
               onPointerDown={dragStart(navDragRef)} onPointerMove={onNavResizeMove} onPointerUp={dragEnd(navDragRef, NAV_W_KEY)} onPointerCancel={dragEnd(navDragRef, NAV_W_KEY)}
               onDoubleClick={resetNavW} onKeyDown={onNavResizeKey}
               className="group relative w-1.5 flex-none cursor-col-resize touch-none border-r border-[oklch(0.6_0.04_258_/_0.14)]"

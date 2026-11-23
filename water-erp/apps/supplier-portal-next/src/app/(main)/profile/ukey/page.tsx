@@ -209,7 +209,7 @@ export default function UkeyManagePage() {
       {!isBound && (
         <div className="flex items-start gap-2 rounded-[10px] bg-[var(--warning-soft)] px-3 py-2.5 text-sm text-[var(--warning)]">
           <TriangleAlert size={15} className="mt-0.5 shrink-0" strokeWidth={1.9} />
-          <span>尚未绑定 SCCA CA 证书——完成上方绑定后，即可使用 CA 证书登录供应商门户并参与双信封投标（dual-v3 随阶段 2 开放）。</span>
+          <span>尚未绑定 SCCA CA 证书——完成上方绑定后，即可使用 CA 证书登录供应商门户并参与双信封投标。</span>
         </div>
       )}
     </>

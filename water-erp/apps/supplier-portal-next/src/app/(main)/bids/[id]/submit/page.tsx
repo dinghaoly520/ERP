@@ -861,7 +861,7 @@ function BidSubmitInner() {
           ))}
         </div>
         {!canConfirm
-          ? <BAlert type="error" className="mt-4" title={`存在未通过的必填项：${failedRequiredLabels.join("、")}——${failedAllFixable ? "请完善后重新提交" : "请检查以上必填项（截止已过/资质未通过等无法通过重新填写解决）"}${preflightItems.some((i) => !i.ok && !i.required) ? "（橙色行为选填项，不拦截提交）" : ""}`} />
+          ? <BAlert type="error" className="mt-4" title={`存在未通过的必填项：${failedRequiredLabels.join("、")}——${failedAllFixable ? "请完善后重新提交" : "请检查以上必填项——截止已过、资质未通过等无法通过重新填写解决"}${preflightItems.some((i) => !i.ok && !i.required) ? "；橙色行为选填项，不拦截提交" : ""}`} />
           : <BAlert type="success" className="mt-4" title="检查通过。确认后需输入 U盾 PIN，随后开始双层加密与盾签名，期间请勿关闭页面" />}
       </SpDialog>
 

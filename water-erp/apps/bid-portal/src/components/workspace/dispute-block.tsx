@@ -97,7 +97,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
     if (withInvalidate) {
       const target = validSuppliers.find(s => s.id === invalidateBidSupplierId);
       if (!(await confirm({
-        message: `采纳该异议并将【${target?.supplierName ?? '所选供应商'}】置为废标？废标即时生效、计入开标记录与监督日志，将不可逆地影响有效家数（< ${minBidders} 家须流标）。确认执行？`,
+        message: `采纳该异议并将【${target?.supplierName ?? '所选供应商'}】置为废标？废标即时生效、计入开标记录与监督日志，将不可逆地影响有效家数——不足 ${minBidders} 家须流标。确认执行？`,
         danger: true,
       }))) return;
     }
@@ -120,7 +120,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
       ? `存在 ${pendingCount} 条异议未裁决，有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），经评标委员会认定流标`
       : validSuppliers.length < minBidders
         ? `有效供应商仅 ${validSuppliers.length} 家（< ${minBidders}），不足法定家数，经评标委员会认定流标`
-        : '经评标委员会认定流标（评标中现场裁量，须按法定程序公告）';
+        : '经评标委员会认定流标，评标中现场裁量，须按法定程序公告';
     const warn = resultsGenerated
       ? `${reasonBase}；已生成的官方评标结果将作废，并记入高风险监督日志。确认执行？此操作不可撤销。`
       : `${reasonBase}。确认执行流标？此操作不可逆。`;
@@ -160,7 +160,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
             onClick={handleAbort}
             disabled={busyId === '__abort__'}
             className="neu-btn-soft is-danger !h-[28px] !text-xs shrink-0"
-            title="评标期间流标（不可恢复，须填写书面理由；家数不足时上方横幅另有建议）"
+            title="评标期间流标，不可恢复，须填写书面理由；家数不足时上方横幅另有建议"
           >
             {busyId === '__abort__' ? '流标中…' : '流标…'}
           </button>

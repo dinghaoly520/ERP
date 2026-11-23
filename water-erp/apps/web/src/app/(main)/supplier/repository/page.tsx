@@ -350,7 +350,7 @@ function SupplierRepositoryPageInner() {
                             className={`inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold border ${expired ? 'text-[#e74c3c] bg-[#fef2f2] border-[#fecaca]' : 'text-[#b45309] bg-[#fffbeb] border-[#fde68a]'}`}
                             title={expired
                               ? `临时供应商已于 ${date} 到期：登录进入续期引导，CA/投标等业务操作已被拦截，可续期或转正`
-                              : `临时供应商 · 有效期至 ${date}（凭邀请码注册，到期需续期或转正）`}
+                              : `临时供应商 · 有效期至 ${date}，凭邀请码注册，到期需续期或转正`}
                           >
                             {expired ? `已到期（${date} 止）` : `临时 · 至 ${date}`}
                           </span>
@@ -403,7 +403,7 @@ function SupplierRepositoryPageInner() {
                       };
                       let hint = STATUS_HINT[s.status] ?? '';
                       const tempExpired = s.isTemporary && s.temporaryExpiresAt && new Date(s.temporaryExpiresAt).getTime() < Date.now();
-                      if (tempExpired) hint = '临时身份已到期（续期/转正前不可参与投标）';
+                      if (tempExpired) hint = '临时身份已到期，续期或转正前不可参与投标';
                       return (
                         <div className="flex items-center justify-center gap-1.5" title={`入库状态：${statusLabel}${hint ? ` · ${hint}` : ''}`}>
                           <StatusBadge tone={statusTone}>{statusLabel}</StatusBadge>
@@ -625,7 +625,7 @@ function SupplierRepositoryPageInner() {
         <button
           onClick={handleExport}
           disabled={exporting || data.total === 0}
-          title={`按当前筛选条件导出全部 ${data.total} 家供应商（含编号、法定代表人、标签、评价等完整资料）`}
+          title={`按当前筛选条件导出全部 ${data.total} 家供应商，含编号、法定代表人、标签、评价等完整资料`}
           className="neu-btn-xs gap-1"
         >
           <Download size={12} />{exporting ? '导出中…' : `导出 Excel（${data.total}）`}

@@ -231,7 +231,7 @@ export default function ExpertRepositoryPage() {
       if (!data || data.length === 0) { toast.error('无数据可导出'); return; }
       // 平铺 xlsx：列名列序与导入模板一致，可直接回导（2026-11-05 用户裁定）
       await exportExpertsToExcel(data);
-      toast.success(`已导出 ${data.length} 人（格式与导入模板一致，可直接回导）`);
+      toast.success(`已导出 ${data.length} 人，格式与导入模板一致，可直接回导`);
     } catch (e: any) { toast.error(e?.message || '导出失败'); }
   };
   const { sortKey, sortDir, toggle: sortToggle, sorted } = useSort<ExpertListItem>('displayName', 'asc');
@@ -394,10 +394,10 @@ export default function ExpertRepositoryPage() {
                         return <td className="text-center" title="该专家有处于评标阶段的在途项目"><StatusBadge tone="orange">{four}</StatusBadge></td>;
                       }
                       if (four === LIFECYCLE_LABELS.alternate) {
-                        return <td className="text-center" title={`候补待命（在途项目 ${inFlight.length} 个，均为候补身份）`}><StatusBadge tone="cyan">{four}</StatusBadge></td>;
+                        return <td className="text-center" title={`候补待命 · 在途项目 ${inFlight.length} 个，均为候补身份`}><StatusBadge tone="cyan">{four}</StatusBadge></td>;
                       }
                       if (four === LIFECYCLE_LABELS.assigned) {
-                        return <td className="text-center" title={`已被抽取（在途项目 ${inFlight.length} 个，未进入评标）`}><StatusBadge tone="blue">{four}</StatusBadge></td>;
+                        return <td className="text-center" title={`已被抽取 · 在途项目 ${inFlight.length} 个，未进入评标`}><StatusBadge tone="blue">{four}</StatusBadge></td>;
                       }
                       return <td className="text-center" title="无在途评标分配"><StatusBadge tone="green">{four}</StatusBadge></td>;
                     })()}

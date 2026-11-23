@@ -2306,7 +2306,7 @@ export function SupplierSelectionPage({
                   onKeyDown={e => { if (e.key === 'Enter' && !(e.nativeEvent as KeyboardEvent).isComposing) handleManualSearch(); }}
                   onCompositionStart={() => { manualComposingRef.current = true; }}
                   onCompositionEnd={e => { manualComposingRef.current = false; void handleManualSearch(e.currentTarget.value); }}
-                  placeholder="输入关键词即自动搜索（供应商名称、标签或经营范围）"
+                  placeholder="输入关键词即自动搜索——供应商名称、标签或经营范围"
                   className="workbench-input w-full !pl-9 !pr-8 text-sm"
                 />
                 {manualSearch && (
@@ -2771,7 +2771,7 @@ export function SupplierSelectionPage({
                 </div>
                 {notifyLinksLoading && <span className="text-[11px] italic text-[var(--muted-foreground)]">回执链接生成中…</span>}
                 <span className="flex-1" />
-                <button onClick={() => { void ensureRsvpTokens([...shortlist.entries()], true).then(r => { if (Object.keys(r).length) toast.success('确认链接已重新生成（未回复供应商换新链接，已回复者保持原链接）'); }); }} disabled={notifyLinksLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
+                <button onClick={() => { void ensureRsvpTokens([...shortlist.entries()], true).then(r => { if (Object.keys(r).length) toast.success('确认链接已重新生成，未回复供应商换新链接，已回复者保持原链接'); }); }} disabled={notifyLinksLoading || shortlist.size === 0} className="neu-btn-xs gap-1">
                   <RefreshCw size={10} className={notifyLinksLoading ? 'animate-spin' : ''} />重新生成回执链接
                 </button>
               </div>
@@ -3026,7 +3026,7 @@ export function SupplierSelectionPage({
                   <div className="min-w-0 flex-1">
                     <h3 className="text-sm font-bold text-[var(--foreground)]">通知已发送，等待供应商确认</h3>
                     <p className="text-[11px] text-[var(--muted-foreground)] mt-1 leading-relaxed">
-                      已向 {shortlist.size} 家候选供应商发出邀请通知{notifyNotFound > 0 && `（${notifyNotFound} 家未找到关联账户，需另行联系）`}
+                      已向 {shortlist.size} 家候选供应商发出邀请通知{notifyNotFound > 0 && `，${notifyNotFound} 家未找到关联账户，需另行联系`}
                     </p>
                     <div className="mt-3 flex items-center gap-x-4 gap-y-2 flex-wrap">
                       {/* 回执同源口径（2026-10-23 用户口径）：与「标记本阶段完成」核验数一致——
@@ -3634,7 +3634,7 @@ export function SupplierSelectionPage({
               </div>
               {notifyLinksLoading && <span className="text-[11px] italic text-[var(--muted-foreground)]">回执链接生成中…</span>}
               <span className="flex-1" />
-              <button onClick={() => { void ensureRsvpTokens([...rerunShortlist.entries()], true).then(r => { if (Object.keys(r).length) toast.success('确认链接已重新生成（未回复供应商换新链接，已回复者保持原链接）'); }); }} disabled={notifyLinksLoading || rerunShortlist.size === 0} className="neu-btn-xs gap-1">
+              <button onClick={() => { void ensureRsvpTokens([...rerunShortlist.entries()], true).then(r => { if (Object.keys(r).length) toast.success('确认链接已重新生成，未回复供应商换新链接，已回复者保持原链接'); }); }} disabled={notifyLinksLoading || rerunShortlist.size === 0} className="neu-btn-xs gap-1">
                 <RefreshCw size={10} className={notifyLinksLoading ? 'animate-spin' : ''} />重新生成回执链接
               </button>
             </div>

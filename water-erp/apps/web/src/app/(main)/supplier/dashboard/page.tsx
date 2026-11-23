@@ -99,7 +99,7 @@ function deriveInsights(
   } else {
     list.push({
       type: 'warning',
-      title: `尚未发起任何供应商评价（${approved} 家在库供应商处于盲评状态）`,
+      title: `尚未发起任何供应商评价，${approved} 家在库供应商处于盲评状态`,
       body: `供应商库已有 ${approved} 家入库供应商，但评估记录为 0。采购人员选取时仅能依据资质与企业类型做静态判断，风险较高。`,
       suggestion: `立即针对已参与项目的供应商启动首轮评价——优先覆盖参与过 2 个以上项目的供应商。`,
     });

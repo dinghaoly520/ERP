@@ -94,7 +94,7 @@ export function TenderClarificationCard({
             onChange={(e) => setQuestion(e.target.value)}
             rows={3}
             maxLength={2000}
-            placeholder="就招标文件提出澄清问题（最迟投标截止前 10 日；须已获取招标文件）"
+            placeholder="就招标文件提出澄清问题——最迟投标截止前 10 日，须已获取招标文件"
             className="w-full resize-none rounded-[14px] border border-[color-mix(in_oklch,var(--foreground)_10%,transparent)] bg-[var(--surface)] p-3 text-[13px] outline-none focus:border-[var(--accent)]"
           />
           <div className="flex justify-end">
@@ -111,7 +111,7 @@ export function TenderClarificationCard({
         <p className="cq-desc">
           {stageClosed
             ? "当前阶段不受理澄清提问；既有问答与澄清文件可在下方查看。"
-            : "澄清提问窗口已过（最迟须于投标截止前 10 日提出）；既有问答与澄清文件可在下方查看。"}
+            : "澄清提问窗口已过，最迟须于投标截止前 10 日提出；既有问答与澄清文件可在下方查看。"}
         </p>
       )}
 

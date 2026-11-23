@@ -439,7 +439,7 @@ export default function ProfilePage() {
         // B4-2（2026-09-30）：证明材料按 kind 区分——汇款凭证（payment）不充当证明材料，
         // 此前用 proofFiles.length 判定，只剩汇款凭证、零证明的业绩也能过审
         if (rows.some((p) => !(p.proofFiles ?? []).some((f) => f.kind !== "payment"))) {
-          toast.warning("每项业绩须至少上传一份证明材料（银行汇款凭证不作为证明材料）"); return;
+          toast.warning("每项业绩须至少上传一份证明材料，银行汇款凭证不作为证明材料"); return;
         }
         if (!(await confirm({ message: `将提交「主体业绩」整体变更（共 ${rows.length} 项业绩），审批通过后现有业绩将被本次提交替换。\n\n———\n变更原因：${crReason}` }))) return;
         setCrSub(true);
@@ -1111,7 +1111,7 @@ export default function ProfilePage() {
                           </div>
                         </div>
                         <div className="crp-cell crp-cell-wide">
-                          <label>证明材料 <i>*</i><span className="ml-1.5 text-[10px] font-normal text-[var(--muted-foreground)]">（银行汇款凭证须从右侧入口上传）</span></label>
+                          <label>证明材料 <i>*</i><span className="ml-1.5 text-[10px] font-normal text-[var(--muted-foreground)]">银行汇款凭证须从右侧入口上传</span></label>
                           <div className="crp-files">
                             {p.proofFiles.filter((f) => f.kind !== "payment").map((f) => (
                               <span key={"crpf" + f.url} className="crp-file-chip">

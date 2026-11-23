@@ -69,7 +69,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
         const expert = pool.find((e) => e.name && name.includes(e.name.toLowerCase()));
         if (expert) target = { key: `expert:${expert.expertId}`, label: `专家·${expert.name}` };
       }
-      if (!target) return { file: f.name, rawFile: f, target: '', status: 'unmatched' as const, note: '未识别（文件名不含主持人/监督人/报告/专家名）' };
+      if (!target) return { file: f.name, rawFile: f, target: '', status: 'unmatched' as const, note: '未识别：文件名不含主持人/监督人/报告/专家名' };
       if (taken.has(target.key)) return { file: f.name, rawFile: f, target: '', status: 'unmatched' as const, note: `重复：${target.label} 已有文件` };
       taken.add(target.key);
       return { file: f, target: target.key, label: target.label, status: 'ok' as const };
@@ -328,7 +328,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
             disabled={batchBusy}
             onClick={() => batchInputRef.current?.click()}
             className="neu-btn-primary is-water !h-[34px] !text-xs"
-            title="多选扫描件一次上传，按文件名自动分配去向（含主持人/监督人/专家名；主报告页须签字包生成后回传）"
+            title="多选扫描件一次上传，按文件名自动分配去向，含主持人/监督人/专家名；主报告页须签字包生成后回传"
           >
             {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
           </button>
@@ -381,7 +381,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                   disabled={batchBusy}
                   onClick={() => batchInputRef.current?.click()}
                   className="neu-btn-primary is-water !h-[34px] !text-xs"
-                  title="选 1 份（合并扫描 PDF）→ 自动应用到所有签字项；选多份 → 按文件名自动分配去向（含主持人/监督人/报告/专家名）"
+                  title="选 1 份合并扫描 PDF → 自动应用到所有签字项；选多份 → 按文件名自动分配去向，含主持人/监督人/报告/专家名"
                 >
                   {batchBusy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />} 回传签字扫描件
                 </button>
@@ -459,7 +459,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                   {(e.reviewGroup || e.dutyRole) && (
                     <span
                       className="bid-pill bid-pill--muted ml-1.5"
-                      title="评标委员会分工（在采购管理工作台开标确认流程中配置，写入评标报告名单）"
+                      title="评标委员会分工 · 在采购管理工作台开标确认流程中配置，写入评标报告名单"
                     >
                       {[e.reviewGroup, e.dutyRole].filter(Boolean).join(' · ')}
                     </span>
@@ -839,7 +839,7 @@ function ReportNotesDialog({ projectId, onClose }: { projectId: string; onClose:
 
         <hr className="wb-section-rule mx-6" />
         <div className="flex flex-wrap items-end justify-between gap-2 px-6 py-4">
-          <p className="max-w-[380px] text-[10px] leading-relaxed text-[var(--muted-foreground)]">保存后生成/重新生成签字包时生效（生成时取库内最新）；十行全空保存即清空全部附注。</p>
+          <p className="max-w-[380px] text-[10px] leading-relaxed text-[var(--muted-foreground)]">保存后生成/重新生成签字包时生效，生成时取库内最新；十行全空保存即清空全部附注。</p>
           <div className="flex gap-2">
             <button type="button" onClick={onClose} disabled={busy} className="neu-btn-soft !h-[36px] !text-xs">取消</button>
             <button

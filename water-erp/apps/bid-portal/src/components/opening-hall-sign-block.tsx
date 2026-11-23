@@ -68,7 +68,7 @@ export function OpeningSignBlock({ projectId, refreshKey }: { projectId: string;
           uploaded.push(role === 'host' ? '主持人' : '监督人');
           s = await refresh();
         }
-        if (!uploaded.length) { setMsg('所选文件没有可填的签字项（均已上传或无监督人）'); setBusy(false); return; }
+        if (!uploaded.length) { setMsg('所选文件没有可填的签字项：均已上传或本项目无监督人'); setBusy(false); return; }
         // 到齐即自动登记（无监督人：主持人件即齐；有监督人：两者齐）——登记幂等，失败不丢上传态
         if (s?.hostScanUploaded && (!s.supervisor || s.supervisorScanUploaded)) {
           try {

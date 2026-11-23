@@ -62,7 +62,7 @@ export function RoundBlock({ bidProjectId, detail, onChanged }: Props) {
   const stageHint = stage === 'ARCHIVED' || stage === 'ABORTED'
     ? '项目已归档/流标，报价轮次只读'
     : resultsFrozen
-      ? '评标结果已生成，报价轮次只读（如需更正请走数据修正流程）'
+      ? '评标结果已生成，报价轮次只读；如需更正请走数据修正流程'
       : roundMode === 'negotiation' ? '评标完成后方可开启报价轮次' : '当前阶段不可创建报价轮次';
 
   const load = useCallback(async () => {

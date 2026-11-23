@@ -141,7 +141,7 @@ export function PerformanceTransferDialog({
           <SpTextarea rows={2} value={form.description} placeholder="选填" onChange={(e) => set("description", e.target.value)} />
         </label>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-bold">证明文件（随业绩一并提交，不可在此增删）</span>
+          <span className="text-[13px] font-bold">证明文件 · 随业绩一并提交，不可在此增删</span>
           {form.proofFiles.length === 0 ? (
             <span className="text-xs text-[var(--fg-2)]">无证明文件——可在来源处先上传后再转入</span>
           ) : (

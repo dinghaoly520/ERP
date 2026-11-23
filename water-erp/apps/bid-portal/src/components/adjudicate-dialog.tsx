@@ -34,7 +34,7 @@ const OPTIONS: OptionMeta[] = [
   {
     value: 'RESET_PENDING',
     label: '重置解密机会',
-    desc: '重置为待解密状态，供应商可在解密窗口内重新解密上传（窗口关闭时不可用）',
+    desc: '重置为待解密状态，供应商可在解密窗口内重新解密上传；窗口关闭后不可用',
   },
 ];
 

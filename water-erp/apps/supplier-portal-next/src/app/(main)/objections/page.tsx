@@ -150,7 +150,7 @@ export default function ObjectionsPage() {
     if (myCompanies.length > 1 && !form.companyId) { toast.error("您加入了多家公司库，请选择本异议的归属公司"); return; }
     if (!form.title.trim() || !form.content.trim()) { toast.error("请填写异议标题与具体内容"); return; }
     if (!form.projectCode.trim() && ["document", "prequalification", "result", "procedure", "evaluation"].includes(form.phase)) {
-      toast.error("该类异议须选择关联项目，请在下拉中选择（或选「不关联项目」改选其他类型）");
+      toast.error("该类异议须选择关联项目，请在下拉中选择，或选「不关联项目」改选其他类型");
       return;
     }
     setBusy(true);

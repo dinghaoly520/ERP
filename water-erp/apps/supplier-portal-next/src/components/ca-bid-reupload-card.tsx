@@ -89,7 +89,7 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
     const cancelController = new AbortController();
     try {
       // ① 盾复原 fields+nonce（补传必须复用原 nonce——fieldsCommit 与原版一致）
-      setNote('盾复原唱标字段（fields+nonce）…');
+      setNote('盾复原唱标字段…');
       const certs = await scca.listSccaCerts();
       // 按原信封收件证书指纹选盾——错盾既解不开原 kself，重封还会把新信封封给错盾（2026-10-22 实录）
       const shield = await pickShieldByFingerprint(certs, ctx.sealedFields.kself.recipientCertFingerprint);
@@ -152,7 +152,7 @@ export function CaBidReuploadCard({ projectId, onReuploaded }: {
         operationId: prep.operationId, signatureFormat: 'scca-pkcs7-base64',
         signP7, baseRevision: ctx.baseRevision,
       });
-      toast.success('补传完成（版本已推进，等待重新解密）');
+      toast.success('补传完成，版本已推进，等待重新解密');
       setOpen(false);
       setPin('');
       setFiles({});

@@ -429,7 +429,7 @@ export default function NewNoticePage() {
             {/* 发布单位（2026-10-16）：发布的公告必须标明公司——创建时后端按登录人 stampFor 落快照，此处同步展示 */}
             <label className="space-y-1">
               <span className="text-xs font-semibold text-[var(--muted-foreground)]">发布单位</span>
-              <input value={publisher || '（账号未归属公司，发布后将无法标明）'} disabled
+              <input value={publisher || '账号未归属公司，发布后将无法标明'} disabled
                 className={`neu-input ${publisher ? 'text-[var(--foreground)]' : 'text-[var(--danger)]'}`} />
             </label>
           </div>
@@ -612,7 +612,7 @@ export default function NewNoticePage() {
         <>
           <LinkOptionPicker
             open={projectPickerOpen} title="选择关联项目（本公司）"
-            hint="项目列表按登录人公司隔离——仅本公司项目可选（admin 为全部公司视野）"
+            hint="项目列表按登录人公司隔离——仅本公司项目可选，admin 为全部公司视野"
             busy={pickerBusy && projectOptions === null}
             options={(projectOptions || []).map(p => ({ id: p.id, primary: p.title, secondary: p.projectCode }))}
             query={projectQuery} onQuery={setProjectQuery} onPick={pickProject}

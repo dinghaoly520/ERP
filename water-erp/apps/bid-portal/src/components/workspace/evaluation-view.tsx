@@ -385,7 +385,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
         reason: manualReason.trim(),
         ...(manualDocType ? { docType: manualDocType } : {}),
       });
-      showToast(`已确认 ${manualFor.expertName} 签到（主持人现场确认，已记入监督日志）`, 'ok');
+      showToast(`已确认 ${manualFor.expertName} 签到，由主持人现场确认并记入监督日志`, 'ok');
       setManualFor(null);
       setManualReason('');
       setManualDocType('');
@@ -440,7 +440,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     try {
       const r = await rotateRoomCode(projectId);
       setRoomCodeInfo({ roomCode: r.roomCode, roomCodeAt: r.roomCodeAt });
-      showToast('评标室口令已生成/轮换（专家需重新验证进入）', 'ok');
+      showToast('评标室口令已生成/轮换，专家需重新验证进入', 'ok');
       onChanged?.();
     } catch (e: any) {
       showToast(e?.message || '口令轮换失败', 'err');
@@ -472,7 +472,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     setRejectBusy(true);
     try {
       await rejectExpertVerification(projectId, rejectFor.id, { type: rejectType, ...(rejectNote.trim() ? { note: rejectNote.trim() } : {}) });
-      showToast(`已登记 ${rejectFor.expertName} 核验异常（${rejectType}，已记入高风险监督日志）`, 'ok');
+      showToast(`已登记 ${rejectFor.expertName} 核验异常：${rejectType}，已记入高风险监督日志`, 'ok');
       setRejectFor(null);
       setRejectNote('');
       getExpertVerification(projectId).then(setVerification).catch(() => {});
@@ -639,7 +639,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const biddersOk = evaluableCount >= minBidders;
   const startBlockers: string[] = [];
   if (!openingDone) startBlockers.push(`开标未完成：${notReadySuppliers.map(s => s.supplierName).join('、')} 尚未完成解密或异常处置`);
-  if (!committeeOk) startBlockers.push(`已确认正选专家 ${confirmedRegular} 人，须 5 人以上单数（小项目可为 3 人单数；水利项目 7 人以上单数）`);
+  if (!committeeOk) startBlockers.push(`已确认正选专家 ${confirmedRegular} 人，须 5 人以上单数——小项目可为 3 人单数，水利项目 7 人以上单数`);
   if (!biddersOk) startBlockers.push(`有效投标（解密成功且未撤回）仅 ${evaluableCount} 家，不足法定 ${minBidders} 家`);
   // N9（2026-11-20b 复核轮）：G11 限价前置镜像——benchmark_deviation/ratio 公式无有效限价时
   // 后端 400 CEILING_PRICE_REQUIRED（startEvaluation :2450-2459），数据已在详情下发，提前亮 blocker。
@@ -707,7 +707,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     try {
       await startEvaluation(projectId, hours);
       setStartDialogOpen(false);
-      showToast(`评标已启动（评标时限 ${hours} 小时），项目进入评标阶段`);
+      showToast(`评标已启动，评标时限 ${hours} 小时，项目进入评标阶段`);
       onChanged();
     } catch (e) {
       showToast(e instanceof Error ? e.message : '启动评标失败', 'err');
@@ -758,7 +758,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       const r = await reopenExpertScoring(projectId, { reason: reopenReason.trim(), expertId: reopenScope === 'all' ? undefined : reopenScope });
       setReopenDialogOpen(false);
       setReopenReason('');
-      showToast(`已重开评审确认：${r.reopenedExpertNames}（评分保留，可改分后重新确认）`);
+      showToast(`已重开评审确认：${r.reopenedExpertNames}，评分保留，可改分后重新确认`);
       onChanged();
     } catch (e) {
       showToast(e instanceof Error ? e.message : '重开评审确认失败', 'err');
@@ -866,12 +866,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           <div className="flex items-center gap-2.5 text-xs">
             <Play size={15} className="shrink-0 text-[var(--accent)]" />
             <span className="font-bold text-[var(--accent-strong)]">当前阶段：在线开标</span>
-            <span className="text-[var(--muted-foreground)]">— 开标完成后可启动专家评标（须已抽取专家、存在可评供应商）</span>
+            <span className="text-[var(--muted-foreground)]">— 开标完成后可启动专家评标——须已抽取专家、存在可评供应商</span>
             {!openingDone && notReadySuppliers.length > 0 && (
               <span className="text-[var(--warning)]">开标未完成：{notReadySuppliers.map(s => s.supplierName).join('、')} 待解密/确认</span>
             )}
             {!committeeOk && (
-              <span className="text-[var(--warning)]">已确认正选专家 {confirmedRegular} 人（须 5 人以上单数，小项目可为 3 人单数，水利项目 7 人以上）</span>
+              <span className="text-[var(--warning)]">已确认正选专家 {confirmedRegular} 人（须 5 人以上单数——小项目可为 3 人单数，水利项目 7 人以上单数）</span>
             )}
             {!biddersOk && (
               <span className="text-[var(--warning)]">有效投标 {evaluableCount} 家（法定最少 {minBidders} 家）</span>
@@ -1241,7 +1241,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setUnverifyFor({ id: row.id, expertName: row.expertName }); setUnverifyReason(''); }}
                       className="neu-btn-xs"
-                      title="撤销误登记（原因必填；已签到的专家不可撤销）"
+                      title="撤销误登记，原因必填；已签到的专家不可撤销"
                     >
                       撤销核验
                     </button>
@@ -1297,7 +1297,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       setReopenDialogOpen(true);
                     }}
                     disabled={reportsDone <= 0}
-                    title={reportsDone <= 0 ? '尚无已确认报告的专家，无需重开' : '解锁已确认报告的专家评分（须填写书面理由，原评分记录保留）'}
+                    title={reportsDone <= 0 ? '尚无已确认报告的专家，无需重开' : '解锁已确认报告的专家评分，须填写书面理由，原评分记录保留'}
                     className="neu-btn-soft !h-[28px] !text-[11px] shrink-0 disabled:opacity-40"
                   >
                     <RotateCcw size={12} /> 重开评审确认{reportsDone > 0 ? `（${reportsDone}）` : ''}
@@ -1330,7 +1330,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     <span className="ml-2 text-[10px] font-normal text-[var(--muted-foreground)]">{expert.major ?? '—'} · {expert.expertRole}</span>
                     {/* A-132：评委分工（分组·职责）——两维皆空则不渲染 */}
                     {(expert.reviewGroup || expert.dutyRole) && (
-                      <span className="ml-2 text-[10px] font-normal text-[var(--accent)]" title="评标委员会分工（在采购管理工作台开标确认流程中配置）">
+                      <span className="ml-2 text-[10px] font-normal text-[var(--accent)]" title="评标委员会分工 · 在采购管理工作台开标确认流程中配置">
                         {[expert.reviewGroup, expert.dutyRole].filter(Boolean).join(' · ')}
                       </span>
                     )}
@@ -1503,7 +1503,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 ? `官方评标结果（${evalAggTokens}）`
                 : liveOfficial
                   ? `官方口径实时预览（${evalAggTokens}）`
-                  : '实时平均分参考（评标结果尚未生成）'}
+                  : '实时平均分参考——评标结果尚未生成'}
             </span>
           </div>
           {/* 评标结果拉取失败可见化（存疑-7）——已生成结果的读取失败不再无声回退预览序 */}
@@ -1670,7 +1670,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     },
                     {
                       ok: leaderSigned,
-                      text: leaderSigned ? '评审报告已经组长末签' : '评审报告尚未经组长末签（生成前须完成末签）',
+                      text: leaderSigned ? '评审报告已经组长末签' : '评审报告尚未经组长末签，生成前须完成末签',
                     },
                     {
                       ok: openDisputeCount === 0,
@@ -1708,7 +1708,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
               {wizardStep === 1 && (
                 <div className="space-y-2 text-xs">
-                  <p className="leading-5 text-[var(--muted-foreground)]">以下评分与全体均分偏差超过 {ANOMALY_THRESHOLD}%，生成前请确认无异常{evalRules.trimEnabled ? '（生成时按规则去极值）' : ''}：</p>
+                  <p className="leading-5 text-[var(--muted-foreground)]">以下评分与全体均分偏差超过 {ANOMALY_THRESHOLD}%，生成前请确认无异常{evalRules.trimEnabled ? '，生成时按规则去极值' : ''}：</p>
                   {anomalies.length === 0 ? (
                     <div className="eval-check-item flex items-center gap-2 rounded-[12px] px-3.5 py-3 font-semibold" data-ok="true">
                       <CheckCircle2 size={14} /> 未发现异常偏差评分。
@@ -1732,13 +1732,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
               {wizardStep === 2 && (
                 <div className="space-y-2.5 text-xs leading-5 text-[var(--muted-foreground)]">
-                  <p>确认生成评标结果？生成规则（与采购管理工作台的评分标准/评标办法配置一致）：</p>
+                  <p>确认生成评标结果？生成规则与采购管理工作台的评分标准/评标办法配置一致：</p>
                   <ul className="list-inside list-disc space-y-1 pl-1">
                     <li>仅纳入解密成功、已确认且未撤回的供应商</li>
                     <li>通过性审查（资格/响应性）不通过票<span className="font-semibold text-[var(--foreground)]">严格过半即废标</span>，废标置后</li>
                     {evalRules.ruleLines.map(line => <li key={line}>{line}</li>)}
                   </ul>
-                  <p className="font-semibold text-[var(--foreground)]">结果生成后可再次生成覆盖（专家报告确认状态不变）。</p>
+                  <p className="font-semibold text-[var(--foreground)]">结果生成后可再次生成覆盖，专家报告确认状态不变。</p>
                 </div>
               )}
             </div>
@@ -2176,7 +2176,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 当前截止：<span className="tabular-nums text-[var(--foreground)]">{project?.evaluationDeadline ? new Date(project.evaluationDeadline).toLocaleString('zh-CN') : '—'}</span>
                 {project?.evaluationDeadline && new Date(project.evaluationDeadline).getTime() < Date.now() && <span className="ml-1 font-semibold text-[var(--danger)]">（已超时）</span>}
               </p>
-              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数<span className="ml-1.5 font-normal normal-case tracking-normal">（单次最长 720 小时）</span></label>
+              <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">延长小时数<span className="ml-1.5 font-normal normal-case tracking-normal">单次最长 720 小时</span></label>
               <input
                 type="number"
                 min={EVAL_HOURS_MIN}
@@ -2247,7 +2247,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               />
               <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
                 重开即时生效并通知受影响专家；签字包已闭环须先由系统管理员重开签字包
-                <HelpTip text="签字包闭环后重开评审确认将被系统拒绝——请先重开签字包（签字登记全部回「待签」），再重开评审确认。" />
+                <HelpTip text="签字包闭环后无法重开评审确认——请先重开签字包，签字登记将全部回到「待签」，然后再重开评审确认。" />
               </p>
             </div>
             <hr className="wb-section-rule mx-6" />

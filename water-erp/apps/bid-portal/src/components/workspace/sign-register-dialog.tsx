@@ -83,7 +83,7 @@ export default function SignRegisterDialog({
             {status === 'REFUSED_DISSENT' && '法条：拒绝签字且不陈述理由的，视为同意评标结论。请填写书面不同意见与理由。'}
             {status === 'REFUSED_DISSENT' && <span className="block text-[var(--accent-strong)]">请让专家在签字包《不同意见书》页（附件末页模板）本人手写并签名；扫描件经「回传签字扫描件」上传（文件名含专家名）。</span>}
             {status === 'DEEMED_AGREED' && '记录该专家拒绝签字且未陈述理由，依法视为同意评标结论。'}
-            {status === 'SIGNED' && '已签字；如附书面不同意见可一并填写（签字与不同意见可并存）。'}
+            {status === 'SIGNED' && '已签字；如附书面不同意见可一并填写，两者可并存。'}
           </p>
 
           {/* 不同意见（SIGNED 可选 / REFUSED_DISSENT 必填 / DEEMED_AGREED 隐藏） */}

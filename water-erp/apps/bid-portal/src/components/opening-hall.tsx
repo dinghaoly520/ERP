@@ -243,7 +243,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
         // 单家路径正常不返回批量形状；防御性处理（后端契约变更时仍可读）
         toast.info(`解外层完成：成功 ${res.success} · 跳过 ${res.skipped} · 失败 ${res.failed}`);
       } else if ('skipped' in res) {
-        toast.info('外层已解密（此前已完成，无需重复）');
+        toast.info('外层此前已解密，无需重复');
       } else if (res.success) {
         toast.success(`外层解密成功（${res.roles.length} 个密封件）`);
       } else {
@@ -628,7 +628,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
     const { supplierName, amount, arrivedAt, account, payMethod, note } = bondLedgerForm;
     // 前端守卫：金额必填且 > 0、≤999999999999.99（与后端 DTO @IsPositive/@Max(999999999999.99) 对齐）
     if (!supplierName || !arrivedAt || !account.trim() || !payMethod || amount === '' || Number.isNaN(Number(amount)) || Number(amount) <= 0 || Number(amount) > 999999999999.99) {
-      toast.error('请完整填写到账信息（金额须为大于 0 的数字，上限 999999999999.99）');
+      toast.error('请完整填写到账信息——金额须为大于 0 的数字，上限 999999999999.99');
       return;
     }
     setBondLedgerSubmitting(true);
@@ -711,7 +711,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <Clock size={20} strokeWidth={1.5} className="flex-shrink-0 text-[var(--accent-strong)]" />
           <div className="flex-1">
             <h2 className="mb-0.5 text-sm font-bold text-[oklch(0.4_0.13_251)]">该项目尚未确定开标</h2>
-            <p className="text-xs text-[color:var(--muted-foreground)]">确定开标（阶段流转）由采购管理工作台统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
+            <p className="text-xs text-[color:var(--muted-foreground)]">确定开标与阶段流转由采购管理工作台统一管理，请等待工作台完成「按时开标」确认后进入开标执行。</p>
           </div>
           {canGoWeb && (
             <a href={portalURL('web', '/projects')} target="_blank" rel="noopener"
@@ -1391,7 +1391,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                         {r.supplierName}
                         {/* dual-v3 来源标识：值来自加密承诺（dual-v2 唱标值来自解密上传/人工录入，不标） */}
                         {isDualV3((project.suppliers.find(s => s.supplierName === r.supplierName)?.envelopeVersion)) && (
-                          <span className="ml-1 inline-flex items-center" title="唱标值来自加密承诺（fieldsCommit），自动公布">
+                          <span className="ml-1 inline-flex items-center" title="唱标值来自加密承诺，自动公布">
                             <ShieldCheck size={12} strokeWidth={1.75} className="text-[var(--success)]" />
                           </span>
                         )}
@@ -1488,7 +1488,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
               {recordEntry.readOnly
                 ? '唱标值由加密承诺验证生成，不可修改；主持人仅补充保证金判定与自定义字段。'
-                : `据解密后的投标内容填写，提交后${recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。`}
+                : `据解密后的投标内容填写，提交后${recordEntry.reentry ? '覆盖原开标记录，供应商尚未确认' : '生成开标记录，待供应商确认'}。`}
             </p>
             {recordEntry.readOnly && (
               <>

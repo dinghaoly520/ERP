@@ -63,7 +63,7 @@ export function creditCodeGuidance(res: Pick<DedupCheckResult, "creditCode" | "c
       return {
         blocking: true,
         kind: "rejected",
-        message: "贵司此前注册申请已被驳回，请改走正式注册重新建档（正式注册支持驳回后重新注册）",
+        message: "贵司此前注册申请已被驳回，正式注册支持驳回后重新注册，请改走正式注册重新建档",
         link: { label: "改走正式注册", href: "/register" },
       };
     case "APPROVED":

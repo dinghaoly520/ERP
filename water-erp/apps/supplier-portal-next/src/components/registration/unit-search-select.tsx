@@ -24,7 +24,7 @@ export interface RegSelectOption {
 export function UnitSearchSelect({
   value,
   onChange,
-  placeholder = "请选择归属公司（须正确选择，否则影响投标）",
+  placeholder = "请正确选择归属公司，选择有误将影响投标",
 }: {
   value: string;
   onChange: (name: string) => void;
