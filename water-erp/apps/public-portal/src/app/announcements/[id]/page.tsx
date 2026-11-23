@@ -5,41 +5,9 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Ban, Download, FileText, Inbox, Loader2, Paperclip, PhoneCall, TriangleAlert } from 'lucide-react';
 import { fetchPublicAnnouncement, downloadAnnouncementAttachment, type AnnouncementItem, ANNOUNCEMENT_TYPE_META, formatMetaValue, type MetaField } from '@/lib/announcements';
+import { normalizeAnnouncementContentHtml } from '@/lib/announcement-prose';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
-
-/* ── 公告正文展示归一（2026-10-30）：兜存量公告监督块粘连（生成端已根治）——与后端
-      announcement-content-html.util 同口径：≥2 个监督标签同段时在非段首标签前断行 + 剔除纯空白段 ── */
-const SUPERVISION_LABELS = ['监督部门：', '地址：', '联系人：', '监督电话：'];
-
-function breakGluedSupervisionLabels(html: string): string {
-  if (!html.includes('<p')) return html;
-  return html.replace(/<p([^>]*)>([^<]*)<\/p>/g, (para, attrs: string, text: string) => {
-    const hits = SUPERVISION_LABELS.filter((l) => text.includes(l));
-    if (hits.length < 2) return para;
-    let out = text;
-    for (const label of SUPERVISION_LABELS) {
-      const parts = out.split(label);
-      if (parts.length < 2) continue;
-      const firstAtParaStart = parts[0].trim() === '';
-      out = parts.reduce((acc, part, i) => {
-        if (i === 0) return part;
-        const br = i === 1 && firstAtParaStart ? '' : '<br/>';
-        return `${acc}${br}${label}${part}`;
-      }, '');
-    }
-    return `<p${attrs}>${out}</p>`;
-  });
-}
-
-function stripBlankParagraphs(html: string): string {
-  if (!html.includes('<p')) return html;
-  return html.replace(/<p[^>]*>[\s 　]*<\/p>/g, '');
-}
-
-function normalizeAnnouncementContentHtml(html: string): string {
-  return stripBlankParagraphs(breakGluedSupervisionLabels(html));
-}
 
 export default function AnnouncementDetailPage() {
   const router = useRouter();
@@ -187,7 +155,7 @@ export default function AnnouncementDetailPage() {
           {!item.titleOnly && (
             <div
               className="announcement-detail-content text-[15px] text-[#18243a] leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(item.content) }}
+              dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(item.content, item.title) }}
             />
           )}
 

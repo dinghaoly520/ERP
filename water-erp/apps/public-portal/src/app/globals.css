@@ -2001,6 +2001,26 @@ a.group:hover::after {
   text-align: left;
 }
 
+/* ── 公文排版（2026-11-23 用户裁定）：标题居中、「一、」节标题加粗+缩进 2 字符、
+   正文首行缩进 2 字符、数字/西文 Times New Roman（Times 置前——CJK 字形回落既有中文字体栈） ── */
+.announcement-detail-content {
+  font-family: "Times New Roman", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+}
+.announcement-detail-content p {
+  text-indent: 2em;
+}
+.announcement-detail-content .ann-prose-title {
+  text-indent: 0;
+  text-align: center;
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.6;
+  color: #18243a;
+}
+.announcement-detail-content .ann-prose-h {
+  font-weight: 700;
+}
+
 .announcement-detail-content ul,
 .announcement-detail-content ol {
   margin: 0 0 16px 1.2em;
