@@ -275,6 +275,19 @@ export type DashboardData = {
     savingsRate: number;
     count: number;
   }>;
+  /** 公司对比五维聚合（2026-11-23 用户裁定：公司对比板块跟随页级时间/公司口径）
+   *  轮次按窗；异常=PMI 终止项目当前快照（无轮次公司也列出）；按成交额降序 */
+  companyComparison: Array<{
+    companyId: string;
+    company: string;
+    rounds: number;
+    awarded: number;
+    awardAmount: number;
+    awardedBudget: number;
+    savings: number;
+    savingsRate: number;
+    abnormal: number;
+  }>;
   /** 节资部门榜（2026-11-23：恒展示；全部/多选公司时行标「公司 · 部门」，单公司不标）
    *  行=公司×部门，按节资额降序 Top 10 */
   departmentSavingsRanking: Array<{

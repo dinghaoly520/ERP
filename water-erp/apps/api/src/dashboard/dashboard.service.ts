@@ -990,6 +990,48 @@ export class DashboardService {
       .sort((a, b) => b.savings - a.savings)
       .slice(0, 10);
 
+    // 公司对比（2026-11-23 用户裁定：公司对比板块跟随页级时间/公司口径，弃首页龙虎榜固定月/年源）——
+    // 轮次维度按窗聚合：轮次=全部非终止轮、已成交/成交额/成交预算=AWARDED 轮、节资口径同 summary
+    // （AWARDED·预算≥成交，超预算中标计成交不计节资）、节资率=节资/成交预算（同总览）；
+    // 异常=PMI TERMINATED 当前快照按公司（同总览「异常项目」口径，回收站不计；无轮次公司也列出）
+    const cmpMap = new Map<string, { companyId: string; company: string; rounds: number; awarded: number; awardAmount: number; awardedBudget: number; savings: number }>();
+    for (const item of rounds) {
+      const companyId = item.companyId ?? '';
+      const company = item.company?.name ?? item.companyName ?? '未归属公司';
+      const c = cmpMap.get(companyId) ?? { companyId, company, rounds: 0, awarded: 0, awardAmount: 0, awardedBudget: 0, savings: 0 };
+      c.rounds += 1;
+      if (item.resultStatus === ResultStatus.AWARDED) {
+        const budget = decimalToNumber(item.budgetAmount);
+        const award = decimalToNumber(item.awardAmount);
+        c.awarded += 1;
+        c.awardAmount += award;
+        c.awardedBudget += budget;
+        if (budget > 0 && award > 0 && budget >= award) c.savings += budget - award;
+      }
+      cmpMap.set(companyId, c);
+    }
+    const terminatedGroups = await this.prisma.projectManagementItem.groupBy({
+      by: ['companyId', 'companyName'],
+      _count: { _all: true },
+      where: { ...companyFilter, status: 'TERMINATED' },
+    });
+    const cmpRows = [...cmpMap.values()];
+    for (const g of terminatedGroups) {
+      const companyId = g.companyId ?? '';
+      if (!cmpMap.has(companyId)) {
+        cmpRows.push({ companyId, company: g.companyName?.trim() || '未归属公司', rounds: 0, awarded: 0, awardAmount: 0, awardedBudget: 0, savings: 0 });
+      }
+    }
+    const terminatedOf = new Map<string, number>();
+    for (const g of terminatedGroups) terminatedOf.set(g.companyId ?? '', (terminatedOf.get(g.companyId ?? '') ?? 0) + g._count._all);
+    const companyComparison = cmpRows
+      .map((c) => ({
+        ...c,
+        savingsRate: c.awardedBudget > 0 ? Math.round((c.savings / c.awardedBudget) * 1000) / 10 : 0,
+        abnormal: terminatedOf.get(c.companyId) ?? 0,
+      }))
+      .sort((a, b) => b.awardAmount - a.awardAmount || a.company.localeCompare(b.company, 'zh'));
+
     const now = new Date();
     // 风险预警同异常口径（2026-09-28）：PENDING=在途不算风险，避免全库在途项目刷屏
     const riskProjects = rounds
@@ -1178,6 +1220,7 @@ export class DashboardService {
       savingsRanking,
       companySavingsRanking,
       departmentSavingsRanking,
+      companyComparison,
       riskProjects,
       supplierConcentration,
       supplierCr5,

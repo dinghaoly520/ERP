@@ -79,6 +79,7 @@ describe('DashboardService', () => {
       // R6-6③：归档时点映射查 PMI（无关联轮次回退 updatedAt——空映射表等价旧行为）
       projectManagementItem: {
         findMany: jest.fn().mockResolvedValue([]),
+        groupBy: jest.fn().mockResolvedValue([]),
       },
       attachment: {
         groupBy: jest.fn().mockResolvedValue([]),
@@ -124,6 +125,48 @@ describe('DashboardService', () => {
       // 异常口径（2026-09-28 审计修订）：PENDING=正常在途不算异常——
       // 测试集 4 轮 = 2 AWARDED + 1 PENDING + 1 FAILED_REVIEW → 异常仅 1
       abnormalCount: 1,
+    });
+  });
+
+  /* 公司对比（2026-11-23 用户裁定：公司对比板块跟随页级时间/公司口径，弃首页龙虎榜固定月/年源） */
+  describe('公司对比 companyComparison', () => {
+    const base = {
+      procurementDate: new Date('2026-04-10T00:00:00.000Z'),
+      procurementMethod: '公开招标',
+      controlAmount: null,
+      resultText: '已成交',
+      awardedSupplierId: null,
+      participants: [],
+      department: { name: '工程部' },
+      project: { name: 'P', createdAt: new Date('2026-04-01T00:00:00.000Z') },
+    };
+    const co = (id: string, name: string) => ({ companyId: id, company: { name }, companyName: name });
+
+    it('按公司聚合轮次/已成交/成交额/成交预算/节资（口径同 summary），节资率=节资/成交预算，异常=PMI 终止快照，按成交额降序', async () => {
+      const { service, prisma } = makeService([
+        { ...base, id: '1', ...co('co-a', '甲公司'), budgetAmount: 1_000_000, awardAmount: 800_000, resultStatus: ResultStatus.AWARDED },
+        { ...base, id: '2', ...co('co-a', '甲公司'), budgetAmount: 500_000, awardAmount: 400_000, resultStatus: ResultStatus.AWARDED },
+        { ...base, id: '3', ...co('co-a', '甲公司'), budgetAmount: 300_000, awardAmount: null, resultStatus: ResultStatus.PENDING },
+        { ...base, id: '4', ...co('co-b', '乙公司'), budgetAmount: 2_000_000, awardAmount: 1_500_000, resultStatus: ResultStatus.AWARDED },
+        // 超预算中标：计成交额/成交预算，不计节资
+        { ...base, id: '5', ...co('co-b', '乙公司'), budgetAmount: 100_000, awardAmount: 150_000, resultStatus: ResultStatus.AWARDED },
+        { ...base, id: '6', ...co('co-c', '丙公司'), budgetAmount: 400_000, awardAmount: null, resultStatus: ResultStatus.FAILED_REVIEW },
+      ]);
+      prisma.projectManagementItem.groupBy.mockResolvedValue([
+        { companyId: 'co-b', companyName: '乙公司', _count: { _all: 2 } },
+        { companyId: 'co-d', companyName: '丁公司', _count: { _all: 1 } }, // 无轮次公司也列出（仅异常）
+      ]);
+      const result = await service.getDashboard('2026-04-01', '2026-04-30');
+      expect(result.companyComparison).toEqual([
+        expect.objectContaining({ companyId: 'co-b', company: '乙公司', rounds: 2, awarded: 2, awardAmount: 1_650_000, awardedBudget: 2_100_000, savings: 500_000, savingsRate: 23.8, abnormal: 2 }),
+        expect.objectContaining({ companyId: 'co-a', company: '甲公司', rounds: 3, awarded: 2, awardAmount: 1_200_000, awardedBudget: 1_500_000, savings: 300_000, savingsRate: 20, abnormal: 0 }),
+        expect.objectContaining({ companyId: 'co-c', company: '丙公司', rounds: 1, awarded: 0, awardAmount: 0, savingsRate: 0, abnormal: 0 }),
+        expect.objectContaining({ companyId: 'co-d', company: '丁公司', rounds: 0, awardAmount: 0, abnormal: 1 }),
+      ]);
+      // 异常快照口径：PMI TERMINATED（回收站不计）且带公司隔离
+      expect(prisma.projectManagementItem.groupBy).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ status: 'TERMINATED' }),
+      }));
     });
   });
 
