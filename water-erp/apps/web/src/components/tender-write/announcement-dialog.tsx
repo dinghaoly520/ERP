@@ -1645,7 +1645,11 @@ export function AnnouncementDialog({
                       field={field}
                       value={draftRecord[field.key] ?? ""}
                       draftRecord={draftRecord}
-                      onChange={field.key === "contactName" ? handleContactNameChange : handleFieldChange}
+                      onChange={field.key === "contactName"
+                              // 适配 (key, value) 双参契约（2026-11-23 修复：单参直挂曾把
+                              // 字段键当值写入——输入即变 "contactName"）
+                              ? (_key, value) => handleContactNameChange(value)
+                              : handleFieldChange}
                       onFieldFocus={handleFieldFocus}
                       category={category}
                       favoriteStates={favoriteStates}
