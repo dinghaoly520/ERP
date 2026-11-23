@@ -5,6 +5,12 @@
  * 语义按采购场景定制：% 为操作数后缀（=÷100，非 modulo）、log=以 10 为底、隐式乘法
  * （2(3+4)、2π、2sin(30)）、中文错误消息、DEG/RAD 角度模式。
  * 纯函数、无 React/DOM；tokenizer + 递归下降解析。
+ *
+ * 边界语义留档（终审#10，均为 expr-eval 式可辩护取舍）：
+ * - `e` 恒为欧拉常量（无科学计数）：`2e`=2×e≈5.4365；`1e5` 报「算式不完整」
+ * - `5%(2)` = (5%)×2 = 0.1（% 后缀先归值再隐式乘）
+ * - `tan(90)` DEG 返回浮点伪值 1.633e16（与标准数学库一致，未特判）
+ * - 深嵌套（~1500+ 层）→「算式过于复杂」（递归栈防护）
  */
 
 export type AngleMode = 'DEG' | 'RAD';
@@ -259,6 +265,8 @@ export function evaluateCalc(expr: string, angleMode: AngleMode = 'DEG'): EvalRe
     if (!Number.isFinite(value)) return { ok: false, error: OVERFLOW_MSG };
     return { ok: true, value, text: normCalc(value) };
   } catch (e) {
+    // 终审#3：深嵌套（~1500+ 层括号）触发解析器递归栈溢出——归一为中文消息
+    if (e instanceof RangeError) return { ok: false, error: '算式过于复杂' };
     return { ok: false, error: e instanceof Error ? e.message : INCOMPLETE_MSG };
   }
 }

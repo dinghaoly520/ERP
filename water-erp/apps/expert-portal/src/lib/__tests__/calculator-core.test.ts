@@ -98,3 +98,8 @@ test('normCalc：12 位有效数字归一导出', () => {
   assert.equal(normCalc(0.1 + 0.2), '0.3');
   assert.equal(normCalc(1 / 3), '0.333333333333');
 });
+
+test('终审#3·深嵌套防护：1600 层括号 → 中文「算式过于复杂」（不透出英文栈溢出）', () => {
+  const deep = '('.repeat(1600) + '2' + ')'.repeat(1600);
+  assert.equal(err(deep), '算式过于复杂');
+});

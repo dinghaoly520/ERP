@@ -57,7 +57,6 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
   const sizeRef = useRef(size);
   sizeRef.current = size;
   const btnRef = useRef<HTMLButtonElement>(null);
-  const popRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const tapeRef = useRef<HTMLDivElement>(null);
   /** 拖拽/缩放统一手势态（null=无手势；监听器常驻，无手势时 no-op） */
@@ -122,15 +121,24 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up); // 终审#2：系统取消手势（触屏让位等）
     return () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
     };
   }, []);
 
   const startGesture = (mode: 'drag' | 'resize') => (e: React.PointerEvent) => {
     if (e.button !== 0 || !pos) return;
     e.preventDefault();
+    // 终审#2：指针捕获——拖出浏览器视口后释放，pointerup 仍派发到捕获元素（经 window 冒泡监听收到），
+    // 防 gestureRef 悬置导致「鼠标回窗后浮窗粘着光标直到下次点击」
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* 不支持捕获的环境退化为 window 监听（指针回窗前的移动丢失，可接受） */
+    }
     gestureRef.current = {
       mode,
       startX: e.clientX,
@@ -153,12 +161,19 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
     if (!r.ok) {
       setError(r.error);
       setResult(null);
+      requestAnimationFrame(() => inputRef.current?.focus()); // 终审#4：动作后回焦，防 Escape 泄给 window
       return;
     }
     setResult(r.text);
     setError(null);
     justEvaluatedRef.current = true;
-    setHistory((h) => [{ expr, result: r.text }, ...h].slice(0, HISTORY_CAP));
+    // 终审#8：连续重复 = 不追加重复历史行
+    setHistory((h) =>
+      h[0] && h[0].expr === expr && h[0].result === r.text
+        ? h
+        : [{ expr, result: r.text }, ...h].slice(0, HISTORY_CAP),
+    );
+    requestAnimationFrame(() => inputRef.current?.focus());
   };
 
   /** 键钮：在光标处插入文本（框选则替换）；刚求值完按运算符=结果延续、其余=重新起式 */
@@ -255,7 +270,11 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
     if (k.act === 'backspace') return doBackspace();
     if (k.act === 'clear') return doClear();
     if (k.act === 'equals') return doEvaluate();
-    if (k.isAngle) return setAngleMode((m) => (m === 'DEG' ? 'RAD' : 'DEG'));
+    if (k.isAngle) {
+      setAngleMode((m) => (m === 'DEG' ? 'RAD' : 'DEG'));
+      requestAnimationFrame(() => inputRef.current?.focus()); // 终审#4
+      return;
+    }
     return insertToken(k.ins ?? k.label);
   };
 
@@ -278,7 +297,6 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
           // 定位壳：fixed 走内联 style（unlayered position:relative 压过 Tailwind fixed，验收实录）
           <div style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 70 }}>
           <div
-            ref={popRef}
             role="dialog"
             aria-label="计算器"
             className="exp-calc-shell neu-card-static flex select-none flex-col overflow-hidden !rounded-[16px] p-3 focus:outline-none"
@@ -296,7 +314,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 type="button"
                 onClick={closePopover}
                 onPointerDown={(e) => e.stopPropagation()}
-                className="neu-btn-xs is-square !h-6 !w-6"
+                className="neu-btn-xs is-square !h-6 !w-6 !min-h-6"
                 aria-label="关闭计算器"
               >
                 <X size={13} strokeWidth={1.5} />
@@ -334,7 +352,8 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 ref={tapeRef}
                 className="mt-2 min-h-[36px] flex-1 overflow-y-auto rounded-[10px] bg-[oklch(0.96_0.01_258/0.3)] px-1.5 py-1"
               >
-                {history.map((h, i) => (
+                {/* 终审#1：数组最新在前 → 反转渲染为最新在底，配合滚到底始终可见最新条目 */}
+                {[...history].reverse().map((h, i) => (
                   <button
                     key={`${h.expr}|${h.result}|${i}`}
                     type="button"
