@@ -1929,9 +1929,18 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 评价 {expertPick.avgGrade ?? expertPick.latestEval?.level}
               </span>
             ) : null}
-            {!expertPick.isActive ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--danger)]">已停用</span>
-            ) : null}
+            {(() => {
+              /* 2026-11-23：退库≠停用（对齐 :3005 专家库口径「已退库＞已停用」）——退库联动
+                 isActive=false 且 availability='停用'，纯账号维度会把两者折叠成一个「已停用」 */
+              const p = expertPick.expertProfile;
+              if (p?.entryStatus === "RETIRED" || p?.retiredAt) {
+                return <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--danger)]">已退库</span>;
+              }
+              if (!expertPick.isActive) {
+                return <span className="rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--muted-foreground)]">已停用</span>;
+              }
+              return null;
+            })()}
           </div>
           <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
             {expertPick.expertProfile?.employer ? (
@@ -1942,7 +1951,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             <div className="flex justify-between gap-3">
               <span className="text-[var(--muted-foreground)]">库内状态</span>
-              <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile?.availability ?? "在库"}</span>
+              <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile?.entryStatus === "RETIRED" || expertPick.expertProfile?.retiredAt ? "已退库" : (expertPick.expertProfile?.availability ?? "在库")}</span>
             </div>
             {expertPick.latestEval ? (
               <div className="flex justify-between gap-3">
