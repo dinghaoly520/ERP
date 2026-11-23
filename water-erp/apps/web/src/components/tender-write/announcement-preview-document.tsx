@@ -286,19 +286,28 @@ function InvitedOrInternalBiddingAnnouncementPreview({
 
       <div className="text-[0.92rem] leading-8 text-[color:var(--foreground)]">
         <p className="indent-8">
-          {company}采用
-          {tenderType === "INQUIRY_PURCHASE"
-            ? "询比采购"
-            : tenderType === "INVITED_BIDDING"
-              ? "邀请招标"
-              : isPublic
-                ? "公开招标"
-                : tenderType === "COMPETITIVE_NEGOTIATION"
-                  ? "竞争性谈判"
-                  : "竞价采购"}
-          方式对
-          {PV(draft.projectName, "{{项目名称}}", "projectName")}
-          {isPublic ? "进行招标，现公告如下：" : "进行采购，现公示如下："}
+          {/* 导语句式与各 docx 模板对齐（2026-11-23）：询比/竞价=拟采用…欢迎具备承担能力的
+              供应商参加（公告发布组织口径）；邀请/谈判=采用…方式；公开=招标口吻 */}
+          {(() => {
+            // 询比（INQUIRY）与竞价（else 分支）为公告制充实句式；邀请/谈判/公开维持模板原句
+            const enriched = !isPublic && tenderType !== "INVITED_BIDDING" && tenderType !== "COMPETITIVE_NEGOTIATION";
+            const method = tenderType === "INQUIRY_PURCHASE"
+              ? "询比采购"
+              : tenderType === "INVITED_BIDDING"
+                ? "邀请招标"
+                : isPublic
+                  ? "公开招标"
+                  : tenderType === "COMPETITIVE_NEGOTIATION"
+                    ? "竞争性谈判"
+                    : "竞价采购";
+            return (
+              <>
+                {company}{enriched ? "拟" : ""}采用{method}方式对
+                {PV(draft.projectName, "{{项目名称}}", "projectName")}
+                {isPublic ? "进行招标，现公告如下：" : enriched ? "进行采购，欢迎具备承担能力的供应商参加，现公示如下：" : "进行采购，现公示如下："}
+              </>
+            );
+          })()}
         </p>
       </div>
 
