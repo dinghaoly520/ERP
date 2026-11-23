@@ -24,7 +24,7 @@ import { PublishConfigSection, configFromMetadata, configToMetadata, type Publis
 import { BidDocEditSection, AddendumRefDocSection } from '@/components/notice/bid-doc-edit-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
-import { isOverdueScheduledDraft } from '@/lib/notice/schedule';
+import { isOverdueScheduledDraft, scheduledPublishErrorOf } from '@/lib/notice/schedule';
 import { formatYuanExact } from '@/lib/format';
 
 /* 类型/状态标签 */
@@ -734,11 +734,21 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
       {/* 发布配置 — 全宽，在双列网格下方 */}
       <div className="neu-table-card p-5">
         <div className="text-xs font-bold text-[var(--accent-strong)] mb-4">发布配置</div>
-        {/* 定时未生效警示（2026-10-29 审计 F）：定时时刻已过仍是草稿——发布被闸拒绝或服务异常滞留 */}
+        {/* 定时未生效警示（2026-10-29 审计 F）：定时时刻已过仍是草稿——发布被闸拒绝或服务异常滞留。
+            2026-11-23：scheduler 持久化的实际拒绝原因（metadata.scheduledPublishError）直接透出 */}
         {isOverdueScheduledDraft(ann) && (
           <div className="mb-4 flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-2.5 text-xs leading-5 text-[var(--foreground)]">
             <Clock size={13} className="mt-0.5 shrink-0 text-[var(--warning)]" />
-            <span>定时发布时刻已过，但公告仍是草稿——定时发布被发布校验拒绝或服务异常滞留。请检查公告要素（项目编码/时间等）后重新点「发布」，或切回「立即发布」。</span>
+            <span>
+              定时发布时刻已过，但公告仍是草稿——定时发布被发布校验拒绝或服务异常滞留。
+              {(() => {
+                const err = scheduledPublishErrorOf(ann);
+                return err
+                  ? <>被拒原因：<strong className="text-[var(--danger)]">{err.message}</strong>{err.at ? <>（首次失败 {new Date(err.at).toLocaleString('zh-CN', { hour12: false })}，每分钟自动重试）</> : null}。</>
+                  : null;
+              })()}
+              请检查公告要素（项目编码/时间等）后重新点「发布」，或切回「立即发布」。
+            </span>
           </div>
         )}
         <PublishConfigSection config={publishConfig} onChange={setPublishConfig} legacyRestricted={wasRestricted} />

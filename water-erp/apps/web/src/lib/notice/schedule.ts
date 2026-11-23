@@ -23,3 +23,12 @@ export function isOverdueScheduledDraft(ann: { status: string; metadata?: Record
   const due = scheduledPublishDue(ann.metadata?.scheduledPublishDate);
   return !!due && due.getTime() < Date.now() - SCHEDULED_PUBLISH_GRACE_MS;
 }
+
+/** 定时发布失败留痕（2026-11-23）：scheduler 被发布闸拒绝时写入 metadata.scheduledPublishError
+ *  （{ message, code, at }，同错误只写一次；自愈成功清除）。存量滞留件无此标记，返回 null。 */
+export function scheduledPublishErrorOf(ann: { metadata?: Record<string, any> | null }): { message: string; code: string | null; at: string } | null {
+  const e = ann.metadata?.scheduledPublishError;
+  return e && typeof e.message === 'string' && e.message
+    ? { message: e.message, code: typeof e.code === 'string' ? e.code : null, at: typeof e.at === 'string' ? e.at : '' }
+    : null;
+}

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 // @ts-expect-error Node 原生 --test 的 ESM 解析需要显式 .ts 扩展；tsc（bundler 分辨）不接受——压此行
-import { scheduledPublishDue, isOverdueScheduledDraft, SCHEDULED_PUBLISH_GRACE_MS } from "./schedule.ts";
+import { scheduledPublishDue, isOverdueScheduledDraft, scheduledPublishErrorOf, SCHEDULED_PUBLISH_GRACE_MS } from "./schedule.ts";
 
 test("解析：无时区值按东八区，带偏移原样，缺失/非法 null", () => {
   assert.equal(scheduledPublishDue("2099-01-01T09:00")?.toISOString(), "2099-01-01T01:00:00.000Z");
@@ -24,4 +24,15 @@ test("宽限窗（2026-10-29 复验补）：过期 90 秒内不标——cron 每
   assert.equal(isOverdueScheduledDraft(draft(iso(30_000))), false);
   // 过期恰好超宽限 → 标
   assert.equal(isOverdueScheduledDraft(draft(iso(SCHEDULED_PUBLISH_GRACE_MS + 5_000))), true);
+});
+
+test("失败留痕读取（2026-11-23）：合法标记归一返回、缺失/畸形/空消息返回 null（存量滞留件无标记）", () => {
+  assert.deepEqual(
+    scheduledPublishErrorOf({ metadata: { scheduledPublishError: { message: "项目未取得国标采购编码", code: "GB_CODE_REQUIRED", at: "2026-11-23T04:00:00.000Z" } } }),
+    { message: "项目未取得国标采购编码", code: "GB_CODE_REQUIRED", at: "2026-11-23T04:00:00.000Z" },
+  );
+  assert.equal(scheduledPublishErrorOf({ metadata: {} }), null);
+  assert.equal(scheduledPublishErrorOf({ metadata: { scheduledPublishError: { message: "", code: "X" } } }), null);
+  assert.equal(scheduledPublishErrorOf({ metadata: { scheduledPublishError: "bad-shape" } }), null);
+  assert.equal(scheduledPublishErrorOf({}), null);
 });

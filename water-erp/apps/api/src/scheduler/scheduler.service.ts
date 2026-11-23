@@ -507,7 +507,10 @@ export class SchedulerService {
    *  预检、GB 赋码强制闸、PRE_WIN/WIN_NOTICE publicityEnd 推导、BID_NOTICE 建项+招标文件
    *  联动）。最重后果：定时发布的预成交公示 publicityEnd 恒 null → 中标通知书永久死锁。
    *  update 内部已含发布通知（notifySuppliersOnPublish，按可见范围），cron 不再另发。
-   *  发布失败（如时限闸拒绝）→ error 日志并保留 DRAFT（下轮重扫；违规草稿修正后可再发布）。 */
+   *  发布失败（如时限/赋码闸拒绝）→ 失败原因持久化 metadata.scheduledPublishError 并通知
+   *  创建人（2026-11-23 优化：管理端「定时未生效」从「请检查」变为显示实际原因；同错误
+   *  不重复写库/打扰——每分钟重试的写放大与通知风暴收敛到原因变化事件），保留 DRAFT
+   *  下轮重扫（闸门解除即自愈发出，自愈成功清除失败标记）。 */
   @Cron('0 * * * * *')
   async publishScheduledAnnouncements() {
     const drafts = await this.prisma.announcement.findMany({
@@ -516,8 +519,8 @@ export class SchedulerService {
     for (const a of drafts) {
       const meta = (a.metadata as Record<string, any>) || {};
       // 解析走 scheduled-publish.util（2026-10-29 审计 C）：无时区 datetime-local 值按
-      // 东八区解释（裸 new Date 依赖服务器时区，生产容器跑 UTC 会整体晚 8 小时）；
-      // 非法值返回 null 按「无定时」跳过（此前 NaN 比较恒 false，行为一致但不再依赖巧合）。
+      //  东八区解释（裸 new Date 依赖服务器时区，生产容器跑 UTC 会整体晚 8 小时）；
+      //  非法值返回 null 按「无定时」跳过（此前 NaN 比较恒 false，行为一致但不再依赖巧合）。
       const due = parseScheduledPublishDate(meta.scheduledPublishDate);
       if (!due) continue;
       if (due <= new Date()) {
@@ -527,8 +530,31 @@ export class SchedulerService {
             publishDate: new Date().toISOString(),
           });
           this.logger.log(`定时公告发布: ${a.title} (${a.id})`);
+          // 自愈收尾：曾失败后成功的，清残留失败标记（仅动 metadata，status 仍专属 update）
+          if (meta.scheduledPublishError) {
+            const cleaned = { ...meta };
+            delete cleaned.scheduledPublishError;
+            await this.prisma.announcement.update({ where: { id: a.id }, data: { metadata: cleaned as any } })
+              .catch((err) => this.logger.warn(`定时公告失败标记清除失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
+          }
         } catch (e) {
-          this.logger.error(`定时公告发布失败（保留草稿待修正）: ${a.title} (${a.id}): ${(e as Error).message}`);
+          const resp = (e as any)?.response;
+          const reason = resp?.error ?? (e as Error).message ?? '未知原因';
+          this.logger.error(`定时公告发布失败（保留草稿待修正）: ${a.title} (${a.id}): ${reason}`);
+          if (meta.scheduledPublishError?.message !== reason) {
+            const marked = { ...meta, scheduledPublishError: { message: reason, code: resp?.code ?? null, at: new Date().toISOString() } };
+            await this.prisma.announcement.update({ where: { id: a.id }, data: { metadata: marked as any } })
+              .catch((err) => this.logger.warn(`定时公告失败原因写入失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
+            if (a.authorId) {
+              await this.notification.create({
+                userId: a.authorId,
+                type: 'SCHEDULED_PUBLISH_FAILED',
+                title: '定时公告发布失败',
+                content: `「${a.title}」定时发布未生效：${reason}。请修正后重新发布，或切回立即发布。`,
+                link: '/notice',
+              }).catch((err) => this.logger.warn(`定时公告失败通知发送失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
+            }
+          }
         }
       }
     }
