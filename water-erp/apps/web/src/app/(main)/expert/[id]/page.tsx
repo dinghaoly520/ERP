@@ -649,7 +649,7 @@ export default function ExpertDetailPage() {
                       <button
                         onClick={(ev) => { ev.stopPropagation(); setInviteProxy({ projectId: a.project.id, projectName: a.project.name, target: a.invitationStatus === 'confirmed' ? 'declined' : 'confirmed', current: a.invitationStatus as 'confirmed' | 'declined' }); setInviteProxyReason(''); }}
                         className="neu-btn-xs"
-                        title="工作人员代为变更邀请（必填理由，全程留痕）"
+                        title="工作人员代为变更邀请，必填理由并全程留痕"
                       >代为变更</button>
                     )}
                     {a.invitationStatus === 'confirmed' && <StatusBadge tone="green">已确认</StatusBadge>}
@@ -980,7 +980,7 @@ export default function ExpertDetailPage() {
             <div>
               <label className="text-[11px] font-bold text-[var(--foreground)] mb-1.5 block">
                 代回应理由 <span className="text-[var(--danger)]">*</span>
-                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">（必填，至少 5 个字；留痕展示）</span>
+                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">必填，至少 5 个字，提交后展示并留痕</span>
               </label>
               <textarea
                 value={inviteProxyReason}

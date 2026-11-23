@@ -699,8 +699,8 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           </div>
           <div className="pl-6 text-xs font-medium text-[var(--foreground)]">
             {hasDual
-              ? '可重新「组建开标会话」延长窗口继续解密；或对待裁决供应商执行「归因裁决」定性（投标人责任 / 平台责任，记入监督日志）。'
-              : '可重新「组建开标会话」延长窗口继续解密；或对未解密供应商执行「接受未解密」定性为解密异常（记入监督日志）。'}
+              ? '可重新「组建开标会话」延长窗口继续解密；或对待裁决供应商执行「归因裁决」，定性为投标人责任或平台责任，记入监督日志。'
+              : '可重新「组建开标会话」延长窗口继续解密；或对未解密供应商执行「接受未解密」，定性为解密异常并记入监督日志。'}
           </div>
         </div>
       )}
@@ -1487,7 +1487,7 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             </h3>
             <p className="mt-1 text-xs text-[color:var(--muted-foreground)]">
               {recordEntry.readOnly
-                ? '唱标值来自加密承诺（fieldsCommit 验证后自动生成），不可修改。主持人仅补充保证金判定与自定义字段。'
+                ? '唱标值由加密承诺验证生成，不可修改；主持人仅补充保证金判定与自定义字段。'
                 : `据解密后的投标内容填写，提交后${recordEntry.reentry ? '覆盖原开标记录（供应商尚未确认）' : '生成开标记录（待供应商确认）'}。`}
             </p>
             {recordEntry.readOnly && (

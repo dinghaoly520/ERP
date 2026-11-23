@@ -441,7 +441,7 @@ export function ExpertExtractPage({
     <tr>
       <td colSpan={colSpan} style={{ background: 'oklch(1 0 0 / 0.35)' }}>
         <div className="mx-auto max-w-[680px] px-6 py-2">
-          <div className="mb-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">邀请轨迹（全量留痕 · 每次理由）</div>
+          <div className="mb-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">邀请轨迹 · 全量留痕</div>
           <div className="space-y-1">
             {(e.invitationTrail ?? []).map((t, i) => (
               <div key={i} className="flex flex-wrap items-start gap-x-2 text-[10px] leading-4">
@@ -2082,7 +2082,7 @@ export function ExpertExtractPage({
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">1.</span>合规过滤：仅「可用」状态专家，工作单位与供应商无关联，未被重复分配至同一项目，自动回避利益相关方</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">2.</span>席位规则：可选择 3 / 5 / 7 人委员会；需求方（业主）代表可选 0-2 人（指定人员或按部门抽取）；其余席位按专业配额抽取，每专业候补 1 位</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">3.</span>多维评估：AI 综合专家履职评价等级（A/B/C/D）、出勤/质量/廉洁三方面评分、评分偏离度、历史经验与当前负荷</li>
-                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>配额冻结：开始抽取进入「抽取结果」后不可返回「抽取配置」（顶部步骤按钮同样锁定）；如需调整个别人员，请在后续步骤使用补选/替换</li>
+                <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">4.</span>配额冻结：开始抽取进入「抽取结果」后不可返回「抽取配置」，顶部步骤按钮同样锁定；如需调整个别人员，请在后续步骤使用补选或替换</li>
                 <li className="flex gap-2"><span className="flex-shrink-0 font-extrabold text-[var(--accent)]">5.</span>通知送达：确认后支持 OA站内信 / 短信 / 电话 多渠道通知被选专家</li>
               </ol>
             </RulesPopover>
@@ -2257,7 +2257,7 @@ export function ExpertExtractPage({
                     {pd.riskNote && <span className="text-[var(--warning)] max-w-[360px] truncate" title={pd.riskNote}>风险提示：{pd.riskNote}</span>}
                   </div>
                 )}
-                {(() => { const avoided = pd?.suppliers?.filter(s => s.submitStatus === '已提交' || s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION') ?? []; return avoided.length > 0 ? <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">已投标参与的供应商（将自动回避）：{avoided.map(s => s.supplierName).join('、')}</div> : null; })()}
+                {(() => { const avoided = pd?.suppliers?.filter(s => s.submitStatus === '已提交' || s.confirmStatus === 'CONFIRMED' || s.confirmStatus === 'EXCEPTION') ?? []; return avoided.length > 0 ? <div className="rounded-lg bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--warning)]">已投标参与的供应商将自动回避：{avoided.map(s => s.supplierName).join('、')}</div> : null; })()}
               </div>
             )}
 
@@ -3008,10 +3008,10 @@ export function ExpertExtractPage({
                           <td className="text-center">
                             <div className="flex justify-center gap-1">
                               {e.invitationStatus==='pending' ? (<>
-                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'confirmed',current:'pending'})}} className="neu-btn-xs is-success" title="电话/线下核实后代为确认（必填理由，留痕展示）">代确认</button>
-                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'declined',current:'pending'})}} className="neu-btn-xs is-danger" title="代为婉拒（必填理由；正选婉拒触发递补）">代婉拒</button>
+                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'confirmed',current:'pending'})}} className="neu-btn-xs is-success" title="电话或线下核实后代为确认，必填理由并留痕">代确认</button>
+                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'declined',current:'pending'})}} className="neu-btn-xs is-danger" title="代为婉拒，必填理由；正选婉拒将触发递补">代婉拒</button>
                               </>) : (<>
-                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:e.invitationStatus==='confirmed'?'declined':'confirmed',current:e.invitationStatus as 'confirmed'|'declined'})}} className="neu-btn-xs" title={e.invitationStatus==='confirmed'?'工作人员代为变更（必填理由；确认→婉拒将通知专家本人并触发递补）':'恢复该专家的确认（席位已被递补占用时后端会拒绝）'}>{e.invitationStatus==='confirmed'?'代为变更':'恢复'}</button>
+                                <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:e.invitationStatus==='confirmed'?'declined':'confirmed',current:e.invitationStatus as 'confirmed'|'declined'})}} className="neu-btn-xs" title={e.invitationStatus==='confirmed'?'工作人员代为变更，必填理由；由确认改为婉拒将通知专家本人并触发递补':'恢复该专家的确认；席位已被递补占用时无法恢复'}>{e.invitationStatus==='confirmed'?'代为变更':'恢复'}</button>
                               </>)}
                             </div>
                           </td>
@@ -3128,7 +3128,7 @@ export function ExpertExtractPage({
                                         <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'confirmed',current:'pending'})}} className="neu-btn-xs is-success" title="电话/线下核实后代为确认（必填理由，留痕展示）">代确认</button>
                                         <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:'declined',current:'pending'})}} className="neu-btn-xs is-danger" title="代为婉拒（必填理由；正选婉拒触发递补）">代婉拒</button>
                                       </>) : (<>
-                                        <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:e.invitationStatus==='confirmed'?'declined':'confirmed',current:e.invitationStatus as 'confirmed'|'declined'})}} className="neu-btn-xs" title={e.invitationStatus==='confirmed'?'工作人员代为变更（必填理由；确认→婉拒将通知专家本人并触发递补）':'恢复该专家的确认（席位已被递补占用时后端会拒绝）'}>{e.invitationStatus==='confirmed'?'代为变更':'恢复'}</button>
+                                        <button onClick={()=>{setExProxyReason('');setExProxy({userId:e.userId,name:e.expertName,role:e.expertRole,target:e.invitationStatus==='confirmed'?'declined':'confirmed',current:e.invitationStatus as 'confirmed'|'declined'})}} className="neu-btn-xs" title={e.invitationStatus==='confirmed'?'工作人员代为变更，必填理由；由确认改为婉拒将通知专家本人并触发递补':'恢复该专家的确认；席位已被递补占用时无法恢复'}>{e.invitationStatus==='confirmed'?'代为变更':'恢复'}</button>
                                       </>)}
                                     </div>
                                   </td>
@@ -3491,7 +3491,7 @@ export function ExpertExtractPage({
       {altQuotas !== null && altModalOpen && (
         <Modal open onClose={() => { if (!altExtracting) setAltModalOpen(false); }} size="lg"
           title={<span className="flex items-center gap-2"><UsersRound size={15} className="text-[var(--accent)]" />候补配额 · 共 {altQuotas.reduce((s, q) => s + q.count, 0)} 人</span>}
-          description="配置候补配额并抽取（已邀请专家自动排除）"
+          description="配置候补配额并抽取，已邀请专家自动排除"
         >
           {altExtracting ? (
             <div className="flex flex-col items-center justify-center gap-3 py-16">
@@ -3939,7 +3939,7 @@ export function ExpertExtractPage({
             <div>
               <label className="text-[11px] font-bold text-[var(--foreground)] mb-1.5 block">
                 代回应理由 <span className="text-[var(--danger)]">*</span>
-                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">（必填，至少 5 个字；将展示在确认面板并留痕）</span>
+                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">必填，至少 5 个字，提交后展示并留痕</span>
               </label>
               <textarea
                 value={exProxyReason}

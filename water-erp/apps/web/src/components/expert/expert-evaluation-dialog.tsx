@@ -361,7 +361,7 @@ function EvaluationResultModal({
             <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)]">开标 {fmtDT(detail.project.openTime)}</span>
             <span className="rounded-lg bg-[var(--surface)] px-2 py-1 text-[var(--muted-foreground)]">委员会 正选{detail.committee.size}·签到{detail.committee.signedIn}·已交分{detail.committee.scored}</span>
             <span className={`rounded-lg px-2 py-1 ${detail.resultsGenerated ? 'bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-[var(--success)]' : 'bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] text-[var(--warning)]'}`}>
-              {detail.resultsGenerated ? `评标结果已生成 · ${fmtDT(detail.generatedAt)}` : '评标结果未生成（评标中，下表均分为委员会实时口径）'}
+              {detail.resultsGenerated ? `评标结果已生成 · ${fmtDT(detail.generatedAt)}` : '评标结果未生成，下表均分为委员会当前口径'}
             </span>
           </div>
 

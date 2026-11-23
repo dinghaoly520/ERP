@@ -57,7 +57,7 @@ async function generateFieldContentWithRetry(payload: {
     } catch (e) {
       if (!isTransportError(e)) throw e;
       if (attempt >= 3) {
-        throw new Error('后端服务暂不可达（可能正在自动恢复），请稍后重试');
+        throw new Error('服务暂不可达，可能正在自动恢复，请稍后重试');
       }
       console.warn(`[AI 生成] 后端暂不可达，10s 后自动重试（第 ${attempt + 1}/3 次）`);
       await new Promise((resolve) => setTimeout(resolve, 10_000));

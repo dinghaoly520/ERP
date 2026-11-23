@@ -155,7 +155,7 @@ export default function BidArchivePage() {
 
       {error && !loading && (
         <div className="neu-card-static flex flex-wrap items-center gap-3 px-5 py-3 text-[13px] text-[var(--danger)]">
-          <AlertTriangle size={15} /> 归档项目加载失败{projects ? '（下方为最近一次成功加载）' : ''}：{error}
+          <AlertTriangle size={15} /> 归档项目加载失败{projects ? '，以下为最近加载的数据' : ''}：{error}
           <button type="button" onClick={load} disabled={loading} className="neu-btn-soft !h-[30px] !text-xs">重试</button>
         </div>
       )}

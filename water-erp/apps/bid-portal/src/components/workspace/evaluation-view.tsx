@@ -750,7 +750,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
 
   async function handleReopenScoring() {
     if (!reopenReason.trim()) {
-      showToast('请填写书面重开理由（将记入监督日志）', 'err');
+      showToast('请填写书面重开理由', 'err');
       return;
     }
     setReopenBusy(true);
@@ -1005,7 +1005,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                   {row.isLead && (
                     <span
                       className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[oklch(0.94_0.09_83/0.45)] px-1.5 py-0.5 align-middle text-[9px] font-bold text-[var(--warning)]"
-                      title="评审组长（管理端替换/递补后随详情实时更新）"
+                      title="评审组长"
                     >
                       <Crown size={10} strokeWidth={1.7} /> 组长
                     </span>
@@ -1090,7 +1090,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       {row.onlineDevice.deviceClass === 'tablet' ? '平板在线' : row.onlineDevice.deviceClass === 'phone' ? '手机在线' : row.onlineDevice.deviceClass === 'unknown' ? '在线' : '桌面在线'}
                     </span>
                   ) : (
-                    <span className="text-[10px] text-[var(--muted-foreground)]" title={row.signedIn ? '无活动会话（已解锁或未登录）' : '未登录'}>离线</span>
+                    <span className="text-[10px] text-[var(--muted-foreground)]" title={row.signedIn ? '已签到，无活动会话：已解锁或未登录' : '未登录'}>离线</span>
                   )}
                   {/* TAB-SYNC-01（spec §9.3）：监督可见第二行——活跃平板配对（设备摘要+配对时间）。
                       2026-11-18：配对留档照缩略图随行展示（照片证据落库后 :3007 可见）；
@@ -1191,7 +1191,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => setUnpairFor({ id: row.id, expertName: row.expertName, device: row.tabletPaired?.device?.uaSummary })}
                       className="neu-btn-xs !text-[var(--warning)]"
-                      title="远程解除该专家的平板配对：平板即时断开回配对页，需桌面端重新出码（记入监督日志）"
+                      title="远程解除该专家的平板配对：平板即时断开并回到配对页，继续使用需桌面端重新出码；操作记入监督日志"
                     >
                       解绑平板
                     </button>
@@ -1201,7 +1201,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setExemptFor({ id: row.id, expertName: row.expertName }); setExemptReason(''); }}
                       className="neu-btn-xs"
-                      title="该专家配对平板时需补拍留档照；摄像头不可用等情形经现场确认可豁免（登记理由）"
+                      title="该专家配对平板时需补拍留档照；摄像头不可用等情形经现场确认可豁免，需登记理由"
                     >
                       豁免配对照
                     </button>
@@ -1211,7 +1211,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                       type="button"
                       onClick={() => { setRejectFor({ id: row.id, expertName: row.expertName }); setRejectType('人证不符'); setRejectNote(''); }}
                       className="neu-btn-xs"
-                      title="登记人证不符/照片异常/到场异常（将记入监督日志）"
+                      title="登记人证不符、照片异常或到场异常，将记入监督日志"
                     >
                       异常
                     </button>
@@ -1927,7 +1927,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="px-6 py-5">
               <p className="mb-4 flex items-start gap-1.5 text-xs leading-5 text-[var(--muted-foreground)]">
                 <span>解除专家「{unpairFor.expertName}」的平板配对：平板<span className="font-semibold text-[var(--warning)]">即时断开</span>并回到配对页，继续打分需专家在桌面端重新出码配对。</span>
-                <HelpTip text="操作将记入监督日志（操作人留痕）；已保存的平板评分草稿不受影响，桌面端可恢复。" className="mt-px shrink-0" />
+                <HelpTip text="操作将记入监督日志；已保存的评分草稿不受影响，桌面端可恢复。" className="mt-px shrink-0" />
               </p>
               <div className="flex items-center gap-2 rounded-[10px] bg-[oklch(0.975 0.012 258/0.7)] px-3 py-2 text-[11px] text-[var(--muted-foreground)]">
                 <MonitorSmartphone size={13} strokeWidth={1.7} className="shrink-0 text-[var(--accent-strong)]" />
@@ -1968,7 +1968,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                     ——核身时请与专家实际所在工位比对
                   </span>
                 ) : (
-                  <span>当前无活动会话（可能已被解锁或专家已登出）</span>
+                  <span>当前无活动会话，可能已解锁或专家已登出</span>
                 )}
               </div>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">解除理由（必填）</label>
@@ -2242,7 +2242,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 value={reopenReason}
                 onChange={(e) => setReopenReason(e.target.value)}
                 rows={3}
-                placeholder="请填写数据更正理由（必填，将记入监督日志）…"
+                placeholder="请填写数据更正理由，将记入监督日志…"
                 className="workbench-input w-full resize-none"
               />
               <p className="mt-3 flex items-center gap-1.5 text-[11px] leading-4 text-[var(--muted-foreground)]">

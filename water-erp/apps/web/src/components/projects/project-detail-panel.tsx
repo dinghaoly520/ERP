@@ -899,7 +899,7 @@ export function ProjectDetailPanel({
   // 豁免归档闸门并重试完成：waiveArchiveGate=true + note 留痕（M5）
   const confirmWaiveAndComplete = async () => {
     if (!waiveTarget) return;
-    if (!waiveNote.trim()) { toast.error('请填写豁免理由（将记入操作日志留痕）'); return; }
+    if (!waiveNote.trim()) { toast.error('请填写豁免理由'); return; }
     setWaiving(true);
     try {
       await updateProjectStage(item.id, waiveTarget.stageKey, {
@@ -1976,9 +1976,9 @@ export function ProjectDetailPanel({
                     : selectedStage.stageKey === 'AWARD_DECISION' && isCurrentStage
                       ? '请上传评标报告和定标文件，确认中标单位信息。'
                     : selectedStage.stageKey === 'CONTRACT' && isCurrentStage
-                      ? '请点击流程卡「合同订立」发起结构化合同（校验→内审→签署→公告→履行台账→验收）；亦可直接上传合同文件。'
+                      ? '请点击流程卡「合同订立」发起结构化合同：校验→内审→签署→公告→履行台账→验收；亦可直接上传合同文件。'
                     : selectedStage.stageKey === 'DIRECT_PURCHASE_FILING' && isCurrentStage
-                      ? '请点击流程卡「备案表编写」按附件6生成直接采购备案表（自动填入项目与合同信息），完成后即可归档。'
+                      ? '请点击流程卡「备案表编写」按附件6生成直接采购备案表，自动填入项目与合同信息，完成后即可归档。'
                     : !canModify
                       ? '只读视野：本项目由他人创建，内容仅供查阅。'
                     : readOnly
@@ -2330,7 +2330,7 @@ export function ProjectDetailPanel({
               项目终止
             </span>
           }
-          description={<span>终止后项目进入「已终止」列表（只读），并写入采购台账记录</span>}
+          description={<span>终止后项目进入「已终止」列表并写入采购台账，此后只读</span>}
           size="md"
           footer={
             <>

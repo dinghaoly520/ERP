@@ -1450,7 +1450,7 @@ export default function SupplierDetailPage() {
                         </button>
                       </span>
                     ))}
-                    {editTags.length === 0 && <span className="text-[10px] text-[var(--muted-foreground)]">尚未选择（至少 2 个方可保存）</span>}
+                    {editTags.length === 0 && <span className="text-[10px] text-[var(--muted-foreground)]">尚未选择，至少 2 个方可保存</span>}
                   </div>
                   {editTags.length > 0 && (
                     <button type="button" onClick={() => setEditTags([])} className="neu-btn-xs shrink-0">清空</button>

@@ -189,7 +189,7 @@ export function CompaniesModal({
                 </tr>
               ))}
               {rows.length === 0 && !loading && (
-                <tr><td colSpan={8} className="py-8 text-center text-xs text-[var(--muted-foreground)]">暂无公司（供应商/用户注册建档时自动生成）</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-xs text-[var(--muted-foreground)]">暂无公司——供应商与用户注册时自动建档</td></tr>
               )}
             </tbody>
           </table>

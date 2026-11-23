@@ -175,7 +175,7 @@ export default function QualificationAlertsPage() {
                       </td>
                       <td>
                         <button onClick={() => notifyItem(q.id, q.name)} disabled={sending === q.id || notified}
-                          className="neu-btn-xs gap-1" title={notified ? '已发送维护提醒（供应商更新资质后自动从本列表消失）' : '发送维护提醒到供应商门户'}>
+                          className="neu-btn-xs gap-1" title={notified ? '已发送维护提醒，供应商更新资质后移出本列表' : '发送维护提醒到供应商门户'}>
                           <Send size={11} />{sending === q.id ? '发送中' : notified ? '已通知' : '发送通知'}
                         </button>
                       </td>

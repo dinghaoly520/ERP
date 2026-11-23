@@ -124,7 +124,7 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
   };
   const doReset = () => {
     setFields(resolveOpeningFields(null));
-    toast.success('已恢复默认四字段（尚未保存，请点击「保存配置」生效）');
+    toast.success('已恢复默认四字段，尚未保存——请点击「保存配置」生效');
   };
 
   const handleSave = async () => {
@@ -136,7 +136,7 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
     setSaving(true);
     try {
       await setOpeningFieldConfig(bidProject.id, { fields: effective });
-      toast.success('唱标字段配置已保存（开标开始后自动锁定）');
+      toast.success('唱标字段配置已保存，开标开始后锁定');
       onChanged();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '保存失败');

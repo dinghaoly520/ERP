@@ -436,7 +436,7 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
             {participants === null ? (
               <p className="text-[0.8rem] text-[var(--muted-foreground)]">加载中…</p>
             ) : participants.suppliers.length === 0 ? (
-              <p className="text-[0.8rem] leading-relaxed text-[var(--muted-foreground)]">暂无供应商参与——供应商下载采购文件或递交投标后自动同步至此。</p>
+              <p className="text-[0.8rem] leading-relaxed text-[var(--muted-foreground)]">暂无供应商参与——供应商下载采购文件或递交投标后显示于此。</p>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {participants.suppliers.map((s) => (

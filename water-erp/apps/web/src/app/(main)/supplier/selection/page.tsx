@@ -1899,7 +1899,7 @@ export function SupplierSelectionPage({
             变更覆盖——每次的理由/时刻/操作人在轨迹里，入口必须显眼（原小时钟图标不显眼） */}
         {rsvpItem && (rsvpItem.trail?.length ?? 0) > 0 && (
           <button onClick={() => setExpandedTrailSid(trailOpen ? null : sid)}
-            title="回执轨迹（通知发送 → 供应商回执 → 工作人员变更，每次理由全量留痕）"
+            title="回执轨迹：通知发送 → 供应商回执 → 工作人员变更，每次理由全量留痕"
             className={`neu-btn-xs !px-2 shrink-0 gap-1 ${trailOpen ? 'is-warning' : ''}`}>
             <Clock3 size={11} />轨迹({rsvpItem.trail!.length})
           </button>
@@ -1908,10 +1908,10 @@ export function SupplierSelectionPage({
         {status === 'pending' ? (
           <div className="flex shrink-0 items-center gap-1.5">
             <button onClick={() => openProxyMark(sid, r.name, 'ACCEPTED', status)}
-              title="电话/线下核实后代为确认参加（必填理由，留痕展示）"
+              title="电话或线下核实后代为确认参加，必填理由并留痕"
               className="neu-btn-xs !py-1.5 !px-3 is-success">代确认</button>
             <button onClick={() => openProxyMark(sid, r.name, 'DECLINED', status)}
-              title="代为拒绝参加（必填理由，留痕展示）"
+              title="代为拒绝参加，必填理由并留痕"
               className="neu-btn-xs !py-1.5 !px-3 is-danger">代拒绝</button>
           </div>
         ) : (
@@ -1921,7 +1921,7 @@ export function SupplierSelectionPage({
               {statusPill.label}
             </span>
             <button onClick={() => openProxyMark(sid, r.name, status === 'confirmed' ? 'DECLINED' : 'ACCEPTED', status)}
-              title="工作人员代为变更回执（必填理由；确认→拒绝将通知供应商并计入其邀请回执经历）"
+              title="工作人员代为变更回执，必填理由；由确认改为拒绝将通知供应商并计入其邀请回执经历"
               className="neu-btn-xs !py-1.5 !px-3">代为变更</button>
           </div>
         )}
@@ -2893,7 +2893,7 @@ export function SupplierSelectionPage({
                 <Upload size={15} className="text-[var(--accent)]" />
                 <h2 className="text-[12px] font-extrabold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">上传附件</h2>
                 <button type="button" onClick={() => setInvitationOpen(true)} disabled={!projectId && !(project as any)?.id}
-                  className="neu-btn-xs is-danger gap-1.5 font-bold" title={projectId || project?.id ? 'AI 起草采购邀请书并导出 Word（自动加入附件）——建议先生成' : '请先选择项目'}>
+                  className="neu-btn-xs is-danger gap-1.5 font-bold" title={projectId || project?.id ? 'AI 起草采购邀请书并导出 Word，自动加入附件——建议先生成' : '请先选择项目'}>
                   <FileSignature size={13} />
                   采购邀请书
                 </button>
@@ -4152,7 +4152,7 @@ export function SupplierSelectionPage({
             <div>
               <label className="text-[11px] font-bold text-[var(--foreground)] mb-1.5 block">
                 代回应理由 <span className="text-[var(--danger)]">*</span>
-                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">（必填，至少 5 个字；将展示在回执看板并留痕）</span>
+                <span className="ml-1.5 font-normal text-[var(--muted-foreground)]">必填，至少 5 个字，提交后展示并留痕</span>
               </label>
               <textarea
                 value={proxyReason}

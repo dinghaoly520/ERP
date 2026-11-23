@@ -748,7 +748,7 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           <Lock size={14} />
           <span>
             {viewOnly
-              ? '查看模式——「采购文件」步骤已完成，此处仅可查看评分标准与评标办法；如需修改请先重开该步骤（开标后评分标准锁定不可再改）。'
+              ? '查看模式——「采购文件」步骤已完成，此处仅可查看评分标准与评标办法；如需修改请先重开该步骤，开标后评分标准锁定不可再改。'
               : validatedAt
                 ? `评分标准最后校验通过于 ${new Date(validatedAt).toLocaleString('zh-CN')},项目已进入「${STAGE_LABEL[stage] || stage}」阶段,锁定不可修改。`
                 : `项目处于「${STAGE_LABEL[stage] || stage}」阶段,评分标准已锁定,不可修改。${stage === 'EVALUATING' ? ' 专家已开始打分。' : ''}`}

@@ -152,7 +152,7 @@ export function SupplierEvaluationDialog({
       {/* 关联项目（真实参评；可选——不关联即通用评价） */}
       <div>
         <span className="text-xs font-semibold text-[var(--muted-foreground)] block mb-1.5">
-          关联项目 <span className="text-[10px] font-normal">（可选：项目关联评价将校验该供应商的真实参评记录）</span>
+          关联项目 <span className="text-[10px] font-normal">（可选，关联后将校验真实参评记录）</span>
         </span>
         {projectsLoading ? (
           <div className="flex items-center gap-2 py-1.5 text-xs text-[var(--muted-foreground)]">

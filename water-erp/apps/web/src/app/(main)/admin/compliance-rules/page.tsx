@@ -145,10 +145,10 @@ export default function ComplianceRulesPage() {
           </div>
           <div className="page-hero__right">
             {data?.source === 'db' && (
-              <StatusBadge tone="green">数据库（生效中）</StatusBadge>
+              <StatusBadge tone="green">数据库 · 生效中</StatusBadge>
             )}
             {data?.source === 'builtin' && (
-              <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则导入数据库（行内编辑或停用规则时也会自动保存）">
+              <button onClick={() => void initFromBuiltin()} className="neu-btn-xs" disabled={busy} title="将内置规则导入数据库，行内编辑或停用时自动保存">
                 <Sparkles size={13} /> 从内置初始化
               </button>
             )}

@@ -234,7 +234,7 @@ export function OpeningTemplateLibraryDialog({
                       <button
                         onClick={() => handleActivate(t)}
                         disabled={t.isActive || activatingId === t.id}
-                        title={t.isActive ? '已是生效模板' : '设为生效（同类其余自动停用）'}
+                        title={t.isActive ? '已是生效模板' : '设为生效，同类其余自动停用'}
                         className="neu-btn-xs !h-[30px]"
                       >
                         {activatingId === t.id ? '设置中…' : '设为生效'}

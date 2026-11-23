@@ -108,9 +108,9 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
     if (hostRouted && !openingFail) {
       try {
         await registerOpeningSign(projectId);
-        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'ok' });
+        results.push({ file: '系统', target: '开标记录自动登记', status: 'ok' });
       } catch (e: any) {
-        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '有监督人且未到齐等场景请单独补传' });
+        results.push({ file: '系统', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '有监督人且未到齐等场景请单独补传' });
       }
     }
     setBatchResult(results);
@@ -151,9 +151,9 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
     if (hostRouted && !openingFail) {
       try {
         await registerOpeningSign(projectId);
-        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'ok' });
+        results.push({ file: '系统', target: '开标记录自动登记', status: 'ok' });
       } catch (e: any) {
-        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '有监督人且未到齐等场景请单独补传' });
+        results.push({ file: '系统', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '有监督人且未到齐等场景请单独补传' });
       }
     }
     setBatchResult(results);
@@ -192,9 +192,9 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
     if (results.some((x) => x.target.startsWith('主持人')) && !openingFail2) {
       try {
         await registerOpeningSign(projectId);
-        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'ok' });
+        results.push({ file: '系统', target: '开标记录自动登记', status: 'ok' });
       } catch (e: any) {
-        results.push({ file: '（系统）', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '未到齐等场景请单独补传' });
+        results.push({ file: '系统', target: '开标记录自动登记', status: 'fail', note: e?.message ?? '未到齐等场景请单独补传' });
       }
     }
     setBatchResult(results);
@@ -648,7 +648,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                 type="button"
                 disabled={busy !== null}
                 onClick={() => { setReopenReason(''); setReopenOpen(true); }}
-                title="数据修正流程：解除签字确认并让全员重新签字（慎用，操作将记入监督日志）"
+                title="数据修正流程：解除签字确认并让全员重新签字；慎用，操作将记入监督日志"
                 className="neu-btn-soft !h-[30px] !text-[11px]"
               >
                 <LockOpen size={12} /> 重开签字包

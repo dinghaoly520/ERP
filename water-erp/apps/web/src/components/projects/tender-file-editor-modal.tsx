@@ -1138,7 +1138,7 @@ export function TenderFileEditorModal({ isOpen, projectId, attachmentId, attachm
                   <span className="text-sm text-[color:var(--muted-foreground)]">正在加载修改历史…</span>
                 </div>
               ) : historyItems.length === 0 ? (
-                <div className="text-sm text-[color:var(--muted-foreground)] text-center py-10">暂无保存记录（首次保存后此处将显示历史）</div>
+                <div className="text-sm text-[color:var(--muted-foreground)] text-center py-10">暂无保存记录，首次保存后在此显示历史</div>
               ) : (
                 <div className="space-y-2.5 mb-2">
                   {historyItems.map((v, i) => (

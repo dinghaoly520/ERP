@@ -397,7 +397,7 @@ export function ExpertCsvActions({ onImported }: ExpertCsvActionsProps) {
             </div>
             {/* 填写说明 */}
             <div className="px-4 py-2.5 border-t border-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)] flex flex-wrap gap-x-5 gap-y-1 text-[10px] text-[var(--muted-foreground)]/70">
-              <span>姓名/专业领域为必填字段（登录账号=姓名、初始口令=身份证号自动生成）</span>
+              <span>姓名与专业领域必填；登录账号为姓名，初始口令为身份证号，导入后自动生成</span>
               <span>编码保存为 <code className="px-1 py-0.5 rounded bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] text-[10px]">UTF-8 CSV</code> 格式</span>
               <span>空字段保留逗号占位即可</span>
             </div>

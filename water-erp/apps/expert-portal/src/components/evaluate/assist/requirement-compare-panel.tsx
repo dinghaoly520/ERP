@@ -539,7 +539,7 @@ export function RequirementComparePanel({
                     value={selectedReview.note ?? ''}
                     onChange={(e) => setNote(selectedItem, e.target.value)}
                     onBlur={() => saveNote(selectedItem)}
-                    placeholder="备注（可选，失焦保存）"
+                    placeholder="备注（可选，自动保存）"
                     rows={3}
                     className="neu-input mt-2 !min-h-[64px] !p-2 !text-[11px]"
                   />

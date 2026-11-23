@@ -98,7 +98,7 @@ export function SelectionHistoryDialog({ isOpen, onApply, onApplyShortlist, onCl
             <div className="neu-card-static !rounded-[16px] flex flex-col items-center justify-center px-5 py-12 text-center">
               <History size={32} className="text-[var(--muted-foreground)]/30 mb-4" />
               <p className="text-sm text-[color:var(--muted-foreground)]">暂无选取记录</p>
-              <p className="mt-1 text-xs text-[color:var(--muted-foreground)]/60">每次智能推荐成功后，系统会自动保存选取历史</p>
+              <p className="mt-1 text-xs text-[color:var(--muted-foreground)]/60">智能推荐成功后自动保存选取历史</p>
             </div>
           ) : filtered.length === 0 ? (
             <div className="neu-card-static !rounded-[16px] flex flex-col items-center justify-center px-5 py-12 text-center">

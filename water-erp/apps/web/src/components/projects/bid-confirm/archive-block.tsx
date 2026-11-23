@@ -214,7 +214,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
       {stage !== 'ARCHIVED' ? (
         <div className="wb-note px-4 py-3.5 text-xs leading-5 text-[var(--muted-foreground)]">
           {stage === 'ABORTED' ? (
-            <>项目投标流程已流标。可执行「开标归档」封存开标文件材料（不含评分明细与评标结果），<span className="font-semibold text-[var(--danger)]">归档后流程终结、不可逆。</span>归档不改动本页台账阶段——请另行发布流标公告（发布后自动发起再次采购）、终止项目或完成项目以收尾。</>
+            <>项目投标流程已流标。可执行「开标归档」封存开标文件材料（不含评分明细与评标结果），<span className="font-semibold text-[var(--danger)]">归档后流程终结、不可逆。</span>归档不改动本页台账阶段——请另行发布流标公告、终止项目或完成项目以收尾；流标公告发布后自动发起再次采购。</>
           ) : stage === 'OPENING' ? (
             <>项目处于开标阶段。若本项目<span className="font-semibold text-[var(--foreground)]">不进入评标</span>（流标 / 废标 / 开标后终止），可执行「开标归档」——仅归档开标文件材料（不含评分明细与评标结果）。<span className="font-semibold text-[var(--danger)]">归档后流程终结，不可再启动评标。</span>需要评标请改用下方评标管理区块。</>
           ) : (detail?.evaluationResults?.length ?? 0) > 0 ? (
@@ -347,7 +347,7 @@ export function ArchiveBlock({ bidProjectId, detail, onChanged }: Props) {
           {confirmScope === 'opening' && stage === 'ABORTED' && (
             <div className="wb-tone-banner wb-tone-banner--warning text-xs leading-5">
               <span className="font-bold text-[var(--foreground)]">流标公告提醒：</span>
-              <span className="text-[var(--muted-foreground)]">如尚未发布流标公告，建议先在信息发布中心发布（发布后系统自动发起再次采购）；先归档不影响后续发布公告。</span>
+              <span className="text-[var(--muted-foreground)]">如尚未发布流标公告，建议先在信息发布中心发布，发布后自动发起再次采购；先归档不影响后续发布公告。</span>
             </div>
           )}
           {confirmScope === 'opening' && openingIncomplete && (

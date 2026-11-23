@@ -105,7 +105,7 @@ export default function ExpertRepositoryPage() {
     setEntryBusy(true);
     try {
       await updateExpertEntryStatus(entryEdit.expert.id, { status: entryEdit.target, reason: entryReason.trim() });
-      toast.success(entryEdit.target === 'RETIRED' ? '已退库（事由已留痕）' : '已恢复入库（事由已留痕）');
+      toast.success(entryEdit.target === 'RETIRED' ? '已退库，事由已留痕' : '已恢复入库，事由已留痕');
       setEntryEdit(null); setEntryReason('');
       load(); void refreshExpStats();
     } catch (err: any) { toast.error(err?.message || '操作失败'); }
@@ -655,7 +655,7 @@ export default function ExpertRepositoryPage() {
                 : <>启用后该专家可<strong className="text-[color:var(--foreground)]">重新参与评审抽取</strong>。</>}
             </span>
           </div>
-          <textarea value={toggleReason} onChange={e => setToggleReason(e.target.value)} placeholder="请填写理由（记入操作历史）…" className="neu-input mt-2 w-full h-20 resize-none text-sm" />
+          <textarea value={toggleReason} onChange={e => setToggleReason(e.target.value)} placeholder="请填写理由，记入操作历史…" className="neu-input mt-2 w-full h-20 resize-none text-sm" />
         </Modal>
       )}
 

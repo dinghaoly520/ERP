@@ -288,7 +288,7 @@ export function useScoreDraftSync(options: UseScoreDraftSyncOptions) {
     const merged = { ...scoresRef.current, ...norm };
     setScores(merged);
     baselineRef.current = { ...merged } as Record<string, DraftScoreEntry>;
-    toast.success(`已恢复 ${Object.keys(norm).length} 项评分${fromServer ? '（来自已保存的草稿）' : ''}`);
+    toast.success(fromServer ? `已从保存的草稿恢复 ${Object.keys(norm).length} 项评分` : `已恢复 ${Object.keys(norm).length} 项评分`);
     setDraftAvailable(null);
     setDraftDismissed(true);
   }, [draftStorageKey, projectId, device, normalizeRestoreEntries, setScores]);
