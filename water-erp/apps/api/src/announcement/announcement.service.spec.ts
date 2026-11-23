@@ -93,6 +93,59 @@ describe('AnnouncementService — 多轮轮次收口（P1-2，2026-11-19 三门�
   });
 });
 
+describe('AnnouncementService — 待发布公告的采购文件列展示（2026-11-23 用户裁定）', () => {
+  let service: AnnouncementService;
+  let prisma: any;
+
+  beforeEach(async () => {
+    prisma = {
+      announcement: { count: jest.fn().mockResolvedValue(0), findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AnnouncementAiService, useValue: {} },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  it('草稿带 selectedTenderObjectKey 指针 → 合成 pending 采购文件标记（列表列显示；BidDocument 实体仍在发布时创建）', async () => {
+    prisma.announcement.findMany.mockResolvedValue([
+      {
+        id: 'a1', title: '谈判文件公告', type: 'BID_NOTICE', status: 'DRAFT', bidDocument: null,
+        metadata: { selectedTenderObjectKey: 'obj/key.pdf', selectedTenderFileName: '谈判文件.pdf' },
+      },
+    ]);
+    const res = await service.list({ page: 1, pageSize: 10 });
+    const item = res.items[0] as any;
+    expect(item.bidDocument).toMatchObject({ title: '谈判文件.pdf', requirePayment: false });
+    expect(item.bidDocumentPending).toBe(true);
+  });
+
+  it('已有真实 BidDocument 行 → 原样返回不加 pending 标记', async () => {
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a2', status: 'PUBLISHED', bidDocument: { id: 'bd1', title: '真实文档', requirePayment: true }, metadata: null },
+    ]);
+    const res = await service.list({ page: 1, pageSize: 10 });
+    const item = res.items[0] as any;
+    expect(item.bidDocument).toMatchObject({ id: 'bd1', requirePayment: true });
+    expect(item.bidDocumentPending).toBeUndefined();
+  });
+
+  it('无指针草稿/无指针已发布 → 不合成', async () => {
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a3', status: 'DRAFT', bidDocument: null, metadata: null },
+      { id: 'a4', status: 'PUBLISHED', bidDocument: null, metadata: {} },
+    ]);
+    const res = await service.list({ page: 1, pageSize: 10 });
+    expect((res.items[0] as any).bidDocument).toBeNull();
+    expect((res.items[1] as any).bidDocument).toBeNull();
+  });
+});
+
 describe('AnnouncementService — P0-4 删除闸门（进行中项目禁删公告）', () => {
   let service: AnnouncementService;
   let prisma: any;

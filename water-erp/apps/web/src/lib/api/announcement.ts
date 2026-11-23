@@ -38,7 +38,10 @@ export interface AnnouncementListItem {
   dataDomain?: string;
   createdAt: string;
   attachments?: AnnouncementAttachment[];
-  bidDocument?: { id: string; title: string; accessScope: string; requirePayment: boolean; price: number | null; downloadCount: number } | null;
+  bidDocument?: { id: string; title: string; accessScope: string | null; requirePayment: boolean; price: number | null; downloadCount: number } | null;
+  /** 2026-11-23：待发布（草稿）公告带 selectedTenderObjectKey 指针时后端合成的展示标记——
+   *  BidDocument 实体仍在发布时创建，此标记仅用于列表「附件/采购文件」列显示 */
+  bidDocumentPending?: boolean;
 }
 
 export interface BidDocumentAccess {

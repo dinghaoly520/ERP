@@ -414,6 +414,27 @@ export class AnnouncementService {
       }),
     ]);
 
+
+    // 待发布公告的采购文件列展示（2026-11-23 用户裁定）：attachFromObject 在发布时才建
+    // BidDocument 实体（供应商可见性时序不变），草稿期仅 metadata.selectedTenderObjectKey
+    // 指针——对无实体行但带指针的草稿合成 pending 标记，管理端「附件/采购文件」列照常显示。
+    for (const it of items as any[]) {
+      if (!it.bidDocument && it.status === 'DRAFT') {
+        const meta = (it.metadata as Record<string, any>) || {};
+        if (meta.selectedTenderObjectKey) {
+          it.bidDocument = {
+            id: `pending:${meta.selectedTenderObjectKey}`,
+            title: meta.selectedTenderFileName || '采购文件',
+            accessScope: null,
+            requirePayment: false,
+            price: null,
+            downloadCount: 0,
+          };
+          it.bidDocumentPending = true;
+        }
+      }
+    }
+
     return { total, page, pageSize, items };
   }
 

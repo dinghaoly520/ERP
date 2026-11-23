@@ -273,7 +273,8 @@ export default function NoticePage() {
                           </span>
                         )}
                         {a.bidDocument && (
-                          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)]/60 px-2 py-1 text-[11px] font-semibold text-[var(--accent-strong)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6)]">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)]/60 px-2 py-1 text-[11px] font-semibold text-[var(--accent-strong)] shadow-[inset_0_1px_0_oklch(1_0_0/0.6)]"
+                            title={a.bidDocumentPending ? '已引用采购文件，发布时正式生成（当前为草稿展示标记）' : undefined}>
                             <Lock size={11} /> 采购文件{a.bidDocument.requirePayment ? ' (¥)' : ''}
                           </span>
                         )}
