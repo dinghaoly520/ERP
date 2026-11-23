@@ -25,7 +25,6 @@ import {
   PieChart,
   Radio,
   Gauge,
-  GraduationCap,
   TrendingUp,
   Trophy,
   Users,
@@ -1758,47 +1757,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "experts" ? (
               <>
-            {/* ══ 专家库（2026-11-20 丰富化）：总览+职称+专业+评价+公司 多图表 ══ */}
+            {/* ══ 专家库（2026-11-20 丰富化；2026-11-23 用户裁定删总览区）：职称+专业+评价+公司 多图表 ══ */}
             {expertStats ? (
               <>
-                {/* 总览：双格 + 三率行 */}
-                <AnalysisZone icon={GraduationCap} title="专家库总览" count={`${expertStats.total} 人`} color="var(--gold)">
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
-                        <div className="text-[18px] font-black tabular-nums text-[var(--success)]">{expertStats.availability.available}</div>
-                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">可抽取</div>
-                      </div>
-                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
-                        <div className="text-[18px] font-black tabular-nums text-[var(--warning)]">{expertStats.availability.occupied}</div>
-                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">评标占用</div>
-                      </div>
-                      <div className="rounded-[10px] m-tile px-2 py-2.5 text-center">
-                        <div className="text-[18px] font-black tabular-nums text-[var(--muted-foreground)]">{expertStats.availability.disabled}</div>
-                        <div className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">池外</div>
-                      </div>
-                    </div>
-                    <div className="space-y-0.5 rounded-[10px] m-tile px-3 py-2 text-[13px]">
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">可抽取率</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.availability.availableRate}%</span>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">履职优良率（A/B）</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.excellentRatio}%</span>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">平均评分偏离度</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.avgScoreDeviation}</span>
-                      </div>
-                      <div className="flex justify-between gap-3">
-                        <span className="text-[var(--muted-foreground)]">评价总数</span>
-                        <span className="font-medium tabular-nums text-[var(--foreground)]">{expertStats.evaluation.total}</span>
-                      </div>
-                    </div>
-                  </div>
-                </AnalysisZone>
-
                 {/* 公司分布：排名卡（八色条） */}
                 {expertCompanies?.length ? (
                   <AnalysisZone icon={Building2} title="公司分布" count={`${expertCompanies.length} 家`} color="var(--accent)">
