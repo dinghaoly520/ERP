@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { NOTIFICATION_REGISTRY, NOTIFICATION_REGISTRY_MAP } from '@water-erp/shared';
+import { BID_PORTAL_NOTIFICATION_TYPES, NOTIFICATION_REGISTRY, NOTIFICATION_REGISTRY_MAP } from '@water-erp/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationGateway, type NotificationPushPayload } from './notification.gateway';
@@ -15,6 +15,11 @@ const ACTIONABLE_TYPES = NOTIFICATION_REGISTRY.filter(s => s.actionable).map(s =
 const READONLY_TYPES = NOTIFICATION_REGISTRY.filter(s => !s.actionable).map(s => s.code);
 /** 群发复核型待办集合（注册表派生）：办结语义=整组消解（同 type+link+content 的群发副本） */
 const SHARED_RESOLVE_TYPES = NOTIFICATION_REGISTRY.filter(s => s.sharedResolve).map(s => s.code);
+
+/** :3007 门户视野（2026-11-23 用户裁定）：开评标管理端只看 bid 域通知，其余门户不过滤。 */
+function bidPortalScope(portal?: string): string[] | null {
+  return portal === 'bid' ? BID_PORTAL_NOTIFICATION_TYPES : null;
+}
 
 @Injectable()
 export class NotificationService {
@@ -251,37 +256,52 @@ export class NotificationService {
     tab: 'all' | 'todo' | 'done' | 'toread' | 'read' = 'all',
     types: string[] = [],
     countTypes: string[] = [],
+    portal?: string,
   ) {
     const skip = (page - 1) * pageSize;
+
+    // :3007 门户视野：类型集合先按门户收窄，tab/types 筛选在收窄集上叠加
+    const portalTypes = bidPortalScope(portal);
+    const scopedActionable = portalTypes ? ACTIONABLE_TYPES.filter(t => portalTypes.includes(t)) : ACTIONABLE_TYPES;
+    const scopedReadonly = portalTypes ? READONLY_TYPES.filter(t => portalTypes.includes(t)) : READONLY_TYPES;
+    const kpiScope = portalTypes ? { type: { in: portalTypes } } : {};
 
     const where: any = { userId };
     // 五段状态（2026-09-26）：待办/已办=可操作类型（resolvedAt 分界，已读兜底归已办）；
     // 待阅/已阅=知会类型（isRead 分界）。tab=all 不过滤。
     if (tab === 'todo') {
-      where.type = { in: ACTIONABLE_TYPES };
+      where.type = { in: scopedActionable };
       where.resolvedAt = null;
       where.isRead = false;
     } else if (tab === 'done') {
-      where.type = { in: ACTIONABLE_TYPES };
+      where.type = { in: scopedActionable };
       where.OR = [{ resolvedAt: { not: null } }, { isRead: true }];
     } else if (tab === 'toread') {
-      where.type = { in: READONLY_TYPES };
+      where.type = { in: scopedReadonly };
       where.isRead = false;
     } else if (tab === 'read') {
-      where.type = { in: READONLY_TYPES };
+      where.type = { in: scopedReadonly };
       where.isRead = true;
     }
-    if (types.length > 0) where.type = { in: types };
+    if (types.length > 0) {
+      where.type = { in: portalTypes ? types.filter(t => portalTypes.includes(t)) : types };
+    } else if (portalTypes && !where.type) {
+      where.type = { in: portalTypes };
+    }
 
     // 类型计数基底：与列表同 tab，但不受单类型筛选影响——
     // 使筛选条的类型 chip 在选中任意一个后保持稳定（不随过滤结果消失）
     const countWhere: any = { userId };
     if (tab === 'todo') {
-      countWhere.type = { in: ACTIONABLE_TYPES };
+      countWhere.type = { in: scopedActionable };
       countWhere.resolvedAt = null;
       countWhere.isRead = false;
     }
-    if (countTypes.length > 0) countWhere.type = { in: countTypes };
+    if (countTypes.length > 0) {
+      countWhere.type = { in: portalTypes ? countTypes.filter(t => portalTypes.includes(t)) : countTypes };
+    } else if (portalTypes && !countWhere.type) {
+      countWhere.type = { in: portalTypes };
+    }
 
     const [total, items, unreadCount, todoCount, typeGroups, segAll, segTodo, segDone, segToread, segRead] = await Promise.all([
       this.prisma.notification.count({ where }),
@@ -292,19 +312,19 @@ export class NotificationService {
         orderBy: { createdAt: 'desc' },
       }),
       // KPI 元信息：服务端口径，前端不再用当前页 items 估算
-      this.prisma.notification.count({ where: { userId, isRead: false } }),
-      this.prisma.notification.count({ where: { userId, isRead: false, resolvedAt: null } }),
+      this.prisma.notification.count({ where: { userId, isRead: false, ...kpiScope } }),
+      this.prisma.notification.count({ where: { userId, isRead: false, resolvedAt: null, ...kpiScope } }),
       this.prisma.notification.groupBy({
         by: ['type'],
         where: countWhere,
         _count: { type: true },
       }),
       // 五段计数（2026-09-27）：分段按钮红色/灰色数量角标数据源
-      this.prisma.notification.count({ where: { userId } }),
-      this.prisma.notification.count({ where: { userId, type: { in: ACTIONABLE_TYPES }, resolvedAt: null, isRead: false } }),
-      this.prisma.notification.count({ where: { userId, type: { in: ACTIONABLE_TYPES }, OR: [{ resolvedAt: { not: null } }, { isRead: true }] } }),
-      this.prisma.notification.count({ where: { userId, type: { in: READONLY_TYPES }, isRead: false } }),
-      this.prisma.notification.count({ where: { userId, type: { in: READONLY_TYPES }, isRead: true } }),
+      this.prisma.notification.count({ where: { userId, ...kpiScope } }),
+      this.prisma.notification.count({ where: { userId, type: { in: scopedActionable }, resolvedAt: null, isRead: false } }),
+      this.prisma.notification.count({ where: { userId, type: { in: scopedActionable }, OR: [{ resolvedAt: { not: null } }, { isRead: true }] } }),
+      this.prisma.notification.count({ where: { userId, type: { in: scopedReadonly }, isRead: false } }),
+      this.prisma.notification.count({ where: { userId, type: { in: scopedReadonly }, isRead: true } }),
     ]);
 
     const typeCounts = typeGroups
@@ -397,9 +417,10 @@ export class NotificationService {
     });
   }
 
-  async getUnreadCount(userId: string) {
+  async getUnreadCount(userId: string, portal?: string) {
+    const portalTypes = bidPortalScope(portal);
     return this.prisma.notification.count({
-      where: { userId, isRead: false },
+      where: { userId, isRead: false, ...(portalTypes ? { type: { in: portalTypes } } : {}) },
     });
   }
 
@@ -426,16 +447,19 @@ export class NotificationService {
     });
   }
 
-  async markAllAsRead(userId: string) {
+  async markAllAsRead(userId: string, portal?: string) {
     // 2026-09-27 修复：仅置「知会类」已读，不动 actionable 待办——
     // 否则「全部标已读」会因"已读兜底归已办"把待办瞬间清空（语义陷阱）。
     // 2026-11-17 口径修正：豁免面从「READONLY_TYPES 白名单」改为「actionable 且未办结」
     // （与单条 markAsRead 同语义）——白名单制会漏掉未注册进注册表的历史类型
     // （SUPPLIER_LINK_WITHDRAWN/BID_OPENING 等），mark-all 永远清不到它们、角标到不了 0。
+    // :3007 门户视野（2026-11-23）：只清本端可见的 bid 域知会，不殃及 :3005 的管理域通知。
+    const portalTypes = bidPortalScope(portal);
     return this.prisma.notification.updateMany({
       where: {
         userId,
         isRead: false,
+        ...(portalTypes ? { type: { in: portalTypes } } : {}),
         OR: [{ type: { notIn: ACTIONABLE_TYPES } }, { resolvedAt: { not: null } }],
       },
       data: { isRead: true, readAt: new Date() },

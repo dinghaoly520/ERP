@@ -51,6 +51,7 @@ describe('通知消解覆盖守护', () => {
     'QUALIFICATION_EXPIRING', // 资质到期提醒：底态（资质有效期）持续存在
     'CERT_EXPIRY_REMINDER', // 证照到期提醒：同上
     'CA_CERT_EXPIRY', // CA 证书到期提醒：同上
+    'SCHEDULED_PUBLISH_FAILED', // 定时发布失败：创建人去信息发布中心查看原因并手动处理，本人办结即收口（9d7ddbea8 遗漏出口，2026-11-23 补声明）
   ];
 
   it('每个 actionable 类型至少有一个消解出口（shared/sweep/hook/personal）', () => {

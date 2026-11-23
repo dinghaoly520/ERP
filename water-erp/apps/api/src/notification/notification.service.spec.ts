@@ -110,6 +110,36 @@ describe('NotificationService', () => {
     });
   });
 
+  it('list portal=bid 只看 bid 域（2026-11-23 用户裁定「3007 只能与开标评标相关」）：tab=all 收窄到注册表 bid 域，供应商审批等管理域通知不进 :3007', async () => {
+    prisma.notification.count.mockClear().mockResolvedValue(0);
+    prisma.notification.findMany.mockClear().mockResolvedValue([]);
+    await service.list('u1', 1, 20, 'all', [], [], 'bid');
+    const where = prisma.notification.findMany.mock.calls[0][0].where;
+    expect(where.type.in).toEqual(expect.arrayContaining(['BID_OPENING_CONFIRMED', 'BID_DISPUTE_TIMEOUT']));
+    expect(where.type.in).not.toContain('SUPPLIER_PENDING');
+    expect(where.type.in).not.toContain('USER_REGISTRATION_PENDING');
+  });
+
+  it('list portal=bid 与显式 types 取交集：bid 域外类型被过滤掉', async () => {
+    prisma.notification.count.mockClear().mockResolvedValue(0);
+    prisma.notification.findMany.mockClear().mockResolvedValue([]);
+    await service.list('u1', 1, 20, 'all', ['SUPPLIER_PENDING', 'BID_ABORTED'], [], 'bid');
+    const where = prisma.notification.findMany.mock.calls[0][0].where;
+    expect(where.type.in).toEqual(['BID_ABORTED']);
+  });
+
+  it('getUnreadCount portal=bid 计数只算 bid 域；无 portal 参数保持全量（其余门户不受影响）', async () => {
+    prisma.notification.count.mockClear().mockResolvedValue(0);
+    await service.getUnreadCount('u1', 'bid');
+    const bidWhere = prisma.notification.count.mock.calls[0][0].where;
+    expect(bidWhere.type.in).not.toContain('SUPPLIER_PENDING');
+    expect(bidWhere.type.in).toContain('BID_DISPUTE_TIMEOUT');
+    await service.getUnreadCount('u1');
+    expect(prisma.notification.count).toHaveBeenLastCalledWith({
+      where: { userId: 'u1', isRead: false },
+    });
+  });
+
   it('list 将消息类型过滤同时用于 count 与 findMany', async () => {
     prisma.notification.count.mockResolvedValue(2);
     prisma.notification.findMany.mockResolvedValue([]);

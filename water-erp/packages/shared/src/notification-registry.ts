@@ -653,6 +653,14 @@ export const NOTIFICATION_REGISTRY_MAP: Record<string, NotificationTypeSpec> = O
   NOTIFICATION_REGISTRY.map(s => [s.code, s]),
 );
 
+/** :3007 开评标管理端可见类型（2026-11-23 用户裁定「3007 只能与开标评标相关」）：
+ *  bid 域全集——本端登录角色（admin/bid_host/leader/staff）只看开评标现场矩阵，
+ *  供应商审批、账号审批、归档、公告等管理域通知归 :3005 通知中心。
+ *  注册表 domain 派生，新增 bid 域类型自动生效。 */
+export const BID_PORTAL_NOTIFICATION_TYPES: string[] = NOTIFICATION_REGISTRY
+  .filter(s => s.domain === 'bid')
+  .map(s => s.code);
+
 /** 按注册表渲染通知载荷（bid 域模板收口入口；无 render 的类型返回 null，由调用点自拟文案） */
 export function renderNotificationPayload(
   type: string,

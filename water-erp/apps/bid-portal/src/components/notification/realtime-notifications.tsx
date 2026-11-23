@@ -5,7 +5,7 @@ import { notificationWsUrl } from '@water-erp/config';
 import { useRouter } from "next/navigation";
 import { io, type Socket } from "socket.io-client";
 import { Bell, CheckCheck, X } from "lucide-react";
-import { getNotificationLabel, getNotificationMeta } from "@water-erp/shared";
+import { getNotificationLabel, getNotificationMeta, BID_PORTAL_NOTIFICATION_TYPES } from "@water-erp/shared";
 
 /**
  * 全局实时通知（2026-09-26，开评标管理端版）：WS 订阅 `notification:new`，新站内通知
@@ -23,6 +23,10 @@ interface PushNotification {
   link?: string | null;
   createdAt: string;
 }
+
+/** :3007 门户视野（2026-11-23 用户裁定「3007 只能与开标评标相关」）：WS 推送按用户定向、
+ *  不分门户，供应商审批等管理域通知在本端静默丢弃（列表/角标已在 API 侧同口径收窄）。 */
+const BID_PORTAL_TYPES = new Set(BID_PORTAL_NOTIFICATION_TYPES);
 
 
 /** 本门户可跳转路径（开评标管理端）：/bid 任务板、/bid/project/:id 工作区、/bid/archive 归档端 */
@@ -89,7 +93,7 @@ export function RealtimeNotifications() {
 
       socket.on("connect", () => { attempts = 0; });
       socket.on("notification:new", (n: PushNotification) => {
-        if (n?.id && n.title) {
+        if (n?.id && n.title && BID_PORTAL_TYPES.has(n.type)) {
           open(n);
           window.dispatchEvent(new CustomEvent("notification:received"));
         }

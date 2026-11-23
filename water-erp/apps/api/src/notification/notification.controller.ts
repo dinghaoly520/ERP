@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, Post, Param, Query, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { AUTHENTICATED_ROLES } from '../auth/auth-scope';
+import { portalFromRequest } from '../auth/portal-cookie';
 import { Roles } from '../common/decorators/roles.decorator';
 import { NotificationService } from './notification.service';
 
@@ -32,13 +33,14 @@ export class NotificationController {
     };
     const types = parseTypes(rawTypes);
     const countTypes = parseTypes(rawCountTypes);
-    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20, tab ?? 'all', types, countTypes);
+    // :3007 门户视野（2026-11-23）：bid 门户只看开评标相关通知（服务端按注册表 bid 域收窄）
+    return this.notificationService.list(req.user.sub, page ?? 1, pageSize ?? 20, tab ?? 'all', types, countTypes, portalFromRequest(req));
   }
 
   @Get('unread-count')
   @ApiOperation({ summary: '未读通知数量' })
   async getUnreadCount(@Request() req: any) {
-    const count = await this.notificationService.getUnreadCount(req.user.sub);
+    const count = await this.notificationService.getUnreadCount(req.user.sub, portalFromRequest(req));
     return { count };
   }
 
@@ -57,6 +59,6 @@ export class NotificationController {
   @Post('mark-all-read')
   @ApiOperation({ summary: '全部标记已读' })
   async markAllAsRead(@Request() req: any) {
-    return this.notificationService.markAllAsRead(req.user.sub);
+    return this.notificationService.markAllAsRead(req.user.sub, portalFromRequest(req));
   }
 }
