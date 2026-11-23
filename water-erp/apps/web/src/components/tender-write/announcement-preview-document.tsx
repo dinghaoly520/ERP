@@ -113,6 +113,11 @@ function PreviewValue({
   const elementRef = useRef<HTMLSpanElement | null>(null);
   const isComposingRef = useRef(false);
   const isFocusedRef = useRef(false);
+  /** 本元素最近上送的值（onInput/compositionEnd/onBlur）——用于区分「自己输入的回声」
+   *  与「外部变更」（字段表单/条目选择器/自动填充改 draft）：回声不动 DOM 保光标/IME，
+   *  外部变更强制同步（2026-11-23 修复：聚焦冻结态曾对外部更新免疫——预览正文停留旧值，
+   *  而字段表单已是新值，两侧分叉） */
+  const lastEmittedRef = useRef<string | null>(null);
   const [frozen, setFrozen] = useState<string | null>(null);
 
   const displayValue = multiline ? formatMultilineText(value) : value;
@@ -124,7 +129,15 @@ function PreviewValue({
   useLayoutEffect(() => {
     const element = elementRef.current;
     if (!element) return;
-    if (isFocusedRef.current) return;
+    // 自己输入的回声（聚焦中且 prop 值即最近上送值）——不动 DOM，保光标/输入法组合
+    if (isFocusedRef.current && value === lastEmittedRef.current) return;
+    if (isFocusedRef.current) {
+      // 聚焦中但值来自外部（表单/选择器/自动填充）：冻结值跟随新值，React 子文本同步
+      setFrozen(value);
+    } else if (frozen !== null && frozen !== value) {
+      // 冻结残留（blur 丢失等）：解除，令子文本回到 prop 值
+      setFrozen(null);
+    }
     const nextText = isEmpty ? '' : displayValue;
     if (element.textContent !== nextText) {
       element.innerHTML = '';
@@ -138,7 +151,7 @@ function PreviewValue({
         element.removeChild(lastChild);
       }
     }
-  }, [isEmpty, displayValue]);
+  }, [isEmpty, displayValue, value, frozen]);
 
   const extractText = (el: HTMLElement): string => {
     return (el.innerText || '').replace(/\r\n/g, '\n');
@@ -162,16 +175,21 @@ function PreviewValue({
         }}
         onCompositionEnd={(e) => {
           isComposingRef.current = false;
-          onValueChange(fieldKey, extractText(e.currentTarget));
+          const text = extractText(e.currentTarget);
+          lastEmittedRef.current = text;
+          onValueChange(fieldKey, text);
         }}
         onInput={(e) => {
           if (!isComposingRef.current) {
-            onValueChange(fieldKey, extractText(e.currentTarget));
+            const text = extractText(e.currentTarget);
+            lastEmittedRef.current = text;
+            onValueChange(fieldKey, text);
           }
         }}
         onBlur={(e) => {
           isFocusedRef.current = false;
           const rawValue = extractText(e.currentTarget);
+          lastEmittedRef.current = rawValue;
           setFrozen(null);
           onValueChange(fieldKey, rawValue);
         }}
