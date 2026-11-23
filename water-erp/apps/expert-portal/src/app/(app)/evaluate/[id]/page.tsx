@@ -1261,6 +1261,15 @@ export default function ExpertEvaluatePage() {
     return 'invalid';
   })();
   const scoreLocked = !!expert?.reportConfirmed;
+  /** D3a（2026-11-23）：零可评总结态——全部供应商不可评（废标/回避/异常）时打分区顶部给出
+   *  总结横幅与出路指引，替代「逐家置灰+误导文案」的隐性死状态（1030 项目三家全 AI 废标本）。
+   *  判定与 canScoreActiveSupplier 四条件同构（未解密/已撤回/回避/废标）。 */
+  const scorableSupplierCount = project.suppliers.filter(s =>
+    s.decryptStatus === 'SUCCESS' && s.submitStatus !== '已撤回'
+    && !conflictedSupplierIds.has(s.id)
+    && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(s.id)
+    && (!invalidSupplierIds.has(s.id) || hasCommittedScoresFor(s.id))
+  ).length;
   // P3（2026-09-21 审查）：超时态统一口径——横幅与提交按钮/文案共用（此前按钮可点但服务端必 409）
   const evaluationOverdue = !!(
     project?.stage === 'EVALUATING'
@@ -2094,6 +2103,13 @@ export default function ExpertEvaluatePage() {
                   </button>
                 </div>
               </div>
+              {/* D3a（2026-11-23）：零可评总结态——全部供应商不可评时给出总结横幅与出路指引，
+                  不再让专家面对整片置灰打分表猜发生了什么（1030 项目三家全 AI 废标本）。 */}
+              {project.suppliers.length > 0 && scorableSupplierCount === 0 && (
+                <div className="exp-alert exp-alert--warn mb-4">
+                  当前项目已无可评供应商（全部废标/回避/异常）——请通过开评标管理端联系主持人处理（组长复议可恢复误废标，或按流标程序办理）。
+                </div>
+              )}
 
               {/* 专家间可见性收口：表决动态不再出现在打分步骤——
                   他人表决倾向会引导独立评分（「供评分参考」表述本身即违背独立评审）。
