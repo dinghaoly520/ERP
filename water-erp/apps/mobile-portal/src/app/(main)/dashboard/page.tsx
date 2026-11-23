@@ -1175,7 +1175,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               {(() => {
                 const key = cmpDim;
                 const max = Math.max(...rows.map((x) => x[key]), 1);
-                const color = key === "abnormal" ? "var(--danger)" : key === "savingsRate" ? "var(--gold)" : key === "savings" ? "var(--success)" : key === "rounds" ? "var(--warning)" : "var(--accent)";
                 const fmt = (v: number) =>
                   key === "awardAmount" || key === "savings" ? fmtWan(v)
                   : key === "savingsRate" ? `${v.toFixed(1)}%`
@@ -1183,15 +1182,18 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 const total = rows.reduce((sum, x) => sum + x[key], 0);
                 /* 零值行不显（2026-11-23 用户裁定）：公司主表含 65 家子公司/测试公司，口径内多数无业务 */
                 const shown = rows.filter((x) => x[key] > 0);
+                /* 条色（2026-11-23 用户裁定：参考其他板块）——八色循环 + 高光渐变；异常维保持语义红 */
+                const rowColor = (i: number) => (key === "abnormal" ? "var(--danger)" : barColorAt(i));
                 return (
                   <div className="space-y-1.5">
-                    {shown.map((x) => (
+                    {shown.map((x, i) => (
                       <div key={x.companyId || x.company} className="flex items-center gap-2">
-                        <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.company}</span>
+                        {/* 单位名列 9rem / 数值列 4.5rem（2026-11-23 用户裁定加宽，长公司名与「15699.5万」不挤） */}
+                        <span className="w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.company}</span>
                         <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(color) }} />
+                          <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(rowColor(i)) }} />
                         </span>
-                        <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
+                        <span className="w-[4.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
                       </div>
                     ))}
                     {!shown.length ? (
