@@ -11,6 +11,17 @@ import { processFile } from '../ai-bid-analysis/utils/file-processor';
 import { SCORE_POINTS_EXTRACT_SYSTEM, SCORE_POINTS_EXTRACT_PROMPT } from './prompts/score-points.prompt';
 import { ScorePointSuggestion, ScorePointSuggestionGroup } from '@water-erp/shared';
 
+/** U5（2026-11-23）：AI 建议后处理——滤除零分「备注类」条目。
+ *  实录（公务用车询比项目）：LLM 把评分办法章末的取值规则说明段（「备注：①各项评分四舍五入…」）
+ *  当成得分点返回（fullScore=0），人工审核前混在建议列表里干扰判断。规则：名称形如 备注/注：/说明
+ *  且 fullScore<=0 即滤除；有分值的同名条目是真得分点，保留。只作用于「不落库的建议列表」，
+ *  已入库得分点不受影响。 */
+const NOTE_LIKE_NAME_RE = /^(备\s*注|注\s*[:：]|说\s*明\s*[:：]?)/;
+
+export function filterNoteLikeSuggestions(points: ScorePointSuggestion[]): ScorePointSuggestion[] {
+  return points.filter((p) => !(Number(p.fullScore) <= 0 && NOTE_LIKE_NAME_RE.test((p.name || '').trim())));
+}
+
 @Injectable()
 export class ScorePointExtractorService {
   private readonly tenderTextCache = new Map<string, { text: string; expiresAt: number }>();
@@ -23,7 +34,6 @@ export class ScorePointExtractorService {
     private readonly embedding: EmbeddingService,
     private readonly prisma: PrismaService,
   ) {}
-
   async extractScorePoints(projectId: string, itemId: string, sourceAttachmentId?: string): Promise<ScorePointSuggestion[]> {
     const item = await this.prisma.bidScoreItem.findFirst({
       where: { id: itemId, projectId },
@@ -68,6 +78,9 @@ export class ScorePointExtractorService {
     } catch {
       return [];
     }
+
+    // U5: 备注类零分条目滤除（先于去重/归一化——零分备注不应参与 ΣfullScore 缩放基数）
+    result.items = filterNoteLikeSuggestions(result.items);
 
     // E4: 去重 —— 标记与已有得分点高度相似的建议
     for (const point of result.items) {

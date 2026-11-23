@@ -501,13 +501,18 @@ export function ProjectDetailPanel({
   }, [bpRefs, bpDetails, bpScoreItems]);
 
   const [scorePanelRound, setScorePanelRound] = useState<number | null>(null);
+  // U1（2026-11-23）：查看模式标记——「查看评分标准」入口（步骤已完成卡）置 true；
+  // 进行中卡「评分标准」入口置 false。关闭面板一并复位。
+  const [scorePanelViewOnly, setScorePanelViewOnly] = useState(false);
+  const closeScorePanel = () => { setScorePanelRound(null); setScorePanelViewOnly(false); };
+  const openScorePanel = (round: number, viewOnly: boolean) => { setScorePanelRound(round); setScorePanelViewOnly(viewOnly); };
   // 03 完成向导（2026-09-26 用户裁定：强制）——「标记本阶段完成」先走「选/传正式盖章版文件
   // → 对照确认评分标准」两步向导，确认后才落完成；关闭/取消=阶段不动（服务端双闸兜底）
   const [tenderWizardRound, setTenderWizardRound] = useState<number | null>(null);
   // Esc 关闭评分标准面板（开标确认面板同款 z-[500] overlay；内部 workbench Modal z-[600] 盖过）
   useEffect(() => {
     if (scorePanelRound == null) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setScorePanelRound(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeScorePanel(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [scorePanelRound]);
@@ -1440,7 +1445,9 @@ export function ProjectDetailPanel({
               archiveStepState={archiveStepState}
               onArchive={() => void archiveProject()}
               canArchive={canArchive}
-              onOpenScoreStandard={actionsDisabled ? undefined : (round) => setScorePanelRound(round)}
+              onOpenScoreStandard={actionsDisabled ? undefined : (round) => openScorePanel(round, false)}
+              onViewScoreStandard={(round) => openScorePanel(round, true)}
+              roundHasBidProject={(round) => bpRefs.some(r => (r.round ?? 1) === round)}
               onReopenStage={actionsDisabled ? undefined : async (stageKey, round) => {
                 // 旧轮全部只读（2026-10-23 流标统一流）：历史轮次不可重开扰动（后端闸不认旧轮，前端先拦）
                 if ((round ?? 1) < (localItem.currentRound ?? 1)) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
@@ -2630,13 +2637,13 @@ export function ProjectDetailPanel({
           : undefined;
         return (
           <div className="fixed inset-0 z-[500] flex flex-col">
-            <div className="absolute inset-0 wb-overlay-backdrop" onClick={() => setScorePanelRound(null)} />
+            <div className="absolute inset-0 wb-overlay-backdrop" onClick={closeScorePanel} />
             <div className="relative z-10 mx-5 my-5 wb-overlay-panel">
               <div className="flex shrink-0 items-center justify-between gap-3 px-6 py-4 wb-overlay-panel-header">
                 <h2 className="text-base font-semibold tracking-[-0.02em] text-[var(--foreground)]">
-                  评分标准与评标办法{scorePanelRound > 1 ? `（第 ${scorePanelRound} 轮）` : ''}
+                  评分标准与评标办法{scorePanelRound > 1 ? `（第 ${scorePanelRound} 轮）` : ''}{scorePanelViewOnly ? '（查看）' : ''}
                 </h2>
-                <button type="button" onClick={() => setScorePanelRound(null)} className="neu-btn-xs" title="关闭">
+                <button type="button" onClick={closeScorePanel} className="neu-btn-xs" title="关闭">
                   <X size={16} />
                 </button>
               </div>
@@ -2647,6 +2654,7 @@ export function ProjectDetailPanel({
                   bidProject={panelRef ? { ...panelRef, publishTime: null } : null}
                   detail={panelRef ? (bpDetails[panelRef.id] ?? null) : null}
                   priceItemCount={priceItemCount}
+                  viewOnly={scorePanelViewOnly}
                   tenderCandidates={localItem.stages.find(
                     (s) => s.stageKey === 'TENDER_DOCUMENT' && (s.round ?? 1) === scorePanelRound,
                   )?.attachments ?? []}

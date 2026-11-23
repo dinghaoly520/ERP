@@ -56,6 +56,13 @@ const TENDER_FACT_EXTRACT_FIELDS = new Set(['contactPhone', 'contactEmail']);
 const TENDER_LONG_TEXT_FIELDS = new Set(['businessRequirements', 'technicalRequirements', 'qualificationRequirements']);
 const TENDER_LONG_TEXT_LLM_OPTIONS = { maxTokens: 32_768, timeoutMs: 300_000, retries: 1 };
 
+/** analyzeProjectDetail LLM 失败时的占位摘要文案——读缓存侧以此识别历史投毒条目（视为未覆盖、触发重生成） */
+export const DEGRADED_FILE_ANALYSIS_SUMMARY = 'AI 服务暂不可用，已记录文件信息。';
+/** 判断一条缓存/返回的文件摘要是否为失败占位（degraded 批次产物） */
+export const isDegradedFileAnalysis = (
+  f: { contentSummary?: string | null } | null | undefined,
+): boolean => (f?.contentSummary ?? '').trim() === DEGRADED_FILE_ANALYSIS_SUMMARY;
+
 @Injectable()
 export class AiService {
   constructor(
@@ -2166,7 +2173,7 @@ ${projectsInfo ? '关联项目:\n' + projectsInfo : ''}`,
     stages?: { name: string; status: string }[];
     files?: { objectKey?: string; fileName?: string; name?: string; mimeType?: string; fileSize?: number; createdAt?: string; extractedText?: string }[];
     project?: any; currentStage?: any;
-  }): Promise<{ analysis: string; fileAnalyses: { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }[] }> {
+  }): Promise<{ analysis: string; fileAnalyses: { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }[]; degraded?: boolean }> {
     const files = (context.files || []).map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || f.name || '', mimeType: f.mimeType }));
     const project = context.project || {};
     const currentStage = context.currentStage || {};
@@ -2421,9 +2428,12 @@ stageMatch 字段需要输出两部分判断结果：
           : files.map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || '', stageMatch: '未分析', contentSummary: 'AI 未返回分析结果' })),
       };
     } catch {
+      // 2026-11-23 缓存投毒修复：degraded 标记让调用方跳过缓存写入与简报生成——
+      // 占位结果一旦按 fingerprint 落 analysis-*.json，预热按 objectKey 判「已覆盖」后永不重试
       return {
+        degraded: true,
         analysis: `项目"${project.title || ''}"共${files.length}个文件。`,
-        fileAnalyses: files.map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || '', stageMatch: '分析失败', contentSummary: 'AI 服务暂不可用，已记录文件信息。' })),
+        fileAnalyses: files.map(f => ({ objectKey: f.objectKey || '', fileName: f.fileName || '', stageMatch: '分析失败', contentSummary: DEGRADED_FILE_ANALYSIS_SUMMARY })),
       };
     }
   }

@@ -668,6 +668,14 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     if (row) for (const s of evaluableSuppliers) scoredSlots += Math.min(row.get(s.id)?.scoredCount ?? 0, itemCount);
   }
   const scorePct = totalSlots > 0 ? Math.round((scoredSlots / totalSlots) * 100) : 0;
+  /** U8（2026-11-23）：分母真话——可评集（解密成功且未撤回）**含已废标家**（改票可恢复，
+   *  不收缩），「结果已生成」与「进度<100%」并存即源于此。明示计数防误读为漏评。 */
+  const invalidInDenominator = evaluableSuppliers.filter(s => s.bidValidity === 'invalid').length;
+
+  /** D2（2026-11-23）：结果↔供应商 join 完整性守卫——results.supplierId 失配于项目供应商集时
+   *  （陈旧/脏数据），排序退化插入序、名次回退客户端估算但标签仍「官方评标结果」、均分取客户端
+   *  值，静默拼成混合显示（大数据平台项目实测排名 2/1/2 + 明细列翻倍）。显式告警替代静默降级。 */
+  const orphanResultCount = results.filter(r => !suppliers.some(s => s.id === r.supplierId)).length;
 
   /** 官方排名（含废标置后）或实时排名 */
   const rankedSuppliers = [...suppliers].sort((a, b) => {
@@ -895,7 +903,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       <div className="mb-3 flex flex-wrap gap-2.5">
         <StatTile
           label="评分进度" value={`${scorePct}%`}
-          sub={`已评 ${scoredSlots}/${totalSlots} 格位`}
+          sub={`已评 ${scoredSlots}/${totalSlots} 格位${invalidInDenominator > 0 ? `（分母含 ${invalidInDenominator} 家已废标）` : ''}`}
           pct={scorePct} color={scorePct >= 80 ? 'var(--success)' : scorePct >= 50 ? 'var(--accent)' : 'var(--warning)'}
         />
         <StatTile
@@ -1378,8 +1386,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
             <p className="mb-1.5 flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
-              评分明细按匿名编号呈现
-              <HelpTip text={`评标期间评分明细按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；全部专家确认评审报告后恢复实名。${alternateExperts.length > 0 ? `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。` : ''}`} />
+              {/* U9（2026-11-23）：caption 限定语义——本端是主持人视图（专家实名可见），
+                  匿名编号是专家端的呈现规则，原文案与同屏真名自相矛盾。 */}
+              专家端评分明细按匿名编号呈现；本端为主持人视图，显示真实名称
+              <HelpTip text={`专家端（:3006）评分明细按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；全部专家确认评审报告后恢复实名。本端为主持人/管理员特权视图，专家实名可见。${alternateExperts.length > 0 ? `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。` : ''}`} />
             </p>
             <div className="overflow-x-auto rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
             <table className="neu-table is-dense w-full min-w-[560px]">
@@ -1501,6 +1511,13 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--warning)]">
               <AlertTriangle size={11} className="shrink-0" />
               <span>评标结果读取失败——当前展示为实时预览排名，请刷新重试；若持续失败请联系管理员。</span>
+            </div>
+          )}
+          {/* D2（2026-11-23）：孤儿结果告警——失配时排名/均分/明细均为降级展示，勿当官方数据读 */}
+          {orphanResultCount > 0 && (
+            <div className="mx-3.5 mt-2 flex items-center gap-1.5 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 px-3 py-2 text-[11px] leading-relaxed text-[var(--danger)]">
+              <AlertTriangle size={11} className="shrink-0" />
+              <span>检测到 {orphanResultCount} 条评标结果与当前供应商名单不匹配（数据可能过期）——名次与均分展示可能失真，请重新生成评标结果或联系管理员。</span>
             </div>
           )}
           {/* 官方口径预览拉取失败可见化——此前 catch→null 静默回退客户端均分序，两次刷新数据源/量纲切换无感知 */}

@@ -43,8 +43,14 @@ export function ScoreDetailCard({ project }: Props) {
     const results = project.evaluationResults ?? [];
     // 供应商列序：官方结果名次序在前，其余按记录首现顺序（镜像 #121）
     const resultBySupplier = new Map(results.map((r) => [r.supplierId, r]));
+    // D2b（2026-11-23）：列集合完整性守卫——孤儿结果（supplierId 失配于项目供应商集且无任何
+    // 评分记录）不再生成空列（大数据平台项目实测 3 家供应商渲染出 5 列）。
+    const knownSupplierIds = new Set<string>([
+      ...(project.suppliers ?? []).map((s) => s.id),
+      ...records.map((r) => r.supplierId),
+    ]);
     const suppliers = [
-      ...results.map((r) => r.supplierId),
+      ...results.map((r) => r.supplierId).filter((id) => knownSupplierIds.has(id)),
       ...[...new Set(records.map((r) => r.supplierId))].filter((id) => !resultBySupplier.has(id)),
     ];
     const supplierName = new Map([

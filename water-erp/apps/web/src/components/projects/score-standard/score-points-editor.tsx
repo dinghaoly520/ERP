@@ -345,22 +345,34 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
                     <Link2 size={12} />
                     {(p.linkedRequirementIds?.length ?? 0) > 0 ? `${p.linkedRequirementIds!.length} 条款` : '关联条款'}
                   </button>
-                  <button
-                    onClick={() => toggleObjective(p)}
-                    className={objPillCls(p.objective)}
-                    title="客观=专家勾选制；主观=专家直接给分"
-                  >
-                    {p.objective ? '客观' : '主观'}
-                  </button>
+                  {/* I-1（终审 2026-11-23）：客观/主观、改满分、删除三控件此前未被 locked 门控
+                      （阶段锁时代靠后端 OPENING+ 409 兜底；viewOnly 面板在 DOWNLOAD/SUBMIT 时点
+                      后端不设防——「查看」入口一键不可逆删点并作废校验标记）。动作件（编辑/删除）
+                      与编辑铅笔同口径隐藏；客观/满分是信息件——锁定态降级静态展示而非消失。 */}
+                  {locked ? (
+                    <span className={objPillCls(p.objective)} title="客观=专家勾选制；主观=专家直接给分">{p.objective ? '客观' : '主观'}</span>
+                  ) : (
+                    <button
+                      onClick={() => toggleObjective(p)}
+                      className={objPillCls(p.objective)}
+                      title="客观=专家勾选制；主观=专家直接给分"
+                    >
+                      {p.objective ? '客观' : '主观'}
+                    </button>
+                  )}
                   {!isPassFail && (
-                    <input
-                      type="number"
-                      min={0}
-                      step={0.5}
-                      defaultValue={Number(p.fullScore)}
-                      onBlur={(e) => void editFullScore(p, Number(e.target.value), e.currentTarget)}
-                      className="workbench-input !h-7 w-[4.5rem] shrink-0 !px-1.5 !text-xs text-right tabular-nums"
-                    />
+                    locked ? (
+                      <span className="w-[4.5rem] shrink-0 text-right font-mono !text-xs tabular-nums">{Number(p.fullScore)}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        defaultValue={Number(p.fullScore)}
+                        onBlur={(e) => void editFullScore(p, Number(e.target.value), e.currentTarget)}
+                        className="workbench-input !h-7 w-[4.5rem] shrink-0 !px-1.5 !text-xs text-right tabular-nums"
+                      />
+                    )
                   )}
                   {!locked && (
                     <button
@@ -371,9 +383,11 @@ export function ScorePointsEditor({ projectId, item, points, onChanged, locked, 
                       <Pencil size={13} strokeWidth={1.5} />
                     </button>
                   )}
-                  <button onClick={() => remove(p)} className="neu-btn-xs is-danger shrink-0" title="删除">
-                    <Trash2 size={13} strokeWidth={1.5} />
-                  </button>
+                  {!locked && (
+                    <button onClick={() => remove(p)} className="neu-btn-xs is-danger shrink-0" title="删除">
+                      <Trash2 size={13} strokeWidth={1.5} />
+                    </button>
+                  )}
                 </>
               )}
             </div>
