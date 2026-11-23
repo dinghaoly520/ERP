@@ -23,12 +23,13 @@ import { MediaThumb } from '@/components/supplier/media-thumb';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { CopyIconButton } from '@/components/copy-icon-button';
 
-// 2026-10-23 板块合并（11→5）：info=基本信息+联系人+归属公司+变更记录、qualifications=资质材料+文件档案、
-// evaluations=履约评价+奖惩记录、rsvp=邀请回执+沟通记录；旧深链键经 MERGED_TAB 归组映射
-type TabKey = 'info' | 'portrait' | 'qualifications' | 'evaluations' | 'rsvp' | 'participation';
+// 2026-10-23 板块合并（11→5）+ 2026-11-23（6→5，用户裁定）：rsvp 邀请回执经历并入 participation
+// 参与情况（同域：受邀响应/意向/投递履约闭环）；旧深链键经 MERGED_TAB 归组映射
+type TabKey = 'info' | 'portrait' | 'qualifications' | 'evaluations' | 'participation';
 const MERGED_TAB: Record<string, TabKey> = {
-  info: 'info', portrait: 'portrait', qualifications: 'qualifications', evaluations: 'evaluations', rsvp: 'rsvp',
-  contacts: 'info', links: 'info', changes: 'info', records: 'evaluations', documents: 'qualifications', communications: 'rsvp',
+  info: 'info', portrait: 'portrait', qualifications: 'qualifications', evaluations: 'evaluations', participation: 'participation',
+  contacts: 'info', links: 'info', changes: 'info', records: 'evaluations', documents: 'qualifications',
+  rsvp: 'participation', communications: 'participation',
 };
 
 const STATUS_LABEL: Record<string, string> = SUPPLIER_STATUS_LABEL; // 统一 shared 口径（第五处分叉，2026-09-29 收编）
@@ -205,7 +206,7 @@ export default function SupplierDetailPage() {
       .catch(() => setRsvpHistory(null))
       .finally(() => setRsvpLoading(false));
   }, [id]);
-  useEffect(() => { if (activeTab === 'rsvp') loadRsvpHistory(); }, [activeTab, loadRsvpHistory]);
+  useEffect(() => { if (activeTab === 'participation') loadRsvpHistory(); }, [activeTab, loadRsvpHistory]);
   useEffect(() => {
     // 2026-10-23 板块合并：懒加载挂到合并后的 tab 键（沟通记录懒加载已删 2026-11-06）
     // 文件档案懒加载已删（2026-11-06 用户裁定，随整节移除）
@@ -339,11 +340,10 @@ export default function SupplierDetailPage() {
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'info', label: '基本信息' },
     { key: 'portrait', label: '画像与动态' },
-    // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；邀请数沿用回执统计
+    // 合并计数（2026-10-23）：资质+文件 / 评价+奖惩；2026-11-23 邀请回执并入参与情况
     { key: 'qualifications', label: '资质材料', count: qualifications.length },
-    { key: 'participation', label: '参与情况' },
+    { key: 'participation', label: '参与情况', count: rsvpHistory?.stats.invited },
     { key: 'evaluations', label: '履约评价', count: evaluations.length },
-    { key: 'rsvp', label: '邀请回执', count: rsvpHistory?.stats.invited },
   ];
 
   const getQualStatus = (q: SupplierQualification) => {
@@ -812,6 +812,7 @@ export default function SupplierDetailPage() {
         )}
 
         {/* 参与情况（2026-11-12 履约闭环）：意向/回执/投递 KPI + 确认未投递事故 + 拉黑状态 */}
+        {/* 参与情况（2026-11-23 用户裁定 6→5）：ParticipationTab（黑名单/事故/意向）+ 邀请回执经历（原独立 tab 并入，见下方） */}
         {activeTab === 'participation' && <ParticipationTab supplierId={supplier.id} />}
 
         {/* 联系人 */}
@@ -973,22 +974,7 @@ export default function SupplierDetailPage() {
               </div>
             ) : (
               <>
-                {/* 主指标 */}
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div className="neu-card-static !rounded-xl p-4 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">评价次数</p>
-                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)] leading-none">{evaluations.length}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次履约评价</p>
-                  </div>
-                  <div className="neu-card-static !rounded-xl p-4 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">主要等级</p>
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-lg font-black text-white" style={{ backgroundColor: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{mostCommonGrade || '—'}</span>
-                      <span className="text-sm font-bold" style={{ color: mostCommonGrade ? LEVEL_COLOR[mostCommonGrade] : 'var(--muted-foreground)' }}>{LEVEL_LABEL[mostCommonGrade] || ''}</span>
-                    </div>
-                  </div>
-                </div>
-
+                {/* 主指标 KPI 卡片已删（2026-11-23 用户裁定）；等级分布与明细保留 */}
                 {/* 等级分布条形图 */}
                 {(() => {
                   const total = evaluations.length;
@@ -1141,8 +1127,8 @@ export default function SupplierDetailPage() {
         {/* 奖惩记录已删（2026-11-06 用户裁定：录入表单+记录表整节移除，CTS A-216 同批）；
             tab 改名「履约评价」并只剩评价内容；后端 add/listSupplierRecords 端点保留未动 */}
 
-        {/* 邀请回执经历（2026-10-21 回执锁定口径）：邀请统计 + 毁约记录 + 逐条回执轨迹 */}
-        {activeTab === 'rsvp' && rsvpHistory && (rsvpHistory.stats.consecutiveDeclined ?? 0) >= 3 && (
+        {/* 邀请回执经历（2026-10-21 回执锁定口径；2026-11-23 并入「参与情况」tab）：预警 + 毁约记录 + 逐条回执轨迹 */}
+        {activeTab === 'participation' && rsvpHistory && (rsvpHistory.stats.consecutiveDeclined ?? 0) >= 3 && (
           <div className="mb-4 flex items-start gap-2.5 rounded-xl border px-4 py-3"
             style={{ borderColor: '#fecaca', backgroundColor: '#fef2f2' }}>
             <AlertTriangle size={15} className="mt-0.5 shrink-0 text-[#e74c3c]" />
@@ -1154,7 +1140,7 @@ export default function SupplierDetailPage() {
             </div>
           </div>
         )}
-        {activeTab === 'rsvp' && rsvpHistory && (rsvpHistory.breachEvents?.length ?? 0) > 0 && (
+        {activeTab === 'participation' && rsvpHistory && (rsvpHistory.breachEvents?.length ?? 0) > 0 && (
           <div className="neu-card-static !rounded-2xl mb-4 p-4">
             <div className="mb-3 flex items-center gap-2">
               <AlertTriangle size={15} className="text-[var(--danger)]" />
@@ -1181,8 +1167,8 @@ export default function SupplierDetailPage() {
             </div>
           </div>
         )}
-        {activeTab === 'rsvp' && (
-          <div>
+        {activeTab === 'participation' && (
+          <div className="mt-8">
             <SectionTitle icon={Mail}>邀请回执</SectionTitle>
             {rsvpLoading ? (
               <div className="neu-card-static !rounded-2xl py-10 text-center">
@@ -1196,31 +1182,7 @@ export default function SupplierDetailPage() {
               </div>
             ) : (
               <>
-                {/* 邀请统计 */}
-                <div className="grid grid-cols-2 gap-4 mb-4 lg:grid-cols-4">
-                  <div className="neu-card-static !rounded-xl p-4 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">累计受邀</p>
-                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] text-[var(--accent)] leading-none">{rsvpHistory.stats.invited}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次采购邀请</p>
-                  </div>
-                  <div className="neu-card-static !rounded-xl p-4 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">回执接受率</p>
-                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none"
-                      style={{ color: 'var(--success)' }}>{rsvpHistory.stats.acceptRate ? `${rsvpHistory.stats.acceptRate}%` : '—'}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">确认参加 {rsvpHistory.stats.accepted} · 无法参加 {rsvpHistory.stats.declined}</p>
-                  </div>
-                  <div className="neu-card-static !rounded-xl p-4 text-center">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">超时未回执</p>
-                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none text-[var(--warning)]">{rsvpHistory.stats.systemDeclined}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次自动弃权（未点链接）</p>
-                  </div>
-                  <div className="neu-card-static !rounded-xl p-4 text-center" style={{ outline: rsvpHistory.stats.overrideAfterAccept > 0 ? '1px solid color-mix(in oklch, var(--warning) 35%, transparent)' : undefined }}>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">确认后被变更</p>
-                    <p className="text-[2rem] font-black tabular-nums tracking-[-0.03em] leading-none"
-                      style={{ color: rsvpHistory.stats.overrideAfterAccept > 0 ? 'var(--warning)' : 'var(--muted-foreground)' }}>{rsvpHistory.stats.overrideAfterAccept}</p>
-                    <p className="text-[10px] text-[var(--muted-foreground)] mt-1">次「确认参加」被改为拒绝</p>
-                  </div>
-                </div>
+                {/* 邀请统计 KPI 卡片已删（2026-11-23 用户裁定）；预警横幅/毁约明细/逐条回执保留 */}
 
                 {/* 逐条回执 + 轨迹 */}
                 <div className="space-y-3">

@@ -330,12 +330,6 @@ export class ExpertAdminController {
     return this.expertAdminService.getLoadDistribution(req.user, companyId);
   }
 
-  @Get('ai-adoption')
-  @ApiOperation({ summary: 'AI 采纳率（专家分 vs AI 建议分；公司隔离）' })
-  getAiAdoptionRate(@Query('expertId') expertId?: string, @Request() req: any = {}) {
-    return this.expertAdminService.getAiAdoptionRate(expertId, req.user);
-  }
-
   @Get('violations')
   @ApiOperation({ summary: '违规记录列表（公司隔离）' })
   getViolations(@Query('expertId') expertId?: string, @Request() req: any = {}) {

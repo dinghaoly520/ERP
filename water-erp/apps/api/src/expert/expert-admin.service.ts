@@ -3271,51 +3271,6 @@ export class ExpertAdminService {
     }
   }
 
-  /** AI 采纳率（基于 BidScoreDelta：专家分 vs AI 建议分；公司隔离） */
-  async getAiAdoptionRate(expertId?: string, user?: AuthenticatedUser) {
-    const f = await this.expertScopeFilter(user);
-    if (expertId && user) await this.assertExpertInScope(expertId, user);
-    // BidScoreDelta.expertId 指向 BidExpert.id，需映射到 userId 供前端按专家过滤
-    // 公司过滤须挂在 user 关系上（BidExpert 无 companyId 直列）
-    const assignments = await this.prisma.bidExpert.findMany({
-      where: expertId ? { userId: expertId } : { user: { role: 'bid_expert', ...f } },
-      select: { id: true, userId: true },
-    });
-    const expertIdToUser = new Map(assignments.map(a => [a.id, a.userId]));
-
-    const deltas = await this.prisma.bidScoreDelta.findMany({
-      where: assignments.length > 0 ? { expertId: { in: assignments.map(a => a.id) } } : undefined,
-      select: { expertId: true, delta: true, accepted: true },
-    });
-
-    const total = deltas.length;
-    const accepted = deltas.filter(d => d.accepted).length;
-
-    const byUser = new Map<string, number[]>();
-    for (const d of deltas) {
-      const uid = expertIdToUser.get(d.expertId);
-      if (!uid) continue;
-      const arr = byUser.get(uid) ?? [];
-      arr.push(Math.abs(Number(d.delta)));
-      byUser.set(uid, arr);
-    }
-    const byExpert = [...byUser.entries()].map(([id, vals]) => ({
-      expertId: id,
-      avgAbsDelta: vals.length > 0 ? Math.round(vals.reduce((s, x) => s + x, 0) / vals.length) : 0,
-    }));
-
-    return {
-      overall: {
-        total,
-        accepted,
-        adoptionRate: total > 0 ? Math.round((accepted / total) * 100) : 0,
-      },
-      byExpert,
-      // 可观测：LLM 调用/错误/降级计数与最近耗时（供前端评估 AI 健康度）
-      llm: this.extractionAi.getMetrics(),
-    };
-  }
-
   /* AI 深化能力（OCR 录入 / 风险预警 / 抽取复盘，均带规则兜底降级） */
 
   /** 资质 OCR 自动录入：识别证书/证件图片 → LLM 结构化 → 返回表单字段供前端回填。

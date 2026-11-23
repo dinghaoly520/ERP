@@ -542,10 +542,6 @@ export function setCommitteeAssignment(projectId: string, data: { assignments: {
   return api.put<{ success: boolean }>(`/expert-admin/projects/${projectId}/committee/assignment`, data);
 }
 
-/* AI 采纳率 */
-export function getAiAdoptionRate(expertId?: string) {
-  return api.get<any>(`/expert-admin/ai-adoption${expertId ? `?expertId=${expertId}` : ''}`);
-}
 export function getExpertRanking(period: 'month' | 'quarter' | 'all' = 'month', companyId?: string) {
   return api.get<any[]>(`/expert-admin/ranking?period=${period}${companyId && companyId !== 'all' ? `&companyId=${companyId}` : ''}`);
 }
