@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calculator, Grip, X } from 'lucide-react';
+import { Calculator, ChevronDown, Grip, X } from 'lucide-react';
 import { evaluateCalc, normalizeExprChars, type AngleMode, type CalcHistoryEntry } from '@/lib/calculator-core';
 
 /**
@@ -78,6 +78,8 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
   const [angleMode, setAngleMode] = useState<AngleMode>('DEG');
   /** 刚求值完：下一个输入若为运算符则接在结果后（Ans 延续），否则重新起式 */
   const justEvaluatedRef = useRef(false);
+  /** 历史纸带折叠态（默认展开；点头部行切换） */
+  const [historyOpen, setHistoryOpen] = useState(true);
 
   // 打开：初始位置 = 右缘对齐触发钮（按当前窗宽）向下弹；聚焦输入框
   useEffect(() => {
@@ -308,7 +310,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               onPointerDown={startGesture('drag')}
             >
               <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-[var(--muted-foreground)]">
-                <Calculator size={11} strokeWidth={1.5} /> 计算器 · 等号求值
+                <Calculator size={11} strokeWidth={1.5} /> 计算器
               </span>
               <button
                 type="button"
@@ -331,7 +333,6 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 onKeyDown={onKeyKeyDown}
                 spellCheck={false}
                 autoComplete="off"
-                placeholder="输入算式，如 1500×5% 或 (2+3)×4"
                 aria-label="算式输入"
                 className="w-full bg-transparent !p-0 font-mono text-[15px] leading-6 tracking-tight text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]/60"
               />
@@ -346,11 +347,22 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               </div>
             </div>
 
-            {/* 历史纸带（点击载入该条算式继续编辑） */}
+            {/* 历史区（可折叠）：头部切换行 + 纸带（点击条目载入算式继续编辑） */}
             {history.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setHistoryOpen((v) => !v)}
+                aria-expanded={historyOpen}
+                className="mt-2 flex w-full shrink-0 items-center gap-1 rounded px-1 py-0.5 text-[10px] font-bold tracking-wide text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+              >
+                <ChevronDown size={11} strokeWidth={1.5} className={`shrink-0 transition-transform ${historyOpen ? '' : '-rotate-90'}`} />
+                历史 <span className="font-mono">{history.length}</span>
+              </button>
+            )}
+            {history.length > 0 && historyOpen && (
               <div
                 ref={tapeRef}
-                className="mt-2 min-h-[36px] flex-1 overflow-y-auto rounded-[10px] bg-[oklch(0.96_0.01_258/0.3)] px-1.5 py-1"
+                className="mt-1 min-h-[36px] flex-1 overflow-y-auto rounded-[10px] bg-[oklch(0.96_0.01_258/0.3)] px-1.5 py-1"
               >
                 {/* 终审#1：数组最新在前 → 反转渲染为最新在底，配合滚到底始终可见最新条目 */}
                 {[...history].reverse().map((h, i) => (
@@ -368,7 +380,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
             )}
 
             {/* 键区：科学 4 行 + 主键区 4 行，auto-rows-fr 随窗口高度拉伸 */}
-            <div className={`grid shrink-0 auto-rows-fr grid-cols-4 gap-1.5 ${history.length > 0 ? 'mt-2' : 'mt-2 flex-1'}`}>
+            <div className={`mt-2 grid auto-rows-fr grid-cols-4 gap-1.5 ${history.length > 0 && historyOpen ? 'shrink-0' : 'flex-1'}`}>
               {[...SCI_ROWS, ...KEY_ROWS].flat().map((k) => (
                 <button
                   key={k.label}
