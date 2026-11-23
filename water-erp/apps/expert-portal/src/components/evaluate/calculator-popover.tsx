@@ -324,7 +324,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
             </div>
 
             {/* 算式输入框（可点击编辑/框选/小键盘原生输入）+ 结果行 */}
-            <div className="flex shrink-0 flex-col gap-2 rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-3">
+            <div className="flex shrink-0 flex-col gap-2.5 rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-4">
               <input
                 ref={inputRef}
                 type="text"
@@ -334,9 +334,9 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 spellCheck={false}
                 autoComplete="off"
                 aria-label="算式输入"
-                className="w-full bg-transparent !p-0 font-mono text-[17px] leading-8 tracking-tight text-[var(--foreground)] outline-none placeholder:text-[var(--foreground)]/60"
+                className="w-full bg-transparent !p-0 font-mono text-[21px] leading-[44px] tracking-tight text-[var(--foreground)] outline-none placeholder:text-[var(--foreground)]/60"
               />
-              <div className="h-7 text-right font-mono text-lg font-bold tabular-nums leading-7">
+              <div className="h-11 text-right font-mono text-2xl font-bold tabular-nums leading-[44px]">
                 {error ? (
                   <span className="text-[12px] font-bold text-[var(--danger)]">{error}</span>
                 ) : result !== null ? (
