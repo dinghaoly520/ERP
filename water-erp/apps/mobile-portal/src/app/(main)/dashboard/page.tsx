@@ -76,9 +76,9 @@ function PMI_STAGE_LABELS_OF(key: string): string {
 /* 比例条色板/填充统一走 @/lib/bar-style（2026-11-23 所有比例条增色裁定） */
 
 type CmpDim = "awardAmount" | "rounds" | "savings" | "savingsRate" | "abnormal";
-/** 企业对比列标（天干，签名细节）与上限 */
-const CMP_STEMS = ["甲", "乙", "丙", "丁", "戊"];
-const CMP_MAX = 5;
+/** 企业对比列标（天干，签名细节）与上限（2026-11-23 用户裁定：最多 4 家） */
+const CMP_STEMS = ["甲", "乙", "丙", "丁"];
+const CMP_MAX = 4;
 const CMP_DIMS: Array<{ key: CmpDim; label: string }> = [
   { key: "awardAmount", label: "成交额" },
   { key: "rounds", label: "轮次" },
@@ -1208,7 +1208,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </AnalysisZone>
 
             {/* ── 双企 PK：任选两家逐项对比，优胜方加粗着色 + 顶部计分 ── */}
-            {/* ── 企业对比（2026-11-23 用户裁定：双企扩为 2–5 家）——多选 + 指标×企业矩阵，
+            {/* ── 企业对比（2026-11-23 用户裁定：双企扩为 2–4 家）——多选 + 指标×企业矩阵，
                 天干甲乙丙丁戊为列标（签名细节），各指标最优加粗主色，底部计分 ── */}
             <AnalysisZone
               icon={Scale}
@@ -1225,7 +1225,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                     options={options.map((r) => ({ value: idOf(r), label: r.company }))}
                     selected={picks.map(idOf)}
                     onSelect={(next) => setCmpPicks(next.slice(0, CMP_MAX))}
-                    ariaLabel="选择对比企业（2 到 5 家）"
+                    ariaLabel="选择对比企业（2 到 4 家）"
                   />
                 ) : undefined
               }
@@ -1234,7 +1234,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 <EmptyState text={`当前口径下只有 ${options.length} 家可比公司，选择更多公司后可对比`} />
               ) : (
                 <div className="space-y-2.5">
-                  <div className="px-1 text-[12px] text-[var(--muted-foreground)]">可选 2–5 家（有业务数据或集团成员企业），默认成交额前两名</div>
+                  <div className="px-1 text-[12px] text-[var(--muted-foreground)]">可选 2–4 家（有业务数据或集团成员企业），默认成交额前两名</div>
                   <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none]">
                     <div className="rounded-[12px] m-tile px-3 py-2 text-[14px]" style={{ minWidth: `${76 + picks.length * 92}px` }}>
                       <div className="flex items-center gap-2 border-b border-[oklch(0.6_0.04_258_/_0.12)] pb-1.5">
