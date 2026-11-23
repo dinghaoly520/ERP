@@ -82,6 +82,7 @@ import { Chip } from "@/components/m/chip";
 import { ErrorBanner } from "@/components/m/error-banner";
 import { EmptyState } from "@/components/m/empty-state";
 import { Skeleton } from "@/components/m/skeleton";
+import { ExpertDetailSheet } from "@/components/m/expert-detail-sheet";
 import { PullIndicator } from "@/components/m/pull-indicator";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { usePolling } from "@/hooks/use-polling";
@@ -1948,48 +1949,15 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     </>
   );
 
-  /* 专家详情弹层（2026-11-20） */
+  /* 专家详情弹层（2026-11-23：对齐 :3005 详情信息量——基本信息/关键节点/评价历史/评审项目，
+     独立组件 expert-detail-sheet；key=专家 id 切换即重置状态） */
   const expertDetailSheet = (
-    <BottomSheet open={!!expertPick} onClose={() => setExpertPick(null)} title={<span>{expertPick?.displayName ?? ""}</span>}>
-      {expertPick ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {expertPick.expertProfile?.specialty ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--gold)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--gold)]">{expertPick.expertProfile.specialty}</span>
-            ) : null}
-            {expertPick.expertProfile?.title ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2 py-0.5 text-[12px] font-semibold text-[var(--accent)]">{expertPick.expertProfile.title}</span>
-            ) : null}
-            {expertPick.avgGrade || expertPick.latestEval?.level ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--success)]">
-                评价 {expertPick.avgGrade ?? expertPick.latestEval?.level}
-              </span>
-            ) : null}
-            {!expertPick.isActive ? (
-              <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-2 py-0.5 text-[12px] font-bold text-[var(--danger)]">已停用</span>
-            ) : null}
-          </div>
-          <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2.5 text-[14px]">
-            {expertPick.expertProfile?.employer ? (
-              <div className="flex justify-between gap-3">
-                <span className="text-[var(--muted-foreground)]">工作单位</span>
-                <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile.employer}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between gap-3">
-              <span className="text-[var(--muted-foreground)]">库内状态</span>
-              <span className="font-medium text-[var(--foreground)]">{expertPick.expertProfile?.availability ?? "在库"}</span>
-            </div>
-            {expertPick.latestEval ? (
-              <div className="flex justify-between gap-3">
-                <span className="text-[var(--muted-foreground)]">最新评价</span>
-                <span className="font-medium tabular-nums text-[var(--foreground)]">{expertPick.latestEval.level} · {expertPick.latestEval.createdAt.slice(0, 10)}</span>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-    </BottomSheet>
+    <ExpertDetailSheet
+      key={expertPick?.id ?? "none"}
+      expertId={expertPick?.id ?? null}
+      baseline={expertPick ?? undefined}
+      onClose={() => setExpertPick(null)}
+    />
   );
 
   /* 公告详情弹层（2026-11-20） */
