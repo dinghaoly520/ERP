@@ -88,7 +88,21 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
   ],
 };
 
-/* ── 元数据值格式化（与 :3005 一致：日期解析、预算万元化）── */
+/* ── 金额（元）精确显示（与 :3005 formatYuanExact 同款，2026-11-23 用户裁定：公告顶部预算金额
+      保持原始数字、不做四舍五入）：千分位分组 + 小数位原样 + 「元」，按字符串处理不丢精度；
+      仅纯数字串/数值走分组，含单位或文字的自由文本原样返回 ── */
+function formatYuanExact(raw: unknown): string {
+  if (raw === null || raw === undefined) return '';
+  const s = String(raw).trim();
+  const m = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(s);
+  if (!m) return s;
+  const sign = m[1] === '-' ? '-' : '';
+  const intPart = m[2].replace(/^0+(?=\d)/, ''); // 去无意义前导零，分组按规范整数位算
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${sign}${grouped}${m[3] !== undefined ? `.${m[3]}` : ''} 元`;
+}
+
+/* ── 元数据值格式化（与 :3005 一致：日期解析、预算/金额精确显示）── */
 export function formatMetaValue(field: MetaField, raw: any): string {
   if (raw == null || raw === '') return '';
   if (field.date) {
@@ -97,8 +111,7 @@ export function formatMetaValue(field: MetaField, raw: any): string {
     return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
   if ((field.key === 'budget' || field.key === 'amount') && raw) {
-    const n = Number(raw);
-    if (!isNaN(n) && n >= 10000) return (n / 10000).toFixed(0) + ' 万元';
+    return formatYuanExact(raw);
   }
   return String(raw);
 }
