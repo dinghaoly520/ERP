@@ -68,6 +68,15 @@ test("句内拆段防误伤：小数（873000.00）与「第3、4章」不拆", 
   assert.ok(!out.includes("</p><p>"), out);
 });
 
+test("混排形态（句内粘连首截 + br 续行）：资格条件标签与 1. 粘连项均拆段", () => {
+  const html = "<p>报名方式：访问https://ssyc.scsfjt.com供应商门户进行注册、查询项目、确认投标意向和文件投递。资格条件：1.持有有效营业执照或事业单位法人证书；<br />2.未被列入严重违法失信名单；<br />3.未被信用中国列入名单。</p>";
+  const out = normalizeAnnouncementContentHtml(html, null);
+  assert.ok(out.includes("文件投递。</p><p>资格条件：</p>"), out);
+  assert.ok(out.includes("<p>1）持有有效营业执照或事业单位法人证书；</p>"), out);
+  assert.ok(out.includes("<p>2）未被列入严重违法失信名单；</p>"), out);
+  assert.ok(out.includes("<p>3）未被信用中国列入名单。</p>"), out);
+});
+
 test("首段与标题非前缀关系（异构存量）→ 不猜测、原样返回；无 <p> 纯文本直通", () => {
   const html = "<p>正文与标题无关</p><p>一、项目信息</p>";
   const out = normalizeAnnouncementContentHtml(html, "某公告标题");

@@ -86,28 +86,38 @@ const NUMBERED_LINE_START_RE = /^(?:[（(]?\d+[）)、.．]|[①②③④⑤⑥�
 function splitNumberedBrLines(html: string): string {
   if (!html.includes('<p')) return html;
   return html.replace(/<p([^>]*)>([\s\S]*?)<\/p>/g, (whole, attrs: string, inner: string) => {
-    let out = inner;
-    // 1) br 断行的编号行拆段（既有）
-    if (/<br\s*\/?>/i.test(out)) {
-      const segs = out.split(/<br\s*\/?>/i);
-      let joined = '';
-      for (let i = 0; i < segs.length; i++) {
-        if (i > 0) {
-          const text = segs[i].replace(/<[^>]+>/g, '').trim();
-          joined += NUMBERED_LINE_START_RE.test(text) ? '</p><p>' : '<br/>';
-        }
-        joined += segs[i];
+    const hasBr = /<br\s*\/?>/i.test(inner);
+    // 带其它内嵌标签（strong/em 等）且无 br —— 保守不动（句内拆分只做纯文本）
+    if (!hasBr && /<[a-z]/i.test(inner)) return whole;
+    // 先按 br 分段，逐段做句内拆分（2026-11-23 存量兜底：「……投递。资格条件：1.持有…」
+    // 粘在首截、2~6 条才是 br 行的混排形态——br 拆段先跑会注入标签令纯文本守卫失效，
+    // 故逐段处理）：
+    //  - 句内编号项（句点式，小数/「第N」防误伤）前拆分并归一「N）」
+    //  - 句号后 2~6 汉字短标签（「。资格条件：」）前拆分
+    const SEP = '\u0000';
+    const segs = hasBr ? inner.split(/<br\s*\/?>/i) : [inner];
+    const pieces: Array<{ text: string; kind: 'first' | 'br' | 'split' }> = [];
+    segs.forEach((seg, si) => {
+      if (/<[a-z]/i.test(seg)) {
+        pieces.push({ text: seg, kind: si === 0 ? 'first' : 'br' });
+        return;
       }
-      out = joined;
-    }
-    // 2) 句内粘连拆段（2026-11-23 存量兜底，仅纯文本段）：「资格条件：1.持有…；2.未被…」
-    //    挤在一句的形态——编号项（句点式，小数/「第N」防误伤）前拆段并归一「N）」；
-    //    句号后跟 2~6 汉字短标签（「。资格条件：」）拆段。守卫与生成侧 formatHierarchicalText 同口径。
-    if (!/<[a-z]/i.test(out)) {
-      out = out
+      const parts = seg
         .replace(/([㐀-鿿；。：，、））\"?])(\d+)([.．])(?!\d)/g, (w2: string, prev: string, n: string) =>
-          prev && !/[第\d.．]/.test(prev) ? `${prev}</p><p>${n}）` : w2)
-        .replace(/。([㐀-鿿]{2,6}：)/g, '。</p><p>$1');
+          prev && !/[第\d.．]/.test(prev) ? `${prev}${SEP}${n}）` : w2)
+        .replace(/。([㐀-鿿]{2,6}：)/g, `。${SEP}$1`)
+        .split(SEP);
+      parts.forEach((pt, pi) => pieces.push({ text: pt, kind: si === 0 && pi === 0 ? 'first' : pi > 0 ? 'split' : 'br' }));
+    });
+    let out = '';
+    for (const piece of pieces) {
+      if (piece.kind === 'first') { out += piece.text; continue; }
+      const text = piece.text.replace(/<[^>]+>/g, '').trim();
+      // 句内拆分边界一律成段；br 边界仅编号行成段（非编号续行保持 br）；
+      // 成段件行首句点式序号统一归一「N）」（含 br 边界件——存量 2./3. 形态）
+      const asPara = piece.kind === 'split' || NUMBERED_LINE_START_RE.test(text);
+      out += asPara ? '</p><p>' : '<br/>';
+      out += asPara ? piece.text.replace(/^(\d+)[.．](?!\d)/, '$1）') : piece.text;
     }
     if (out === inner) return whole;
     return `<p${attrs}>${out}</p>`;
