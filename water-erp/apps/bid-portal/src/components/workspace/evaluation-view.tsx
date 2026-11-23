@@ -1383,8 +1383,10 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
           <div>
             {/* P2-8：匿名/实名还原规则标注——防「同屏时隐时现」被质疑匿名化不一致 */}
             <p className="mb-1.5 flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
-              评分明细按匿名编号呈现
-              <HelpTip text={`评标期间评分明细按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；全部专家确认评审报告后恢复实名。${alternateExperts.length > 0 ? `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。` : ''}`} />
+              {/* U9（2026-11-23）：caption 限定语义——本端是主持人视图（专家实名可见），
+                  匿名编号是专家端的呈现规则，原文案与同屏真名自相矛盾。 */}
+              专家端评分明细按匿名编号呈现；本端为主持人视图，显示真实名称
+              <HelpTip text={`专家端（:3006）评分明细按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；全部专家确认评审报告后恢复实名。本端为主持人/管理员特权视图，专家实名可见。${alternateExperts.length > 0 ? `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。` : ''}`} />
             </p>
             <div className="overflow-x-auto rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
             <table className="neu-table is-dense w-full min-w-[560px]">

@@ -1447,6 +1447,7 @@ export function ProjectDetailPanel({
               canArchive={canArchive}
               onOpenScoreStandard={actionsDisabled ? undefined : (round) => openScorePanel(round, false)}
               onViewScoreStandard={(round) => openScorePanel(round, true)}
+              roundHasBidProject={(round) => bpRefs.some(r => (r.round ?? 1) === round)}
               onReopenStage={actionsDisabled ? undefined : async (stageKey, round) => {
                 // 旧轮全部只读（2026-10-23 流标统一流）：历史轮次不可重开扰动（后端闸不认旧轮，前端先拦）
                 if ((round ?? 1) < (localItem.currentRound ?? 1)) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }

@@ -434,19 +434,26 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
           </button>
         )}
         {!locked && (
-          <button
-            onClick={handleBulkExtract}
-            disabled={extractingAll}
-            className="neu-btn-xs gap-1.5 is-info"
-            title={extractSource
-              ? `从${extractSource.isOfficial === false ? '指定提取源' : '正式盖章版采购文件'}提取得分点${extractSource.isOfficial === false ? '' : '（OCR）'}：${extractSource.fileName}`
-              : pickedSource
-                ? `提取源：${pickedSource.fileName}`
-                : '从「采购文件」步骤的采购文件提取得分点（多文件时可选）'}
-          >
-            <Sparkles size={13} />
-            {extractingAll ? '提取中…' : 'AI 全部提取'}
-          </button>
+          <>
+            <button
+              onClick={handleBulkExtract}
+              disabled={extractingAll}
+              className="neu-btn-xs gap-1.5 is-info"
+              title={extractSource
+                ? `从${extractSource.isOfficial === false ? '指定提取源' : '正式盖章版采购文件'}提取得分点${extractSource.isOfficial === false ? '' : '（OCR）'}：${extractSource.fileName}`
+                : pickedSource
+                  ? `提取源：${pickedSource.fileName}`
+                  : '从「采购文件」步骤的采购文件提取得分点（多文件时可选）'}
+            >
+              <Sparkles size={13} />
+              {extractingAll ? '提取中…' : 'AI 全部提取'}
+            </button>
+            {/* U4（2026-11-23）：时长预期——同步提取（600s 超时/限流 3 次/分钟）此前无任何反馈预期，
+                用户点进黑箱等待。 */}
+            <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">
+              {extractingAll ? '提取中，请勿关闭本面板' : '同步提取约 1～10 分钟'}
+            </span>
+          </>
         )}
       </div>
       {/* 右侧：活合计 + 校验 + 新增（P1，2026-09-28：原摘要条与底部合计条并入此处——

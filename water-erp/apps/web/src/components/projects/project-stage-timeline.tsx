@@ -102,6 +102,7 @@ export function ProjectStageTimeline({
   canArchive,
   onOpenScoreStandard,
   onViewScoreStandard,
+  roundHasBidProject,
   onReopenStage,
   isStageLocked,
   currentRound,
@@ -127,6 +128,9 @@ export function ProjectStageTimeline({
   /** U1（2026-11-23）：只读查看评分标准——03 步骤已完成卡的「查看评分标准」入口（面板 viewOnly 态：
    *  全部写入口收起、不走 ensure 建链）。完成后 :3005 此前无任何回看途径，重开步骤警告过重。 */
   onViewScoreStandard?: (round: number) => void;
+  /** U2（2026-11-23）：该轮是否已关联开评标项目（bpRefs 判定）——重开确认弹窗追加
+   *  「公告↔采购文件一致性」联动警示。 */
+  roundHasBidProject?: (round: number) => boolean;
   /** 重开已完成步骤：目标→进行中，后续→待解锁；由父组件调 API 后刷新。 */
   onReopenStage?: (stageKey: ProjectWorkflowStageKey, round: number) => Promise<void>;
   /** 步骤锁定判定（开标锁定）：true 时「已完成 ↺」退化为静态徽章，禁止重开入口。
@@ -548,6 +552,14 @@ export function ProjectStageTimeline({
               style={{ background: 'color-mix(in oklch, var(--success) 7%, transparent)' }}>
               <span className="font-semibold text-[color:var(--success)]">保留内容：</span>已上传的文件、文件分析与步骤检查的结果均会保留，不会删除。
             </div>
+            {/* U2（2026-11-23）：重开联动提示——该轮已关联 BP（公告多半已公示）时，公告↔采购文件
+                一致性风险随重开产生，用户应在确认前看到而非事后补课。 */}
+            {roundHasBidProject?.(reopenTarget.round ?? 1) && (
+              <div className="rounded-[10px] px-3.5 py-2.5 text-[12px] leading-relaxed text-[color:var(--danger)] mb-4"
+                style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
+                <span className="font-semibold">该轮已关联开评标项目（采购公告可能已公示）</span>——重开后请核查公告与采购文件的一致性，并同步相关方。
+              </div>
+            )}
             <div className="flex items-center justify-end gap-2">
               <span className="mr-auto flex items-center gap-1 text-[10px] text-[color:var(--danger)]"><AlertTriangle size={11} />后续步骤需重新推进</span>
               <button type="button" onClick={() => setReopenTarget(null)} disabled={reopening} className="neu-btn-soft gap-1.5">取消</button>
