@@ -80,8 +80,8 @@ type CmpDim = "awardAmount" | "rounds" | "savings" | "savingsRate" | "abnormal";
 const CMP_STEMS = ["甲", "乙", "丙", "丁"];
 const CMP_MAX = 4;
 const CMP_DIMS: Array<{ key: CmpDim; label: string }> = [
+  { key: "rounds", label: "总项目数" }, /* 2026-11-23 用户裁定：轮次→总项目数且置于首位（默认维度） */
   { key: "awardAmount", label: "成交额" },
-  { key: "rounds", label: "总项目数" }, /* 2026-11-23 用户裁定：轮次→总项目数 */
   { key: "savings", label: "节资" },
   { key: "savingsRate", label: "节资率" },
   { key: "abnormal", label: "异常" },
@@ -639,7 +639,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   /* 公司对比页（2026-11-19 设计落地）：维度切换 + 双企 PK 选择——数据复用
    * 公司龙虎榜 ranking（admin 全榜）；leader 无榜时退单企卡 */
   /* 维度对比五维（2026-11-23：Chip 行换头部下拉） */
-  const [cmpDim, setCmpDim] = useState<CmpDim>("awardAmount");
+  const [cmpDim, setCmpDim] = useState<CmpDim>("rounds");
   /* 公告公示（2026-11-19 板块优化）：类型 Chip + 公告列表，懒取 */
   const [announcements, setAnnouncements] = useState<AnnouncementItem[] | null>(null);
   const [annDetail, setAnnDetail] = useState<AnnouncementDetail | null>(null);
@@ -1163,11 +1163,11 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               right={
                 /* 维度下拉置于区块标题右侧（2026-11-23 用户终版裁定） */
                 <InlineSelect
-                  label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "成交额"}
-                  active={cmpDim !== "awardAmount"}
+                  label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "总项目数"}
+                  active={cmpDim !== "rounds"}
                   options={CMP_DIMS.map((d) => ({ value: d.key, label: d.label }))}
                   selected={[cmpDim]}
-                  onSelect={(next) => setCmpDim((next[0] ?? "awardAmount") as typeof cmpDim)}
+                  onSelect={(next) => setCmpDim((next[0] ?? "rounds") as typeof cmpDim)}
                   ariaLabel="对比维度"
                 />
               }
