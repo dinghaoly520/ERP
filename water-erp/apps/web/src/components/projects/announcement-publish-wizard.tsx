@@ -1721,8 +1721,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                         ))}
                       </div>
                       <p className="mt-2.5 text-[11px] leading-relaxed text-[var(--muted-foreground)]">
-                        请核对左侧门户发布效果与内容；「确认发布」后按上述配置发布，公告 docx 归档至项目「{tenderDocumentLabel(project?.procurementMethod) === '招标文件' ? '招标公告公示' : '采购公告公示'}」阶段。
-                        公告附件为公开可下载材料，发布后在信息门户、供应商公告中心及「项目机会」的公告详情页提供下载（{tenderDocumentLabel(project?.procurementMethod)}仍仅在「项目机会」获取）。
+                        请先核对左侧发布效果与公告内容；点击「确认发布」后，系统按上述配置发布，并将公告文件（docx）归档至项目「{tenderDocumentLabel(project?.procurementMethod) === '招标文件' ? '招标公告公示' : '采购公告公示'}」阶段。
+                        公告附件为公开材料，发布后可在信息门户、供应商公告中心及「项目机会」的公告详情页下载；{tenderDocumentLabel(project?.procurementMethod)}仍仅在「项目机会」提供。
                       </p>
                     </div>
 
