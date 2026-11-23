@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Calculator, ChevronDown, Delete, Grip, X } from 'lucide-react';
+import { Calculator, ChevronDown, Delete, Grip, Trash2, X } from 'lucide-react';
 import { evaluateCalc, normalizeExprChars, type AngleMode, type CalcHistoryEntry } from '@/lib/calculator-core';
 
 /**
@@ -350,15 +350,26 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
 
             {/* 历史区（可折叠）：头部切换行 + 纸带（点击条目载入算式继续编辑） */}
             {history.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setHistoryOpen((v) => !v)}
-                aria-expanded={historyOpen}
-                className="mt-2 flex w-full shrink-0 items-center gap-1 rounded px-1 py-0.5 text-[10px] font-bold tracking-wide text-[var(--foreground)]"
-              >
-                <ChevronDown size={11} strokeWidth={1.5} className={`shrink-0 transition-transform ${historyOpen ? '' : '-rotate-90'}`} />
-                历史 <span className="font-mono">{history.length}</span>
-              </button>
+              <div className="mt-2 flex w-full shrink-0 items-center gap-1 px-1 py-0.5">
+                <button
+                  type="button"
+                  onClick={() => setHistoryOpen((v) => !v)}
+                  aria-expanded={historyOpen}
+                  className="flex min-w-0 flex-1 items-center gap-1 rounded text-[10px] font-bold tracking-wide text-[var(--foreground)]"
+                >
+                  <ChevronDown size={11} strokeWidth={1.5} className={`shrink-0 transition-transform ${historyOpen ? '' : '-rotate-90'}`} />
+                  历史 <span className="font-mono">{history.length}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistory([])}
+                  title="清空历史"
+                  aria-label="清空历史"
+                  className="neu-btn-xs is-square is-danger !h-6 !w-6 !min-h-6"
+                >
+                  <Trash2 size={12} strokeWidth={1.8} />
+                </button>
+              </div>
             )}
             {history.length > 0 && historyOpen && (
               <div
