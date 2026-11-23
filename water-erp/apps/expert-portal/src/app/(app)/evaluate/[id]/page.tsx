@@ -26,6 +26,7 @@ import { openExpertUkey } from '@/utils/expert-ukey';
 import { MockUKeyAdapter } from '@water-erp/ukey';
 import { VerifyScoreStep } from '@/components/evaluate/verify-score-step';
 import { PointChecklistScoring, type PointDecisionValue } from '@/components/evaluate/point-checklist-scoring';
+import { CalculatorPopover } from '@/components/evaluate/calculator-popover';
 import { buildReqToPointIndex, disputesToPoint, type LinkedDispute } from '@/lib/requirement-dispute-link';
 import { MemoPanel } from '@/components/memo/memo-panel';
 import { HallMessagePanel } from '@/components/evaluate/hall-message-panel';
@@ -1416,6 +1417,8 @@ export default function ExpertEvaluatePage() {
           />
         </div>
         <div className="flex items-center gap-1.5">
+          {/* 通用计算器（2026-11-20 v1）——与开标消息/澄清答疑同款工具钮，全步骤可用 */}
+          <CalculatorPopover />
           <button onClick={() => { setShowMessages(!showMessages); if (!showMessages) setUnreadMessageCount(0); }}
             className="neu-btn-xs is-info">
             <MessageSquare size={13} strokeWidth={1.5} /> 开标消息
