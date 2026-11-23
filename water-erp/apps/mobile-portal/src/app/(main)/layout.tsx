@@ -118,8 +118,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   {user?.displayName ?? ""}
                 </span>
                 {user ? (
-                  <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_9%,transparent)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--muted-foreground)]">
-                    {/* 组织标注优先（2026-11-23 用户裁定：王华董事长→水发集团、张宏董事长→设计公司），无归属回退角色 */}
+                  /* 组织徽记（2026-11-23 用户裁定「更优美」）：鎏金渐变胶囊——与皇冠徽记同族，
+                     顶缘内高光保留白瓷质感；无归属回退角色标签 */
+                  <span
+                    className="shrink-0 rounded-full bg-[linear-gradient(135deg,color-mix(in_oklch,var(--gold)_18%,transparent),color-mix(in_oklch,var(--gold)_7%,transparent))] px-2 py-0.5 text-[11px] font-bold tracking-[0.02em] text-[var(--gold)] shadow-[inset_0_1px_0_oklch(1_0_0/0.55),0_1px_3px_oklch(0.55_0.06_85/0.14)]"
+                  >
                     {user.company || ROLE_LABELS[user.role] || user.role}
                   </span>
                 ) : null}
