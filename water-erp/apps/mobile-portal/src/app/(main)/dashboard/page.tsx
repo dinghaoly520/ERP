@@ -76,6 +76,14 @@ function PMI_STAGE_LABELS_OF(key: string): string {
 
 /* 比例条色板/填充统一走 @/lib/bar-style（2026-11-23 所有比例条增色裁定） */
 
+type CmpDim = "awardAmount" | "rounds" | "savings" | "savingsRate" | "abnormal";
+const CMP_DIMS: Array<{ key: CmpDim; label: string }> = [
+  { key: "awardAmount", label: "成交额" },
+  { key: "rounds", label: "轮次" },
+  { key: "savings", label: "节资" },
+  { key: "savingsRate", label: "节资率" },
+  { key: "abnormal", label: "异常" },
+];
 /** 专家名录每页条数（2026-11-23 用户裁定） */
 const EXPERT_PAGE_SIZE = 10;
 /** 供应商名录每页条数（2026-11-23 用户裁定：与专家名录同款） */
@@ -628,7 +636,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
   /* 公司对比页（2026-11-19 设计落地）：维度切换 + 双企 PK 选择——数据复用
    * 公司龙虎榜 ranking（admin 全榜）；leader 无榜时退单企卡 */
-  const [cmpDim, setCmpDim] = useState<"awardAmount" | "rounds" | "savings" | "savingsRate" | "abnormal">("awardAmount");
+  /* 维度对比五维（2026-11-23：Chip 行换头部下拉） */
+  const [cmpDim, setCmpDim] = useState<CmpDim>("awardAmount");
   /* 公告公示（2026-11-19 板块优化）：类型 Chip + 公告列表，懒取 */
   const [announcements, setAnnouncements] = useState<AnnouncementItem[] | null>(null);
   const [annDetail, setAnnDetail] = useState<AnnouncementDetail | null>(null);
@@ -1133,18 +1142,23 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </AnalysisZone>
 
             {/* ── 维度对比：维度切换横条（全公司，率维不合计）── */}
-            <AnalysisZone icon={BarChart3} title="维度对比" count={`${rows.length} 家`} color="var(--gold)">
-              <div className="mb-2.5 flex flex-wrap gap-1.5">
-                {([
-                  ["awardAmount", "成交额"],
-                  ["rounds", "轮次"],
-                  ["savings", "节资"],
-                  ["savingsRate", "节资率"],
-                  ["abnormal", "异常"],
-                ] as const).map(([k, label]) => (
-                  <Chip key={k} active={cmpDim === k} onClick={() => setCmpDim(k)}>{label}</Chip>
-                ))}
-              </div>
+            <AnalysisZone
+              icon={BarChart3}
+              title="维度对比"
+              count={`${rows.length} 家`}
+              color="var(--gold)"
+              right={
+                /* 维度下拉置顶（2026-11-23 用户裁定：原 Chip 行换下拉框）；合计行右注家数 */
+                <InlineSelect
+                  label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "成交额"}
+                  active={cmpDim !== "awardAmount"}
+                  options={CMP_DIMS.map((d) => ({ value: d.key, label: d.label }))}
+                  selected={[cmpDim]}
+                  onSelect={(next) => setCmpDim((next[0] ?? "awardAmount") as typeof cmpDim)}
+                  ariaLabel="对比维度"
+                />
+              }
+            >
               {(() => {
                 const key = cmpDim;
                 const max = Math.max(...rows.map((x) => x[key]), 1);
