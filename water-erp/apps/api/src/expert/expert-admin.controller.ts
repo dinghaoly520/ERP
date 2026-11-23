@@ -25,7 +25,6 @@ import {
   ImportCsvDto,
   ImportBatchApproveDto,
   RecordViolationDto,
-  NotifyPrefsDto,
   OcrIntakeDto,
   AiSuggestEvaluationDto,
   AnalyzeExtractionFilesDto,
@@ -494,18 +493,6 @@ export class ExpertAdminController {
   @ApiOperation({ summary: '专家通知发送历史（最近 50 条；公司隔离）' })
   getNotifyHistory(@Param('id') id: string, @Request() req: any = {}) {
     return this.expertAdminService.getNotifyHistory(id, req.user);
-  }
-
-  @Get(':id/notify-prefs')
-  @ApiOperation({ summary: '专家通知偏好（公司隔离）' })
-  getNotifyPrefs(@Param('id') id: string, @Request() req: any = {}) {
-    return this.expertAdminService.getNotifyPrefs(id, req.user);
-  }
-
-  @Patch(':id/notify-prefs')
-  @ApiOperation({ summary: '更新专家通知偏好（公司隔离）' })
-  updateNotifyPrefs(@Param('id') id: string, @Body() dto: NotifyPrefsDto, @Request() req: any = {}) {
-    return this.expertAdminService.updateNotifyPrefs(id, dto, req.user);
   }
 
   @Patch(':id/status')

@@ -3765,31 +3765,7 @@ ${combined}`,
     return { summary, experts: rows, aiSummary };
   }
 
-  /* ── 通知偏好（UserSettings.notificationPrefs）── */
-
-  async getNotifyPrefs(userId: string, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    const settings = await this.prisma.userSettings.findUnique({ where: { userId } });
-    const prefs = (settings?.notificationPrefs as Record<string, boolean> | null) ?? {};
-    return { inApp: prefs.inApp ?? true, sms: prefs.sms ?? false, phone: prefs.phone ?? false };
-  }
-
-  async updateNotifyPrefs(userId: string, dto: { inApp?: boolean; sms?: boolean; phone?: boolean }, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-    if (!user || user.role !== 'bid_expert') throw new NotFoundException('专家不存在');
-    const existing = await this.prisma.userSettings.findUnique({ where: { userId } });
-    const current = (existing?.notificationPrefs as Record<string, boolean> | null) ?? {};
-    const merged = { ...current, ...dto };
-    await this.prisma.userSettings.upsert({
-      where: { userId },
-      update: { notificationPrefs: merged },
-      create: { userId, notificationPrefs: merged },
-    });
-    return { success: true };
-  }
+  /* ── 通知（偏好管理已删 2026-11-23，仅留发送历史）── */
 
   /** 专家通知发送历史（最近 50 条），供详情页查看（公司隔离） */
   async getNotifyHistory(userId: string, actor?: AuthenticatedUser) {

@@ -496,14 +496,7 @@ export function addViolation(expertId: string, data: { type: string; detail: str
   return api.post<{ success: boolean }>(`/expert-admin/${expertId}/violation`, data);
 }
 
-/* 通知偏好 */
-export function getNotifyPrefs(userId: string) {
-  return api.get<{ inApp: boolean; sms: boolean; phone: boolean }>(`/expert-admin/${userId}/notify-prefs`);
-}
-export function updateNotifyPrefs(userId: string, data: { inApp?: boolean; sms?: boolean; phone?: boolean }) {
-  return api.patch<{ success: boolean }>(`/expert-admin/${userId}/notify-prefs`, data);
-}
-
+/* 通知记录（通知偏好管理已删 2026-11-23） */
 export interface NotifyHistoryItem { channel: string; status: string; error: string | null; time: string }
 export function getNotifyHistory(userId: string) {
   return api.get<NotifyHistoryItem[]>(`/expert-admin/${userId}/notify-history`);

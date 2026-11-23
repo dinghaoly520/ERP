@@ -5,13 +5,13 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { CopyIconButton } from '@/components/copy-icon-button';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyPrefs, updateNotifyPrefs, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
 import { listSpecialties } from '@/lib/api/expert';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, Phone, MessageSquare, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL, lifecycleLabelOf, LIFECYCLE_LABELS } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -124,7 +124,7 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'ai-adoption', label: 'AI采纳率', icon: Sparkles },
   { key: 'risk', label: '风险预警', icon: AlertTriangle },
   { key: 'violations', label: '违规记录', icon: ShieldAlert },
-  { key: 'notify', label: '通知偏好', icon: Bell },
+  { key: 'notify', label: '通知记录', icon: Bell },
 ];
 
 type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; notes: string; regionCode: string; expertLevel: string };
@@ -178,7 +178,6 @@ export default function ExpertDetailPage() {
   const [portrait, setPortrait] = useState<ExpertPortrait | null>(null);
   const [evaluations, setEvaluations] = useState<any[]>([]);
   const [violations, setViolations] = useState<any[]>([]);
-  const [notifyPrefs, setNotifyPrefs] = useState({ inApp: true, sms: false, phone: false });
   const [notifyHistory, setNotifyHistory] = useState<NotifyHistoryItem[]>([]);
   // AI 采纳率
   const [aiAdoption, setAiAdoption] = useState<any>(null);
@@ -263,7 +262,7 @@ export default function ExpertDetailPage() {
     if (tab === 'violations') tasks.push(track(getViolations(expertId).then(setViolations)));
     if (tab === 'ai-adoption') tasks.push(track(getAiAdoptionRate(expertId).then(setAiAdoption)));
     if (tab === 'risk') tasks.push(track(getRiskBrief(expertId).then(setRisk).catch((e: any) => { setRiskError(e?.message || '风险简报生成失败'); throw e; })));
-    if (tab === 'notify') { tasks.push(track(getNotifyPrefs(expertId).then(setNotifyPrefs))); tasks.push(track(getNotifyHistory(expertId).then(setNotifyHistory))); }
+    if (tab === 'notify') { tasks.push(track(getNotifyHistory(expertId).then(setNotifyHistory))); }
     Promise.all(tasks).finally(() => {
       setTabLoading(false);
       if (failed) setTabError(prev => ({ ...prev, [tab]: true }));
@@ -296,13 +295,6 @@ export default function ExpertDetailPage() {
       getViolations(expertId).then(setViolations).catch(() => {});
     } catch (e: any) { toast.error(e?.message || '添加失败'); }
     setVioSaving(false);
-  };
-
-  const saveNotifyPrefs = async () => {
-    try {
-      await updateNotifyPrefs(expertId, notifyPrefs);
-      toast.success('通知偏好已保存');
-    } catch (e: any) { toast.error(e?.message || '保存失败'); }
   };
 
   const openEditProfile = () => {
@@ -1024,44 +1016,11 @@ export default function ExpertDetailPage() {
       {tab === 'notify' && (
         <div className="neu-table-card p-5 space-y-4">
           <div className="flex items-center gap-2 mb-4">
-            <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><Bell size={14} className="text-[var(--accent)]" /></div>
-            <span className="text-sm font-bold text-[var(--foreground)]">通知偏好设置</span>
+            <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><History size={14} className="text-[var(--accent)]" /></div>
+            <span className="text-sm font-bold text-[var(--foreground)]">通知发送历史</span>
           </div>
-          <div className="space-y-3">
-            {[
-              { key: 'inApp' as const, icon: Bell, label: 'OA站内信', desc: '通过站内信接收评审任务通知' },
-              { key: 'sms' as const, icon: MessageSquare, label: '短信通知', desc: '通过短信接收评审任务通知' },
-              { key: 'phone' as const, icon: Phone, label: '电话通知', desc: '通过语音电话接收紧急通知' },
-            ].map(ch => (
-              <div key={ch.key} className="flex items-center justify-between rounded-xl bg-[color-mix(in_oklch,var(--surface)_70%,transparent)] px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.5)]">
-                <div className="flex items-center gap-3">
-                  <ch.icon size={18} className="text-[var(--muted-foreground)]" />
-                  <div>
-                    <div className="text-sm font-semibold text-[var(--foreground)]">{ch.label}</div>
-                    <div className="text-[11px] text-[var(--muted-foreground)]">{ch.desc}</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setNotifyPrefs(prev => ({ ...prev, [ch.key]: !prev[ch.key] }))}
-                  className="neu-toggle"
-                  data-on={notifyPrefs[ch.key]}
-                  aria-pressed={notifyPrefs[ch.key]}
-                  aria-label={`${ch.label}通知`}
-                >
-                  <span className="neu-toggle__knob" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <button onClick={saveNotifyPrefs} className="neu-btn-soft w-full justify-center">保存偏好设置</button>
 
-          {/* 通知发送历史 */}
-          <hr className="wb-section-rule" />
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <History size={13} className="text-[var(--muted-foreground)]" />
-              <span className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">最近通知记录</span>
-            </div>
             {notifyHistory.length === 0 ? (
               <p className="text-xs text-[var(--muted-foreground)]">该专家暂无通知发送记录</p>
             ) : (
