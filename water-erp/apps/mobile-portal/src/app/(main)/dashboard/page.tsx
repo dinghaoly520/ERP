@@ -26,7 +26,6 @@ import {
   NotebookText,
   Milestone,
   ListOrdered,
-  ArrowLeftRight,
   ChartPie,
   Scale,
   Handshake,
@@ -77,6 +76,9 @@ function PMI_STAGE_LABELS_OF(key: string): string {
 /* 比例条色板/填充统一走 @/lib/bar-style（2026-11-23 所有比例条增色裁定） */
 
 type CmpDim = "awardAmount" | "rounds" | "savings" | "savingsRate" | "abnormal";
+/** 企业对比列标（天干，签名细节）与上限 */
+const CMP_STEMS = ["甲", "乙", "丙", "丁", "戊"];
+const CMP_MAX = 5;
 const CMP_DIMS: Array<{ key: CmpDim; label: string }> = [
   { key: "awardAmount", label: "成交额" },
   { key: "rounds", label: "轮次" },
@@ -723,8 +725,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .catch(() => { if (active) setAnnouncements([]); });
     return () => { active = false; };
   }, [analysisOpen, companyIds]);
-  const [cmpA, setCmpA] = useState<string | null>(null);
-  const [cmpB, setCmpB] = useState<string | null>(null);
+  /* 企业对比多选（2026-11-23 用户裁定：双企扩为 2–5 家）；为空/口径变动时派生补足成交额前两名 */
+  const [cmpPicks, setCmpPicks] = useState<string[]>([]);
 
   /* 数据分析页（2026-11-19 重构裁定）：归档区走 dashboard 轮次、进行中区走 PMI
    * 进展清单——开层懒取一次（会话内缓存） */
@@ -1107,41 +1109,48 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <>
             {/* ══ 公司对比（2026-11-19 设计落地；2026-11-23 用户裁定重设计）：数据源改主数据
              *  companyComparison（随页级时间/公司口径，弃龙虎榜固定月/年）——
-             *  排行（成交额排名卡）→ 五维对比图 → 双企 PK（默认 Top2、优胜高亮+计分）══ */}
+             *  五维对比图（维度下拉）→ 企业对比（2–5 家矩阵，甲乙丙列标、优胜高亮+计分）；公司排行卡 2026-11-23 删══ */}
             {(() => {
-              const rows = data?.companyComparison ?? [];
+              /* 口径内全部公司入榜（2026-11-23：与页头公司选择器同集合，无数据补零；未归属公司行殿后）
+                 ——此前仅有轮次/异常的公司入榜，口径下只余一家时双企无从选择 */
+              const backendRows = data?.companyComparison ?? [];
+              const scopeCompanies = companyIds.length ? (companies ?? []).filter((c) => companyIds.includes(c.id)) : companies ?? [];
+              const rows = [
+                ...scopeCompanies.map((c) => ({
+                  ...(backendRows.find((r) => r.companyId === c.id) ?? { companyId: c.id, company: c.name, rounds: 0, awarded: 0, awardAmount: 0, awardedBudget: 0, savings: 0, savingsRate: 0, abnormal: 0 }),
+                  shortName: c.shortName,
+                })),
+                ...backendRows.filter((r) => !scopeCompanies.some((c) => c.id === r.companyId)).map((r) => ({ ...r, shortName: null as string | null })),
+              ].sort((a, b) => b.awardAmount - a.awardAmount || a.company.localeCompare(b.company, "zh"));
               if (!rows.length) {
                 return !data ? <div className="py-2"><Skeleton lines={6} height={44} /></div> : <EmptyState text="当前口径下暂无公司数据" />;
               }
-              const top = rows[0];
+              type CmpRow = (typeof rows)[number];
+              const idOf = (r: CmpRow) => r.companyId || r.company;
+              // 已选公司仍在口径内者保留；不足 2 家按成交额榜序补足；上限 CMP_MAX
+              const kept = cmpPicks.filter((id) => rows.some((r) => idOf(r) === id));
+              const pickIds = [...kept, ...rows.filter((r) => !kept.includes(idOf(r))).slice(0, Math.max(0, 2 - kept.length)).map(idOf)].slice(0, CMP_MAX);
+              const picks = pickIds.map((id) => rows.find((r) => idOf(r) === id) ?? rows[0]);
+              // 指标×企业矩阵：各指标最优（异常以少为优）加粗；全平行无优胜
+              const metricDefs: Array<{ label: string; get: (r: CmpRow) => number; fmt: (v: number) => string; lower?: boolean }> = [
+                { label: "轮次", get: (r) => r.rounds, fmt: String },
+                { label: "已成交", get: (r) => r.awarded, fmt: String },
+                { label: "成交额", get: (r) => r.awardAmount, fmt: fmtWan },
+                { label: "成交预算", get: (r) => r.awardedBudget, fmt: fmtWan },
+                { label: "节资", get: (r) => r.savings, fmt: fmtWan },
+                { label: "节资率", get: (r) => r.savingsRate, fmt: (v) => `${v.toFixed(1)}%` },
+                { label: "异常", get: (r) => r.abnormal, fmt: String, lower: true },
+              ];
+              const metricRows = metricDefs.map((m) => {
+                const vals = picks.map(m.get);
+                const best = m.lower ? Math.min(...vals) : Math.max(...vals);
+                const decided = vals.some((v) => v !== best);
+                return { label: m.label, cells: vals.map((v) => ({ text: m.fmt(v), win: decided && v === best })) };
+              });
+              const wins = picks.map((_, i) => metricRows.filter((m) => m.cells[i].win).length);
+              const tie = metricRows.filter((m) => m.cells.every((c) => !c.win)).length;
               return (
                 <>
-            {/* ── 公司排行：成交额排名卡（轮次/已成交/节资/节资率元信息行 + 异常胶囊）── */}
-            <AnalysisZone icon={ListOrdered} title="公司排行" count={`${rows.length} 家`} color="var(--accent)">
-              <div className="space-y-1.5">
-                {rows.map((r, i) => (
-                  <div key={r.companyId || r.company} className="rounded-[12px] m-tile px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-bold ${i === 0 ? "bg-[color-mix(in_oklch,var(--gold)_16%,transparent)] text-[var(--gold)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--warning)_14%,transparent)] text-[var(--warning)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                      <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.company}</span>
-                      <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--accent)]">{fmtWan(r.awardAmount)}</span>
-                    </div>
-                    {/* 元信息单色（unslop 2026-11-23：一行内仅成交额用主色、异常用语义红，其余中性） */}
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-8 text-[12px] text-[var(--muted-foreground)]">
-                      <span className="tabular-nums">{r.rounds} 轮</span>
-                      <span className="tabular-nums">已成交 {r.awarded}</span>
-                      <span className="tabular-nums">节资 {fmtWan(r.savings)}</span>
-                      <span className="tabular-nums">节资率 {r.savingsRate}%</span>
-                      {r.abnormal > 0 ? <span className="rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-1.5 py-0.5 font-semibold tabular-nums text-[var(--danger)]">异常 {r.abnormal}</span> : null}
-                    </div>
-                    <div className="mt-1.5 ml-8 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                      <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${top.awardAmount > 0 ? (r.awardAmount / top.awardAmount) * 100 : 0}%`, background: barFill(barColorAt(i)) }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </AnalysisZone>
-
             {/* ── 维度对比：维度切换横条（全公司，率维不合计）── */}
             <AnalysisZone
               icon={BarChart3}
@@ -1189,76 +1198,55 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             </AnalysisZone>
 
             {/* ── 双企 PK：任选两家逐项对比，优胜方加粗着色 + 顶部计分 ── */}
-            <AnalysisZone icon={Scale} title="双企对比" count={`${rows.length} 家`} color="var(--success)">
+            {/* ── 企业对比（2026-11-23 用户裁定：双企扩为 2–5 家）——多选 + 指标×企业矩阵，
+                天干甲乙丙丁戊为列标（签名细节），各指标最优加粗主色，底部计分 ── */}
+            <AnalysisZone icon={Scale} title="企业对比" count={`${picks.length} 家`} color="var(--success)">
               {rows.length < 2 ? (
-                /* 退化态（unslop 2026-11-23）：口径下不足两家时不渲染整套对比，直接说明原因 */
                 <EmptyState text={`当前口径下只有 ${rows.length} 家公司，选择更多公司后可对比`} />
-              ) : (() => {
-                // 默认 Top2 两家不同公司；已选公司不在当前口径时回退
-                const a = rows.find((r) => r.companyId === cmpA) ?? rows[0];
-                const b =
-                  rows.find((r) => r.companyId === cmpB && r.companyId !== a.companyId)
-                  ?? rows.find((r) => r.companyId !== a.companyId)
-                  ?? rows[0];
-                const opts = rows.map((r) => ({ value: r.companyId || r.company, label: r.company }));
-                const idOf = (r: typeof a) => r.companyId || r.company;
-                const metrics: Array<{ label: string; va: string; vb: string; aWin: boolean | null }> = [
-                  { label: "轮次", va: `${a.rounds}`, vb: `${b.rounds}`, aWin: a.rounds !== b.rounds ? a.rounds > b.rounds : null },
-                  { label: "已成交", va: `${a.awarded}`, vb: `${b.awarded}`, aWin: a.awarded !== b.awarded ? a.awarded > b.awarded : null },
-                  { label: "成交额", va: fmtWan(a.awardAmount), vb: fmtWan(b.awardAmount), aWin: a.awardAmount !== b.awardAmount ? a.awardAmount > b.awardAmount : null },
-                  { label: "成交预算", va: fmtWan(a.awardedBudget), vb: fmtWan(b.awardedBudget), aWin: a.awardedBudget !== b.awardedBudget ? a.awardedBudget > b.awardedBudget : null },
-                  { label: "节资", va: fmtWan(a.savings), vb: fmtWan(b.savings), aWin: a.savings !== b.savings ? a.savings > b.savings : null },
-                  { label: "节资率", va: `${a.savingsRate.toFixed(1)}%`, vb: `${b.savingsRate.toFixed(1)}%`, aWin: a.savingsRate !== b.savingsRate ? a.savingsRate > b.savingsRate : null },
-                  { label: "异常", va: `${a.abnormal}`, vb: `${b.abnormal}`, aWin: a.abnormal !== b.abnormal ? a.abnormal < b.abnormal : null },
-                ];
-                const aWon = metrics.filter((m) => m.aWin === true).length;
-                const bWon = metrics.filter((m) => m.aWin === false).length;
-                const tie = metrics.length - aWon - bWon;
-                const same = idOf(a) === idOf(b);
-                return (
-                  <div className="space-y-2.5">
-                    {/* 甲 / 乙 两方（签名细节，采购合同语言）：选择器上方小标 + 计分行同标 */}
-                    <div className="flex items-end gap-1.5">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 px-1 text-[11px] font-semibold text-[var(--muted-foreground)]">甲</div>
-                        <InlineSelect label={a.company} active={!!cmpA} options={opts} selected={[idOf(a)]} onSelect={(next) => setCmpA(next[0] ?? null)} ariaLabel="对比方甲" />
+              ) : (
+                <div className="space-y-2.5">
+                  <InlineSelect
+                    multiple
+                    label={picks.map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ")}
+                    active
+                    options={rows.map((r) => ({ value: idOf(r), label: r.company }))}
+                    selected={picks.map(idOf)}
+                    onSelect={(next) => setCmpPicks(next.slice(0, CMP_MAX))}
+                    ariaLabel="选择对比企业（2 到 5 家）"
+                  />
+                  <div className="px-1 text-[12px] text-[var(--muted-foreground)]">可选 2–5 家，默认成交额前两名</div>
+                  <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <div className="rounded-[12px] m-tile px-3 py-2 text-[14px]" style={{ minWidth: `${76 + picks.length * 92}px` }}>
+                      <div className="flex items-center gap-2 border-b border-[oklch(0.6_0.04_258_/_0.12)] pb-1.5">
+                        <span className="w-[4.5rem] shrink-0 text-[12px] text-[var(--muted-foreground)]">指标</span>
+                        {picks.map((p, i) => (
+                          <span key={idOf(p)} className="min-w-[5.25rem] flex-1 text-center">
+                            <span className="block text-[13px] font-bold text-[var(--accent)]">{CMP_STEMS[i]}</span>
+                            <span className="block truncate text-[11px] text-[var(--muted-foreground)]">{p.shortName ?? p.company}</span>
+                          </span>
+                        ))}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => { setCmpA(idOf(b)); setCmpB(idOf(a)); }}
-                        aria-label="交换甲乙"
-                        className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] m-tile text-[var(--muted-foreground)] active:scale-95"
-                      >
-                        <ArrowLeftRight size={14} />
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-1 px-1 text-[11px] font-semibold text-[var(--muted-foreground)]">乙</div>
-                        <InlineSelect label={b.company} active={!!cmpB} options={opts} selected={[idOf(b)]} onSelect={(next) => setCmpB(next[0] ?? null)} ariaLabel="对比方乙" />
-                      </div>
-                    </div>
-                    {!same ? (
-                      <div className="flex items-center justify-center gap-3 rounded-[10px] px-3 py-2 text-[13px] tabular-nums">
-                        <span className={aWon > bWon ? "font-bold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}>甲 优胜 {aWon}</span>
-                        <span className="text-[12px] text-[var(--muted-foreground)]">·</span>
-                        <span className={bWon > aWon ? "font-bold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}>乙 优胜 {bWon}</span>
-                        <span className="text-[12px] text-[var(--muted-foreground)]">· 持平 {tie}</span>
-                      </div>
-                    ) : (
-                      <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-center text-[12px] text-[var(--warning)]">甲乙相同，换一家再比</div>
-                    )}
-                    <div className={`space-y-0.5 rounded-[12px] m-tile px-3 py-2 text-[14px] ${same ? "opacity-50" : ""}`}>
-                      {metrics.map((m) => (
-                        <div key={m.label} className="flex items-center gap-2 py-0.5">
-                          <span className={`min-w-0 flex-1 truncate text-right tabular-nums ${m.aWin === true && !same ? "font-bold text-[var(--accent)]" : "font-medium text-[var(--foreground)]"}`}>{m.va}</span>
-                          <span className="w-[4rem] shrink-0 text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</span>
-                          <span className={`min-w-0 flex-1 truncate tabular-nums ${m.aWin === false && !same ? "font-bold text-[var(--accent)]" : "font-medium text-[var(--foreground)]"}`}>{m.vb}</span>
+                      {metricRows.map((m) => (
+                        <div key={m.label} className="flex items-center gap-2 py-1">
+                          <span className="w-[4.5rem] shrink-0 text-[12px] text-[var(--muted-foreground)]">{m.label}</span>
+                          {m.cells.map((c, i) => (
+                            <span key={i} className={`min-w-[5.25rem] flex-1 truncate text-center tabular-nums ${c.win ? "font-bold text-[var(--accent)]" : "font-medium text-[var(--foreground)]"}`}>{c.text}</span>
+                          ))}
                         </div>
                       ))}
                     </div>
-                    <p className="px-1 text-[12px] text-[var(--muted-foreground)]">加粗为优胜项，异常以少为优</p>
                   </div>
-                );
-              })()}
+                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-2 text-[13px] tabular-nums">
+                    {picks.map((p, i) => (
+                      <span key={idOf(p)} className={wins[i] > 0 && wins[i] === Math.max(...wins) ? "font-bold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}>
+                        {CMP_STEMS[i]} 优胜 {wins[i]}
+                      </span>
+                    ))}
+                    <span className="text-[12px] text-[var(--muted-foreground)]">· 持平 {tie}</span>
+                  </div>
+                  <p className="px-1 text-[12px] text-[var(--muted-foreground)]">加粗为各指标最优，异常以少为优</p>
+                </div>
+              )}
             </AnalysisZone>
                 </>
               );
