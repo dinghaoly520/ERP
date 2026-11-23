@@ -1614,18 +1614,27 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
                详情版式而非 docx），右=配置摘要 + 引用文件预览（默认折叠）；确认发布复用预览产物 */
             preview ? (() => {
               const dr = (draft ?? {}) as Record<string, string>;
-              const pubStart = dr.announcementStart || '';
-              const pubEnd = dr.announcementEnd || '';
+              // 摘要取数与 handlePreview/handlePublish 同口径（2026-11-23 修复）：「发布时」快捷件
+              // （announcementStartAtPublish）会把公示期锚定到发布时刻、保时长平移——此前摘要两行
+              // 读原始草稿字段，显示一键填充时的旧时刻，与左侧芯片（解析值）和实际发布行为分叉
+              const spanPreview = resolvePublishAtStartSpan(
+                dr,
+                publishTiming === 'scheduled' && scheduledDate ? scheduledDate : undefined,
+              );
+              const effStart = spanPreview?.start ?? dr.announcementStart ?? '';
+              const effEnd = spanPreview?.end ?? dr.announcementEnd ?? '';
               const summaryRows: Array<[string, React.ReactNode]> = [
                 ['公告范围', '全部可见'],
                 ['发布时间', publishTiming === 'now'
                   ? '确认后立即发布'
                   : publishTiming === 'announcement_start'
-                    ? `按公示期限（起）${formatDateTimeDisplay(((draft ?? {}) as Record<string, string>).announcementStart)}`
+                    ? (spanPreview
+                        ? `确认发布时起算（公示期随发布时刻平移，预览按当前时刻演示：${formatDateTimeDisplay(effStart)}）`
+                        : `按公示期限（起）${formatDateTimeDisplay(effStart)}`)
                     : `定时 ${formatDateTimeDisplay(scheduledDate)}`],
               ];
-              if (pubStart || pubEnd) {
-                summaryRows.push(['公示期限', `${formatDateTimeDisplay(pubStart)} 至 ${formatDateTimeDisplay(pubEnd)}`]);
+              if (effStart || effEnd) {
+                summaryRows.push(['公示期限', `${formatDateTimeDisplay(effStart)} 至 ${formatDateTimeDisplay(effEnd)}${spanPreview ? '（发布时刻起算·时长不变，以上为按当前时刻的演示值）' : ''}`]);
               }
               if (category === 'procurement_document') {
                 summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
@@ -1664,8 +1673,8 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               // 发布时间标签（门户详情页「发布时间」行同款格式）
               const publishTimeLabel = (() => {
                 const fmtTs = (v: string) => new Date(v).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-                const start = ((draft ?? {}) as Record<string, string>).announcementStart;
-                if (publishTiming === 'announcement_start' && start) return fmtTs(start);
+                // 与摘要同口径（2026-11-23）：「发布时」快捷件下用解析后的演示时刻，不读原始草稿旧值
+                if (publishTiming === 'announcement_start' && effStart) return fmtTs(effStart);
                 if (publishTiming === 'scheduled' && scheduledDate) return fmtTs(scheduledDate);
                 return fmtTs(new Date().toISOString());
               })();
