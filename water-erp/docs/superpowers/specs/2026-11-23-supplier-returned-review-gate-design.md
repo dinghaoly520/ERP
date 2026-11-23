@@ -61,6 +61,21 @@ RETURNED`（:334，且不判 reviewStage 是否轮到自己）——悬挂态下
   `status === 'PENDING'`（RETURNED 行只读）。
 - 通知待办弹窗不在本次范围（后端闸兜底，spec 记录）。
 
+### 3.2.1 修订（2026-11-23 第二次裁定）：admin 审批中心加「退回补正」tab
+
+生产实录暴露口径缺口：SUPPLIER_PENDING 待办（通知轨）与审批中心 tab 可见性（2026-09-30
+裁定 admin 只留「在审」）不同步——admin 收到待办后可能在审批中心找不到对应件。
+
+修订：admin 的状态 tab = **在审 + 退回补正**（已驳回 tab 仍隐藏，2026-09-30 裁定其余不变）：
+
+- 退回补正 tab **只看终审级退回件**（`status=RETURNED && reviewStage=ADMIN`）——与在审
+  「每级只看待自己审的」同构；初复审退回件与悬挂态不在 admin 视野（各归其级续审）
+- 只读：行无操作钮（canActOnStage 已叠加 PENDING）；选中面板显示「补正中：等待供应商
+  重新提交（退回原因：…）；重提后回到终审续审」
+- 角标计数放开（admin RETURNED 计数不再置 0，带 reviewStage=ADMIN 过滤）
+- `scopedStage` 扩展：RETURNED 对 admin 返回 'ADMIN'；leader/staff 维持不按级全见
+- 零后端改动（既有 list 端点已支持 status+reviewStage 组合查询）
+
 ### 3.3 存量脏数据修正脚本
 
 `apps/api/scripts/fix-returned-stage-drift.ts`（`npx tsx` 运行，dev 验证后生产执行）：

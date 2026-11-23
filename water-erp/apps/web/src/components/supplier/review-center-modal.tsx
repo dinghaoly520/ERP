@@ -482,11 +482,19 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗数据加载（选中态驱动的标准拉取模式） */
   /** 可见性规则（2026-09-30 用户裁定）：
    *  在审（PENDING）按级隔离——每级只见待自己审的（staff=初审/leader=复审/admin=终审）；
-   *  退回补正/已驳回不按级——admin 全见、同公司 leader 全见（公司域隔离已注入）、
-   *  同公司 staff 仅见自己经手的（后端按 ApprovalRecord.reviewerUserId 过滤）。 */
+   *  退回补正（2026-11-23 修订裁定）：admin 只看终审级退回件（重提后回终审续审）、
+   *  同公司 leader 全见（公司域隔离已注入）、同公司 staff 仅见自己经手的
+   *  （后端按 ApprovalRecord.reviewerUserId 过滤）；已驳回 tab 对 admin 隐藏
+   *  （2026-09-30 裁定保留部分）。 */
   const myStageKey = myRole === 'admin' ? 'ADMIN' : myRole === 'leader' ? 'LEADER' : myRole === 'staff' ? 'STAFF' : null;
-  const scopedStage = (status: string): string | undefined =>
-    !myStageKey || status !== 'PENDING' ? undefined : myStageKey;
+  // 在审按级隔离；退回补正（2026-11-23 修订裁定）：admin 只看终审级退回件（重提后回终审续审，
+  // 与在审「每级只看待自己的」同构）；leader/staff 维持全见（不按级）。
+  const scopedStage = (status: string): string | undefined => {
+    if (!myStageKey) return undefined;
+    if (status === 'PENDING') return myStageKey;
+    if (status === 'RETURNED' && myRole === 'admin') return 'ADMIN';
+    return undefined;
+  };
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -511,7 +519,7 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   const loadCounts = useCallback(() => {
     Promise.all([
       getSupplierList({ status: 'PENDING', page: 1, pageSize: 1, ...(scopedStage('PENDING') ? { reviewStage: scopedStage('PENDING') } : {}) }),
-      myRole === 'admin' ? Promise.resolve({ total: 0 }) : getSupplierList({ status: 'RETURNED', page: 1, pageSize: 1, ...(scopedStage('RETURNED') ? { reviewStage: scopedStage('RETURNED') } : {}) }),
+      getSupplierList({ status: 'RETURNED', page: 1, pageSize: 1, ...(scopedStage('RETURNED') ? { reviewStage: scopedStage('RETURNED') } : {}) }),
       myRole === 'admin' ? Promise.resolve({ total: 0 }) : getSupplierList({ status: 'REJECTED', page: 1, pageSize: 1, ...(scopedStage('REJECTED') ? { reviewStage: scopedStage('REJECTED') } : {}) }),
     ]).then(([p, r, j]) => setCounts({ PENDING: p.total, RETURNED: r.total, REJECTED: j.total })).catch(() => {});
   }, [myRole]);
@@ -613,8 +621,9 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
       {/* ── 左栏：筛选 + 列表 ── */}
       <div className="rc-split-list">
         {(() => {
-        // admin 不可见退回/驳回（2026-09-30 用户裁定）：其状态切换只保留「在审」
-        const visibleTabs = myRole === 'admin' ? STATUS_TABS.filter(t => t.key === 'PENDING') : STATUS_TABS;
+        // admin 状态 tab（2026-11-23 修订裁定）：在审 + 退回补正（只看终审级退回件，只读）；
+        // 已驳回 tab 仍隐藏（2026-09-30 裁定其余部分不变）
+        const visibleTabs = myRole === 'admin' ? STATUS_TABS.filter(t => t.key === 'PENDING' || t.key === 'RETURNED') : STATUS_TABS;
         return (
         <div className="neu-segment rc-segment-inline !text-xs" role="group" aria-label="按状态筛选申请"
           style={{ '--segs': visibleTabs.length } as React.CSSProperties}
@@ -1065,6 +1074,10 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                     {selStage === 'ADMIN' ? '终审通过 · 正式入库' : `通过 · 流转至${STAGE_META[selStage === 'STAFF' ? 'LEADER' : 'ADMIN']?.short}`}
                   </button>
                 </div>
+              </div>
+            ) : selected.status === 'RETURNED' ? (
+              <div className="rc-detail-foot text-center text-[11px] text-[var(--muted-foreground)]">
+                补正中：等待供应商重新提交（退回原因：{selected.returnReason || '—'}）；重提后回到{STAGE_META[(selected.reviewStage ?? 'STAFF') as string]?.short ?? '初审'}续审
               </div>
             ) : (
               <div className="rc-detail-foot text-center text-[11px] text-[var(--muted-foreground)]">
