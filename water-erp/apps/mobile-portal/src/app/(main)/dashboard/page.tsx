@@ -1236,9 +1236,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 /* 0/1 家的引导态（2026-11-23 用户裁定：可清空，不再强制回填两家） */
                 <div className="rounded-[12px] m-tile px-3 py-6 text-center">
                   <div className="text-[14px] font-semibold text-[var(--foreground)]">
-                    {picks.length === 0 ? "从右上角选择 2–4 家企业开始对比" : `已选 ${picks.length} 家，再选一家即可对比`}
+                    {picks.length === 0 ? "请在右上角选择 2–4 家企业" : `已选 1 家，请再选一家`}
                   </div>
-                  <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">名单为有业务数据或集团成员企业，默认成交额前两名</div>
+                  <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">可选有业务数据的企业或集团成员企业</div>
                 </div>
               ) : (
                 <div className="space-y-2.5">
