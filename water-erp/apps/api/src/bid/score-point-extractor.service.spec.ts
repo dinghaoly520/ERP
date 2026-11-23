@@ -7,7 +7,7 @@ jest.mock('node:fs/promises', () => ({
   readFile: jest.fn().mockResolvedValue(Buffer.from('tender-text')),
 }));
 
-import { ScorePointExtractorService } from './score-point-extractor.service';
+import { ScorePointExtractorService, filterNoteLikeSuggestions } from './score-point-extractor.service';
 
 describe('ScorePointExtractorService', () => {
   let service: ScorePointExtractorService;
@@ -330,5 +330,31 @@ describe('ScorePointExtractorService', () => {
     prisma.bidScoreItem.findMany.mockResolvedValue([]);
     await expect(service.extractAllScorePoints('p1')).resolves.toEqual([]);
     expect(prisma.attachment.findFirst).not.toHaveBeenCalled();
+  });
+
+  // ── U5（2026-11-23）：AI 建议过滤零分备注类条目 ──
+
+  it('U5 纯函数：备注/注：/说明 且 fullScore<=0 滤除；有分值或有意义名称保留', () => {
+    const pts = [
+      { name: '履约经验', fullScore: 10, evidenceHint: '', objective: true },
+      { name: '备注', fullScore: 0, evidenceHint: '', objective: true },
+      { name: '注：以上分数四舍五入', fullScore: 0, evidenceHint: '', objective: true },
+      { name: '备 注', fullScore: 0, evidenceHint: '', objective: true },
+      { name: '备注', fullScore: 5, evidenceHint: '', objective: true },
+    ];
+    const out = filterNoteLikeSuggestions(pts);
+    expect(out.map((p) => p.name)).toEqual(['履约经验', '备注']);
+  });
+
+  it('U5 集成：extractScorePoints 返回前滤除零分备注类建议（公务用车「备注」混入实测）', async () => {
+    prisma.bidScoreItem.findFirst.mockResolvedValue({ id: 'i-1', projectId: 'p1', category: 'BUSINESS', name: '商务评分', maxScore: 20, points: [] });
+    mockAutoSource();
+    validator.retryChatJson.mockResolvedValue({ items: [
+      { name: '履约经验', fullScore: 10, evidenceHint: '', objective: true },
+      { name: '备注', fullScore: 0, evidenceHint: '', objective: true },
+      { name: '注：上述各项评分保留两位小数', fullScore: 0, evidenceHint: '', objective: true },
+    ] });
+    const out = await service.extractScorePoints('p1', 'i-1');
+    expect(out.map((p) => p.name)).toEqual(['履约经验']);
   });
 });
