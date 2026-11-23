@@ -332,6 +332,14 @@ export default function SupplierDetailPage() {
   const stLabel = STATUS_LABEL[supplier.status] || supplier.status;
   const stTone = STATUS_TONE[supplier.status] || 'gray';
   const isPending = supplier.status === 'PENDING' || supplier.status === 'RETURNED';
+  // 审批操作栏口径（2026-11-23 裁定）：PENDING 且轮到我的级才显示——补正中（RETURNED）
+  // 只读（信息区保留）；已流转他级不显示（后端 400/403 兜底）。leader 代初审细分归审批中心。
+  const myStage = (supplier.reviewStage ?? 'STAFF') as string;
+  const canReview = supplier.status === 'PENDING' && (
+    (currentUser?.role === 'admin' && myStage === 'ADMIN') ||
+    (currentUser?.role === 'leader' && myStage === 'LEADER') ||
+    (currentUser?.role === 'staff' && myStage === 'STAFF')
+  );
   const isRejected = supplier.status === 'REJECTED';
   const daysSinceReg = Math.floor((Date.now() - new Date(supplier.createdAt).getTime()) / (1000 * 60 * 60 * 24));
   // 入库时间（2026-10-22 用户口径）：首次审批通过时刻（entryAt），无留痕回退注册时间
@@ -375,7 +383,7 @@ export default function SupplierDetailPage() {
   const pendingHint = supplier.status === 'RETURNED' ? '补正中' : '待审核';
 
   return (
-    <div className={`flex flex-col gap-5 ${isPending && isAdmin ? 'pb-24' : ''}`}>
+    <div className={`flex flex-col gap-5 ${canReview ? 'pb-24' : ''}`}>
       {/* ── 返回按钮 ── */}
       <button onClick={() => router.push(backPath)} className="flow-back shrink-0 self-start">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flow-back-arrow">
@@ -1277,8 +1285,8 @@ export default function SupplierDetailPage() {
           状态/懒加载/DOC_TYPES/删除链整组清理；tab 更名「资质材料」；
           后端 documents 端点保留未动 */}
 
-      {/* ═══ 审批操作栏（PENDING/RETURNED 时固定在底部）═══ */}
-      {isPending && isAdmin && (
+      {/* ═══ 审批操作栏（PENDING 且轮到我的级时固定在底部；补正中/未轮到不显示）═══ */}
+      {canReview && (
         <div className={`fixed bottom-0 left-0 right-0 z-40 bg-[var(--background)]/85 backdrop-blur-lg border-t border-[color-mix(in_oklch,var(--foreground)_8%,transparent)] transition-all duration-200 ${barCollapsed ? 'px-6 py-1.5' : 'px-6 py-3'}`}>
           {barCollapsed ? (
             <div className="max-w-6xl mx-auto flex items-center gap-3">
