@@ -3767,25 +3767,6 @@ ${combined}`,
     return { summary, experts: rows, aiSummary };
   }
 
-  /* ── 通知（偏好管理已删 2026-11-23，仅留发送历史）── */
-
-  /** 专家通知发送历史（最近 50 条），供详情页查看（公司隔离） */
-  async getNotifyHistory(userId: string, actor?: AuthenticatedUser) {
-    if (actor) await this.assertExpertInScope(userId, actor);
-    const logs = await this.prisma.notificationDeliveryLog.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-      select: { channel: true, status: true, error: true, createdAt: true },
-    });
-    return logs.map(l => ({
-      channel: l.channel,
-      status: l.status,
-      error: l.error,
-      time: l.createdAt.toISOString(),
-    }));
-  }
-
   /* 操作历史（审计，只读） */
 
   /** 专家管理操作历史：仅白名单动作，附操作人/时间/事由，供审计追溯（无改删端点，不可篡改）。 */

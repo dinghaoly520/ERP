@@ -489,12 +489,6 @@ export class ExpertAdminController {
     return this.expertAdminService.recordViolation(id, dto, req.user?.sub, req.user);
   }
 
-  @Get(':id/notify-history')
-  @ApiOperation({ summary: '专家通知发送历史（最近 50 条；公司隔离）' })
-  getNotifyHistory(@Param('id') id: string, @Request() req: any = {}) {
-    return this.expertAdminService.getNotifyHistory(id, req.user);
-  }
-
   @Patch(':id/status')
   @Roles('admin', 'leader')
   @ApiOperation({ summary: 'CTS A-218/222 专家库状态：待审核/在库/退库（暂停已下线 2026-11-16；审核留痕 verifiedBy/At）' })

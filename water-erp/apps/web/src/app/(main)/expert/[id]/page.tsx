@@ -5,13 +5,13 @@ import { useRouter, useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { CopyIconButton } from '@/components/copy-icon-button';
-import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getNotifyHistory, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, type NotifyHistoryItem, revealExpertField } from '@/lib/api/expert';
+import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, getAiAdoptionRate, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, revealExpertField } from '@/lib/api/expert';
 import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
 import { listSpecialties } from '@/lib/api/expert';
 import { useExpertAlerts } from '@/lib/hooks/use-alerts';
-import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, Bell, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
+import { TrendingUp, Award, AlertTriangle, ShieldAlert, ShieldCheck, History, Ban, Sparkles, RefreshCw, Pencil, X, User, Hash, Briefcase, GraduationCap, Mail, Building2, Calendar, FileText, IdCard, Users, MapPin, Loader2, Eye } from 'lucide-react';
 import { STAGE_LABEL, STAGE_COLOR, LEVEL_LABEL, lifecycleLabelOf, LIFECYCLE_LABELS } from '@water-erp/shared';
 
 interface ScoreRecord { id: string; score: number; reason: string | null; scoreItem: { name: string; category: string; maxScore: number }; }
@@ -114,7 +114,7 @@ function SectionTitle({ icon: Icon, children }: { icon: React.ComponentType<{ si
   );
 }
 
-type Tab = 'info' | 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'risk' | 'violations' | 'notify';
+type Tab = 'info' | 'overview' | 'timeline' | 'portrait' | 'evaluations' | 'ai-adoption' | 'risk' | 'violations';
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'info', label: '基本信息', icon: User },
   { key: 'overview', label: '评审项目', icon: TrendingUp },
@@ -124,7 +124,6 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'ai-adoption', label: 'AI采纳率', icon: Sparkles },
   { key: 'risk', label: '风险预警', icon: AlertTriangle },
   { key: 'violations', label: '违规记录', icon: ShieldAlert },
-  { key: 'notify', label: '通知记录', icon: Bell },
 ];
 
 type ProfileFormState = { displayName: string; email: string; specialty: string; title: string; qualifications: string; employer: string; departmentName: string; phone: string; idNumber: string; ethnicity: string; education: string; licenseNo: string; notes: string; regionCode: string; expertLevel: string };
@@ -178,7 +177,6 @@ export default function ExpertDetailPage() {
   const [portrait, setPortrait] = useState<ExpertPortrait | null>(null);
   const [evaluations, setEvaluations] = useState<any[]>([]);
   const [violations, setViolations] = useState<any[]>([]);
-  const [notifyHistory, setNotifyHistory] = useState<NotifyHistoryItem[]>([]);
   // AI 采纳率
   const [aiAdoption, setAiAdoption] = useState<any>(null);
   const [risk, setRisk] = useState<ExpertRiskBrief | null>(null);
@@ -262,7 +260,6 @@ export default function ExpertDetailPage() {
     if (tab === 'violations') tasks.push(track(getViolations(expertId).then(setViolations)));
     if (tab === 'ai-adoption') tasks.push(track(getAiAdoptionRate(expertId).then(setAiAdoption)));
     if (tab === 'risk') tasks.push(track(getRiskBrief(expertId).then(setRisk).catch((e: any) => { setRiskError(e?.message || '风险简报生成失败'); throw e; })));
-    if (tab === 'notify') { tasks.push(track(getNotifyHistory(expertId).then(setNotifyHistory))); }
     Promise.all(tasks).finally(() => {
       setTabLoading(false);
       if (failed) setTabError(prev => ({ ...prev, [tab]: true }));
@@ -1012,35 +1009,6 @@ export default function ExpertDetailPage() {
           )}
         </div>
       )}
-
-      {tab === 'notify' && (
-        <div className="neu-table-card p-5 space-y-4">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="neu-icon-well flex h-8 w-8 items-center justify-center rounded-[10px]"><History size={14} className="text-[var(--accent)]" /></div>
-            <span className="text-sm font-bold text-[var(--foreground)]">通知发送历史</span>
-          </div>
-
-          <div className="space-y-3">
-            {notifyHistory.length === 0 ? (
-              <p className="text-xs text-[var(--muted-foreground)]">该专家暂无通知发送记录</p>
-            ) : (
-              <div className="space-y-1 max-h-[200px] overflow-y-auto">
-                {notifyHistory.map((item, i) => {
-                  const chLabel = item.channel === 'in_app' ? '站内信' : item.channel === 'sms' ? '短信' : item.channel === 'phone' ? '电话' : item.channel;
-                  return (
-                    <div key={i} className="flex items-center gap-3 rounded-lg bg-[color-mix(in_oklch,var(--surface)_60%,transparent)] px-3 py-1.5 text-xs">
-                      <span className="font-semibold text-[var(--foreground)] capitalize">{chLabel}</span>
-                      <StatusBadge tone={item.status === 'sent' ? 'green' : item.status === 'failed' ? 'red' : 'orange'}>{item.status === 'sent' ? '已送达' : item.status === 'failed' ? '失败' : item.status}</StatusBadge>
-                      <span className="tabular-nums text-[var(--muted-foreground)] ml-auto">{new Date(item.time).toLocaleDateString('zh-CN')} {new Date(item.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
 
       {/* 邀请代回应/代变更弹窗（2026-10-21 留痕通道：必填理由） */}
       {inviteProxy && (

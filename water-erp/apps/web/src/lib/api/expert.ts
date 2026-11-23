@@ -496,12 +496,6 @@ export function addViolation(expertId: string, data: { type: string; detail: str
   return api.post<{ success: boolean }>(`/expert-admin/${expertId}/violation`, data);
 }
 
-/* 通知记录（通知偏好管理已删 2026-11-23） */
-export interface NotifyHistoryItem { channel: string; status: string; error: string | null; time: string }
-export function getNotifyHistory(userId: string) {
-  return api.get<NotifyHistoryItem[]>(`/expert-admin/${userId}/notify-history`);
-}
-
 /* 退库管理 */
 export function getRetireCandidates() {
   return api.get<any[]>('/expert-admin/retire-candidates');
