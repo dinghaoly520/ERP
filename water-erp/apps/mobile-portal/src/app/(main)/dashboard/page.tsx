@@ -48,6 +48,7 @@ import {
   fetchCompanyRanking,
   fetchDashboardData,
   fetchProjectStatusCounts,
+  BID_BUCKET_LABELS,
   type BidStageBucket,
   type BidStageProjectRow,
   type BidStageStatus,
@@ -81,13 +82,6 @@ function PMI_STAGE_LABELS_OF(key: string): string {
 const EXPERT_PAGE_SIZE = 10;
 /** 供应商名录每页条数（2026-11-23 用户裁定：与专家名录同款） */
 const SUPPLIER_PAGE_SIZE = 10;
-
-const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
-  running: "运行中项目",
-  pre: "标前项目",
-  in: "标中项目",
-  post: "标后项目",
-};
 
 
 

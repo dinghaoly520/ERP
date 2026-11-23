@@ -53,6 +53,13 @@ export async function fetchBidStageStatus(companyId?: string, startDate?: string
    （标后=中标单位·当前步骤；标前=当前步骤或已投/专家；标中=开标时间·等待开标/开标中/归档中） */
 export type BidStageBucket = 'running' | 'pre' | 'in' | 'post';
 export type BidStageProjectRow = { id: string; name: string; status: string };
+/** 四桶展示名（首页「实时运行态势」与进展页同卡共用） */
+export const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
+  running: "运行中项目",
+  pre: "标前项目",
+  in: "标中项目",
+  post: "标后项目",
+};
 export async function fetchBidStageProjects(bucket: BidStageBucket, companyId?: string): Promise<{ bucket: string; projects: BidStageProjectRow[] }> {
   const params = new URLSearchParams();
   params.set('bucket', bucket);

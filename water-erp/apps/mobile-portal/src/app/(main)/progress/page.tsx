@@ -3,13 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { Milestone, BarChart3, FolderKanban, Search } from "lucide-react";
+import { Milestone, FolderKanban, Radio, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, type ProgressStats, type ProjectProgress } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
-import { barFill } from "@/lib/bar-style";
+import { deltaOf, ratioCls, ratioTxt } from "@/lib/ratios";
+import {
+  fetchBidStageStatus,
+  fetchBidStageProjects,
+  BID_BUCKET_LABELS,
+  type BidStageBucket,
+  type BidStageStatus,
+  type BidStageProjectRow,
+} from "@/lib/api/dashboard";
+import { fetchBidLiveProjects, type BidLiveProject } from "@/lib/api/cockpit";
+import { usePolling } from "@/hooks/use-polling";
 import { fetchProcurementDimensions, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
@@ -188,16 +198,52 @@ export default function ProgressPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stats, searchKeyword, methodIds, departmentIds, handlerIds, queryRange.startDate, queryRange.endDate, dimensions]);
 
-  /* 采购阶段分布统计图（2026-11-19 用户裁定）：对筛选后清单按当前阶段计数——
-     随搜索/时间/方式/部门/经办人/公司全联动；顺位=STAGE_META 键序（采购流程 canon） */
-  const stageDist = useMemo(() => {
-    const counts = new Map<string, number>();
-    filteredProjects.forEach((p) => counts.set(p.currentStage, (counts.get(p.currentStage) ?? 0) + 1));
-    const order = Object.keys(STAGE_META);
-    return [...counts.entries()]
-      .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
-      .map(([key, count]) => ({ key, count, meta: getStageMeta(key) }));
-  }, [filteredProjects]);
+  /* 实时运行态势（2026-11-23 用户裁定：首页同卡移植到进展页）。口径选择器独立于页级筛选——
+     态势统计的是投标项目/标段生命周期（BidProject），与下方 PMI 项目清单是两套实体；
+     四 KPI=运行中(标前+标中)/标前/标中/标后，点 KPI 切桶看最新 5 项；30s 轮询开评标实名录点亮红点 */
+  const [bidRangeKey, setBidRangeKey] = useState<RangeKey>("all");
+  const [bidCustomRange, setBidCustomRange] = useState<{ from: string; to: string } | null>(null);
+  const [bidCompanyIds, setBidCompanyIds] = useState<string[]>([]);
+  const [bidStage, setBidStage] = useState<BidStageStatus | null>(null);
+  const queryBidRange = useMemo<{ startDate?: string; endDate?: string }>(
+    () =>
+      bidRangeKey === "custom"
+        ? { startDate: bidCustomRange?.from, endDate: bidCustomRange?.to }
+        : { startDate: RANGES[bidRangeKey].start() },
+    [bidRangeKey, bidCustomRange],
+  );
+  useEffect(() => {
+    let active = true;
+    fetchBidStageStatus(bidCompanyIds.length ? bidCompanyIds.join(",") : undefined, queryBidRange.startDate, queryBidRange.endDate)
+      .then((st) => { if (active) setBidStage(st); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [retryTick, bidCompanyIds, queryBidRange.startDate, queryBidRange.endDate]);
+  const [bidBucket, setBidBucket] = useState<BidStageBucket>("running");
+  const [bidRows, setBidRows] = useState<BidStageProjectRow[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchBidStageProjects(bidBucket, bidCompanyIds.length ? bidCompanyIds.join(",") : undefined)
+      .then((r) => { if (active) setBidRows(r.projects); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [bidBucket, bidCompanyIds, retryTick]);
+  const [live, setLive] = useState<{ projects: BidLiveProject[] } | null>(null);
+  usePolling(
+    useCallback(async () => {
+      const l = await fetchBidLiveProjects().catch(() => null);
+      if (l) setLive(l);
+    }, []),
+    30_000,
+  );
+  const openingNow = live?.projects.filter((p) => p.stage === "OPENING") ?? [];
+  const evaluatingNow = live?.projects.filter((p) => p.stage === "EVALUATING") ?? [];
+  const bidCompanyLabel =
+    bidCompanyIds.length === 0
+      ? "全部公司"
+      : bidCompanyIds.length <= 2
+        ? bidCompanyIds.map((id) => companies.find((c) => c.id === id)?.name ?? id).join("、")
+        : `${bidCompanyIds.length}家公司`;
 
   useEffect(() => {
     let active = true;
@@ -356,32 +402,119 @@ export default function ProgressPage() {
 
       {stats ? (
         <>
-          {/* ── 采购阶段分布统计图（随筛联动）── */}
+          {/* ── 实时运行态势（首页同卡，2026-11-23 用户裁定移植）：卡头独立口径双选择器；
+              两排分区——上=标段盘点四 KPI（选中桶 accent，非「全部」档带同比/环比子行）、
+              下=当前桶最新 5 项；排间 hairline ── */}
           <SectionCard
-            icon={BarChart3}
-            title="采购阶段分布"
+            icon={Radio}
+            title="实时运行态势"
             index={0}
+            right={
+              <>
+                <InlineSelect
+                  label={bidRangeKey === "custom" && bidCustomRange ? `${bidCustomRange.from.slice(5).replace("-", "/")}~${bidCustomRange.to.slice(5).replace("-", "/")}` : RANGES[bidRangeKey as PresetKey].label}
+                  active={bidRangeKey !== "all"}
+                  options={(Object.keys(RANGES) as PresetKey[]).reverse().map((k) => ({ value: k, label: RANGES[k].label }))}
+                  selected={[bidRangeKey]}
+                  onSelect={(next) => setBidRangeKey(next[0] as RangeKey)}
+                  onCustomApply={(from, to) => {
+                    setBidCustomRange({ from, to });
+                    setBidRangeKey("custom");
+                  }}
+                  customValue={bidCustomRange}
+                  customFirst
+                  ariaLabel="态势数据区间"
+                />
+                {role === "admin" ? (
+                  <InlineSelect
+                    multiple
+                    label={bidCompanyLabel}
+                    active={bidCompanyIds.length > 0}
+                    options={[{ value: "all", label: "全部公司" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
+                    selected={bidCompanyIds.length === 0 ? ["all"] : bidCompanyIds}
+                    onSelect={(next) => {
+                      const hadAll = bidCompanyIds.length === 0;
+                      if (next.includes("all") && !hadAll) setBidCompanyIds([]);
+                      else setBidCompanyIds(next.filter((v) => v !== "all"));
+                    }}
+                    ariaLabel={`态势公司口径：${bidCompanyLabel}`}
+                  />
+                ) : null}
+                {openingNow.length + evaluatingNow.length > 0 ? (
+                  <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden>
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--danger)] opacity-60 motion-reduce:animate-none" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--danger)]" />
+                  </span>
+                ) : null}
+              </>
+            }
           >
-            {stageDist.length ? (
-              <div className="space-y-2">
-                {stageDist.map((d) => (
-                  <div key={d.key} className="flex items-center gap-2">
-                    <span className="w-[6.25rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{d.meta.label}</span>
-                    <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                      {/* 2026-11-19 用户裁定：分母=在办总数（占比之和=100%），不再按最大值归一 */}
-                      <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / filteredProjects.length) * 100}%`, background: barFill(d.meta.color) }} />
-                    </div>
-                    {/* 文字风格（2026-11-19）：百分比为 primary（粗体主色）、计数退居次级小字 */}
-                    <span className="w-[4.5rem] shrink-0 text-right text-[15px] font-black tabular-nums text-[var(--foreground)]">
-                      {Math.round((d.count / filteredProjects.length) * 100)}%
-                      <span className="ml-1 text-[12px] font-medium text-[var(--muted-foreground)]">{d.count} 项</span>
-                    </span>
-                  </div>
-                ))}
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">
+                  标段盘点 · {bidRangeKey === "custom" ? "所选区间" : RANGES[bidRangeKey as PresetKey].label}
+                </div>
+                <div className="grid grid-cols-4 gap-2.5">
+                  {(() => {
+                    const bf = bidStage?.flow ?? null;
+                    const bstat = (k: "running" | "pre" | "in" | "post") => ({
+                      yoy: bf ? deltaOf(bf.cur[k], bf.yoy[k], null) : undefined,
+                      hb: bf ? deltaOf(bf.cur[k], bf.prev[k], null) : undefined,
+                    });
+                    return (Object.keys(BID_BUCKET_LABELS) as BidStageBucket[]).map((k) => {
+                      const st = bstat(k);
+                      const n = bidStage?.[k];
+                      return (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setBidBucket(k)}
+                          aria-pressed={bidBucket === k}
+                          className={`rounded-[12px] m-tile px-1 py-2.5 text-center active:scale-[0.98] ${bidBucket === k ? "bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]" : ""}`}
+                          aria-label={`${BID_BUCKET_LABELS[k]} ${n ?? "—"} 项，点看最新项目`}
+                        >
+                          <div className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${n == null ? "text-[var(--muted-foreground)]" : bidBucket === k ? "text-[var(--accent)]" : "text-[var(--foreground)]"}`}>
+                            {n ?? "—"}
+                          </div>
+                          <div className={`mt-1 truncate text-center text-[12px] ${bidBucket === k ? "font-semibold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>
+                            {BID_BUCKET_LABELS[k]}
+                          </div>
+                          {queryBidRange.startDate ? (
+                            <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] font-bold leading-none tabular-nums">
+                              <span className={ratioCls(st.yoy)}>同比 {ratioTxt(st.yoy)}</span>
+                              <span className={ratioCls(st.hb)}>环比 {ratioTxt(st.hb)}</span>
+                            </div>
+                          ) : null}
+                        </button>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
-            ) : (
-              <EmptyState text="无符合筛选条件的项目" />
-            )}
+
+              <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
+
+              <div>
+                <div className="mb-1 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">
+                  {BID_BUCKET_LABELS[bidBucket]} · 最新
+                </div>
+                <div className="space-y-1.5">
+                  {(bidRows ?? []).slice(0, 5).map((r) => (
+                    <div key={r.id} className="flex items-center gap-2 px-1 text-[13px] text-[var(--muted-foreground)]">
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full"
+                        style={{ background: bidBucket === "in" ? "var(--warning)" : bidBucket === "post" ? "var(--success)" : "var(--accent)" }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{r.name}</span>
+                      <span className="max-w-[55%] shrink-0 truncate tabular-nums">{r.status}</span>
+                    </div>
+                  ))}
+                  {bidRows && bidRows.length === 0 ? (
+                    <div className="py-0.5 text-center text-[13px] text-[var(--muted-foreground)]">该阶段暂无项目</div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           </SectionCard>
 
           {/* ── 进行中项目（2026-11-19 用户裁定：撤「项目清单」卡壳直接平铺；卡片信息
