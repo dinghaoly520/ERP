@@ -103,6 +103,8 @@
 /* Detail card — neumorphic plate (no glass / no drift)
    （原类名 .detail-card 与 bids.css/profile.css 冲突，本页改名 .ann-detail-card） */
 .ann-detail-card {
+  /* 2026-11-23 用户裁定：所有数字 Times New Roman（Times 置前——中文回落既有字体） */
+  font-family: "Times New Roman", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
   padding: 28px; border: none; border-radius: 16px;
   background: linear-gradient(105deg, oklch(1 0 0 / 0.94) 0%, oklch(0.99 0.003 258 / 0.62) 35%, oklch(1 0 0 / 0.16) 72%);
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.8), 2px 2px 8px oklch(0.55 0.03 258 / 0.1), -2px -2px 8px oklch(1 0 0 / 0.9);

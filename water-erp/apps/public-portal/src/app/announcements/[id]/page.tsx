@@ -39,14 +39,14 @@ export default function AnnouncementDetailPage() {
   }, [id]);
 
   if (loading) return (
-    <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+    <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Times New Roman","Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <Loader2 size={40} className="animate-spin text-[#5a6d8a]" />
       <p className="text-[#5a6d8a] font-semibold">正在加载公告…</p>
     </div>
   );
 
   if (!item) return (
-    <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+    <div className="flow-page flex flex-col items-center justify-center gap-4" style={{ fontFamily: '"Times New Roman","Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <div className="text-[#5a6d8a]">{errMsg?.includes('已下线') ? <Inbox size={40} /> : <TriangleAlert size={40} />}</div>
       <p className="text-[#5a6d8a] font-semibold">{errMsg ?? '未找到该公告'}</p>
       <button onClick={() => router.push('/announcements')}
@@ -57,7 +57,7 @@ export default function AnnouncementDetailPage() {
   );
 
   return (
-    <div className="flow-page" style={{ fontFamily: '"Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
+    <div className="flow-page" style={{ fontFamily: '"Times New Roman","Microsoft YaHei","PingFang SC",Arial,sans-serif' }}>
       <FlowBackdrop />
       <UnifiedHeader />
 
@@ -81,8 +81,13 @@ export default function AnnouncementDetailPage() {
 
           <h1 className="text-2xl font-black text-[#18243a] mb-4 leading-snug" style={{ fontFamily: '"SimHei","黑体",sans-serif' }}>{item.title}</h1>
 
-          {/* 元信息 —— 发布单位（2026-10-16）：公告必须标明公司（创建时写时快照） */}
-          <div className="flex items-center gap-5 text-sm text-[#8a96aa] mb-4">
+          {/* 元信息 —— 发布单位（2026-10-16）：公告必须标明公司（创建时写时快照）；
+              项目编号与发布时间同行（2026-11-23 用户裁定：编号不与关键信息芯片混排） */}
+          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-[#8a96aa]">
+            {(() => {
+              const code = String((item.metadata as Record<string, unknown> | null)?.projectCode ?? '').trim();
+              return code ? <span>项目编号 <span className="font-mono font-semibold tracking-tight text-[#064ea2]">{code}</span></span> : null;
+            })()}
             <span>发布时间：{item.date}</span>
             {item.companyName ? <span>发布单位：{item.companyName}</span> : null}
           </div>
@@ -107,10 +112,11 @@ export default function AnnouncementDetailPage() {
             </div>
           )}
 
-          {/* 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致 */}
+          {/* 结构化元数据（招标方式/预算金额/时间等）—— 与采购管理工作台一致；
+              项目编号已上移标题下（2026-11-23 用户裁定），不进芯片区 */}
           {!item.titleOnly && (() => {
             const meta = item.metadata || {};
-            const fields = (ANNOUNCEMENT_TYPE_META[item.type] || []).filter(f => meta[f.key]);
+            const fields = (ANNOUNCEMENT_TYPE_META[item.type] || []).filter(f => f.key !== 'projectCode' && meta[f.key]);
             if (fields.length === 0) return null;
             const shortFields = fields.filter(f => !f.area);
             const areaFields = fields.filter(f => f.area);

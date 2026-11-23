@@ -352,6 +352,8 @@ function portalFormatMetaValue(field: PortalMetaField, raw: unknown): string {
 }
 /** 正文排版（门户 .announcement-detail-content 摘录；以 .portal-announce-preview 作用域注入） */
 const PORTAL_PREVIEW_CONTENT_CSS = `
+/* 2026-11-23 用户裁定：预览全域数字 Times New Roman（Times 置前——中文回落，与两门户详情页同款） */
+.portal-announce-preview { font-family: "Times New Roman", "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
 .portal-announce-preview h2 { margin: 0 0 18px; font-size: 24px; font-weight: 900; color: #18243a; line-height: 1.45; }
 .portal-announce-preview h3 { margin: 28px 0 12px; padding-left: 12px; border-left: 4px solid #064ea2; font-size: 17px; font-weight: 800; color: #123a6e; line-height: 1.5; }
 .portal-announce-preview h4 { margin: 18px 0 8px; font-size: 15px; font-weight: 800; color: #26364e; }
@@ -2265,7 +2267,10 @@ function PortalAnnouncementPreview({
   objectionIsHtml: boolean;
 }) {
   const typeMeta = PORTAL_TYPE_TAG[announcementType] ?? { tag: announcementType, color: '#5a6d8a' };
+  // 项目编号上移标题下（2026-11-23 用户裁定）：不进关键信息芯片区——与两门户详情页同款
+  const projectCode = String(meta.projectCode ?? '').trim();
   const fields = (PORTAL_META_FIELDS[announcementType] ?? []).filter((f) => {
+    if (f.key === 'projectCode') return false;
     const v = meta[f.key];
     return v !== undefined && v !== null && v !== '';
   });
@@ -2307,8 +2312,11 @@ function PortalAnnouncementPreview({
             {title}
           </h1>
 
-          {/* 元信息 */}
-          <div className="mb-4 flex items-center gap-5 text-sm text-[#8a96aa]">
+          {/* 元信息（项目编号与发布时间同行——2026-11-23 用户裁定：编号不与关键信息芯片混排） */}
+          <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-[#8a96aa]">
+            {projectCode && (
+              <span>项目编号 <span className="font-mono font-semibold tracking-tight text-[#064ea2]">{projectCode}</span></span>
+            )}
             <span>发布时间：{publishTimeLabel}</span>
           </div>
 

@@ -192,7 +192,8 @@ export default function AnnouncementDetailPage() {
 
   const metaFields = useMemo(() => {
     const meta = (announcement?.metadata || {}) as Record<string, unknown>;
-    const fields = (ANNO_TYPE_META[announcement?.type] || []).filter((f) => meta[f.key]);
+    // 项目编号上移至发布时间行（2026-11-23 用户裁定）：不与关键信息芯片混排
+    const fields = (ANNO_TYPE_META[announcement?.type] || []).filter((f) => f.key !== "projectCode" && meta[f.key]);
     return { short: fields.filter((f) => !f.area), area: fields.filter((f) => f.area), meta };
   }, [announcement]);
 
@@ -222,6 +223,12 @@ export default function AnnouncementDetailPage() {
             </span>
             <div className="detail-meta">
               {announcement.isTop ? <span className="top-badge">置顶</span> : null}
+              {(() => {
+                const code = String(metaFields.meta.projectCode ?? "").trim();
+                return code ? (
+                  <span>项目编号 <span style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 600, color: "var(--brand)" }}>{code}</span></span>
+                ) : null;
+              })()}
               <span>发布时间：{dayjs(announcement.publishDate || announcement.createdAt).format("YYYY年MM月DD日 HH:mm")}</span>
               <span>阅读：{announcement.viewCount}次</span>
             </div>
