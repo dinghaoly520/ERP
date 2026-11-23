@@ -6723,6 +6723,9 @@ export class BidService {
       // N16（2026-11-20b 复核轮）：替换事实写监督日志——签字包核验事件表（verifyEvents）与
       // 监督视图的唯一披露源（被换出者经 signLoopExpertScope 不进名册/签字页，无此日志则
       // 委员会组成变更在法定报告零呈现）。
+      // F3（递延收口）：显式原子——监督日志与互换同事务同成败（PG 交互式事务中失败即毒化
+      // 整个事务，JS 层 catch 吞不掉回滚只会让后续语句报误导性错误；「互换+披露」原子正是
+      // N16 证据链要的语义）。
       await tx.bidSupervisionLog.create({
         data: {
           projectId, time: new Date(), role: '系统', target: `${e1.expertName} → ${e2.expertName}`,
@@ -6730,7 +6733,7 @@ export class BidService {
           result: `正选换出/候补递补（${e1.expertRole}→${e2.expertRole}）；签字包核验事件表据此披露委员会变更`,
           riskFlag: '中',
         },
-      }).catch(() => {});
+      });
       // 替换留痕（2026-10-21 终检补齐）：SWAP_OUT/SWAP_IN 轨迹——角色流转是邀请状态机的
       // 一部分，缺失即审计断链（被换出正选的履历、候补转正的依据均不可溯）
       await tx.expertInvitationLog.create({

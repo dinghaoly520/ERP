@@ -32,6 +32,7 @@ import { unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { recomputeExpertProgress, recomputeItemFromDecisions, filterEvaluableSuppliers, recomputeAllExpertsProgress } from '../bid/score-recalculate.helper';
 import { evaluateInvalidBid } from '../bid/evaluate-invalid-bid.helper';
 import { parseConflictedIds } from '../common/scoring/expert.util';
+import { isWaterProject, MIN_COMMITTEE_WATER, MIN_COMMITTEE_DEFAULT, MIN_COMMITTEE_SMALL } from '../bid/committee-composition.util';
 import { resolveEnvelopeVersion } from '../supplier-portal/envelope-version.util';
 import { checkScoreAnomaly, type ScoreRecordInput } from '../common/scoring/expert-deviation';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
@@ -829,21 +830,33 @@ export class ExpertService {
       data: { projectId, time: new Date(), role: '评审专家', target: expert.expertName,
         action: '确认利益回避', result: `回避供应商：${conflictNames}`, riskFlag: resolvedConflicts.length > 0 ? '中' : '无' },
     }).catch(() => {});
-    // N5（2026-11-20b 复核轮）：回避后该供应商的有效评审人数复核——低于法定 5 人单数口径
-    //（37 条）高风险留痕。不硬拦：回避是专家法定申报义务，硬拦会造「既不能回避也不能继续」死锁；
-    // 委员会组成的处置权在主持端（重新组建/流标）。人数=回避者之外的 confirmed 正选（其对回避
-    // 家的评分已被聚合层排除，P3-15）。
+    // N5（2026-11-20b 复核轮）/F4（递延收口）：回避后该供应商的有效评审人数复核——低于本项目
+    // 法定下限（committee-composition 单源：水利 7/默认 5，小项目恰 3 合法例外）高风险留痕。
+    // 不硬拦：回避是专家法定申报义务，硬拦会造「既不能回避也不能继续」死锁；处置权在主持端。
+    // F4 降额精确化：有效人数=回避者之外的 confirmed 正选 − 其他已对该供应商申报回避者
+    //（其评分已被聚合层排除，P3-15——口径与聚合一致）。
     try {
       if (resolvedConflicts.length > 0) {
-        const activePanel = await this.prisma.bidExpert.count({
+        const pmi = project.projectManagementItemId
+          ? await this.prisma.projectManagementItem.findUnique({ where: { id: project.projectManagementItemId }, select: { procurementCategory: true } })
+          : null;
+        const minSize = isWaterProject(pmi, project.name) ? MIN_COMMITTEE_WATER : MIN_COMMITTEE_DEFAULT;
+        const peers = await this.prisma.bidExpert.findMany({
           where: { projectId, expertRole: '正选', invitationStatus: 'confirmed', id: { not: expert.id } },
+          select: { id: true, conflictedSupplierIds: true },
         });
-        if (activePanel < 5) {
-          for (const sid of resolvedConflicts) {
+        const avoidingCount = (sid: string) =>
+          peers.filter(p => parseConflictedIds(p.conflictedSupplierIds).includes(sid)).length;
+        // 小项目例外按「组建时规模」判（原 confirmed 正选总数，含申报者）：原即 ≤3 的小项目
+        // 委员会不告警；原本 ≥5 人降到 4/3 人属组成失守须告警（回避后余数恰 3 ≠ 小项目委员会）
+        const originalPanel = peers.length + 1;
+        for (const sid of resolvedConflicts) {
+          const activePanel = peers.length - avoidingCount(sid);
+          if (activePanel < minSize && originalPanel > MIN_COMMITTEE_SMALL) {
             await this.prisma.bidSupervisionLog.create({
               data: { projectId, time: new Date(), role: '系统', target: rosterIdName.get(sid) ?? sid,
                 action: '有效评审人数提示',
-                result: `专家 ${expert.expertName} 回避后，该供应商有效评审专家降为 ${activePanel} 人（低于评标委员会 5 人以上单数口径），请主持端评估委员会组成`,
+                result: `专家 ${expert.expertName} 回避后，该供应商有效评审专家降为 ${activePanel} 人（低于本项目评标委员会 ${minSize} 人以上单数口径${minSize === MIN_COMMITTEE_WATER ? '（水利工程）' : ''}），请主持端评估委员会组成`,
                 riskFlag: '高' },
             }).catch(() => {});
           }

@@ -1029,7 +1029,20 @@ describe('BidService — stage transitions', () => {
       expect(abortLog?.[0].data.result).toContain('原因：定标前发现重大问题');
     });
 
-    it('N6：流标事务强制关闭全部未关报价轮（防流标后报价窗口残留）', async () => {
+    it('F3 递延收口：swap 监督日志写失败 → 互换整体回滚（事务内原子，不再吞错）', async () => {
+    prisma.bidProject.findUnique.mockResolvedValue({ stage: 'OPENING', name: 'P', procurementMethod: '公开招标' });
+    prisma.bidExpert.findFirst.mockImplementation(async ({ where }: any) =>
+      where?.id === 'e1' ? { id: 'e1', projectId: 'p1', expertName: '甲', expertRole: '正选', isLead: false, userId: 'u1', signedIn: false, invitationStatus: 'confirmed' }
+        : { id: 'e2', projectId: 'p1', expertName: '乙', expertRole: '候补', isPurchaserRepresentative: false, userId: 'u2', invitationStatus: 'confirmed' });
+    prisma.$queryRaw = jest.fn().mockResolvedValue([]);
+    prisma.bidExpert.findUnique = jest.fn().mockImplementation(async ({ where }: any) =>
+      where?.id === 'e1' ? { expertRole: '正选', signedIn: false, invitationStatus: 'confirmed' }
+        : { expertRole: '候补', signedIn: false, invitationStatus: 'confirmed' });
+    prisma.bidSupervisionLog.create.mockRejectedValueOnce(new Error('log write boom'));
+    await expect(service.swapExpertRole('p1', 'e1', 'e2')).rejects.toThrow('log write boom');
+  });
+
+  it('N6：流标事务强制关闭全部未关报价轮（防流标后报价窗口残留）', async () => {
       prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: 'P', procurementMethod: '公开招标', _count: { suppliers: 3 } });
       prisma.bidEvaluationResult.count.mockResolvedValue(0);
       prisma.bidProject.update.mockResolvedValue({ id: 'p1', stage: 'ABORTED' });

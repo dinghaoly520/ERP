@@ -381,8 +381,9 @@ describe('ExpertService', () => {
       );
     });
 
-    it('N5：回避后该供应商有效评审正选 <5 人 → 高风险留痕（不硬拦申报）', async () => {
-      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING' });
+    it('N5/F4：回避后有效评审（排除其他已回避该家的正选）< 法定下限 → 高风险留痕（默认口径 5）', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '普通房建项目' });
+      prisma.projectManagementItem = { findUnique: jest.fn().mockResolvedValue({ procurementCategory: '房建' }) };
       prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: ['s-old'] });
       prisma.bidSupplier.findMany.mockImplementation((a: any) =>
         a.where?.id
@@ -392,15 +393,54 @@ describe('ExpertService', () => {
       prisma.bidScoreRecord.count.mockResolvedValue(0);
       prisma.bidScoreRecord.findMany.mockResolvedValue([]);
       prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, avoidanceConfirmed: true });
-      prisma.bidExpert.count.mockResolvedValue(4); // N5：回避者之外仅 4 名正选 confirmed
+      // 4 名同侪：1 名已回避 c → 对 c 的有效评审=3 人 <5 → 告警（降额精确化：不再把已回避者计入）
+      prisma.bidExpert.findMany.mockImplementation(async (a: any) =>
+        a?.where?.id?.not === mockExpert.id
+          ? [
+              { id: 'p1', conflictedSupplierIds: ['c'] },
+              { id: 'p2', conflictedSupplierIds: null },
+              { id: 'p3', conflictedSupplierIds: null },
+              { id: 'p4', conflictedSupplierIds: null },
+            ]
+          : []);
 
       await service.confirmAvoidance('user-1', 'proj-1', ['c']);
 
       const warn = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '有效评审人数提示');
       expect(warn).toBeTruthy();
       expect(warn?.[0].data.riskFlag).toBe('高');
-      expect(warn?.[0].data.target).toContain('丙公司');
-      expect(warn?.[0].data.result).toContain('4 人');
+      expect(warn?.[0].data.result).toContain('3 人');
+      expect(warn?.[0].data.result).toContain('5 人');
+    });
+
+    it('F4：水利项目按 7 人下限——5 名有效评审也告警；小项目 3 人合法不告警', async () => {
+      prisma.bidProject.findUnique.mockResolvedValue({ stage: 'EVALUATING', name: '某水库除险加固工程' });
+      prisma.projectManagementItem = { findUnique: jest.fn().mockResolvedValue(null) };
+      prisma.bidExpert.findFirst.mockResolvedValue({ ...mockExpert, conflictedSupplierIds: null });
+      prisma.bidSupplier.findMany.mockImplementation((a: any) =>
+        a.where?.id ? Promise.resolve([{ id: 'c', supplierName: '丙公司' }]) : Promise.resolve([{ id: 'c' }]));
+      prisma.bidScoreItem.findMany.mockResolvedValue([]);
+      prisma.bidScoreRecord.count.mockResolvedValue(0);
+      prisma.bidScoreRecord.findMany.mockResolvedValue([]);
+      prisma.bidExpert.update.mockResolvedValue({ ...mockExpert, avoidanceConfirmed: true });
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { id: 'p1', conflictedSupplierIds: null }, { id: 'p2', conflictedSupplierIds: null },
+        { id: 'p3', conflictedSupplierIds: null }, { id: 'p4', conflictedSupplierIds: null },
+        { id: 'p5', conflictedSupplierIds: null },
+      ]); // 5 人：水利口径 <7 → 告警
+
+      await service.confirmAvoidance('user-1', 'proj-1', ['c']);
+      let warn = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '有效评审人数提示');
+      expect(warn?.[0].data.result).toContain('7 人');
+
+      // 小项目：原委员会恰 3 人（peers 2 + 申报者）→ 组建时即小项目，回避后不告警
+      prisma.bidSupervisionLog.create.mockClear();
+      prisma.bidExpert.findMany.mockResolvedValue([
+        { id: 'p1', conflictedSupplierIds: null }, { id: 'p2', conflictedSupplierIds: null },
+      ]);
+      await service.confirmAvoidance('user-1', 'proj-1', ['c']);
+      warn = prisma.bidSupervisionLog.create.mock.calls.find((c: any[]) => c[0]?.data?.action === '有效评审人数提示');
+      expect(warn).toBeUndefined();
     });
 
     it('P1-5（中断审查）：回避申报变更后重算本专家 progress（分母即时收缩，不再依赖下次提交）', async () => {
