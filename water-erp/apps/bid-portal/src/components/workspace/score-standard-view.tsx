@@ -15,6 +15,7 @@ import { useEffect, useState, useRef } from 'react';
 import { ListChecks, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { BidProjectDetail } from '@/lib/types';
+import { CATEGORY_LABEL } from '@water-erp/shared';
 
 /** 得分点（GET .../score-items/:itemId/points 返回的 BidScorePoint 子集）。 */
 interface ScorePoint {
@@ -72,7 +73,8 @@ export default function ScoreStandardView({ projectId, project }: { projectId: s
             >
               {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
               <span className="flex-1 text-[13px] font-bold">{item.name}</span>
-              <span className="rounded-full bg-[oklch(0.62_0.16_251_/_0.1)] px-2 py-0.5 text-[10px] font-bold text-[oklch(0.5_0.13_251)]">{item.category}</span>
+              {/* U7（2026-11-23）：类别徽标中文化——裸显枚举码（QUALIFICATION…）是开发语言，主持人不需要 */}
+              <span className="rounded-full bg-[oklch(0.62_0.16_251_/_0.1)] px-2 py-0.5 text-[10px] font-bold text-[oklch(0.5_0.13_251)]">{CATEGORY_LABEL[item.category] ?? item.category}</span>
               <span className="font-mono text-[12px] font-bold tabular-nums">{item.maxScore} 分</span>
             </button>
             {isOpen && (
