@@ -280,7 +280,7 @@ function SavingsRankRow({
             <span className="truncate tabular-nums">{meta}</span>
           </span>
         </span>
-        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--success)]">+{fmtWan(savings)}</span>
+        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--success)]"><span className="font-semibold text-[var(--muted-foreground)]">节资 </span>{fmtWan(savings)}</span>
       </div>
       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
         <span
@@ -1625,7 +1625,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                   <span className="max-w-[8.5rem] truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[11px] text-[var(--accent)]">
                                     {companyIds.length !== 1 && item.company ? `${item.company} · ` : ""}{deptLabel}
                                   </span>
-                                  <span className="truncate text-[11px] text-[var(--muted-foreground)]">节约 {item.savingsLabel}</span>
+                                  <span className="truncate text-[11px] text-[var(--muted-foreground)]">节资 {item.savingsLabel}</span>
                                 </span>
                               </span>
                               <span className="relative flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center">
@@ -2266,7 +2266,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             <div className="grid grid-cols-2 gap-2">
               <MetricCard label="控制价" value={activeSaving.controlAmountLabel} />
               <MetricCard label="中标价" value={activeSaving.awardAmountLabel} tone="accent" />
-              <MetricCard label="节约额" value={activeSaving.savingsLabel} tone="success" />
+              <MetricCard label="节资额" value={activeSaving.savingsLabel} tone="success" />
               <MetricCard label="节资率" value={`${activeSaving.savingsRate}%`} tone="success" />
             </div>
             <div className="space-y-1 rounded-[12px] m-tile px-3 py-2.5 text-[15px]">
