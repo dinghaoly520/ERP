@@ -309,7 +309,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
               className="flex shrink-0 cursor-move touch-none items-center justify-between pb-2"
               onPointerDown={startGesture('drag')}
             >
-              <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-[var(--muted-foreground)]">
+              <span className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-[var(--foreground)]">
                 <Calculator size={11} strokeWidth={1.5} /> 计算器
               </span>
               <button
@@ -324,7 +324,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
             </div>
 
             {/* 算式输入框（可点击编辑/框选/小键盘原生输入）+ 结果行 */}
-            <div className="flex shrink-0 flex-col gap-1.5 rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-2">
+            <div className="flex shrink-0 flex-col gap-2 rounded-[12px] bg-[oklch(0.96_0.01_258/0.35)] px-3 py-3">
               <input
                 ref={inputRef}
                 type="text"
@@ -334,15 +334,15 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 spellCheck={false}
                 autoComplete="off"
                 aria-label="算式输入"
-                className="w-full bg-transparent !p-0 font-mono text-[15px] leading-6 tracking-tight text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]/60"
+                className="w-full bg-transparent !p-0 font-mono text-[17px] leading-8 tracking-tight text-[var(--foreground)] outline-none placeholder:text-[var(--foreground)]/60"
               />
-              <div className="h-5 text-right font-mono text-sm font-bold tabular-nums leading-5">
+              <div className="h-7 text-right font-mono text-lg font-bold tabular-nums leading-7">
                 {error ? (
                   <span className="text-[12px] font-bold text-[var(--danger)]">{error}</span>
                 ) : result !== null ? (
                   <span className="text-[var(--foreground)]">= {result}</span>
                 ) : (
-                  <span className="text-[var(--muted-foreground)]/50">=</span>
+                  <span className="text-[var(--foreground)]">=</span>
                 )}
               </div>
             </div>
@@ -353,7 +353,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 type="button"
                 onClick={() => setHistoryOpen((v) => !v)}
                 aria-expanded={historyOpen}
-                className="mt-2 flex w-full shrink-0 items-center gap-1 rounded px-1 py-0.5 text-[10px] font-bold tracking-wide text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                className="mt-2 flex w-full shrink-0 items-center gap-1 rounded px-1 py-0.5 text-[10px] font-bold tracking-wide text-[var(--foreground)]"
               >
                 <ChevronDown size={11} strokeWidth={1.5} className={`shrink-0 transition-transform ${historyOpen ? '' : '-rotate-90'}`} />
                 历史 <span className="font-mono">{history.length}</span>
@@ -371,7 +371,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                     type="button"
                     title="点击载入此算式继续编辑"
                     onClick={() => loadHistory(h)}
-                    className="block w-full truncate rounded px-1.5 py-0.5 text-right font-mono text-[11px] tabular-nums text-[var(--muted-foreground)] transition-colors hover:bg-[oklch(0.96_0.04_251/0.25)] hover:text-[var(--foreground)]"
+                    className="block w-full truncate rounded px-1.5 py-0.5 text-right font-mono text-[11px] tabular-nums text-[var(--foreground)] transition-colors hover:bg-[oklch(0.96_0.04_251/0.25)]"
                   >
                     {h.expr} = {h.result}
                   </button>
@@ -395,7 +395,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
 
             {/* 右下角缩放手柄（SE 方向，MIN/MAX_SIZE 钳制） */}
             <div
-              className="absolute bottom-0.5 right-0.5 flex h-4 w-4 cursor-nwse-resize touch-none items-center justify-center text-[var(--muted-foreground)]"
+              className="absolute bottom-0.5 right-0.5 flex h-4 w-4 cursor-nwse-resize touch-none items-center justify-center text-[var(--foreground)]"
               onPointerDown={startGesture('resize')}
               role="separator"
               aria-label="拖拽调整计算器大小"
