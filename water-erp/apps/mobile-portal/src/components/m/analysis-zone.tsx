@@ -12,12 +12,15 @@ export function AnalysisZone({
   icon: Icon,
   title,
   count,
+  right,
   color = "var(--accent)",
   children,
 }: {
   icon: ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
   title: string;
   count: string;
+  /** 右槽控件（如下拉框，2026-11-23 维度对比裁定）；缺省显示 count 文本 */
+  right?: ReactNode;
   color?: string;
   children: ReactNode;
 }) {
@@ -31,7 +34,7 @@ export function AnalysisZone({
           <Icon size={16} strokeWidth={1.5} />
         </span>
         <span className="text-[16px] font-bold tracking[-0.01em] text-[var(--foreground)]">{title}</span>
-        <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{count}</span>
+        {right ?? <span className="ml-auto shrink-0 text-[12px] font-semibold tabular-nums text-[var(--muted-foreground)]">{count}</span>}
       </div>
       <div className="mt-1">{children}</div>
     </section>

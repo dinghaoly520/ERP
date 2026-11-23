@@ -312,6 +312,7 @@ export function ProjectDetailPanel({
       fileName: a.fileName,
       objectKey: a.objectKey,
       mimeType: a.mimeType,
+      uploadedAt: a.createdAt ?? '',
       isCurrent: a.id === tender.officialTenderAttachmentId,
     }));
   }, [item.stages]);

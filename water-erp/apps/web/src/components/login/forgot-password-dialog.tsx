@@ -131,7 +131,7 @@ export function ForgotPasswordDialog({
       await requestPasswordReset(normalizePasswordResetRequest(form));
 
       setSuccessMessage(
-        "申请已提交。无论账号是否存在，平台都会按统一流程受理；审核通过后将按本次填写的新密码生效。",
+        "申请已提交。管理员审核通过后，将按本次填写的新密码生效。",
       );
       setUsername("");
       setApplicantName("");

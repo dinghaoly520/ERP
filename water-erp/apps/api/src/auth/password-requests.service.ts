@@ -89,21 +89,32 @@ export class PasswordRequestsService {
     );
   }
 
-  /** 忘记密码重置申请（登录页，匿名）：不泄露账号是否存在，统一返回成功 */
+  /** 忘记密码重置申请（登录页，匿名；2026-11-23 资格闸修订）：仅已入库供应商
+   *  （Supplier.status=APPROVED）与内部账号可申请。审核中/退回/驳回/停用/黑名单/
+   *  账号不存在统一 400 拒绝——不区分具体状态（审核进度不外泄，与登录侧防枚举同精神），
+   *  不落库不通知；验证码核验保持在资格判定之前（探测须消耗实名短信+限流）。
+   *  原先「未匹配也受理」的假成功路径废止（垃圾申请+全量 admin 通知根因）；存量
+   *  unmatched 行仍可在 :3005 审批面查看/驳回（listPendingResets internal 口径保留）。 */
   async submitReset(username: string, applicantName: string, applicantContact: string, verificationCode: string, newPassword: string) {
     await this.verificationService.verifyRegistrationCode(applicantContact, verificationCode); // 验证按原文（Redis 键，不落库）
-    const sealedContact = sealPii(applicantContact) as string; // PII 国密密封落库（等保+密评）
-    const normalized = hashSync(newPassword, 10);
     const matched = await this.prisma.user.findFirst({
       where: { username, isActive: true },
-      select: { id: true, passwordHash: true, role: true },
+      select: { id: true, passwordHash: true, role: true, supplier: { select: { status: true } } },
     });
+    if (!matched || (matched.role === 'supplier' && matched.supplier?.status !== 'APPROVED')) {
+      throw new BadRequestException({
+        error: '未找到可受理密码重置申请的账号。请核对登录账号是否正确（供应商账号须已入库方可申请）；如有疑问请联系采购中心。',
+        code: 'RESET_NOT_ELIGIBLE',
+      });
+    }
+    const sealedContact = sealPii(applicantContact) as string; // PII 国密密封落库（等保+密评）
+    const normalized = hashSync(newPassword, 10);
     const created = await this.prisma.passwordResetRequest.create({
       data: {
         requestedUsername: username,
         applicantName,
         applicantContact: sealedContact,
-        matchedUserId: matched?.id ?? null,
+        matchedUserId: matched.id,
         requestedPasswordHash: normalized,
         requestedPasswordVault: encryptPasswordVault(newPassword) ?? null,
       },

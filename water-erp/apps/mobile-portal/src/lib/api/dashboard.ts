@@ -40,11 +40,26 @@ export type BidStageCounts = { running: number; pre: number; in: number; post: n
 export type BidStageStatus = BidStageCounts & {
   flow: { cur: BidStageCounts; yoy: BidStageCounts; prev: BidStageCounts } | null;
 };
-export async function fetchBidStageStatus(companyId?: string, startDate?: string, endDate?: string): Promise<BidStageStatus> {
+/** 进展页模式过滤（2026-11-23 用户裁定：态势卡跟随板块选择器）——传入对象即切换语义：
+ *  时间按 PMI 立项日、方式/部门/经办人走 PMI 关系过滤，headline 四数也按窗计 */
+export type BidStagePmiFilter = { procurementMethods?: string[]; departments?: string[]; createdBy?: string[] };
+
+export async function fetchBidStageStatus(
+  companyId?: string,
+  startDate?: string,
+  endDate?: string,
+  pmiFilter?: BidStagePmiFilter,
+): Promise<BidStageStatus> {
   const params = new URLSearchParams();
   if (companyId) params.set('companyId', companyId);
   if (startDate) params.set('startDate', startDate);
   if (endDate) params.set('endDate', endDate);
+  if (pmiFilter) {
+    params.set('pmi', '1');
+    if (pmiFilter.procurementMethods?.length) params.set('procurementMethod', pmiFilter.procurementMethods.join(','));
+    if (pmiFilter.departments?.length) params.set('department', pmiFilter.departments.join(','));
+    if (pmiFilter.createdBy?.length) params.set('createdBy', pmiFilter.createdBy.join(','));
+  }
   const q = params.toString();
   return api.get<BidStageStatus>(`/dashboard/bid-stage-status${q ? `?${q}` : ''}`);
 }
@@ -53,6 +68,13 @@ export async function fetchBidStageStatus(companyId?: string, startDate?: string
    （标后=中标单位·当前步骤；标前=当前步骤或已投/专家；标中=开标时间·等待开标/开标中/归档中） */
 export type BidStageBucket = 'running' | 'pre' | 'in' | 'post';
 export type BidStageProjectRow = { id: string; name: string; status: string };
+/** 四桶展示名（首页「实时运行态势」与进展页同卡共用） */
+export const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
+  running: "运行中项目",
+  pre: "标前项目",
+  in: "标中项目",
+  post: "标后项目",
+};
 export async function fetchBidStageProjects(bucket: BidStageBucket, companyId?: string): Promise<{ bucket: string; projects: BidStageProjectRow[] }> {
   const params = new URLSearchParams();
   params.set('bucket', bucket);
@@ -252,6 +274,19 @@ export type DashboardData = {
     savings: number;
     savingsRate: number;
     count: number;
+  }>;
+  /** 公司对比五维聚合（2026-11-23 用户裁定：公司对比板块跟随页级时间/公司口径）
+   *  轮次按窗；异常=PMI 终止项目当前快照（无轮次公司也列出）；按成交额降序 */
+  companyComparison: Array<{
+    companyId: string;
+    company: string;
+    rounds: number;
+    awarded: number;
+    awardAmount: number;
+    awardedBudget: number;
+    savings: number;
+    savingsRate: number;
+    abnormal: number;
   }>;
   /** 节资部门榜（2026-11-23：恒展示；全部/多选公司时行标「公司 · 部门」，单公司不标）
    *  行=公司×部门，按节资额降序 Top 10 */

@@ -231,15 +231,17 @@ describe('remindBondReturns — A-105 pending 口径（终审 Critical#2 共享�
 describe('publishScheduledAnnouncements — P0-2 走 announcementService.update 发布闸门', () => {
   const makeScheduler = () => {
     const prisma: any = {
-      announcement: { findMany: jest.fn() },
-      // 故意不提供 announcement.update：旧实现裸 update 直改 PUBLISHED 属 P0-2 旁路，新实现不得触碰
+      announcement: { findMany: jest.fn(), update: jest.fn().mockResolvedValue({}) },
+      // announcement.update 仅限 metadata 留痕（2026-11-23 失败原因持久化/自愈清除）——
+      // status 转 PUBLISHED 仍专属 announcementService.update（P0-2 旁路禁令不变）
     };
+    const notification: any = { create: jest.fn().mockResolvedValue({}) };
     const announcementService: any = {
       update: jest.fn().mockResolvedValue({ id: 'a1', status: 'PUBLISHED' }),
       notifySuppliersOnPublish: jest.fn().mockResolvedValue({}),
     };
-    const scheduler = new SchedulerService(prisma, { create: jest.fn() } as any, {} as any, announcementService, {} as any);
-    return { scheduler, prisma, announcementService };
+    const scheduler = new SchedulerService(prisma, notification, {} as any, announcementService, {} as any);
+    return { scheduler, prisma, notification, announcementService };
   };
 
   beforeEach(() => {
@@ -283,6 +285,65 @@ describe('publishScheduledAnnouncements — P0-2 走 announcementService.update 
     ]);
     await scheduler.publishScheduledAnnouncements();
     expect(announcementService.update).not.toHaveBeenCalled();
+  });
+
+  // ── 失败原因持久化 + 通知创建人（2026-11-23 优化：UI 从「请检查」变为显示实际原因）──
+
+  it('发布被闸拒绝 → 失败原因（HttpException response.error 优先）持久化到 metadata.scheduledPublishError + 首次通知创建人', async () => {
+    const { scheduler, prisma, notification, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a9', title: '询比公告', type: 'INQUIRY_NOTICE', status: 'DRAFT', authorId: 'author-1', metadata: { scheduledPublishDate: new Date(Date.now() - 60_000).toISOString() } },
+    ]);
+    announcementService.update.mockRejectedValue(Object.assign(new Error('Http Exception'), {
+      response: { error: '项目未取得国标采购编码（gbProcureCode）且自动补码失败', code: 'GB_CODE_REQUIRED' },
+    }));
+    await scheduler.publishScheduledAnnouncements();
+
+    expect(prisma.announcement.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'a9' },
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          scheduledPublishError: expect.objectContaining({
+            message: '项目未取得国标采购编码（gbProcureCode）且自动补码失败',
+            code: 'GB_CODE_REQUIRED',
+          }),
+        }),
+      }),
+    }));
+    expect(notification.create).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'author-1',
+      type: 'SCHEDULED_PUBLISH_FAILED',
+      content: expect.stringContaining('国标采购编码'),
+    }));
+  });
+
+  it('同错误重试 → 不重复写库、不重复通知（每分钟重试的写放大/通知风暴收敛到原因变化）', async () => {
+    const { scheduler, prisma, notification, announcementService } = makeScheduler();
+    const meta = {
+      scheduledPublishDate: new Date(Date.now() - 60_000).toISOString(),
+      scheduledPublishError: { message: '同一原因', code: 'X', at: new Date().toISOString() },
+    };
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a9', title: '滞留件', type: 'POLICY', status: 'DRAFT', authorId: 'author-1', metadata: meta },
+    ]);
+    announcementService.update.mockRejectedValue(Object.assign(new Error('x'), { response: { error: '同一原因', code: 'X' } }));
+    await scheduler.publishScheduledAnnouncements();
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    expect(notification.create).not.toHaveBeenCalled();
+  });
+
+  it('失败后自愈成功 → 清除残留失败标记（仅 metadata，status 仍由 announcementService.update 落）', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a9', title: '自愈件', type: 'POLICY', status: 'DRAFT', authorId: 'author-1',
+        metadata: { scheduledPublishDate: new Date(Date.now() - 60_000).toISOString(), scheduledPublishError: { message: '旧原因', code: 'X', at: new Date().toISOString() } } },
+    ]);
+    await scheduler.publishScheduledAnnouncements();
+    const arg = prisma.announcement.update.mock.calls[0][0];
+    expect(arg.where).toEqual({ id: 'a9' });
+    expect(arg.data.metadata.scheduledPublishError).toBeUndefined();
+    expect(arg.data.status).toBeUndefined(); // cron 直写不得碰 status
+    expect(notification.create).not.toHaveBeenCalled();
   });
 });
 

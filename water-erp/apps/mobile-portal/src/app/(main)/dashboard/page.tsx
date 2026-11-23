@@ -45,14 +45,12 @@ import {
 import {
   fetchBidStageProjects,
   fetchBidStageStatus,
-  fetchCompanyRanking,
   fetchDashboardData,
   fetchProjectStatusCounts,
+  BID_BUCKET_LABELS,
   type BidStageBucket,
   type BidStageProjectRow,
   type BidStageStatus,
-  type CompanyRankingRange,
-  type CompanyRankingView,
   type DashboardData,
   type ProjectStatusCounts,
 } from "@/lib/api/dashboard";
@@ -77,17 +75,21 @@ function PMI_STAGE_LABELS_OF(key: string): string {
 
 /* 比例条色板/填充统一走 @/lib/bar-style（2026-11-23 所有比例条增色裁定） */
 
+type CmpDim = "awardAmount" | "rounds" | "savings" | "savingsRate" | "abnormal";
+/** 企业对比列标（天干，签名细节）与上限（2026-11-23 用户裁定：最多 4 家） */
+const CMP_STEMS = ["甲", "乙", "丙", "丁"];
+const CMP_MAX = 4;
+const CMP_DIMS: Array<{ key: CmpDim; label: string }> = [
+  { key: "rounds", label: "总项目数" }, /* 2026-11-23 用户裁定：轮次→总项目数且置于首位（默认维度） */
+  { key: "awardAmount", label: "成交额" },
+  { key: "savings", label: "节资" },
+  { key: "savingsRate", label: "节资率" },
+  { key: "abnormal", label: "异常" },
+];
 /** 专家名录每页条数（2026-11-23 用户裁定） */
 const EXPERT_PAGE_SIZE = 10;
 /** 供应商名录每页条数（2026-11-23 用户裁定：与专家名录同款） */
 const SUPPLIER_PAGE_SIZE = 10;
-
-const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
-  running: "运行中项目",
-  pre: "标前项目",
-  in: "标中项目",
-  post: "标后项目",
-};
 
 
 
@@ -366,10 +368,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     return () => { active = false; };
   }, [role]);
 
-  // 公司龙虎榜（跨公司榜单，admin 全榜/leader 排位卡；随区间/重试变化重取，失败保留旧数据）
-  const [ranking, setRanking] = useState<CompanyRankingView | null>(null);
-  /* 龙虎榜失败≠空数据（P2，2026-11-03）：失败保留旧数据 + 显式重试入口，不再伪装成空态 */
-  const [rankingError, setRankingError] = useState(false);
   /* 资源告警 + 项目质效（2026-11-03 数据利用评审：后端现成、此前 :3011 零呈现） */
   /* 项目状态盘点（2026-11-19 用户裁定：数据总览首排）——PMI 当前状态快照，随重试重取 */
   const [projectStatus, setProjectStatus] = useState<ProjectStatusCounts | null>(null);
@@ -415,15 +413,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .catch(() => undefined);
     return () => { active = false; };
   }, [bidBucket, bidCompanyIds, retryTick]);
-  const [rankingRange, setRankingRange] = useState<CompanyRankingRange>("year");
-  useEffect(() => {
-    let active = true;
-    fetchCompanyRanking(rankingRange)
-      .then((r) => { if (active) { setRanking(r); setRankingError(false); } })
-      .catch(() => { if (active) setRankingError(true); }); // 失败≠空数据——区分重试态（P2，2026-11-03）
-    return () => { active = false; };
-  }, [rankingRange, retryTick]);
-
 
   /* 专家搜索+列表（2026-11-20 用户裁定：可搜索全部专家+点开看信息；2026-11-23 裁定每页 10 人）
      ——服务端分页 + 服务端搜索（300ms 防抖）：原取 50 条本地筛/切 20，库 180 人只能搜到前 50。
@@ -525,7 +514,6 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   }, [loadData]);
 
   // 下拉刷新：主数据重载之外连带 bump retryTick——今日要报（deps 含 retryTick）与
-  // 公司龙虎榜（deps [rankingRange, retryTick]）同轮重取，三卡一致
   const { pull, refreshing } = usePullToRefresh(
     useCallback(() => {
       setRetryTick((t) => t + 1);
@@ -650,7 +638,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
 
   /* 公司对比页（2026-11-19 设计落地）：维度切换 + 双企 PK 选择——数据复用
    * 公司龙虎榜 ranking（admin 全榜）；leader 无榜时退单企卡 */
-  const [cmpDim, setCmpDim] = useState<"amount" | "rounds" | "savings" | "rate" | "abnormal">("amount");
+  /* 维度对比五维（2026-11-23：Chip 行换头部下拉） */
+  const [cmpDim, setCmpDim] = useState<CmpDim>("rounds");
   /* 公告公示（2026-11-19 板块优化）：类型 Chip + 公告列表，懒取 */
   const [announcements, setAnnouncements] = useState<AnnouncementItem[] | null>(null);
   const [annDetail, setAnnDetail] = useState<AnnouncementDetail | null>(null);
@@ -736,8 +725,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       .catch(() => { if (active) setAnnouncements([]); });
     return () => { active = false; };
   }, [analysisOpen, companyIds]);
-  const [cmpA, setCmpA] = useState<string | null>(null);
-  const [cmpB, setCmpB] = useState<string | null>(null);
+  /* 企业对比多选（2026-11-23 用户裁定：0–4 家自由选择，不做最少两家强制；null=未动过——
+     首次默认成交额前两名，用户清空（[]）后尊重空态显示引导，不再自动回填） */
+  const [cmpPicks, setCmpPicks] = useState<string[] | null>(null);
 
   /* 数据分析页（2026-11-19 重构裁定）：归档区走 dashboard 轮次、进行中区走 PMI
    * 进展清单——开层懒取一次（会话内缓存） */
@@ -1118,155 +1108,177 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "company" ? (
               <>
-            {/* ══ 公司对比（2026-11-19 设计落地：排行 → 五维对比图 → 双企 PK）══ */}
-            {ranking?.rows?.length ? (
-              <>
-                {/* 公司排行（月/年切换，全维度数列） */}
-                <SectionCard
-                  icon={ListOrdered}
-                  title="公司排行"
-                  index={0}
-                  right={
-                    <div className="flex gap-1.5">
-                      {(["month", "year"] as const).map((k) => (
-                        <Chip key={k} active={rankingRange === k} onClick={() => setRankingRange(k)}>
-                          {k === "month" ? "本月" : "本年"}
-                        </Chip>
-                      ))}
-                    </div>
-                  }
-                >
+            {/* ══ 公司对比（2026-11-19 设计落地；2026-11-23 用户裁定重设计）：数据源改主数据
+             *  companyComparison（随页级时间/公司口径，弃龙虎榜固定月/年）——
+             *  五维对比图（维度下拉）→ 企业对比（2–5 家矩阵，甲乙丙列标、优胜高亮+计分）；公司排行卡 2026-11-23 删══ */}
+            {(() => {
+              /* 口径内全部公司入榜（2026-11-23：与页头公司选择器同集合，无数据补零；未归属公司行殿后）
+                 ——此前仅有轮次/异常的公司入榜，口径下只余一家时双企无从选择 */
+              const backendRows = data?.companyComparison ?? [];
+              const scopeCompanies = companyIds.length ? (companies ?? []).filter((c) => companyIds.includes(c.id)) : companies ?? [];
+              const rows = [
+                ...scopeCompanies.map((c) => ({
+                  ...(backendRows.find((r) => r.companyId === c.id) ?? { companyId: c.id, company: c.name, rounds: 0, awarded: 0, awardAmount: 0, awardedBudget: 0, savings: 0, savingsRate: 0, abnormal: 0 }),
+                  shortName: c.shortName,
+                })),
+                ...backendRows.filter((r) => !scopeCompanies.some((c) => c.id === r.companyId)).map((r) => ({ ...r, shortName: null as string | null })),
+              ].sort((a, b) => b.awardAmount - a.awardAmount || a.company.localeCompare(b.company, "zh"));
+              if (!rows.length) {
+                return !data ? <div className="py-2"><Skeleton lines={6} height={44} /></div> : <EmptyState text="当前口径下暂无公司数据" />;
+              }
+              type CmpRow = (typeof rows)[number];
+              const idOf = (r: CmpRow) => r.companyId || r.company;
+              // 可选名单（2026-11-23 用户裁定零值不显）：口径内有业务数据（轮次/成交/异常）或集团成员企业
+              // （主表有简称的 9 家）——子公司/测试公司零数据不入名单；名单按成交额榜序
+              const options = rows.filter((r) => r.rounds > 0 || r.awardAmount > 0 || r.abnormal > 0 || r.shortName);
+              // 已选仍在名单内者保留（口径变动剔除失效项）；null=未动过默认前两名；选中即尊重、可清空到 0
+              const pickIds = (cmpPicks ?? options.slice(0, 2).map(idOf)).filter((id) => options.some((r) => idOf(r) === id)).slice(0, CMP_MAX);
+              const picks = pickIds.map((id) => options.find((r) => idOf(r) === id)).filter((r): r is CmpRow => !!r);
+              // 指标×企业矩阵：各指标最优（异常以少为优）加粗；全平行无优胜
+              const metricDefs: Array<{ label: string; get: (r: CmpRow) => number; fmt: (v: number) => string; lower?: boolean }> = [
+                { label: "总项目数", get: (r) => r.rounds, fmt: String },
+                { label: "已成交", get: (r) => r.awarded, fmt: String },
+                { label: "成交额", get: (r) => r.awardAmount, fmt: fmtWan },
+                { label: "成交预算", get: (r) => r.awardedBudget, fmt: fmtWan },
+                { label: "节资", get: (r) => r.savings, fmt: fmtWan },
+                { label: "节资率", get: (r) => r.savingsRate, fmt: (v) => `${v.toFixed(1)}%` },
+                { label: "异常", get: (r) => r.abnormal, fmt: String, lower: true },
+              ];
+              const metricRows = metricDefs.map((m) => {
+                const vals = picks.map(m.get);
+                const best = m.lower ? Math.min(...vals) : Math.max(...vals);
+                const decided = vals.some((v) => v !== best);
+                return { label: m.label, cells: vals.map((v) => ({ text: m.fmt(v), win: decided && v === best })) };
+              });
+              const wins = picks.map((_, i) => metricRows.filter((m) => m.cells[i].win).length);
+              const tie = metricRows.filter((m) => m.cells.every((c) => !c.win)).length;
+              return (
+                <>
+            {/* ── 维度对比：维度切换横条（全公司，率维不合计）── */}
+            <AnalysisZone
+              icon={BarChart3}
+              title="维度对比"
+              count={`${rows.filter((x) => x[cmpDim] > 0).length} 家`}
+              color="var(--gold)"
+              right={
+                /* 维度下拉置于区块标题右侧（2026-11-23 用户终版裁定） */
+                <InlineSelect
+                  label={CMP_DIMS.find((d) => d.key === cmpDim)?.label ?? "总项目数"}
+                  active={cmpDim !== "rounds"}
+                  options={CMP_DIMS.map((d) => ({ value: d.key, label: d.label }))}
+                  selected={[cmpDim]}
+                  onSelect={(next) => setCmpDim((next[0] ?? "rounds") as typeof cmpDim)}
+                  ariaLabel="对比维度"
+                />
+              }
+            >
+              {(() => {
+                const key = cmpDim;
+                const max = Math.max(...rows.map((x) => x[key]), 1);
+                const fmt = (v: number) =>
+                  key === "awardAmount" || key === "savings" ? fmtWan(v)
+                  : key === "savingsRate" ? `${v.toFixed(1)}%`
+                  : String(Math.round(v));
+                const total = rows.reduce((sum, x) => sum + x[key], 0);
+                /* 零值行不显（2026-11-23 用户裁定）：公司主表含 65 家子公司/测试公司，口径内多数无业务 */
+                const shown = rows.filter((x) => x[key] > 0);
+                /* 条色（2026-11-23 用户裁定：参考其他板块）——八色循环 + 高光渐变；异常维保持语义红 */
+                const rowColor = (i: number) => (key === "abnormal" ? "var(--danger)" : barColorAt(i));
+                return (
                   <div className="space-y-1.5">
-                    {(ranking.rows ?? []).slice(0, 8).map((r, i) => (
-                      <div key={r.companyId} className="flex items-center gap-2.5 rounded-[12px] m-tile px-3 py-2">
-                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-[8px] text-[12px] font-black ${i < 3 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
-                        <span className="shrink-0 text-[13px] font-bold tabular-nums text-[var(--accent)]">{fmtWan(r.awardAmount)}</span>
-                        <span className="shrink-0 text-[12px] tabular-nums text-[var(--muted-foreground)]">{r.totalCount} 轮</span>
-                        {r.abnormalCount > 0 ? <span className="shrink-0 rounded-full bg-[color-mix(in_oklch,var(--danger)_10%,transparent)] px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-[var(--danger)]">异 {r.abnormalCount}</span> : null}
+                    {shown.map((x, i) => (
+                      <div key={x.companyId || x.company} className="flex items-center gap-2">
+                        {/* 单位名列 9rem / 数值列 4.5rem（2026-11-23 用户裁定加宽，长公司名与「15699.5万」不挤） */}
+                        <span className="w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.company}</span>
+                        <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
+                          <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(rowColor(i)) }} />
+                        </span>
+                        <span className="w-[4.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
                       </div>
                     ))}
+                    {!shown.length ? (
+                      <EmptyState text="当前维度暂无非零数据" />
+                    ) : null}
+                    {key !== "savingsRate" && shown.length > 1 ? (
+                      <div className="pt-1 text-[12px] text-[var(--muted-foreground)]">{shown.length} 家合计 {fmt(total)}{key === "abnormal" ? " 项" : ""}</div>
+                    ) : null}
                   </div>
-                </SectionCard>
+                );
+              })()}
+            </AnalysisZone>
 
-                {/* 五维对比图（维度切换横条，全公司） */}
-                <SectionCard icon={BarChart3} title="维度对比" index={1}>
-                  <div className="mb-2.5 flex flex-wrap gap-1.5">
-                    {([
-                      ["amount", "成交额"],
-                      ["rounds", "轮次"],
-                      ["savings", "节资"],
-                      ["rate", "节资率"],
-                      ["abnormal", "异常"],
-                    ] as const).map(([k, label]) => (
-                      <Chip key={k} active={cmpDim === k} onClick={() => setCmpDim(k)}>{label}</Chip>
-                    ))}
+            {/* ── 双企 PK：任选两家逐项对比，优胜方加粗着色 + 顶部计分 ── */}
+            {/* ── 企业对比（2026-11-23 用户裁定：双企扩为 2–4 家）——多选 + 指标×企业矩阵，
+                天干甲乙丙丁戊为列标（签名细节），各指标最优加粗主色，底部计分 ── */}
+            <AnalysisZone
+              icon={Scale}
+              title="企业对比"
+              count={`${picks.length} 家`}
+              color="var(--success)"
+              right={
+                /* 企业多选下拉置于区块标题右侧（2026-11-23 用户裁定）；不足两家可比时右槽退回计数 */
+                options.length >= 2 ? (
+                  <InlineSelect
+                    multiple
+                    label={picks.length === 0 ? "选择企业" : picks.length <= 3 ? picks.map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ") : `${picks.slice(0, 2).map((p, i) => `${CMP_STEMS[i]} ${p.shortName ?? p.company}`).join(" · ")} 等 ${picks.length} 家`}
+                    active
+                    options={options.map((r) => ({ value: idOf(r), label: r.company }))}
+                    selected={picks.map(idOf)}
+                    onSelect={(next) => setCmpPicks(next.slice(0, CMP_MAX))}
+                    ariaLabel="选择对比企业（2 到 4 家）"
+                  />
+                ) : undefined
+              }
+            >
+              {options.length < 2 ? (
+                <EmptyState text={`当前口径下只有 ${options.length} 家可比公司，选择更多公司后可对比`} />
+              ) : picks.length < 2 ? (
+                /* 0/1 家的引导态（2026-11-23 用户裁定：可清空，不再强制回填两家） */
+                <div className="rounded-[12px] m-tile px-3 py-6 text-center">
+                  <div className="text-[14px] font-semibold text-[var(--foreground)]">
+                    {picks.length === 0 ? "请在右上角选择 2–4 家企业" : `已选 1 家，请再选一家`}
                   </div>
-                  {(() => {
-                    const rows = ranking.rows.map((r) => ({
-                      name: r.companyName,
-                      amount: r.awardAmount,
-                      rounds: r.totalCount,
-                      savings: r.savings,
-                      rate: r.awardAmount > 0 ? (r.savings / r.awardAmount) * 100 : 0,
-                      abnormal: r.abnormalCount,
-                    }));
-                    const key = cmpDim;
-                    const max = Math.max(...rows.map((x) => x[key]), 1);
-                    const color = key === "abnormal" ? "var(--danger)" : key === "rate" ? "var(--gold)" : key === "savings" ? "var(--success)" : key === "rounds" ? "var(--warning)" : "var(--accent)";
-                    const fmt = (v: number) =>
-                      key === "amount" || key === "savings" ? fmtWan(v)
-                      : key === "rate" ? `${v.toFixed(1)}%`
-                      : String(Math.round(v));
-                    const total = rows.reduce((sum, x) => sum + x[key], 0);
-                    return (
-                      <div className="space-y-1.5">
-                        {rows.map((x) => (
-                          <div key={x.name} className="flex items-center gap-2">
-                            <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.name}</span>
-                            <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                              <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(color) }} />
-                            </span>
-                            <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
-                          </div>
+                  <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">可选有业务数据的企业或集团成员企业</div>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="px-1 text-[12px] text-[var(--muted-foreground)]">已选 {picks.length} 家 · 最多 {CMP_MAX} 家</div>
+                  <div className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <div className="rounded-[12px] m-tile px-3 py-2 text-[14px]" style={{ minWidth: `${76 + picks.length * 92}px` }}>
+                      <div className="flex items-center gap-2 border-b border-[oklch(0.6_0.04_258_/_0.12)] pb-1.5">
+                        <span className="w-[4.5rem] shrink-0 text-[12px] text-[var(--muted-foreground)]">指标</span>
+                        {picks.map((p, i) => (
+                          <span key={idOf(p)} className="min-w-[5.25rem] flex-1 text-center">
+                            <span className="block text-[13px] font-bold text-[var(--accent)]">{CMP_STEMS[i]}</span>
+                            <span className="block truncate text-[11px] text-[var(--muted-foreground)]">{p.shortName ?? p.company}</span>
+                          </span>
                         ))}
-                        {key !== "rate" ? (
-                          <div className="pt-1 text-[12px] text-[var(--muted-foreground)]">八家合计 {fmt(total)}{key === "abnormal" ? " 项" : ""}</div>
-                        ) : null}
                       </div>
-                    );
-                  })()}
-                </SectionCard>
-
-                {/* 双企 PK：任选两家逐项对比，优胜方加粗着色 */}
-                <SectionCard icon={Scale} title="双企对比" index={2}>
-                  {(() => {
-                    const rows = ranking.rows;
-                    const a = rows.find((r) => r.companyId === cmpA) ?? rows[0];
-                    const b = rows.find((r) => r.companyId === cmpB) ?? rows[1] ?? rows[0];
-                    const opts = rows.map((r) => ({ value: r.companyId, label: r.companyName }));
-                    const rateOf = (r: typeof a) => (r.awardAmount > 0 ? (r.savings / r.awardAmount) * 100 : 0);
-                    const metrics: Array<{ label: string; va: string; vb: string; aWin: boolean | null }> = [
-                      { label: "轮次", va: `${a.totalCount}`, vb: `${b.totalCount}`, aWin: a.totalCount !== b.totalCount ? a.totalCount > b.totalCount : null },
-                      { label: "已成交", va: `${a.awardedCount}`, vb: `${b.awardedCount}`, aWin: a.awardedCount !== b.awardedCount ? a.awardedCount > b.awardedCount : null },
-                      { label: "成交额", va: fmtWan(a.awardAmount), vb: fmtWan(b.awardAmount), aWin: a.awardAmount !== b.awardAmount ? a.awardAmount > b.awardAmount : null },
-                      { label: "节资", va: fmtWan(a.savings), vb: fmtWan(b.savings), aWin: a.savings !== b.savings ? a.savings > b.savings : null },
-                      { label: "节资率", va: `${rateOf(a).toFixed(1)}%`, vb: `${rateOf(b).toFixed(1)}%`, aWin: rateOf(a) !== rateOf(b) ? rateOf(a) > rateOf(b) : null },
-                      { label: "异常", va: `${a.abnormalCount}`, vb: `${b.abnormalCount}`, aWin: a.abnormalCount !== b.abnormalCount ? a.abnormalCount < b.abnormalCount : null },
-                    ];
-                    return (
-                      <div className="space-y-2.5">
-                        <div className="flex items-center gap-2">
-                          <InlineSelect
-                            label={a.companyName}
-                            active={!!cmpA}
-                            options={opts}
-                            selected={[a.companyId]}
-                            onSelect={(next) => setCmpA(next[0] ?? null)}
-                            ariaLabel="对比方 A"
-                          />
-                          <span className="shrink-0 text-[12px] font-bold text-[var(--muted-foreground)]">VS</span>
-                          <InlineSelect
-                            label={b.companyName}
-                            active={!!cmpB}
-                            options={opts}
-                            selected={[b.companyId]}
-                            onSelect={(next) => setCmpB(next[0] ?? null)}
-                            ariaLabel="对比方 B"
-                          />
-                        </div>
-                        <div className="space-y-0.5 rounded-[12px] m-tile px-3 py-2 text-[14px]">
-                          {metrics.map((m) => (
-                            <div key={m.label} className="flex items-center gap-2 py-0.5">
-                              <span className={`min-w-0 flex-1 truncate text-right tabular-nums ${m.aWin === true ? "font-black text-[var(--accent)]" : "text-[var(--foreground)]"}`}>{m.va}</span>
-                              <span className="w-[3.5rem] shrink-0 text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</span>
-                              <span className={`min-w-0 flex-1 truncate tabular-nums ${m.aWin === false ? "font-black text-[var(--accent)]" : "text-[var(--foreground)]"}`}>{m.vb}</span>
-                            </div>
+                      {metricRows.map((m) => (
+                        <div key={m.label} className="flex items-center gap-2 py-1">
+                          <span className="w-[4.5rem] shrink-0 text-[12px] text-[var(--muted-foreground)]">{m.label}</span>
+                          {m.cells.map((c, i) => (
+                            <span key={i} className={`min-w-[5.25rem] flex-1 truncate text-center tabular-nums ${c.win ? "font-bold text-[var(--accent)]" : "font-medium text-[var(--foreground)]"}`}>{c.text}</span>
                           ))}
                         </div>
-                        <p className="px-1 text-[12px] text-[var(--muted-foreground)]">优胜项加粗高亮（异常以少为优）</p>
-                      </div>
-                    );
-                  })()}
-                </SectionCard>
-              </>
-            ) : ranking?.self ? (
-              /* leader 单企视角：本公司 vs 集团均值 */
-              <SectionCard icon={Scale} title="本公司 · 集团对比" index={0}>
-                <div className="rounded-[12px] m-tile px-3.5 py-3">
-                  <div className="text-[14px] font-bold text-[var(--foreground)]">{ranking.self.companyName} · 集团第 {ranking.self.rank} 位</div>
-                  <div className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                    本公司成交 {fmtWan(ranking.self.awardAmount)} · 集团均值 {fmtWan(ranking.groupAvg?.awardAmount ?? 0)}
+                      ))}
+                    </div>
                   </div>
+                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-3 py-2 text-[13px] tabular-nums">
+                    {picks.map((p, i) => (
+                      <span key={idOf(p)} className={wins[i] > 0 && wins[i] === Math.max(...wins) ? "font-bold text-[var(--accent)]" : "text-[var(--muted-foreground)]"}>
+                        {CMP_STEMS[i]} 优胜 {wins[i]}
+                      </span>
+                    ))}
+                    <span className="text-[12px] text-[var(--muted-foreground)]">· 持平 {tie}</span>
+                  </div>
+                  <p className="px-1 text-[12px] text-[var(--muted-foreground)]">加粗为各指标最优，异常以少为优</p>
                 </div>
-              </SectionCard>
-            ) : rankingError ? (
-              <button type="button" onClick={() => setRetryTick((t) => t + 1)} className="w-full py-1 text-left text-[13px] text-[var(--danger)] active:scale-[0.99]">
-                排行数据加载失败，点击重试
-              </button>
-            ) : (
-              <EmptyState text="暂无可对比的公司数据" />
-            )}
+              )}
+            </AnalysisZone>
+                </>
+              );
+            })()}
               </>
             ) : null}
             {analysisOpen === "composition" ? (

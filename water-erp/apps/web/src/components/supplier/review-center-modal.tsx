@@ -567,7 +567,8 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
     if (myRole === 'staff') return st === 'STAFF';
     return false;
   };
-  const canActOnStage = isMyStage;
+  // 补正中（RETURNED）只读（2026-11-23 裁定）：操作区叠加 PENDING 条件——重提后回被退回级可续审
+  const canActOnStage = (s: Supplier) => isMyStage(s) && s.status === 'PENDING';
 
   const act = async (type: 'approve' | 'reject' | 'return' | 'reactivate') => {
     if (!selected) return;

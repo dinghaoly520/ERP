@@ -313,7 +313,8 @@ const PORTAL_META_FIELDS: Record<string, PortalMetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
     { key: 'downloadDeadline', label: '采购文件下载时间' },
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
-    { key: 'scope', label: '采购内容/范围', area: true }, { key: 'qualification', label: '投标人资格要求', area: true },
+    // 采购内容/范围、投标人资格要求不在顶部平铺（正文「项目概况」「报名方式及条件」已载同文，2026-11-23 用户裁定；
+    // meta 仍照常落 budget/scope/qualification 键——仅预览与各门户顶部不展示）
   ],
   WIN_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },

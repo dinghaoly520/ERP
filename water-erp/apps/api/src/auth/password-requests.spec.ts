@@ -183,3 +183,64 @@ describe('password reset privacy and review contract', () => {
     expect(data).not.toHaveProperty('companyId');
   });
 });
+
+describe('submitReset 资格闸（2026-11-23 用户裁定：仅已入库供应商或内部账号可申请）', () => {
+  const mkSvc = (findFirst: jest.Mock) => {
+    const prisma = {
+      user: { findFirst, findMany: jest.fn().mockResolvedValue([]) },
+      supplier: { findUnique: jest.fn().mockResolvedValue(null) },
+      passwordResetRequest: { create: jest.fn().mockResolvedValue({ id: 'pr-1', status: 'PENDING', requestedAt: new Date() }) },
+      notification: { create: jest.fn() },
+    };
+    const verifyRegistrationCode = jest.fn().mockResolvedValue({ ok: true });
+    const service = new PasswordRequestsService(prisma as any, { verifyRegistrationCode } as any);
+    return { prisma, verifyRegistrationCode, service };
+  };
+  const CALL = ['91510100MA6CPPPP00', '张三', '13800138000', '123456', 'Pass1234'] as const;
+
+  it('已入库供应商（APPROVED）→ 照旧受理：落库且 matchedUserId 写入', async () => {
+    const { prisma, service } = mkSvc(jest.fn().mockResolvedValue({ id: 'sup-1', role: 'supplier', supplier: { status: 'APPROVED' } }));
+    await service.submitReset(...CALL);
+    expect(prisma.passwordResetRequest.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ matchedUserId: 'sup-1' }),
+    }));
+  });
+
+  it('审核中/退回/驳回/停用/黑名单供应商 → 统一 400 RESET_NOT_ELIGIBLE，零落库零通知', async () => {
+    for (const status of ['PENDING', 'RETURNED', 'REJECTED', 'DISABLED', 'BLACKLIST']) {
+      const { prisma, service } = mkSvc(jest.fn().mockResolvedValue({ id: 'sup-x', role: 'supplier', supplier: { status } }));
+      await expect(service.submitReset(...CALL)).rejects.toMatchObject({
+        response: { code: 'RESET_NOT_ELIGIBLE', error: expect.stringContaining('已入库') },
+      });
+      expect(prisma.passwordResetRequest.create).not.toHaveBeenCalled();
+      expect(prisma.notification.create).not.toHaveBeenCalled();
+    }
+  });
+
+  it('供应商角色但无 Supplier 行（数据残缺）→ 从严拒绝', async () => {
+    const { prisma, service } = mkSvc(jest.fn().mockResolvedValue({ id: 'sup-bare', role: 'supplier', supplier: null }));
+    await expect(service.submitReset(...CALL)).rejects.toMatchObject({ response: { code: 'RESET_NOT_ELIGIBLE' } });
+    expect(prisma.passwordResetRequest.create).not.toHaveBeenCalled();
+  });
+
+  it('账号不存在/未激活（findFirst → null）→ 拒绝且不产生垃圾申请', async () => {
+    const { prisma, service } = mkSvc(jest.fn().mockResolvedValue(null));
+    await expect(service.submitReset('不存在的账号', '张三', '13800138000', '123456', 'Pass1234')).rejects.toMatchObject({ response: { code: 'RESET_NOT_ELIGIBLE' } });
+    expect(prisma.passwordResetRequest.create).not.toHaveBeenCalled();
+    expect(prisma.user.findMany).not.toHaveBeenCalled(); // 未走到 admin 通知兜底
+  });
+
+  it('内部账号（非供应商角色）→ 照旧受理', async () => {
+    const { prisma, service } = mkSvc(jest.fn().mockResolvedValue({ id: 'staff-1', role: 'staff' }));
+    await service.submitReset('Swhi-CGZX-05', '张三', '13800138000', '123456', 'Pass1234');
+    expect(prisma.passwordResetRequest.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ matchedUserId: 'staff-1' }),
+    }));
+  });
+
+  it('拒绝前验证码已核验（短信成本门槛在最前）', async () => {
+    const { verifyRegistrationCode, service } = mkSvc(jest.fn().mockResolvedValue(null));
+    await expect(service.submitReset(...CALL)).rejects.toMatchObject({ response: { code: 'RESET_NOT_ELIGIBLE' } });
+    expect(verifyRegistrationCode).toHaveBeenCalledWith('13800138000', '123456');
+  });
+});

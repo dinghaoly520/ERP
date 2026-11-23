@@ -72,6 +72,62 @@ describe('DashboardService.getBidStageStatus', () => {
     expect(calls).toHaveLength(4);
   });
 
+  /* 进展页模式（2026-11-23 用户裁定：态势卡内容跟随板块选择器）——pmiFilter 存在时：
+   * 时间/部门/经办人走 BidProject→PMI 关系过滤，方式走 BidProject 自有列；headline 也按窗计
+   * （首页模式不变：headline 存量、日期只进 flow 子窗） */
+  describe('进展页模式 pmiFilter', () => {
+    const makePmiPrisma = (rows: Array<{ stage: string; _count: { _all: number } }>) => {
+      const seen: any[] = [];
+      const prisma: any = {
+        bidProject: {
+          groupBy: jest.fn().mockImplementation(({ where }) => {
+            seen.push(where);
+            const r = where.projectManagementItem?.createdAt;
+            const k = r ? `${r.gte?.toISOString() ?? ''}~${r.lte?.toISOString() ?? ''}` : 'base';
+            return Promise.resolve(k === 'base' ? [{ stage: 'SUBMIT', _count: { _all: 99 } }] : rows);
+          }),
+        },
+      };
+      return { prisma, seen };
+    };
+
+    it('带窗：headline 与 cur 均按 PMI 立项窗计；方式/部门/经办人进 where；不裸写 createdAt', async () => {
+      const { prisma, seen } = makePmiPrisma([{ stage: 'OPENING', _count: { _all: 2 } }, { stage: 'ARCHIVED', _count: { _all: 1 } }]);
+      const svc = new (DashboardService as any)(prisma);
+      const r = await svc.getBidStageStatus(undefined, '2026-01-01', '2026-01-31', { procurementMethods: ['公开招标'], departments: ['工程设计院'], createdBy: ['u-1'] });
+      expect(r).toMatchObject({ running: 2, pre: 0, in: 2, post: 1 });
+      expect(r.flow?.cur).toEqual({ running: 2, pre: 0, in: 2, post: 1 });
+      const w = seen[0];
+      expect(w.procurementMethod).toEqual({ in: ['公开招标'] });
+      expect(w.projectManagementItem).toEqual({
+        requesterDepartment: { in: ['工程设计院'] },
+        createdById: { in: ['u-1'] },
+        createdAt: { gte: new Date('2026-01-01T00:00:00+08:00'), lte: new Date('2026-01-31T23:59:59.999+08:00') },
+      });
+      expect(w.createdAt).toBeUndefined();
+    });
+
+    it('无窗（时间=全部）：仅方式/部门/经办人过滤 headline，flow=null，单次查询', async () => {
+      const { prisma, seen } = makePmiPrisma([]);
+      const svc = new (DashboardService as any)(prisma);
+      const r = await svc.getBidStageStatus({ companyId: 'co-1' }, undefined, undefined, { departments: ['工程设计院'] });
+      expect(r).toEqual({ running: 99, pre: 99, in: 0, post: 0, flow: null });
+      expect(prisma.bidProject.groupBy).toHaveBeenCalledTimes(1);
+      expect(seen[0]).toEqual({ companyId: 'co-1', projectManagementItem: { requesterDepartment: { in: ['工程设计院'] } } });
+    });
+
+    it('空 pmiFilter 对象仍是进展页模式（headline 按窗、日期落 PMI 关系）；undefined 才是首页模式', async () => {
+      const { prisma, seen } = makePmiPrisma([{ stage: 'OPENING', _count: { _all: 2 } }]);
+      const svc = new (DashboardService as any)(prisma);
+      const r = await svc.getBidStageStatus(undefined, '2026-01-01', '2026-01-31', {});
+      expect(r).toMatchObject({ running: 2, pre: 0, in: 2, post: 0 });
+      expect(seen[0].projectManagementItem).toEqual({
+        createdAt: { gte: new Date('2026-01-01T00:00:00+08:00'), lte: new Date('2026-01-31T23:59:59.999+08:00') },
+      });
+      expect(seen[0].createdAt).toBeUndefined();
+    });
+  });
+
   it('空库全 0', async () => {
     const prisma = makePrisma({});
     const svc = new (DashboardService as any)(prisma);

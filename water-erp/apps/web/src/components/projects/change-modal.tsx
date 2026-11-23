@@ -52,8 +52,9 @@ export function ChangeModal({
   /** 开标确认（BidProject 进入 OPENING 起）——标段分区闸：开标后标前锁死、标后解锁 */
   bidOpened: boolean;
   /** 「采购文件」阶段附件清单（2026-11-20 变更采购文件）：tenderDocument 字段单选源；
-   *  isCurrent=当前正式盖章版（选它=无变化跳过） */
-  tenderDocOptions?: Array<{ id: string; fileName: string; objectKey: string; mimeType?: string | null; isCurrent?: boolean }>;
+   *  isCurrent=当前正式盖章版（选它=无变化跳过）；uploadedAt=上传时间——仅晚于当前
+   *  正式版上传的附件视为新版本可选（2026-11-23 用户裁定） */
+  tenderDocOptions?: Array<{ id: string; fileName: string; objectKey: string; mimeType?: string | null; uploadedAt?: string; isCurrent?: boolean }>;
   onRegistered: (
     result: { needsAnnouncement: boolean; recordId: string; category: 'change_notice' | 'addendum'; round: number; reason: string; changeContent: string; publishStart?: string; publishEnd?: string; patchExtra?: Record<string, string> },
     publish: boolean,
@@ -417,24 +418,50 @@ export function ChangeModal({
                             value={values[f.field] ?? ''}
                             onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
                           />
-                        /* 变更采购文件（2026-11-20）：从「采购文件」阶段附件单选新文件——
-                           当前正式版标注且不可选（选它=无变化）；无附件时提示先去 03 步上传 */
+                        /* 变更采购文件（2026-11-20；2026-11-23 排版简化 + 新版本判定）：
+                           当前正式版独立一行，下接「替换为」单选——仅列晚于当前正式版上传的
+                           附件（上传时间即新版本判据，2026-11-23 用户裁定） */
                         ) : f.widget === 'tender-doc' ? (
-                          <select
-                            className="workbench-input"
-                            disabled={!g.unlocked}
-                            value={values[f.field] ?? ''}
-                            onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
-                          >
-                            <option value="">
-                              {tenderDocOptions && tenderDocOptions.length > 0
-                                ? `选择新采购文件（当前正式版：${tenderDocOptions.find(o => o.isCurrent)?.fileName ?? '未标记'}）`
-                                : '「采购文件」阶段暂无附件——请先在采购文件步骤上传'}
-                            </option>
-                            {(tenderDocOptions ?? []).filter(o => !o.isCurrent).map(o => (
-                              <option key={o.id} value={o.id}>{o.fileName}</option>
-                            ))}
-                          </select>
+                          (() => {
+                            const current = (tenderDocOptions ?? []).find(o => o.isCurrent);
+                            // 新版本 = 上传时间晚于当前正式版；当前版缺时间戳（旧数据）则不设限
+                            const newer = (tenderDocOptions ?? []).filter(o =>
+                              !o.isCurrent && (!current?.uploadedAt || !o.uploadedAt || o.uploadedAt > current.uploadedAt),
+                            );
+                            if (!newer.length) {
+                              return (
+                                <div className="rounded-[10px] bg-[color-mix(in_oklch,var(--muted-foreground)_6%,transparent)] px-3 py-2.5 text-xs leading-relaxed text-[color:var(--muted-foreground)]">
+                                  {current
+                                    ? '暂无晚于当前正式版上传的新版本附件——请先在采购文件步骤上传新版本'
+                                    : '「采购文件」阶段暂无附件——请先在采购文件步骤上传'}
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="space-y-1.5">
+                                {current && (
+                                  <div className="flex min-w-0 items-center gap-1.5 text-xs" title={current.fileName}>
+                                    <span className="shrink-0 text-[color:var(--muted-foreground)]">当前正式版</span>
+                                    <span className="min-w-0 truncate font-medium text-[color:var(--foreground)]">{current.fileName}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="shrink-0 text-xs text-[color:var(--muted-foreground)]">替换为</span>
+                                  <select
+                                    className="workbench-input !h-[34px] min-w-0 flex-1"
+                                    disabled={!g.unlocked}
+                                    value={values[f.field] ?? ''}
+                                    onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
+                                  >
+                                    <option value="">不替换</option>
+                                    {newer.map(o => (
+                                      <option key={o.id} value={o.id}>{o.fileName}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            );
+                          })()
                         ) : f.widget === 'search-select' ? (
                           <SearchSelect
                             options={projectOptions}

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { AttachmentType, BidStage, ResultStatus } from '@prisma/client';
+import { AttachmentType, BidStage, ResultStatus, type Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CompanyWhere } from '../company/company-scope';
 import { STAGE_LABELS } from '../progress/progress.service';
@@ -990,6 +990,48 @@ export class DashboardService {
       .sort((a, b) => b.savings - a.savings)
       .slice(0, 10);
 
+    // 公司对比（2026-11-23 用户裁定：公司对比板块跟随页级时间/公司口径，弃首页龙虎榜固定月/年源）——
+    // 轮次维度按窗聚合：轮次=全部非终止轮、已成交/成交额/成交预算=AWARDED 轮、节资口径同 summary
+    // （AWARDED·预算≥成交，超预算中标计成交不计节资）、节资率=节资/成交预算（同总览）；
+    // 异常=PMI TERMINATED 当前快照按公司（同总览「异常项目」口径，回收站不计；无轮次公司也列出）
+    const cmpMap = new Map<string, { companyId: string; company: string; rounds: number; awarded: number; awardAmount: number; awardedBudget: number; savings: number }>();
+    for (const item of rounds) {
+      const companyId = item.companyId ?? '';
+      const company = item.company?.name ?? item.companyName ?? '未归属公司';
+      const c = cmpMap.get(companyId) ?? { companyId, company, rounds: 0, awarded: 0, awardAmount: 0, awardedBudget: 0, savings: 0 };
+      c.rounds += 1;
+      if (item.resultStatus === ResultStatus.AWARDED) {
+        const budget = decimalToNumber(item.budgetAmount);
+        const award = decimalToNumber(item.awardAmount);
+        c.awarded += 1;
+        c.awardAmount += award;
+        c.awardedBudget += budget;
+        if (budget > 0 && award > 0 && budget >= award) c.savings += budget - award;
+      }
+      cmpMap.set(companyId, c);
+    }
+    const terminatedGroups = await this.prisma.projectManagementItem.groupBy({
+      by: ['companyId', 'companyName'],
+      _count: { _all: true },
+      where: { ...companyFilter, status: 'TERMINATED' },
+    });
+    const cmpRows = [...cmpMap.values()];
+    for (const g of terminatedGroups) {
+      const companyId = g.companyId ?? '';
+      if (!cmpMap.has(companyId)) {
+        cmpRows.push({ companyId, company: g.companyName?.trim() || '未归属公司', rounds: 0, awarded: 0, awardAmount: 0, awardedBudget: 0, savings: 0 });
+      }
+    }
+    const terminatedOf = new Map<string, number>();
+    for (const g of terminatedGroups) terminatedOf.set(g.companyId ?? '', (terminatedOf.get(g.companyId ?? '') ?? 0) + g._count._all);
+    const companyComparison = cmpRows
+      .map((c) => ({
+        ...c,
+        savingsRate: c.awardedBudget > 0 ? Math.round((c.savings / c.awardedBudget) * 1000) / 10 : 0,
+        abnormal: terminatedOf.get(c.companyId) ?? 0,
+      }))
+      .sort((a, b) => b.awardAmount - a.awardAmount || a.company.localeCompare(b.company, 'zh'));
+
     const now = new Date();
     // 风险预警同异常口径（2026-09-28）：PENDING=在途不算风险，避免全库在途项目刷屏
     const riskProjects = rounds
@@ -1178,6 +1220,7 @@ export class DashboardService {
       savingsRanking,
       companySavingsRanking,
       departmentSavingsRanking,
+      companyComparison,
       riskProjects,
       supplierConcentration,
       supplierCr5,
@@ -1329,17 +1372,45 @@ export class DashboardService {
    *  （DOWNLOAD/SUBMIT）；标中=已确认开标未完成开评标（OPENING/EVALUATING）；标后=完成
    *  开评标（ARCHIVED）；运行中=标前+标中。ABORTED（流标终态）不入任何桶。
    *  带 startDate 附 flow 三窗（同比/环比子行，createdAt=立项流口径），结构同项目盘点。 */
-  private async bidStageCountsOf(companyFilter: CompanyWhere | undefined, startDate?: string, endDate?: string) {
+  /** 进展页模式过滤（2026-11-23 用户裁定：态势卡内容跟随板块选择器）——方式走 BidProject 自有列，
+   *  部门/经办人/立项日期走 BidProject→PMI 关系（无 PMI 的标段在部门/经办人筛选下自然排除）。
+   *  对象存在即切换语义：headline 四数也按窗计（首页模式不变——headline 存量、日期只进 flow）。 */
+  private bidStageWhere(
+    companyFilter: CompanyWhere | undefined,
+    startDate?: string,
+    endDate?: string,
+    pmiFilter?: { procurementMethods?: string[]; departments?: string[]; createdBy?: string[] },
+  ): Prisma.BidProjectWhereInput {
     const range = startDate || endDate
       ? {
           ...(startDate ? { gte: startOfDay(startDate) } : {}),
           ...(endDate ? { lte: endOfDay(endDate) } : {}),
         }
       : undefined;
+    const where: Prisma.BidProjectWhereInput = { ...companyFilter };
+    if (pmiFilter) {
+      if (pmiFilter.procurementMethods?.length) where.procurementMethod = { in: pmiFilter.procurementMethods };
+      const pmiWhere: Prisma.ProjectManagementItemWhereInput = {};
+      if (pmiFilter.departments?.length) pmiWhere.requesterDepartment = { in: pmiFilter.departments };
+      if (pmiFilter.createdBy?.length) pmiWhere.createdById = { in: pmiFilter.createdBy };
+      if (range) pmiWhere.createdAt = range;
+      if (Object.keys(pmiWhere).length) where.projectManagementItem = pmiWhere;
+      return where;
+    }
+    if (range) where.createdAt = range;
+    return where;
+  }
+
+  private async bidStageCountsOf(
+    companyFilter: CompanyWhere | undefined,
+    startDate?: string,
+    endDate?: string,
+    pmiFilter?: { procurementMethods?: string[]; departments?: string[]; createdBy?: string[] },
+  ) {
     const rows = await this.prisma.bidProject.groupBy({
       by: ['stage'],
       _count: { _all: true },
-      where: { ...companyFilter, ...(range ? { createdAt: range } : {}) },
+      where: this.bidStageWhere(companyFilter, startDate, endDate, pmiFilter),
     });
     const n = (s: string) => rows.find((r) => r.stage === s)?._count._all ?? 0;
     const pre = n('DOWNLOAD') + n('SUBMIT');
@@ -1347,17 +1418,26 @@ export class DashboardService {
     return { running: pre + inBid, pre, in: inBid, post: n('ARCHIVED') };
   }
 
-  async getBidStageStatus(companyFilter?: CompanyWhere, startDate?: string, endDate?: string) {
+  /** 实时态势四 KPI（首页模式：headline 存量快照，startDate 附 flow 三窗；进展页模式 pmiFilter：
+   *  全部筛选走 PMI 关系，headline 亦按窗计——两模式共用本入口，首页调用方不传 pmiFilter）。 */
+  async getBidStageStatus(
+    companyFilter?: CompanyWhere,
+    startDate?: string,
+    endDate?: string,
+    pmiFilter?: { procurementMethods?: string[]; departments?: string[]; createdBy?: string[] },
+  ) {
     startDate = validIsoDate(startDate);
     endDate = validIsoDate(endDate);
-    const base = await this.bidStageCountsOf(companyFilter);
+    const base = pmiFilter
+      ? await this.bidStageCountsOf(companyFilter, startDate, endDate, pmiFilter)
+      : await this.bidStageCountsOf(companyFilter);
     if (!startDate) return { ...base, flow: null };
     const [cur, yoy] = await Promise.all([
-      this.bidStageCountsOf(companyFilter, startDate, endDate),
-      this.bidStageCountsOf(companyFilter, shiftYearIsoB(startDate), shiftYearIsoB(endDate ?? nowIsoB())),
+      this.bidStageCountsOf(companyFilter, startDate, endDate, pmiFilter),
+      this.bidStageCountsOf(companyFilter, shiftYearIsoB(startDate), shiftYearIsoB(endDate ?? nowIsoB()), pmiFilter),
     ]);
     const prevW = priorWindow(startDate, endDate);
-    const prev = prevW ? await this.bidStageCountsOf(companyFilter, prevW.startDate, prevW.endDate) : { running: 0, pre: 0, in: 0, post: 0 };
+    const prev = prevW ? await this.bidStageCountsOf(companyFilter, prevW.startDate, prevW.endDate, pmiFilter) : { running: 0, pre: 0, in: 0, post: 0 };
     return { ...base, flow: { cur, yoy, prev } };
   }
 
