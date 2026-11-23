@@ -668,6 +668,9 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
     if (row) for (const s of evaluableSuppliers) scoredSlots += Math.min(row.get(s.id)?.scoredCount ?? 0, itemCount);
   }
   const scorePct = totalSlots > 0 ? Math.round((scoredSlots / totalSlots) * 100) : 0;
+  /** U8（2026-11-23）：分母真话——可评集（解密成功且未撤回）**含已废标家**（改票可恢复，
+   *  不收缩），「结果已生成」与「进度<100%」并存即源于此。明示计数防误读为漏评。 */
+  const invalidInDenominator = evaluableSuppliers.filter(s => s.bidValidity === 'invalid').length;
 
   /** D2（2026-11-23）：结果↔供应商 join 完整性守卫——results.supplierId 失配于项目供应商集时
    *  （陈旧/脏数据），排序退化插入序、名次回退客户端估算但标签仍「官方评标结果」、均分取客户端
@@ -900,7 +903,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
       <div className="mb-3 flex flex-wrap gap-2.5">
         <StatTile
           label="评分进度" value={`${scorePct}%`}
-          sub={`已评 ${scoredSlots}/${totalSlots} 格位`}
+          sub={`已评 ${scoredSlots}/${totalSlots} 格位${invalidInDenominator > 0 ? `（分母含 ${invalidInDenominator} 家已废标）` : ''}`}
           pct={scorePct} color={scorePct >= 80 ? 'var(--success)' : scorePct >= 50 ? 'var(--accent)' : 'var(--warning)'}
         />
         <StatTile
