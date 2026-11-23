@@ -1250,6 +1250,16 @@ export default function ExpertEvaluatePage() {
     && !(project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)
     // block if supplier is currently 废标 (invalid) —— 已投过票者例外（改票可恢复误废标，见上方逃生口注释）
     && (!invalidSupplierIds.has(activeSupplier) || hasCommittedScoresFor(activeSupplier));
+  /** D1（2026-11-23）：不可评原因分支——canScoreActiveSupplier 为 false 时按实际原因出文案。
+   *  此前四种原因（未解密/已撤回/回避/废标）共用「未解密成功或已撤回」一句话，废标家（如
+   *  AI 自动判定资格审查不通过）被误报成未解密，与侧栏「已解密」状态自相矛盾。 */
+  const activeSupplierBlockReason: 'undecrypted' | 'withdrawn' | 'conflict' | 'invalid' | null = (() => {
+    if (canScoreActiveSupplier) return null;
+    if (!activeSupplierRecord || activeSupplierRecord.decryptStatus !== 'SUCCESS') return 'undecrypted';
+    if (activeSupplierRecord.submitStatus === '已撤回') return 'withdrawn';
+    if (conflictedSupplierIds.has(activeSupplier) || (project?.myExpertRecord?.conflictedSupplierIds || []).includes(activeSupplier)) return 'conflict';
+    return 'invalid';
+  })();
   const scoreLocked = !!expert?.reportConfirmed;
   // P3（2026-09-21 审查）：超时态统一口径——横幅与提交按钮/文案共用（此前按钮可点但服务端必 409）
   const evaluationOverdue = !!(
@@ -2448,7 +2458,13 @@ export default function ExpertEvaluatePage() {
                       )}
                       {!canScoreActiveSupplier && !scoreLocked && (
                         <div className="exp-alert exp-alert--warn mb-4">
-                          当前投标单位未解密成功或已撤回，不能提交评分。
+                          {activeSupplierBlockReason === 'invalid'
+                            ? '该投标单位已被废标，不能提交评分；如认为系误判，请在评审中向组长提出复议。'
+                            : activeSupplierBlockReason === 'conflict'
+                              ? '您已对该投标单位申报回避，不能提交评分。'
+                              : activeSupplierBlockReason === 'withdrawn'
+                                ? '该投标单位已撤回投标，不能提交评分。'
+                                : '该投标单位尚未解密成功，暂不能提交评分。'}
                         </div>
                       )}
                       <div className="flex items-center gap-3">
