@@ -22,6 +22,25 @@ test("既有归一不回归：监督块粘连断行 + 空白段剔除照常生�
   assert.ok(!out.includes("　</p>"), out);
 });
 
+test("库内标题与正文粘连前缀不一致（列表标题带前缀）→ 形态启发式按首个「公告」边界拆分", () => {
+  const html = "<p><strong>便携式全液压岩心钻机（800型）采购</strong><strong>谈判采购公告</strong>四川水发勘测设计研究有限公司采用竞争性谈判方式采购，现公示如下：</p>"
+    + "<p>一、项目信息</p>";
+  // 列表标题带「谈判文件公告 — 」前缀，与正文粘连串不相等 → 走启发式
+  const out = normalizeAnnouncementContentHtml(html, "谈判文件公告 — 便携式全液压岩心钻机（800型）采购");
+  assert.ok(out.includes('<p class="ann-prose-title">便携式全液压岩心钻机（800型）采购谈判采购公告</p>'), out);
+  assert.ok(out.includes("<p>四川水发勘测设计研究有限公司采用竞争性谈判方式采购，现公示如下：</p>"), out);
+  assert.ok(out.includes('<p class="ann-prose-h">一、项目信息</p>'), out);
+});
+
+test("启发式形态校验防误拆：候选过短/含标点/正文段先于标题 → 不拆", () => {
+  // 候选标题（至首个「公告」）不足 8 字 → 不拆
+  const short = normalizeAnnouncementContentHtml("<p>发公告了各位注意查收</p>", "别的标题");
+  assert.ok(!short.includes("ann-prose-title"), short);
+  // 候选内含逗号（正文形态）→ 不拆
+  const comma = normalizeAnnouncementContentHtml("<p>按公告要求，请及时报名参加</p>", "别的标题");
+  assert.ok(!comma.includes("ann-prose-title"), comma);
+});
+
 test("首段与标题非前缀关系（异构存量）→ 不猜测、原样返回；无 <p> 纯文本直通", () => {
   const html = "<p>正文与标题无关</p><p>一、项目信息</p>";
   const out = normalizeAnnouncementContentHtml(html, "某公告标题");

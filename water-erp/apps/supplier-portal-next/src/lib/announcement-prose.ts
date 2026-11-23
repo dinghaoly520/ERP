@@ -38,19 +38,29 @@ function stripBlankParagraphs(html: string): string {
   return html.replace(/<p[^>]*>[\s 　]*<\/p>/g, '');
 }
 
-/** 首段粘连标题拆分：首段纯文本以公告标题开头 → 居中标题段 + 余文段落。
- *  按剥离标签后的文本重建（首段内嵌 <strong> 随之剥离——公文样式类接管排版）；
- *  首段与标题不相等前缀（异构存量）不猜测、原样返回。 */
+/** 首段粘连标题拆分（两级）：居中标题段 + 余文段落。按剥离标签后的文本重建
+ *  （首段内嵌 <strong> 随之剥离——公文样式类接管排版）。
+ *  1) 精确：首段文本以公告标题开头（标题与正文同串粘连）；
+ *  2) 启发式（2026-11-23 实录：列表标题「谈判文件公告 — 项目名」与正文粘连串
+ *     「项目名+公告类型」不相等）：按首个「公告」词边界拆分，形态校验防误拆——
+ *     候选标题 8~60 字、不含句读标点（标题形态）、余文非空且不以「公告」续接；
+ *     两级皆不命中（正文段先行的异构存量）不猜测、原样返回。 */
 function splitLeadingTitle(html: string, title?: string | null): string {
   if (!title?.trim() || !html.includes('<p')) return html;
   const m = html.match(/^\s*<p([^>]*)>([\s\S]*?)<\/p>/);
   if (!m) return html;
-  const t = title.replace(/\s+/g, '');
   const text = m[2].replace(/<[^>]+>/g, '').replace(/\s+/g, '');
-  if (!text.startsWith(t)) return html;
-  const body = text.slice(t.length);
-  if (!body.trim()) return `<p class="ann-prose-title">${title}</p>${html.slice(m[0].length)}`;
-  return `<p class="ann-prose-title">${title}</p><p>${body}</p>${html.slice(m[0].length)}`;
+  let head = '';
+  if (title.replace(/\s+/g, '') && text.startsWith(title.replace(/\s+/g, ''))) {
+    head = title;
+  } else {
+    const m2 = text.match(/^(.{7,59}?公告)([\s\S]+)$/);
+    if (!m2 || /[，。；！？：、]/.test(m2[1]) || m2[2].startsWith('公告')) return html;
+    head = m2[1];
+  }
+  const body = text.slice(head.replace(/\s+/g, '').length);
+  if (!body.trim()) return `<p class="ann-prose-title">${head}</p>${html.slice(m[0].length)}`;
+  return `<p class="ann-prose-title">${head}</p><p>${body}</p>${html.slice(m[0].length)}`;
 }
 
 /** 「一、」序号节标题：加粗 + 缩进 2 字符（正文段维持首行缩进）。 */
