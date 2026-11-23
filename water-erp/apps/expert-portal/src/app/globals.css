@@ -1094,5 +1094,5 @@ select.neu-select {
 }
 .exp-calc-shell .neu-btn-xs {
   height: auto;
-  min-height: 30px;
+  min-height: 34px; /* 2026-11-23 按键字体加大配套 */
 }

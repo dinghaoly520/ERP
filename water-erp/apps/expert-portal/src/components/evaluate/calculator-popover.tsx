@@ -319,7 +319,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                 className="neu-btn-xs is-square !h-6 !w-6 !min-h-6"
                 aria-label="关闭计算器"
               >
-                <X size={13} strokeWidth={1.5} />
+                <X size={14} strokeWidth={1.5} />
               </button>
             </div>
 
@@ -386,7 +386,7 @@ export function CalculatorPopover({ className = '' }: { className?: string }) {
                   key={k.label}
                   type="button"
                   onClick={() => onKeyButton(k)}
-                  className={`neu-btn-xs !px-0 font-mono !text-[13px] ${k.cls ?? ''}`}
+                  className={`neu-btn-xs !px-0 font-mono !text-[15px] ${k.cls ?? ''}`}
                 >
                   {k.isAngle ? angleMode : k.label}
                 </button>
