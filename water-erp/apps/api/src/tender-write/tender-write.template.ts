@@ -2462,8 +2462,23 @@ function formatBidOpeningTime(
   return formatAnnouncementDateToChinese(timeValue);
 }
 
+/** 工期及进度要求值前置节标签行（2026-11-23 修复）：四个公告模板的 {{工期及进度要求}}
+ *  均为裸占位段、模板里没有「N、工期及进度要求：」标签——生成 docx 与门户正文该节标题
+ *  整体缺失（发布预览实录）。标签行 + 值经 isHierarchicalText 的 \n→<w:br/> 独立成行；
+ *  值已带同款前缀（自动填充形态）幂等不重复；选「无」/空值走原删行与「请填写」路径不掺标签。
+ *  编号按模板节序：默认 3、（谈判/询比/竞价/邀请——1 采购内容、2 最高限价在前），
+ *  公开招标 4、（3 资格审查方式在前）。 */
+function withScheduleLabel(answers: AnnouncementDraft, labelNo: string): string | undefined {
+  if (answers.scheduleRequirementsType === 'none') return '';
+  const v = (answers.scheduleRequirements ?? '').trim();
+  if (!v) return answers.scheduleRequirements; // 空 → 「请填写工期及进度要求」高亮，不掺标签
+  if (/^\d+、工期及进度要求[:：]/.test(v)) return v;
+  return `${labelNo}、工期及进度要求：\n${v}`;
+}
+
 export function buildInvitedBiddingAnnouncementPlan(
   answers: AnnouncementDraft,
+  opts: { scheduleLabelNo?: string } = {},
 ): TemplateReplacement[] {
   return [
     { targetText: '项目名称', ...buildReplacement('项目名称', answers.projectName) },
@@ -2474,10 +2489,11 @@ export function buildInvitedBiddingAnnouncementPlan(
     { targetText: '最高限价2', ...buildReplacement('最高限价（小写）', answers.maxPriceNumeric) },
     // 工期及进度要求：选「无」时导出不再落「无」字（2026-09-21，与预览端对齐——预览对
     // scheduleRequirementsType!=='have' 整行条件渲染省略）；空值+shouldDeleteLine → 整段删除
-    // {{工期及进度要求}} 占位段落（同「提交成果要求/服务内容」选无删除行的既有模式）
+    // {{工期及进度要求}} 占位段落（同「提交成果要求/服务内容」选无删除行的既有模式）；
+    // 2026-11-23 起值前置「N、工期及进度要求：」标签行（模板裸占位段无标签，见 withScheduleLabel）
     {
       targetText: '工期及进度要求',
-      ...buildReplacement('工期及进度要求', answers.scheduleRequirementsType === 'none' ? '' : answers.scheduleRequirements, true),
+      ...buildReplacement('工期及进度要求', withScheduleLabel(answers, opts.scheduleLabelNo ?? '3'), true),
       isHierarchicalText: true,
       shouldDeleteLine: answers.scheduleRequirementsType === 'none',
     },

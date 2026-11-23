@@ -504,13 +504,15 @@ export class TenderWriteService {
       } else if (tenderType === 'PUBLIC_BIDDING') {
         // 公开招标（2026-11-20）：公告公示组织（供应商邀请仅邀请招标/直接采购两方式）——
         // 模板克隆自邀请招标公告（招标人口吻），替换计划完全复用；原 INVITED_BIDDING
-        // 分支在 2026-11-12 硬闸（INVITED_NO_PROCUREMENT_NOTICE）之下不可达，就此让位
+        // 分支在 2026-11-12 硬闸（INVITED_NO_PROCUREMENT_NOTICE）之下不可达，就此让位。
+        // 工期节标签编号 4、（模板节序：3、资格审查方式在前——2026-11-23 节标签前置修复）
         templatePath = path.resolve(
           PROJECT_ROOT,
           PUBLIC_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE,
         );
         replacementPlan = buildInvitedBiddingAnnouncementPlan(
           draft as Record<string, string>,
+          { scheduleLabelNo: '4' },
         );
         typeLabel = '招标公告';
       } else {
