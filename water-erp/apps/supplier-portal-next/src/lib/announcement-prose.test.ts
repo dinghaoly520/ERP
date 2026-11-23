@@ -41,6 +41,17 @@ test("启发式形态校验防误拆：候选过短/含标点/正文段先于标
   assert.ok(!comma.includes("ann-prose-title"), comma);
 });
 
+test("段内 br 编号项拆独立段落（首行缩进前提）；非编号续行保持 br", () => {
+  const html = "<p>3、工期及进度要求：<br/>1）合同签订之日起供货。<br/>2）到货后安装。<br/>尾部说明无编号</p>";
+  const out = normalizeAnnouncementContentHtml(html, null);
+  // 编号行拆为独立 <p>（各获首行缩进）
+  assert.ok(out.includes("<p>3、工期及进度要求：</p>"), out);
+  assert.ok(out.includes("<p>1）合同签订之日起供货。</p>"), out);
+  assert.ok(out.includes("<p>2）到货后安装。<br/>尾部说明无编号</p>"), out);
+  // 无编号续行保持 br（不拆段）
+  assert.ok(out.includes("<br/>尾部说明无编号"), out);
+});
+
 test("首段与标题非前缀关系（异构存量）→ 不猜测、原样返回；无 <p> 纯文本直通", () => {
   const html = "<p>正文与标题无关</p><p>一、项目信息</p>";
   const out = normalizeAnnouncementContentHtml(html, "某公告标题");

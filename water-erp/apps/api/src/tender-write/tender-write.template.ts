@@ -295,6 +295,11 @@ function formatHierarchicalText(text: string): string {
   // Break before circled numbers (①②③④⑤⑥⑦⑧⑨⑩)
   result = result.replace(/([①②③④⑤⑥⑦⑧⑨⑩]+)/g, '\n$1');
 
+  // 下一级序号归一（2026-11-23 用户裁定）：行首句点式「N.」→「N）」——公文层级 一、/N、 → 1）。
+  // 「N、」是节标签样式（1、采购内容包括：/3、工期及进度要求：）不归一；
+  // 小数防误伤（N. 后紧跟数字不命中）；「N）」幂等
+  result = result.replace(/(^|\n)\s*(\d+)[.．](?!\d)\s*/g, '$1$2）');
+
   // Clean up
   result = result.replace(/^\n/, '');
   result = result.replace(/\n+/g, '\n');

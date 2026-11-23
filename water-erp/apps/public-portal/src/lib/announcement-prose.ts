@@ -74,5 +74,28 @@ function markSectionHeadings(html: string): string {
 }
 
 export function normalizeAnnouncementContentHtml(html: string, title?: string | null): string {
-  return markSectionHeadings(splitLeadingTitle(stripBlankParagraphs(breakGluedSupervisionLabels(html)), title));
+  return markSectionHeadings(splitNumberedBrLines(splitLeadingTitle(stripBlankParagraphs(breakGluedSupervisionLabels(html)), title)));
+}
+
+/** 段内 <br/> 断行的编号项拆为独立段落（2026-11-23 用户裁定：编号项也要首行缩进——
+ *  CSS text-indent 只缩段首行，br 断行缩不到）。仅拆「br 后续行以编号起始」的行
+ *  （1）/1./1、/①/（1）等列表块），非编号续行（监督块标签行等）保持 br。
+ *  置于 markSectionHeadings 之前——拆出的一、式节行可被加粗标记命中。 */
+const NUMBERED_LINE_START_RE = /^(?:[（(]?\d+[）)、.．]|[①②③④⑤⑥⑦⑧⑨⑩]|[一二三四五六七八九十]+[、）)])/;
+
+function splitNumberedBrLines(html: string): string {
+  if (!html.includes('<br')) return html;
+  return html.replace(/<p([^>]*)>([\s\S]*?)<\/p>/g, (whole, _attrs: string, inner: string) => {
+    if (!/<br\s*\/?>/i.test(inner)) return whole;
+    const segs = inner.split(/<br\s*\/?>/i);
+    let out = '';
+    for (let i = 0; i < segs.length; i++) {
+      if (i > 0) {
+        const text = segs[i].replace(/<[^>]+>/g, '').trim();
+        out += NUMBERED_LINE_START_RE.test(text) ? '</p><p>' : '<br/>';
+      }
+      out += segs[i];
+    }
+    return `<p>${out}</p>`;
+  });
 }
