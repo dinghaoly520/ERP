@@ -217,9 +217,9 @@ describe('SupplierService.approve — 孤儿件（companyId=null）admin 兜底�
   it('孤儿件（companyId=null）：admin 可初审通过，推进至 LEADER 且留痕 stage=STAFF', async () => {
     const res = await service.approve('sup-1', 'admin-1', '证照齐全，平台管理员兜底初审');
     expect(res).toEqual({ success: true, stage: 'LEADER' });
-    // 乐观锁推进：仅升级 reviewStage，不落终态
+    // 乐观锁推进：仅升级 reviewStage，不落终态（2026-11-23 收紧：锁谓词仅 PENDING——补正中禁审）
     expect(prisma.supplier.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'sup-1', status: { in: ['PENDING', 'RETURNED'] }, reviewStage: 'STAFF' },
+      where: { id: 'sup-1', status: 'PENDING', reviewStage: 'STAFF' },
       data: { reviewStage: 'LEADER', returnReason: null },
     }));
     // 不可变留痕：动作 APPROVED、发生级 STAFF（展示侧据此亮「代初审」徽标）

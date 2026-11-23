@@ -2295,7 +2295,13 @@ export class SupplierService {
     if (!supplier) {
       throw new BadRequestException({ error: '供应商不存在', code: 'NOT_FOUND' });
     }
-    if (supplier.status !== 'PENDING' && supplier.status !== 'RETURNED') {
+    // 补正中禁审（2026-11-23 用户裁定）：退回补正后须等供应商重提（status 回 PENDING）
+    // 才能继续审——此前 RETURNED 可直接审（不等重提）且通过只推进级不改 status，
+    // 产生 status=RETURNED+级已推进的悬挂态（生产实录 SUP-000016）。
+    if (supplier.status === 'RETURNED') {
+      throw new BadRequestException({ error: '该申请已退回补正，待供应商重新提交后才能审核', code: 'AWAITING_RESUBMISSION' });
+    }
+    if (supplier.status !== 'PENDING') {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
@@ -2315,7 +2321,7 @@ export class SupplierService {
       // 终审通过：落终态 + 激活账号（三级闭环才入库）
       await this.prisma.$transaction(async (tx) => {
         const claimed = await tx.supplier.updateMany({
-          where: { id, status: { in: ['PENDING', 'RETURNED'] }, reviewStage: supplier.reviewStage },
+          where: { id, status: 'PENDING', reviewStage: supplier.reviewStage },
           data: { status: 'APPROVED', reviewStage: null, returnReason: null, rejectReason: null },
         });
         if (claimed.count === 0) {
@@ -2350,7 +2356,7 @@ export class SupplierService {
     // STAFF/LEADER 通过：仅推进级，通知下一级审批人（乐观锁带当前级防越级/双审）
     const nextStage = stage === 'STAFF' ? 'LEADER' : 'ADMIN';
     const claimed = await this.prisma.supplier.updateMany({
-      where: { id, status: { in: ['PENDING', 'RETURNED'] }, reviewStage: supplier.reviewStage },
+      where: { id, status: 'PENDING', reviewStage: supplier.reviewStage },
       data: { reviewStage: nextStage, returnReason: null },
     });
     if (claimed.count === 0) {
@@ -2411,7 +2417,11 @@ export class SupplierService {
       : null;
     await this.assertStageApprover(stage, reviewer, supplier.companyId);
 
-    if (supplier.status !== 'PENDING' && supplier.status !== 'RETURNED') {
+    // 补正中禁审（2026-11-23 用户裁定，同 approve 口径）：退回补正后须等供应商重提回 PENDING
+    if (supplier.status === 'RETURNED') {
+      throw new BadRequestException({ error: '该申请已退回补正，待供应商重新提交后才能审核', code: 'AWAITING_RESUBMISSION' });
+    }
+    if (supplier.status !== 'PENDING') {
       throw new BadRequestException({ error: '供应商状态不允许审核', code: 'INVALID_STATUS' });
     }
 
@@ -2419,7 +2429,7 @@ export class SupplierService {
     //（reviewStage 保留=记录被拒于哪一级）。
     const claimed = await this.prisma.supplier.updateMany({
       // where 用读到的原始 reviewStage（存量 null 匹配 null；stage 变量为断言用兜底值）
-      where: { id, status: { in: ['PENDING', 'RETURNED'] }, reviewStage: supplier.reviewStage },
+      where: { id, status: 'PENDING', reviewStage: supplier.reviewStage },
       data: { status: 'REJECTED', rejectReason: reason },
     });
     if (claimed.count === 0) {
