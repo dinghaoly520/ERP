@@ -341,7 +341,7 @@ The NestJS API (`apps/api`, :4001):
 | `Prisma` | Infrastructure: global `PrismaService` singleton |
 | `Common` | Shared: `HttpExceptionFilter` (normalized errors), guards, decorators (`@CurrentUser`, `@Public`, `@Roles`) |
 
-> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）；截断类（finish_reason=length，deepseek-flash 思维链与正文共享 max_tokens）重试自动翻倍预算、封顶 65536（`LlmTruncationError` 类型化，2026-11-05；API 硬上限 393216，预算与 timeoutMs 须成对提）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移
+> **LLM 调用已收口（2026-07）：** 所有 DeepSeek/vLLM 调用统一走 `local-ai/LlmService`（`chat`/`chatJson`/`chatMessages`）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）；**连接建立阶段失败**（ECONNREFUSED/ETIMEDOUT 等请求未发出类）另走 `LLM_CONNECT_RETRIES`（默认 4，退避 500/1000/2000/4000ms≈8-10s，零 token 成本不占模型级预算；显式 `retries:0` 才一并关闭——2026-11-20 生产 B 机对 EdgeOne 两节点间歇拒连实录）；截断类（finish_reason=length，deepseek-flash 思维链与正文共享 max_tokens）重试自动翻倍预算、封顶 65536（`LlmTruncationError` 类型化，2026-11-05；API 硬上限 393216，预算与 timeoutMs 须成对提）。历史曾散落于 `announcement-ai`、`ai/supplier-selection-ai`、`ai/ai.service`、`expert/expert-extraction-ai`、`assistant/deepseek.provider` 的直连 `process.env.DEEPSEEK_API_URL + fetch` 均已迁移
 
 ### Security Hardening (API)
 
@@ -450,7 +450,7 @@ In non-interactive environments, use `prisma migrate dev --create-only` → `pri
 - **prisma studio** 不读 `directUrl`，需 `DATABASE_URL="$DIRECT_URL" pnpm db:studio`。
 - **OperationLog**：20260723000000 起为按月 RANGE 分区表，PK=`(id, createdAt)`。@Cron 04:00 预建未来 `OPERATION_LOG_PARTITION_MONTHS_AHEAD`（默认 2）个月分区 + DROP 整月过期分区（O(1)），保留期默认 180 天。**禁止 migrate diff 重生成该表 DDL**（diff 会试图改回单列 PK）。
 - **pnpm db:backup / db:restore**：`scripts/db-backup.sh`（docker exec pg_dump → gzip），`BACKUP_KEEP_DAYS` 默认 14，输出 `backups/`（gitignored）。host cron 见 `docs/db-backup.md`。
-- **LLM 收口**：全部 DeepSeek 调用统一走 `local-ai/LlmService`（chat/chatJson/chatMessages）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）。`tender-review/services/llm.service.ts` 已删除（死代码）。
+- **LLM 收口**：全部 DeepSeek 调用统一走 `local-ai/LlmService`（chat/chatJson/chatMessages）。`LLM_MAX_CONCURRENCY`（默认 10，进程内信号量）、`LLM_MAX_RETRIES`（默认 2，429/5xx/网络/超时指数退避，遵守 Retry-After≤8s）；**连接建立阶段失败**（ECONNREFUSED/ETIMEDOUT 等请求未发出类）另走 `LLM_CONNECT_RETRIES`（默认 4，退避 500/1000/2000/4000ms≈8-10s，零 token 成本不占模型级预算；显式 `retries:0` 才一并关闭——2026-11-20 生产 B 机对 EdgeOne 两节点间歇拒连实录）。`tender-review/services/llm.service.ts` 已删除（死代码）。
 - **OCR 多副本**：`services/ocr/start.sh` 支持 `OCR_PORT`/`OCR_HOST` 参数化。副本间 `OCR_HYBRID_PORT` 段不可重叠。API 侧 `OCR_SERVICE_URL` 支持逗号列表 round-robin（`ocr.service.ts`）。
 - **ai-bid worker 扩容**：`AI_BID_WORKER_CONCURRENCY`（默认 2）；水平扩容=多开 worker 进程，BullMQ 天然安全（job ID 去重）。见 `docs/ops-scaling.md`。
 - **操作日志排除默认值**：`operation-log.filter.ts` 新增 8 个高频轮询端点（通知角标/驾驶舱统计/审查任务轮询等，带方法限定 GET-only；2026-08-28 增 :3007 任务板 GET /bid/projects/dashboard 30s 轮询；2026-09-16 增 GET /operation-log——:3005 操作日志查询页（`/admin/operation-log`，admin only）自查询浏览不入日志防审计噪音，前缀连带 /my /archive /archive/verify，均只读）。
