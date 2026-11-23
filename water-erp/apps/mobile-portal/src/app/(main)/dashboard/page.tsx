@@ -245,6 +245,53 @@ function ProjectRow({
   );
 }
 
+/* ── 节资榜行（公司榜/部门榜共用，2026-11-23）：前三徽章 + 名称（+公司胶囊）+ 节资额
+ *    + 元信息行（N 项 · 节资率）+ 占比条（相对榜首）── */
+
+function SavingsRankRow({
+  rank,
+  name,
+  chip,
+  savings,
+  max,
+  meta,
+}: {
+  rank: number;
+  name: string;
+  chip?: string;
+  savings: number;
+  max: number;
+  meta: string;
+}) {
+  return (
+    <div className="rounded-[12px] m-tile px-3 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black ${rank === 1 ? "bg-[color-mix(in_oklch,var(--success)_18%,transparent)] text-[var(--success)]" : rank === 2 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : rank === 3 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}
+        >
+          {rank}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[14px] font-semibold leading-snug text-[var(--foreground)]">{name}</span>
+          <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-[var(--muted-foreground)]">
+            {chip ? (
+              <span className="max-w-[8.5rem] shrink-0 truncate rounded-full bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-1.5 py-0.5 text-[var(--accent)]">{chip}</span>
+            ) : null}
+            <span className="truncate tabular-nums">{meta}</span>
+          </span>
+        </span>
+        <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--success)]">+{fmtWan(savings)}</span>
+      </div>
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
+        <span
+          className="block h-full rounded-full bg-[var(--success)] opacity-75 transition-[width] duration-300"
+          style={{ width: `${max > 0 ? (savings / max) * 100 : 0}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ── 驾驶舱主组件（2026-11-19 九板块页面化）：双模式——无 panel=首页全景；
  *  有 panel=单板块页面体（/analysis/[key] 页面套壳复用本组件）── */
 
@@ -711,7 +758,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   }, [data]);
 
 
-  const savingsTop = (data?.savingsRanking ?? []).slice(0, 5);
+  /* 节资率项目排行 Top 10（2026-11-23 用户裁定：5→10，后端同步放开 8→10） */
+  const savingsTop = (data?.savingsRanking ?? []).slice(0, 10);
 
   /* 口径选择器（首页挂总览卡头；页面模式挂顶行） */
   const scopeSelectors = (
@@ -1490,41 +1538,65 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             ) : null}
             {analysisOpen === "ranking" ? (
               <>
-            {/* ══ 节资排行（2026-11-19 口径联动裁定）：
-             *  全部/多选公司 → 公司排行 + 节资额排行 + 节资率排行（部门标公司名）
-             *  仅选一家 → 部门排行（该公司内）+ 节资额排行 + 节资率排行（部门不重复标公司）══ */}
+            {/* ══ 节资排行（2026-11-23 用户裁定）：
+             *  全部/多选公司 → 公司排行 + 部门排行（行标公司）+ 节资率项目排行 Top 10
+             *  仅选一家 → 部门排行（不标公司）+ 节资率项目排行 Top 10（不显示公司排行）
+             *  公司/部门榜源自主数据 companySavingsRanking/departmentSavingsRanking——与总览
+             *  节资额同口径、随时间/公司选择器实时适配（原龙虎榜年榜源退役，首页龙虎榜卡不受影响）══ */}
             {(() => {
-
+              const singleCo = companyIds.length === 1;
+              const companyRows = data?.companySavingsRanking ?? [];
+              const deptRows = data?.departmentSavingsRanking ?? [];
               return (
                 <>
-            {/* ── 节资额排行（按节约金额排序）── */}
-            {(() => {
-              const bySavings = [...(ranking?.rows ?? [])].sort((a, b) => b.savings - a.savings).filter((r) => r.savings > 0);
-              if (!bySavings.length) return null;
-              const max = bySavings[0].savings;
-              return (
-                <AnalysisZone icon={TrendingUp} title="节资额排行" count={`Top ${Math.min(bySavings.length, 10)}`} color="var(--success)">
+            {/* ── 公司排行（按节资额降序；仅全部/多选公司时展示）── */}
+            {!singleCo ? (
+              <AnalysisZone icon={Scale} title="公司排行" count={`Top ${Math.min(companyRows.length, 10)}`} color="var(--accent)">
+                {!data ? (
+                  <div className="py-2"><Skeleton lines={5} height={56} /></div>
+                ) : companyRows.length ? (
                   <div className="space-y-1.5">
-                    {bySavings.slice(0, 10).map((r, i) => (
-                      <div key={r.companyId} className="rounded-[12px] m-tile px-3 py-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[13px] font-black ${i === 0 ? "bg-[color-mix(in_oklch,var(--success)_18%,transparent)] text-[var(--success)]" : i === 1 ? "bg-[color-mix(in_oklch,var(--gold)_14%,transparent)] text-[var(--gold)]" : i === 2 ? "bg-[color-mix(in_oklch,var(--accent)_14%,transparent)] text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{i + 1}</span>
-                          <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--foreground)]">{r.companyName}</span>
-                          <span className="shrink-0 text-[14px] font-bold tabular-nums text-[var(--success)]">+{fmtWan(r.savings)}</span>
-                        </div>
-                        <div className="mt-1.5 flex items-center gap-2">
-                          <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                            <span className="block h-full rounded-full bg-[var(--success)] opacity-75 transition-[width] duration-300" style={{ width: `${(r.savings / max) * 100}%` }} />
-                          </span>
-                        </div>
-                      </div>
+                    {companyRows.slice(0, 10).map((r, i) => (
+                      <SavingsRankRow
+                        key={r.companyId || r.company}
+                        rank={i + 1}
+                        name={r.company}
+                        savings={r.savings}
+                        max={companyRows[0].savings}
+                        meta={`${r.count} 项 · 节资率 ${r.savingsRate}%`}
+                      />
                     ))}
                   </div>
-                </AnalysisZone>
-              );
-            })()}
+                ) : (
+                  <EmptyState text="暂无节资数据" />
+                )}
+              </AnalysisZone>
+            ) : null}
 
-            {/* ── 节资率项目排行（部门处标公司名——多公司时；单公司不重复标）── */}
+            {/* ── 部门排行（按节资额降序；恒展示，全部/多选公司时行标公司胶囊）── */}
+            <AnalysisZone icon={Building2} title="部门排行" count={`Top ${Math.min(deptRows.length, 10)}`} color="var(--success)">
+              {!data ? (
+                <div className="py-2"><Skeleton lines={6} height={56} /></div>
+              ) : deptRows.length ? (
+                <div className="space-y-1.5">
+                  {deptRows.slice(0, 10).map((r, i) => (
+                    <SavingsRankRow
+                      key={`${r.company}·${r.department}`}
+                      rank={i + 1}
+                      name={r.department}
+                      chip={singleCo ? undefined : r.company}
+                      savings={r.savings}
+                      max={deptRows[0].savings}
+                      meta={`${r.count} 项 · 节资率 ${r.savingsRate}%`}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState text="暂无节资数据" />
+              )}
+            </AnalysisZone>
+
+            {/* ── 节资率项目排行 Top 10（部门处标公司名——多公司时；单公司不重复标）── */}
             <AnalysisZone icon={Trophy} title="节资率项目排行" count={`Top ${Math.min(savingsTop.length, 10)}`} color="var(--gold)">
               {savingsTop.length ? (
                 (() => {

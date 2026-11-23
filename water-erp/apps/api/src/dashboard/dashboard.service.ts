@@ -934,7 +934,61 @@ export class DashboardService {
           return b.savingsRate - a.savingsRate;
         return b.savings - a.savings;
       })
-      .slice(0, 8);
+      // Top 10（2026-11-23 用户裁定：:3011 节资率项目排行 5→10；:3005 面板自切 5 不受影响）
+      .slice(0, 10);
+
+    // 节资公司/部门榜（2026-11-23 用户裁定：:3011 节资排行板块加部门维度，单公司时替代公司榜）
+    // 口径同 summary.totalSavings——仅 AWARDED 且预算/成交为正、预算≥成交（超预算中标不计，
+    // 榜单合计可与总览节资额对账）；部门键=公司×部门（同名部门跨公司各自成行，多公司视图标公司名）
+    type SavingsBucket = { budget: number; award: number; count: number };
+    const companySavingsMap = new Map<string, SavingsBucket & { companyId: string; companyName: string }>();
+    const departmentSavingsMap = new Map<
+      string,
+      SavingsBucket & { department: string; companyId: string; companyName: string; topProject: string; topSavings: number }
+    >();
+    for (const item of rounds) {
+      if (item.resultStatus !== ResultStatus.AWARDED) continue;
+      const budget = decimalToNumber(item.budgetAmount);
+      const award = decimalToNumber(item.awardAmount);
+      if (!(budget > 0 && award > 0 && budget >= award)) continue;
+      const savings = budget - award;
+      const companyId = item.companyId ?? '';
+      const companyName = item.company?.name ?? item.companyName ?? '未归属公司';
+      const department = item.department?.name ?? '未归属部门';
+
+      const c = companySavingsMap.get(companyId) ?? { companyId, companyName, budget: 0, award: 0, count: 0 };
+      c.budget += budget;
+      c.award += award;
+      c.count += 1;
+      companySavingsMap.set(companyId, c);
+
+      const dKey = `${companyId}\u0000${department}`;
+      const d =
+        departmentSavingsMap.get(dKey) ??
+        { department, companyId, companyName, budget: 0, award: 0, count: 0, topProject: '', topSavings: -1 };
+      d.budget += budget;
+      d.award += award;
+      d.count += 1;
+      if (savings > d.topSavings) {
+        d.topSavings = savings;
+        d.topProject = item.project.name;
+      }
+      departmentSavingsMap.set(dKey, d);
+    }
+    const savingsRankRow = (b: SavingsBucket) => ({
+      savings: b.budget - b.award,
+      savingsRate: b.budget > 0 ? Math.round(((b.budget - b.award) / b.budget) * 1000) / 10 : 0,
+      count: b.count,
+    });
+    const companySavingsRanking = [...companySavingsMap.values()]
+      .map((c) => ({ companyId: c.companyId, company: c.companyName, ...savingsRankRow(c) }))
+      .filter((r) => r.savings > 0)
+      .sort((a, b) => b.savings - a.savings);
+    const departmentSavingsRanking = [...departmentSavingsMap.values()]
+      .map((d) => ({ department: d.department, company: d.companyName, ...savingsRankRow(d), topProject: d.topProject }))
+      .filter((r) => r.savings > 0)
+      .sort((a, b) => b.savings - a.savings)
+      .slice(0, 10);
 
     const now = new Date();
     // 风险预警同异常口径（2026-09-28）：PENDING=在途不算风险，避免全库在途项目刷屏
@@ -1122,6 +1176,8 @@ export class DashboardService {
       resultStats,
       nonAwardReasons,
       savingsRanking,
+      companySavingsRanking,
+      departmentSavingsRanking,
       riskProjects,
       supplierConcentration,
       supplierCr5,
