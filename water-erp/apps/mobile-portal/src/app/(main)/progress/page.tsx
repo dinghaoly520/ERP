@@ -9,6 +9,7 @@ import { fetchProgressStats, type ProgressStats, type ProjectProgress } from "@/
 import { useAuth } from "@/components/m/auth-context";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
+import { barFill } from "@/lib/bar-style";
 import { fetchProcurementDimensions, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { BottomSheet } from "@/components/m/bottom-sheet";
 import { SectionCard } from "@/components/m/section-card";
@@ -368,7 +369,7 @@ export default function ProgressPage() {
                     <span className="w-[6.25rem] shrink-0 truncate text-[14px] font-medium text-[var(--foreground)]">{d.meta.label}</span>
                     <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                       {/* 2026-11-19 用户裁定：分母=在办总数（占比之和=100%），不再按最大值归一 */}
-                      <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / filteredProjects.length) * 100}%`, background: d.meta.color }} />
+                      <div className="h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / filteredProjects.length) * 100}%`, background: barFill(d.meta.color) }} />
                     </div>
                     {/* 文字风格（2026-11-19）：百分比为 primary（粗体主色）、计数退居次级小字 */}
                     <span className="w-[4.5rem] shrink-0 text-right text-[15px] font-black tabular-nums text-[var(--foreground)]">

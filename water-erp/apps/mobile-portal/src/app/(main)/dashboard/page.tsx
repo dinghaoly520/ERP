@@ -51,6 +51,7 @@ import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, type ProgressStats } from "@/lib/api/progress";
 import { RANGES, shiftYearIso, todayIso, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
+import { SAVINGS_BAR_COLORS, barColorAt, barFill } from "@/lib/bar-style";
 
 /** PMI 阶段键→中文（数据分析进行中区；与进展页 STAGE_META 同 canon 词面） */
 function PMI_STAGE_LABELS_OF(key: string): string {
@@ -62,17 +63,7 @@ function PMI_STAGE_LABELS_OF(key: string): string {
   return m[key] ?? key;
 }
 
-/** 部门分布指示条色板（2026-11-19 用户裁定：丰富色彩）——八色循环，与 DONUT_COLORS 同族 */
-const DEPT_BAR_COLORS = [
-  "var(--accent)",
-  "var(--gold)",
-  "oklch(0.55 0.14 285)",
-  "oklch(0.55 0.11 168)",
-  "var(--warning)",
-  "oklch(0.55 0.1 228)",
-  "oklch(0.58 0.14 25)",
-  "oklch(0.6 0.12 188)",
-];
+/* 比例条色板/填充统一走 @/lib/bar-style（2026-11-23 所有比例条增色裁定） */
 
 const BID_BUCKET_LABELS: Record<BidStageBucket, string> = {
   running: "运行中项目",
@@ -255,6 +246,7 @@ function SavingsRankRow({
   savings,
   max,
   meta,
+  color,
 }: {
   rank: number;
   name: string;
@@ -262,6 +254,8 @@ function SavingsRankRow({
   savings: number;
   max: number;
   meta: string;
+  /** 条体色（SAVINGS_BAR_COLORS 按行序——前三与徽章同色） */
+  color: string;
 }) {
   return (
     <div className="rounded-[12px] m-tile px-3 py-2.5">
@@ -284,8 +278,8 @@ function SavingsRankRow({
       </div>
       <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
         <span
-          className="block h-full rounded-full bg-[var(--success)] opacity-75 transition-[width] duration-300"
-          style={{ width: `${max > 0 ? (savings / max) * 100 : 0}%` }}
+          className="block h-full rounded-full transition-[width] duration-300"
+          style={{ width: `${max > 0 ? (savings / max) * 100 : 0}%`, background: barFill(color) }}
         />
       </div>
     </div>
@@ -1101,7 +1095,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           <div key={x.name} className="flex items-center gap-2">
                             <span className="w-[7.5rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.name}</span>
                             <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                              <span className="block h-full rounded-[5px] opacity-80 m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: color }} />
+                              <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(color) }} />
                             </span>
                             <span className="w-[3.5rem] shrink-0 text-right text-[13px] font-bold tabular-nums text-[var(--foreground)]">{fmt(x[key])}</span>
                           </div>
@@ -1218,7 +1212,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       </div>
                       <div className="mt-1.5 flex items-center gap-2">
                         <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-full bg-[var(--gold)] opacity-75" style={{ width: `${(x.amount / (supplierConc.total || 1)) * 100}%` }} />
+                          <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(x.amount / (supplierConc.total || 1)) * 100}%`, background: barFill(barColorAt(i)) }} />
                         </span>
                         <span className="shrink-0 text-[11px] tabular-nums text-[var(--muted-foreground)]">占比 {((x.amount / (supplierConc.total || 1)) * 100).toFixed(1)}%</span>
                       </div>
@@ -1247,7 +1241,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           <span className="block text-[13px] text-[var(--muted-foreground)]">{seg.range}</span>
                         </span>
                         <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                          <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(seg.amount / totalAmt) * 100}%`, background: seg.color }} />
+                          <span className="block h-full rounded-[5px]" style={{ width: `${(seg.amount / totalAmt) * 100}%`, background: barFill(seg.color) }} />
                         </span>
                         <span className="w-[4rem] shrink-0 text-right leading-tight">
                           <span className="block text-[14px] font-bold tabular-nums" style={{ color: seg.color }}>{seg.count}项</span>
@@ -1331,7 +1325,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                 className="block h-full rounded-full transition-[width] duration-300"
                                 style={{
                                   width: `${barPct}%`,
-                                  background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length],
+                                  background: barFill(barColorAt(i)),
                                 }}
                               />
                             </span>
@@ -1366,7 +1360,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         </div>
                         <div className="mt-1.5 flex items-center gap-2">
                           <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                            <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                            <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
                           </span>
                         </div>
                       </div>
@@ -1461,7 +1455,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               </div>
                               <div className="mt-1.5 flex items-center gap-2">
                                 <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${max > 0 ? (d.count / max) * 100 : 0}%`, background: barFill(barColorAt(i)) }} />
                                 </span>
                               </div>
                             </div>
@@ -1487,7 +1481,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                                 <span className="block text-[13px] text-[var(--muted-foreground)]">{b.range}</span>
                               </span>
                               <span className="h-4 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
-                                <span className="block h-full rounded-[5px] opacity-85" style={{ width: `${(parseBudgetLabel(b.amountLabel) / totalAmt) * 100}%`, background: b.color }} />
+                                <span className="block h-full rounded-[5px]" style={{ width: `${(parseBudgetLabel(b.amountLabel) / totalAmt) * 100}%`, background: barFill(b.color) }} />
                               </span>
                               <span className="w-[4rem] shrink-0 text-right leading-tight">
                                 <span className="block text-[14px] font-bold tabular-nums" style={{ color: b.color }}>{b.count}项</span>
@@ -1518,7 +1512,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               </div>
                               <div className="mt-1.5 flex items-center gap-2">
                                 <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(d.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
                                 </span>
                               </div>
                             </div>
@@ -1564,6 +1558,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                         savings={r.savings}
                         max={companyRows[0].savings}
                         meta={`${r.count} 项 · 节资率 ${r.savingsRate}%`}
+                        color={barColorAt(i, SAVINGS_BAR_COLORS)}
                       />
                     ))}
                   </div>
@@ -1588,6 +1583,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                       savings={r.savings}
                       max={deptRows[0].savings}
                       meta={`${r.count} 项 · 节资率 ${r.savingsRate}%`}
+                      color={barColorAt(i, SAVINGS_BAR_COLORS)}
                     />
                   ))}
                 </div>
@@ -1820,7 +1816,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                             </div>
                             <div className="mt-1.5 flex items-center gap-2">
                               <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(c.count / max) * 100}%`, background: DEPT_BAR_COLORS[i % DEPT_BAR_COLORS.length] }} />
+                                <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(c.count / max) * 100}%`, background: barFill(barColorAt(i)) }} />
                               </span>
                             </div>
                           </div>
@@ -1844,7 +1840,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                           </div>
                           <div className="mt-1.5 flex items-center gap-2">
                             <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                              <span className="block h-full rounded-full bg-[var(--gold)] opacity-75 transition-[width] duration-300" style={{ width: `${sp.pct}%` }} />
+                              <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${sp.pct}%`, background: barFill(barColorAt(i)) }} />
                             </span>
                           </div>
                         </div>
@@ -1964,7 +1960,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                               </div>
                               <div className="mt-1.5 flex items-center gap-2">
                                 <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)]">
-                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(n / max) * 100}%`, background: color }} />
+                                  <span className="block h-full rounded-full transition-[width] duration-300" style={{ width: `${(n / max) * 100}%`, background: barFill(color) }} />
                                 </span>
                               </div>
                             </div>
