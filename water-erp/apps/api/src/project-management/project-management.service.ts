@@ -7,7 +7,7 @@ import JSZip = require('jszip');
 import { Response } from 'express';
 import { ResultStatus, SourceType, type Prisma } from '@prisma/client';
 import { BID_DEADLINE_BEFORE_OPENING_MS, STAGE_LABEL } from '@water-erp/shared';
-import { AiService } from '../ai/ai.service';
+import { AiService, isDegradedFileAnalysis } from '../ai/ai.service';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { assertAttachmentRules } from '../upload/attachment-rules';
 import { generateProjectCode, generatePmiProjectCode, resolveHostedProjectCode, stageCodeFor } from '../common/project-code.util';
@@ -5129,6 +5129,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // Read existing file analysis results from cache, or generate if not cached
     const fileAnalysisResults: Array<{ fileName: string; stageKey: string; contentSummary: string }> = [];
+    let anyDegraded = false;
     for (const stage of project.stages) {
       if (stage.attachments.length === 0) continue;
 
@@ -5153,7 +5154,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
             contentSummary: string;
           }>;
         };
-        if (cached.fingerprint === fingerprint && Array.isArray(cached.files)) {
+        if (
+          cached.fingerprint === fingerprint &&
+          Array.isArray(cached.files) &&
+          // 占位条目（历史投毒/降级批次产物）视为缓存未命中——重新生成（2026-11-23 缓存投毒修复）
+          cached.files.every((f) => !isDegradedFileAnalysis(f))
+        ) {
           cachedFiles = cached.files;
         }
       } catch {
@@ -5197,6 +5203,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
             files: filesWithText,
           });
 
+          if (analysis.degraded) anyDegraded = true;
           cachedFiles = analysis.fileAnalyses.map((file) => ({
             objectKey: file.objectKey,
             fileName: file.fileName,
@@ -5204,13 +5211,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
             contentSummary: file.contentSummary,
           }));
 
-          // Cache the stage analysis
-          await mkdir(getUploadDir(), { recursive: true });
-          await writeFile(
-            stageAnalysisCachePath,
-            JSON.stringify({ fingerprint, files: cachedFiles }, null, 2),
-            'utf8',
-          );
+          // Cache the stage analysis——degraded 占位不落盘（落了会被 fingerprint 固化，
+          // 预热按 objectKey 判「已覆盖」后永不重试——2026-11-23 缓存投毒修复）
+          if (!analysis.degraded) {
+            await mkdir(getUploadDir(), { recursive: true });
+            await writeFile(
+              stageAnalysisCachePath,
+              JSON.stringify({ fingerprint, files: cachedFiles }, null, 2),
+              'utf8',
+            );
+          }
         }
       }
 
@@ -5229,26 +5239,38 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
     const isCompleted = contractStage?.status === 'COMPLETED';
 
+    // 占位文件摘要不得喂给简报生成（会产出并固化一段基于「AI 服务暂不可用」的简报）
+    if (anyDegraded) {
+      return { summary: '项目简报生成中，请稍后点击刷新。' };
+    }
+
     // Generate summary based on project info and file analysis results
-    const summary = await this.aiService.generateProjectSummary({
-      project: {
-        title: project.title,
-        requesterName: project.requesterName,
-        requesterDepartment: project.requesterDepartment,
-        procurementMethod: project.procurementMethod,
-        procurementCategory: project.procurementCategory,
-        currentStage: project.currentStage,
-        projectReason: project.projectReason,
-        supplierRequirements: project.supplierRequirements,
-        awardedSupplier: project.awardedSupplier || undefined,
-        contractAmount: project.contractAmount ?? undefined,
-        budgetAmount: project.budgetAmount ?? undefined,
-        expertInfo: project.expertInfo || undefined,
-        biddingUnits: project.biddingUnits || undefined,
-      },
-      fileAnalysisResults,
-      isCompleted,
-    });
+    // （F3 2026-11-23：失败降级「生成中」不 500、不落简报缓存——下次刷新重试，与 analyzeProject 口径对齐）
+    let summary: string;
+    try {
+      summary = await this.aiService.generateProjectSummary({
+        project: {
+          title: project.title,
+          requesterName: project.requesterName,
+          requesterDepartment: project.requesterDepartment,
+          procurementMethod: project.procurementMethod,
+          procurementCategory: project.procurementCategory,
+          currentStage: project.currentStage,
+          projectReason: project.projectReason,
+          supplierRequirements: project.supplierRequirements,
+          awardedSupplier: project.awardedSupplier || undefined,
+          contractAmount: project.contractAmount ?? undefined,
+          budgetAmount: project.budgetAmount ?? undefined,
+          expertInfo: project.expertInfo || undefined,
+          biddingUnits: project.biddingUnits || undefined,
+        },
+        fileAnalysisResults,
+        isCompleted,
+      });
+    } catch (e) {
+      this.logger.warn(`refreshProjectAnalysis: 简报生成失败 ${(e as Error).message}`);
+      return { summary: '项目简报生成中，请稍后点击刷新。' };
+    }
 
     await mkdir(getUploadDir(), { recursive: true });
     await writeFile(
@@ -5491,8 +5513,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const filesBlock = attachments.length > 0
       ? attachments.map((a) => {
           const c = summaryByKey.get(a.objectKey) ?? summaryByKey.get(a.fileName);
-          // 旧/异常缓存可能存非字符串摘要——typeof 守卫，绝不因缓存形状让分析 500
-          const summary = typeof c?.contentSummary === 'string' ? c.contentSummary.trim() : '';
+          // 旧/异常缓存可能存非字符串摘要——typeof 守卫，绝不因缓存形状让分析 500；
+          // 占位摘要（AI 服务暂不可用）等同未生成，不得当真实内容喂给步骤分析 prompt
+          const summary =
+            typeof c?.contentSummary === 'string' && !isDegradedFileAnalysis(c)
+              ? c.contentSummary.trim()
+              : '';
           return `- ${a.fileName}：${summary ? summary.slice(0, 300) : '（未生成内容摘要，不得据此判断文件内容）'}`;
         }).join('\n')
       : '（本阶段未上传任何材料）';
@@ -5632,6 +5658,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       stageMatch: string;
       contentSummary: string;
     }> = [];
+    let anyDegraded = false;
 
     const stagesToAnalyze = stageKey
       ? project.stages.filter((s) => s.stageKey === stageKey)
@@ -5663,12 +5690,17 @@ ${JSON.stringify(algorithmResult, null, 2)}
               contentSummary: string;
             }>;
           };
-          if (cached.fingerprint === fingerprint && Array.isArray(cached.files)) {
-            stageFiles = cached.files;
-          } else if (Array.isArray(cached.files)) {
-            // Fingerprint mismatch but cache exists — record existing analyses by objectKey
-            for (const f of cached.files) {
-              cachedByKey.set(f.objectKey, f);
+          if (Array.isArray(cached.files)) {
+            // 占位条目（历史投毒/降级批次产物）视为未覆盖：健康条目按 objectKey 复用、占位者重生成
+            // （2026-11-23 缓存投毒修复——否则「AI 服务暂不可用」被 fingerprint 命中直出、永不自愈）
+            const healthy = cached.files.filter((f) => !isDegradedFileAnalysis(f));
+            if (cached.fingerprint === fingerprint && healthy.length === cached.files.length) {
+              stageFiles = cached.files;
+            } else {
+              // Fingerprint mismatch (or poisoned entries) but cache exists — record existing analyses by objectKey
+              for (const f of healthy) {
+                cachedByKey.set(f.objectKey, f);
+              }
             }
           }
         } catch {
@@ -5678,6 +5710,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
       // Generate if no valid cache
       if (!stageFiles) {
+        let stageDegraded = false;
         // Only analyze files that aren't already in the cache (incremental)
         const newAttachments = stage.attachments.filter((a) => !cachedByKey.has(a.objectKey));
 
@@ -5718,6 +5751,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
               files: newFilesWithText,
             });
 
+            if (analysis.degraded) {
+              stageDegraded = true;
+              anyDegraded = true;
+            }
+
             newFileAnalyses = analysis.fileAnalyses.map((file) => ({
               ...file,
               stageMatch: normalizeStageMatchText(file.stageMatch),
@@ -5744,7 +5782,8 @@ ${JSON.stringify(algorithmResult, null, 2)}
           }
         }
 
-        if (stageFiles.length > 0 || stage.attachments.length === 0) {
+        // degraded 占位不落缓存（fingerprint 固化后预热判「已覆盖」永不重试——2026-11-23 缓存投毒修复）
+        if ((stageFiles.length > 0 || stage.attachments.length === 0) && !stageDegraded) {
           // Cache the stage analysis
           await mkdir(getUploadDir(), { recursive: true });
           await writeFile(cachePath, JSON.stringify({ fingerprint, files: stageFiles }, null, 2), 'utf8');
@@ -5759,8 +5798,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
       }
     }
 
-    // If summary was NOT loaded from cache AND we have file analyses, auto-generate summary
-    if (!summaryFromCache && allFileAnalyses.length > 0) {
+    // If summary was NOT loaded from cache AND we have file analyses, auto-generate summary.
+    // degraded 批次（占位摘要）不生成简报——先等文件摘要重生成成功，避免把「AI 服务暂不可用」固化进简报缓存
+    if (!summaryFromCache && anyDegraded) {
+      summary = '项目简报生成中，请稍后点击刷新。';
+    } else if (!summaryFromCache && allFileAnalyses.length > 0) {
       try {
         const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
         const isCompleted = contractStage?.status === 'COMPLETED';
@@ -5893,7 +5935,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
             await readFile(getStageAnalysisCachePath(pmItem.id, stage.stageKey), 'utf8'),
           ) as { files?: Array<{ objectKey: string; contentSummary?: string }> };
           for (const f of cached.files ?? []) {
-            if (typeof f.contentSummary === 'string' && f.contentSummary.trim()) {
+            if (
+              typeof f.contentSummary === 'string' &&
+              f.contentSummary.trim() &&
+              !isDegradedFileAnalysis(f)
+            ) {
               fileSummaryByObjectKey.set(f.objectKey, f.contentSummary.trim());
             }
           }
@@ -6061,8 +6107,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
           try {
             const cached = JSON.parse(
               await readFile(getStageAnalysisCachePath(projectId, st.stageKey), 'utf8'),
-            ) as { files?: Array<{ objectKey: string }> };
-            const covered = new Set((cached.files ?? []).map((f) => f.objectKey));
+            ) as { files?: Array<{ objectKey: string; contentSummary?: string }> };
+            // 占位条目不算覆盖（历史投毒自愈：预热仍会触发重生成）
+            const covered = new Set(
+              (cached.files ?? []).filter((f) => !isDegradedFileAnalysis(f)).map((f) => f.objectKey),
+            );
             if (st.attachments.some((a) => !covered.has(a.objectKey))) {
               fileSummaryMissing = true;
               break;

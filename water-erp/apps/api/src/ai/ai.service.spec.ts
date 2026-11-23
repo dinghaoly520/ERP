@@ -541,6 +541,37 @@ describe('AiService', () => {
       expect(systemPrompt).not.toContain('content 字段不得为空字符串');
     });
   });
+
+  describe('analyzeProjectDetail（degraded 标记，2026-11-23 缓存投毒修复）', () => {
+    it('LLM 失败：返回 degraded:true + 占位 fileAnalyses——调用方据此跳过缓存写入', async () => {
+      (service as any).llm.chatJson.mockRejectedValue(
+        new Error('DeepSeek LLM network error: connect ECONNREFUSED 171.214.25.232:443'),
+      );
+      const res = await service.analyzeProjectDetail({
+        project: { title: '测试项目' },
+        currentStage: { stageKey: 'TENDER_DOCUMENT', stageName: '采购文件', status: 'IN_PROGRESS' },
+        files: [{ objectKey: 'k-1', fileName: '采购文件.pdf', mimeType: 'application/pdf' }],
+      });
+      expect((res as any).degraded).toBe(true);
+      expect(res.fileAnalyses).toHaveLength(1);
+      expect(res.fileAnalyses[0].stageMatch).toBe('分析失败');
+      expect(res.fileAnalyses[0].contentSummary).toBe('AI 服务暂不可用，已记录文件信息。');
+    });
+
+    it('成功路径：不带 degraded 标记（边界钉——防止误标导致健康结果被拒缓存）', async () => {
+      (service as any).llm.chatJson.mockResolvedValue({
+        summary: { stageMatch: '项目简报', contentSummary: '项目推进正常。' },
+        fileAnalyses: [{ objectKey: 'k-1', fileName: '采购文件.pdf', stageMatch: '匹配', contentSummary: '文件摘要。' }],
+      });
+      const res = await service.analyzeProjectDetail({
+        project: { title: '测试项目' },
+        currentStage: { stageKey: 'TENDER_DOCUMENT', stageName: '采购文件', status: 'IN_PROGRESS' },
+        files: [{ objectKey: 'k-1', fileName: '采购文件.pdf' }],
+      });
+      expect((res as any).degraded).toBeUndefined();
+      expect(res.fileAnalyses[0].contentSummary).toBe('文件摘要。');
+    });
+  });
 });
 
 describe('AiController — 供应商名称不允许 AI 生成（2026-10-16 用户裁定）', () => {

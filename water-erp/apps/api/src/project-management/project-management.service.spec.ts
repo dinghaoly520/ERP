@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import { BadRequestException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
-import { getTenderTextCachePath } from './docx/file-utils';
+import { getTenderTextCachePath, buildStageAnalysisFingerprint, getProjectSummaryCachePath } from './docx/file-utils';
 import { ProjectManagementService } from './project-management.service';
 import { writeAttachmentCopy, readAttachmentBuffer, removeAttachmentCopy } from '../common/attachment-object-store';
 import { stat, rename } from 'node:fs/promises';
@@ -404,6 +404,7 @@ describe('ProjectManagementService', () => {
     const aiService = {
       analyzeProjectDetail: jest.fn(),
       chat: jest.fn(),
+      generateProjectSummary: jest.fn(),
     };
     // 合规审查要点 mock：默认空要点（走两段式），用例可覆写注入真实要点（2026-10-13 并入步骤分析）
     const stageCompliance = {
@@ -957,6 +958,159 @@ describe('ProjectManagementService', () => {
     });
 
     expect(aiService.analyzeProjectDetail).not.toHaveBeenCalled();
+  });
+
+  describe('文件分析缓存投毒修复（2026-11-23：失败占位结果禁止被 fingerprint 固化）', () => {
+    const mkAnnProject = () => ({
+      id: 'pm-01',
+      title: '测试项目',
+      requesterName: '采购中心',
+      requesterDepartment: '采购中心',
+      procurementMethod: '竞价',
+      procurementCategory: '工程物资',
+      currentStage: 'PUBLIC_ANNOUNCEMENT',
+      status: 'ACTIVE',
+      projectReason: '测试事由',
+      supplierRequirements: '不限',
+      stages: [
+        {
+          id: 'stage-ann',
+          stageKey: 'PUBLIC_ANNOUNCEMENT',
+          stageName: '采购公告公示',
+          stageOrder: 4,
+          status: 'IN_PROGRESS',
+          attachments: [
+            {
+              id: 'att-01',
+              fileName: '采购公告.pdf',
+              objectKey: 'project-management/file-01.pdf',
+              mimeType: 'application/pdf',
+              fileSize: 2048,
+              createdAt: new Date('2026-05-11T10:00:00.000Z'),
+            },
+          ],
+        },
+      ],
+    });
+
+    it('analyzeProject：LLM 批次失败（degraded）不落任何缓存，简报不从占位数据生成', async () => {
+      const { service, prisma, aiService, readFileMock, writeFileMock } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue(mkAnnProject());
+      // 简报缓存 miss（ENOENT）→ 走生成路径
+      readFileMock.mockRejectedValueOnce(Object.assign(new Error('enoent'), { code: 'ENOENT' }));
+      aiService.analyzeProjectDetail.mockResolvedValue({
+        degraded: true,
+        analysis: '项目"测试项目"共1个文件。',
+        fileAnalyses: [
+          {
+            objectKey: 'project-management/file-01.pdf',
+            fileName: '采购公告.pdf',
+            stageMatch: '分析失败',
+            contentSummary: 'AI 服务暂不可用，已记录文件信息。',
+          },
+        ],
+      });
+
+      const res = await service.analyzeProject('pm-01', 'PUBLIC_ANNOUNCEMENT');
+
+      // 响应仍含占位（当场可见反馈），但——
+      expect(res.fileAnalyses).toHaveLength(1);
+      expect(res.fileAnalyses[0].contentSummary).toBe('AI 服务暂不可用，已记录文件信息。');
+      // 简报不得从占位数据生成
+      expect(res.summary.contentSummary).toBe('项目简报生成中，请稍后点击刷新。');
+      // 阶段摘要缓存 + 简报缓存一概不写
+      expect(writeFileMock).not.toHaveBeenCalled();
+    });
+
+    it('analyzeProject：缓存命中的占位条目（历史投毒）视为未覆盖——重新生成而非直出', async () => {
+      const { service, prisma, aiService, readFileMock } = makeService();
+      const project = mkAnnProject();
+      prisma.projectManagementItem.findUnique.mockResolvedValue(project);
+      // readFile #1：简报缓存命中
+      readFileMock.mockResolvedValueOnce(JSON.stringify({ summary: '简报已缓存。' }));
+      // readFile #2：阶段缓存 fingerprint 匹配，但条目是失败占位（历史投毒形态）
+      readFileMock.mockResolvedValueOnce(
+        JSON.stringify({
+          fingerprint: buildStageAnalysisFingerprint(
+            'PUBLIC_ANNOUNCEMENT',
+            project.stages[0].attachments,
+          ),
+          files: [
+            {
+              objectKey: 'project-management/file-01.pdf',
+              fileName: '采购公告.pdf',
+              stageMatch: '分析失败',
+              contentSummary: 'AI 服务暂不可用，已记录文件信息。',
+            },
+          ],
+        }),
+      );
+      aiService.analyzeProjectDetail.mockResolvedValue({
+        fileAnalyses: [
+          {
+            objectKey: 'project-management/file-01.pdf',
+            fileName: '采购公告.pdf',
+            stageMatch: '与采购公告公示步骤匹配。',
+            contentSummary: '重新生成的真实摘要。',
+          },
+        ],
+      });
+
+      const res = await service.analyzeProject('pm-01', 'PUBLIC_ANNOUNCEMENT');
+
+      expect(aiService.analyzeProjectDetail).toHaveBeenCalledTimes(1);
+      expect(res.fileAnalyses[0].contentSummary).toBe('重新生成的真实摘要。');
+    });
+
+    it('refreshProjectAnalysis：degraded 批次不落阶段缓存、不生成简报、优雅返回', async () => {
+      const { service, prisma, aiService, writeFileMock } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue(mkAnnProject());
+      // 阶段缓存 miss（readFile 默认 undefined → JSON.parse 抛错 → 走生成路径）
+      aiService.analyzeProjectDetail.mockResolvedValue({
+        degraded: true,
+        analysis: '',
+        fileAnalyses: [
+          {
+            objectKey: 'project-management/file-01.pdf',
+            fileName: '采购公告.pdf',
+            stageMatch: '分析失败',
+            contentSummary: 'AI 服务暂不可用，已记录文件信息。',
+          },
+        ],
+      });
+
+      const res = (await service.refreshProjectAnalysis('pm-01')) as { summary: string };
+
+      expect(typeof res.summary).toBe('string');
+      expect(res.summary).not.toContain('AI 服务暂不可用');
+      expect(writeFileMock).not.toHaveBeenCalled();
+    });
+
+    it('refreshProjectAnalysis：文件分析成功但简报 LLM 失败——阶段缓存照写、简报缓存不写、不 500（F3 对齐）', async () => {
+      const { service, prisma, aiService, writeFileMock } = makeService();
+      prisma.projectManagementItem.findUnique.mockResolvedValue(mkAnnProject());
+      aiService.analyzeProjectDetail.mockResolvedValue({
+        fileAnalyses: [
+          {
+            objectKey: 'project-management/file-01.pdf',
+            fileName: '采购公告.pdf',
+            stageMatch: '匹配',
+            contentSummary: '健康的文件摘要。',
+          },
+        ],
+      });
+      aiService.generateProjectSummary.mockRejectedValue(
+        new Error('DeepSeek LLM network error: connect ECONNREFUSED'),
+      );
+
+      const res = (await service.refreshProjectAnalysis('pm-01')) as { summary: string };
+
+      expect(res.summary).toBe('项目简报生成中，请稍后点击刷新。');
+      const summaryPath = getProjectSummaryCachePath('pm-01');
+      expect(
+        writeFileMock.mock.calls.some((c) => (c[0] as string) === summaryPath),
+      ).toBe(false);
+    });
   });
 
   describe('analyzeStep', () => {
