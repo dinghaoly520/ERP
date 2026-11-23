@@ -7,7 +7,9 @@ const AUTH_COOKIE_NAME = 'token_web';
 /** :3011 专用演示门户（2026-11-19 用户裁定）：仅放行 admin 账号（admin/admin123）。
  *  会话仍复用 token_web 命名空间——在 :3005 登录的其他账号拿到的是有效 token_web，
  *  须在门户闸识别身份并拒入（后端零改动，见 spec 2026-10-13-mobile-portal-3011）。 */
-const MOBILE_ALLOWED_USERNAME = 'admin';
+/* 手机号登录白名单（2026-11-23 用户裁定）：19981208777/13882199205 短信验证码、13368360619 固定密码；
+ * admin 保留给历史会话兼容（新登录页已无账号密码入口）。白名单与账号 find-or-create 在 auth.service。 */
+const MOBILE_ALLOWED_USERNAMES = new Set(['admin', '19981208777', '13882199205', '13368360619']);
 
 /** 解 JWT payload 取 username claim（不验签——仅作路由决策；API 侧每请求仍验签，
  *  伪造签名的假 token 最多骗过本闸进入页面壳，所有数据面 401）。
@@ -86,7 +88,7 @@ export async function proxy(request: NextRequest) {
     loginUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
-  if (username !== MOBILE_ALLOWED_USERNAME) {
+  if (!MOBILE_ALLOWED_USERNAMES.has(username)) {
     // 有效会话但非 admin 账号（多来自 :3005 登录复用 cookie）——denied 标记供登录页
     // 展示引导提示；redirect 链保留，admin 登录后仍落原目标页
     const loginUrl = new URL('/login', request.url);

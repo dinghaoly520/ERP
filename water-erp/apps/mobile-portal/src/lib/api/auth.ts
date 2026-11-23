@@ -32,6 +32,32 @@ export async function login(username: string, password: string): Promise<{ role:
   return { role: res.role };
 }
 
+/* ── :3011 移动驾驶舱手机号登录（2026-11-23 用户裁定：白名单短信码 + 固定密码白名单号）── */
+
+/** 发送登录短信验证码（仅白名单手机号；名单外后端报「无法接收短信验证码」） */
+export async function sendMobileLoginCode(phone: string): Promise<void> {
+  await api.post<{ maskedPhone: string }>("/auth/mobile/send-code", { phone });
+}
+
+export async function mobileLogin(phone: string, code: string): Promise<{ role: AuthRole }> {
+  const res = await api.post<{ access_token: string; role: AuthRole; username: string }>(
+    "/auth/mobile/login",
+    { phone, code },
+  );
+  rememberWebSession(res.access_token);
+  return { role: res.role };
+}
+
+/** 白名单号 13368360619：固定密码登录（不走短信） */
+export async function mobilePasswordLogin(phone: string, password: string): Promise<{ role: AuthRole }> {
+  const res = await api.post<{ access_token: string; role: AuthRole; username: string }>(
+    "/auth/mobile/password-login",
+    { phone, password },
+  );
+  rememberWebSession(res.access_token);
+  return { role: res.role };
+}
+
 export async function fetchCurrentUser(): Promise<AuthUser> {
   const u = await api.get<AuthUser>("/auth/me");
   return { ...u, displayName: u.displayName || u.username };

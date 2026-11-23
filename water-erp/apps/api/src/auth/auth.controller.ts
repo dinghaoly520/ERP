@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiCookieAuth } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
+import { LoginDto, MobileSendCodeDto, MobileLoginDto, MobilePasswordLoginDto } from './dto/login.dto';
 import { ExpertPairingClaimDto } from '../expert/dto/expert-pairing.dto';
 import { RegisterDto } from './dto/register.dto';
 import { Public } from '../common/decorators/public.decorator';
@@ -240,6 +240,60 @@ export class AuthController {
     });
 
     return { access_token: result.access_token, role: result.role, username: result.username };
+  }
+
+  /* ══ :3011 移动驾驶舱手机号登录（2026-11-23 用户裁定）══
+   * 白名单/账号 find-or-create 在 auth.service（两部董事长手机=短信码、13368360619=固定密码 123456，
+   * 名单外报「无法接收短信验证码」）；会话与 /auth/login web 分支同构：rotatePortalSession +
+   * token_web cookie（:3011 proxy 闸读 cookie）+ LOGIN 审计（channel 留痕）。 */
+  @Post('mobile/send-code')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: Number(process.env.THROTTLE_LOGIN_LIMIT ?? 10), ttl: Number(process.env.THROTTLE_TTL_MS ?? 60000) } })
+  @ApiOperation({ summary: ':3011 发送移动驾驶舱登录短信验证码（仅白名单手机号）' })
+  async mobileSendCode(@Body() dto: MobileSendCodeDto, @Req() req: Request) {
+    return this.authService.sendMobileLoginCode(dto.phone.trim(), getClientIp(req) ?? '');
+  }
+
+  private async finishMobileLogin(
+    req: Request,
+    res: Response,
+    result: { access_token: string; role: string; username: string; userId: string },
+    channel: string,
+  ) {
+    res.cookie(cookieNameForPortal('web'), result.access_token, COOKIE_OPTS);
+    await this.prisma.auditLog.create({
+      data: {
+        userId: result.userId,
+        action: 'LOGIN',
+        resourceType: 'auth',
+        resourceId: result.userId,
+        details: { role: result.role, channel },
+        ipAddress: getClientIp(req),
+        userAgent: (req.headers['user-agent'] as string) ?? null,
+      },
+    });
+    return { access_token: result.access_token, role: result.role, username: result.username };
+  }
+
+  @Post('mobile/login')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: Number(process.env.THROTTLE_LOGIN_LIMIT ?? 10), ttl: Number(process.env.THROTTLE_TTL_MS ?? 60000) } })
+  @ApiOperation({ summary: ':3011 手机号+短信验证码登录（白名单）' })
+  async mobileLogin(@Body() dto: MobileLoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.mobileSmsLogin(dto.phone.trim(), dto.code.trim());
+    return this.finishMobileLogin(req, res, result, 'mobile_sms');
+  }
+
+  @Post('mobile/password-login')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: Number(process.env.THROTTLE_LOGIN_LIMIT ?? 10), ttl: Number(process.env.THROTTLE_TTL_MS ?? 60000) } })
+  @ApiOperation({ summary: ':3011 白名单手机号+固定密码登录（13368360619）' })
+  async mobilePasswordLogin(@Body() dto: MobilePasswordLoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const result = await this.authService.mobilePasswordLogin(dto.phone.trim(), dto.password.trim());
+    return this.finishMobileLogin(req, res, result, 'mobile_password');
   }
 
   /* ══ 平板配对领取（TAB-SYNC-01；2026-09-22 迁移制演进为配对制）：票据（免闸4）+ 密码重证 → 受限令牌 ══

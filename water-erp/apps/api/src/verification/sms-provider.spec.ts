@@ -103,6 +103,19 @@ describe('RongyidaSmsProvider', () => {
     }
   });
 
+  it('mobile_login 场景文案（2026-11-23 :3011 手机号登录）：门户名/驾驶舱/验证码/时效/防泄露齐备且单条计费内', async () => {
+    const provider = new RongyidaSmsProvider();
+    mockFetchOnce({ resultCode: 0, taskId: 'm1' });
+    await provider.send('19981208777', '123456', 'mobile_login');
+    const msg = capturedBody().get('msg') ?? '';
+    expect(msg).toContain('【四川省水利发展集团有限公司】');
+    expect(msg).toContain('移动驾驶舱');
+    expect(msg).toContain('123456');
+    expect(msg).toContain('5分钟内有效');
+    expect(msg).toContain('请勿向他人透露');
+    expect(msg.length).toBeLessThanOrEqual(70);
+  });
+
   it('resultCode 非 0 抛错并附错误码语义（-11 签名未报备 / -13 条数用尽）', async () => {
     mockFetchOnce({ resultCode: -11, taskId: '0', resultMsg: '没有设置短信签名' });
     await expect(provider.send('13800138000', '482913', 'supplier_registration')).rejects.toThrow(/-11.*签名/);

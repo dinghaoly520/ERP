@@ -149,6 +149,82 @@ export class VerificationService {
     return { ok: true };
   }
 
+  // ── :3011 移动驾驶舱短信登录（2026-11-23 用户裁定：白名单判定在 auth 侧，本层只管码与投递）──
+
+  private mobileCodeKey(phone: string) {
+    return `verification:mobile-login:${phone}`;
+  }
+
+  private mobileCooldownKey(phone: string) {
+    return `verification:cooldown:mobile-login:${phone}`;
+  }
+
+  /** 发送移动驾驶舱登录验证码（scene=mobile_login）；IP 限流 + 60s 冷却 + provider 失败回滚，与注册场景同构。 */
+  async sendMobileLoginCode(phone: string, clientIp: string) {
+    const ipCount = await this.redis.incr(this.ipKey(clientIp));
+    if (ipCount === 1) await this.redis.expire(this.ipKey(clientIp), 60);
+    if (ipCount > IP_RATE_LIMIT) {
+      throw new BadRequestException({ code: 'IP_RATE_LIMITED', error: '请求过于频繁，请稍后再试' });
+    }
+    const cooldown = await this.redis.get(this.mobileCooldownKey(phone));
+    if (cooldown) {
+      const ttl = await this.redis.ttl(this.mobileCooldownKey(phone));
+      throw new BadRequestException({ code: 'TOO_FREQUENT', error: `请${ttl}秒后再试` });
+    }
+    const code = this.generateCode();
+    const record: VerificationRecord = { code, phone, attempts: 0 };
+    await this.redis.set(this.mobileCodeKey(phone), JSON.stringify(record), 'EX', CODE_TTL);
+    await this.redis.set(this.mobileCooldownKey(phone), '1', 'EX', COOLDOWN_TTL);
+    try {
+      await this.sms.send(phone, code, 'mobile_login');
+    } catch (err) {
+      try { await this.redis.del(this.mobileCodeKey(phone)); } catch { /* 回滚尽力而为 */ }
+      this.logger.error(`SMS 发送失败（scene=mobile_login）：${(err as Error).message}`);
+      throw new BadRequestException({
+        code: 'SMS_PROVIDER_FAILED',
+        error: '短信发送失败，请稍后重试或联系管理员',
+      });
+    }
+    return { maskedPhone: this.maskPhone(phone) };
+  }
+
+  /** 校验并一次性消费移动驾驶舱登录验证码（attempts≤5、DEBUG_BYPASS 万能码同注册口径）。 */
+  async validateMobileLoginCode(phone: string, code: string) {
+    if (process.env.SMS_DEBUG_BYPASS === 'true' && code === DEBUG_BYPASS_CODE) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new BadRequestException({ code: 'BYPASS_FORBIDDEN_IN_PRODUCTION', error: 'SMS_DEBUG_BYPASS 不可在生产环境使用' });
+      }
+      await this.redis.del(this.mobileCodeKey(phone));
+      return { ok: true };
+    }
+    const raw = await this.redis.get(this.mobileCodeKey(phone));
+    if (!raw) {
+      throw new BadRequestException({ code: 'CODE_EXPIRED', error: '验证码已过期，请重新获取' });
+    }
+    const record: VerificationRecord = JSON.parse(raw);
+    if (record.code !== code) {
+      record.attempts += 1;
+      const remaining = MAX_ATTEMPTS - record.attempts;
+      const ttl = await this.redis.ttl(this.mobileCodeKey(phone));
+      await this.redis.set(this.mobileCodeKey(phone), JSON.stringify(record), 'EX', ttl > 0 ? ttl : CODE_TTL);
+      if (remaining <= 0) {
+        await this.redis.del(this.mobileCodeKey(phone));
+        throw new BadRequestException({ code: 'ATTEMPTS_EXCEEDED', error: '尝试次数过多，请重新获取验证码' });
+      }
+      throw new BadRequestException({ code: 'CODE_INVALID', error: `验证码错误，剩余 ${remaining} 次尝试` });
+    }
+    const consumed = await this.redis.eval(
+      COMPARE_AND_DELETE_SCRIPT,
+      1,
+      this.mobileCodeKey(phone),
+      raw,
+    );
+    if (Number(consumed) !== 1) {
+      throw new BadRequestException({ code: 'CODE_EXPIRED', error: '验证码已使用或已过期，请重新获取' });
+    }
+    return { ok: true };
+  }
+
   /** 注册附件上传只校验、不消费验证码；最终注册仍须再次校验并一次性消费。 */
   assertRegistrationCodeForUpload(phone: string, code: string) {
     return this.validateRegistrationCode(phone, code, false);

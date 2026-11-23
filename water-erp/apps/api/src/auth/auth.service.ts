@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException, UnauthorizedException, Inject, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, UnauthorizedException, Inject, Optional, ServiceUnavailableException, ForbiddenException } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { buildSessionMeta } from '../common/session-device.util';
 import { randomUUID } from 'node:crypto';
@@ -270,6 +270,96 @@ export class AuthService {
         code: 'SUPPLIER_NO_COMPANY',
       });
     }
+  }
+
+  /* ══ :3011 移动驾驶舱手机号登录（2026-11-23 用户裁定）══
+   * 硬编码白名单：19981208777→王华董事长、13882199205→张宏董事长走短信验证码（scene=mobile_login）；
+   * 13368360619 走固定密码 123456。名单外一律拒绝（send-code 报「无法接收短信验证码」）。
+   * 账号形态：username=手机号、role=admin（移动驾驶舱全库视角）、displayName 带称谓；find-or-create
+   * （db:seed 重灌后下次登录自愈），密码哈希随机不可知——三个账号不走 /auth/login 密码路径。
+   * 会话与 :3005 web 登录同构：rotatePortalSession 轮换 webSessionId（单设备互踢）+ sid 随 JWT。 */
+  private static readonly MOBILE_SMS_ACCOUNTS: Record<string, string> = {
+    '19981208777': '王华董事长',
+    '13882199205': '张宏董事长',
+    '13368360619': '系统管理员', // 测试用手机号（2026-11-23 用户裁定：短信链路测试一律走此号，勿扰董事长手机）
+  };
+  private static readonly MOBILE_PASSWORD_ACCOUNTS: Record<string, { displayName: string; password: string }> = {
+    '13368360619': { displayName: '系统管理员', password: '123456' },
+  };
+
+  /** :3011 手机号身份解析：sms=短信验证码登录 / password=固定密码登录 / null=名单外。 */
+  mobileIdentityFor(phone: string): { mode: 'sms' | 'password'; displayName: string } | null {
+    const sms = AuthService.MOBILE_SMS_ACCOUNTS[phone];
+    if (sms) return { mode: 'sms', displayName: sms };
+    const pwd = AuthService.MOBILE_PASSWORD_ACCOUNTS[phone];
+    if (pwd) return { mode: 'password', displayName: pwd.displayName };
+    return null;
+  }
+
+  /** find-or-create 移动驾驶舱账号（username=手机号；密码哈希随机不可知）。冻结账号拒绝登录。 */
+  private async ensureMobileUser(phone: string, displayName: string) {
+    // username 复合唯一 [username, role]（非单列唯一）——role 收窄到本账号族（admin）
+    const existing = await this.prisma.user.findFirst({
+      where: { username: phone, role: 'admin' },
+      select: { id: true, username: true, role: true, isFrozen: true },
+    });
+    if (existing) {
+      if (existing.isFrozen) {
+        throw new UnauthorizedException({ error: '该账号已被冻结，请联系管理员', code: 'ACCOUNT_FROZEN' });
+      }
+      return existing;
+    }
+    return this.prisma.user.create({
+      data: {
+        username: phone,
+        displayName,
+        role: 'admin',
+        isActive: true,
+        passwordHash: hashSync(randomUUID(), 10), // 随机不可知——手机号登录不走密码路径
+      },
+      select: { id: true, username: true, role: true },
+    });
+  }
+
+  /** 发送 :3011 登录短信（名单外报「无法接收短信」；密码号不发短信）。 */
+  async sendMobileLoginCode(phone: string, clientIp: string) {
+    const identity = this.mobileIdentityFor(phone);
+    if (!identity || identity.mode !== 'sms') {
+      throw new BadRequestException({ code: 'MOBILE_PHONE_NOT_ALLOWED', error: '该手机号不在登录名单中，无法接收短信验证码' });
+    }
+    await this.verificationService.sendMobileLoginCode(phone, clientIp);
+    return { maskedPhone: phone.length >= 7 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : phone };
+  }
+
+  /** :3011 短信验证码登录：码校验并消费 → find-or-create → 轮换 web 会话（单设备互踢）。 */
+  async mobileSmsLogin(phone: string, code: string) {
+    const identity = this.mobileIdentityFor(phone);
+    if (!identity || identity.mode !== 'sms') {
+      throw new BadRequestException({ code: 'MOBILE_PHONE_NOT_ALLOWED', error: '该手机号不在登录名单中，无法接收短信验证码' });
+    }
+    await this.verificationService.validateMobileLoginCode(phone, code);
+    const user = await this.ensureMobileUser(phone, identity.displayName);
+    if (user.role !== 'admin') {
+      throw new ForbiddenException({ error: '该账号无权访问移动驾驶舱', code: 'PORT_ROLE_MISMATCH' });
+    }
+    return this.rotatePortalSession(user.id, user.username, user.role);
+  }
+
+  /** :3011 固定密码登录（仅 13368360619，口令 123456；该号亦可走短信——双通道）：比对 → find-or-create → 轮换会话。 */
+  async mobilePasswordLogin(phone: string, password: string) {
+    // 密码名单直接判定（短信名单与密码名单可重叠——13368360619 双通道）
+    const pwdIdentity = AuthService.MOBILE_PASSWORD_ACCOUNTS[phone];
+    if (!pwdIdentity) {
+      throw new BadRequestException({ code: 'MOBILE_PHONE_NOT_ALLOWED', error: '该手机号不在登录名单中，无法接收短信验证码' });
+    }
+    if (password !== pwdIdentity.password) {
+      throw new UnauthorizedException({ error: '密码错误', code: 'MOBILE_PASSWORD_MISMATCH' });
+    }
+    const user = await this.ensureMobileUser(phone, pwdIdentity.displayName);
+    if (user.role !== 'admin') {
+      throw new ForbiddenException({ error: '该账号无权访问移动驾驶舱', code: 'PORT_ROLE_MISMATCH' });
+    }
+    return this.rotatePortalSession(user.id, user.username, user.role);
   }
 
   async me(userId: string) {

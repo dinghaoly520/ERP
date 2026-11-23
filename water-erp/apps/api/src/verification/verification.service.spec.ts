@@ -133,6 +133,52 @@ describe('VerificationService', () => {
       });
     });
   });
+  /* ── :3011 移动驾驶舱短信登录（2026-11-23 用户裁定）── */
+  describe('移动登录验证码', () => {
+    it('sendMobileLoginCode：scene=mobile_login 发送、60s 冷却、失败回滚记录', async () => {
+      redisMock.get.mockResolvedValueOnce(null); // 无冷却
+      redisMock.set.mockResolvedValue('OK');
+      (service as any).sms = { send: jest.fn().mockResolvedValue({}) };
+      await service.sendMobileLoginCode('19981208777', '1.2.3.4');
+      expect((service as any).sms.send).toHaveBeenCalledWith('19981208777', expect.any(String), 'mobile_login');
+
+      // 冷却中 → TOO_FREQUENT
+      redisMock.get.mockResolvedValueOnce('1');
+      redisMock.ttl.mockResolvedValueOnce(42);
+      await expect(service.sendMobileLoginCode('19981208777', '1.2.3.4')).rejects.toMatchObject({ response: { code: 'TOO_FREQUENT' } });
+
+      // provider 失败 → 回滚 code 键
+      redisMock.get.mockResolvedValueOnce(null);
+      redisMock.set.mockResolvedValue('OK');
+      redisMock.del.mockResolvedValue(1);
+      (service as any).sms = { send: jest.fn().mockRejectedValue(new Error('down')) };
+      await expect(service.sendMobileLoginCode('19981208777', '1.2.3.4')).rejects.toMatchObject({ response: { code: 'SMS_PROVIDER_FAILED' } });
+      expect(redisMock.del).toHaveBeenCalledWith('verification:mobile-login:19981208777');
+    });
+
+    it('validateMobileLoginCode：错码计次/超限销毁、对码一次性消费、无记录=过期', async () => {
+      // 无记录
+      redisMock.get.mockResolvedValueOnce(null);
+      await expect(service.validateMobileLoginCode('19981208777', '000000')).rejects.toMatchObject({ response: { code: 'CODE_EXPIRED' } });
+      // 错码 → 剩余次数
+      redisMock.get.mockResolvedValueOnce(JSON.stringify({ code: '111111', phone: '19981208777', attempts: 0 }));
+      redisMock.ttl.mockResolvedValueOnce(300);
+      redisMock.set.mockResolvedValue('OK');
+      await expect(service.validateMobileLoginCode('19981208777', '222222')).rejects.toMatchObject({ response: { code: 'CODE_INVALID' } });
+      // 对码 → eval 消费
+      const raw = JSON.stringify({ code: '111111', phone: '19981208777', attempts: 0 });
+      redisMock.get.mockResolvedValueOnce(raw);
+      redisMock.eval.mockResolvedValueOnce(1);
+      await expect(service.validateMobileLoginCode('19981208777', '111111')).resolves.toEqual({ ok: true });
+      expect(redisMock.eval).toHaveBeenCalledWith(expect.any(String), 1, 'verification:mobile-login:19981208777', raw);
+    });
+
+    it('DEBUG_BYPASS 万能码在移动登录同样生效（dev）', async () => {
+      process.env.SMS_DEBUG_BYPASS = 'true';
+      await expect(service.validateMobileLoginCode('19981208777', '123456')).resolves.toEqual({ ok: true });
+      process.env.SMS_DEBUG_BYPASS = undefined;
+    });
+  });
 });
 
 describe('VerificationService P1-13 — SMS 真实通道与失败回滚', () => {
@@ -195,4 +241,5 @@ describe('VerificationService P1-13 — SMS 真实通道与失败回滚', () => 
       process.env.NODE_ENV = prevEnv || 'test';
     }
   });
+
 });

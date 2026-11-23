@@ -85,6 +85,11 @@ export class RongyidaSmsProvider implements SmsProvider {
     if (scene === 'management_password_reset' || scene === 'supplier_password_reset') {
       return `${prefix}您正在重置登录密码，验证码${code}，5分钟内有效。如非本人操作请忽略。`;
     }
+    if (scene === 'mobile_login') {
+      // :3011 移动驾驶舱手机号登录（2026-11-23 用户裁定短信登录）；白名单外不发码——
+      // 名单闸在 auth.service，本场景只管文案
+      return `${prefix}您正在登录蜀水云采移动驾驶舱，验证码${code}，5分钟内有效。请勿向他人透露，非本人操作请忽略。`;
+    }
     // 中性兜底（专家核验等无门户措辞场景）
     return `${prefix}您的验证码为${code}，5分钟内有效。请勿告知他人。`;
   }
