@@ -407,6 +407,17 @@ export class BidScoreStandardService {
   /* ── 评分模板（用户保存的整套评分标准，跨项目复用）── */
 
   async saveScoreTemplate(projectId: string, name: string, userId?: string, username?: string) {
+    // U6（2026-11-23）：同名同创建者（公共模板 createdById=null 同判）→ 409，防模板列表重名堆积
+    const dup = await this.prisma.scoreTemplate.findFirst({
+      where: { name, createdById: userId ?? null },
+      select: { id: true },
+    });
+    if (dup) {
+      throw new ConflictException({
+        error: '同名评分模板已存在，请更换名称或先删除旧模板',
+        code: 'TEMPLATE_NAME_EXISTS',
+      });
+    }
     const items = await this.prisma.bidScoreItem.findMany({
       where: { projectId },
       include: { points: { orderBy: [{ seq: 'asc' }, { createdAt: 'asc' }] } },
