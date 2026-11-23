@@ -1626,15 +1626,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
               const summaryRows: Array<[string, React.ReactNode]> = [
                 ['公告范围', '全部可见'],
               ];
-              // 开标时间（2026-11-23 用户裁定：摘要增列；发布时间行同日删除——起算方式见左侧发布时间标签）
+              if (effStart || effEnd) {
+                summaryRows.push(['公示期限（采购文件获取时间）', `${formatDateTimeDisplay(effStart)} 至 ${formatDateTimeDisplay(effEnd)}${spanPreview ? '（发布时刻起算·时长不变，以上为按当前时刻的演示值）' : ''}`]);
+              }
+              // 开标时间（2026-11-23 用户裁定：摘要增列、位列公示期限下方；发布时间行同日删除——起算方式见左侧发布时间标签）
               {
                 const openTimeRaw = (preview.portal.meta as Record<string, unknown>).openTime;
                 if (openTimeRaw) {
                   summaryRows.push(['开标时间', portalFormatMetaValue({ key: 'openTime', label: '开标时间', date: true }, openTimeRaw)]);
                 }
-              }
-              if (effStart || effEnd) {
-                summaryRows.push(['公示期限（采购文件获取时间）', `${formatDateTimeDisplay(effStart)} 至 ${formatDateTimeDisplay(effEnd)}${spanPreview ? '（发布时刻起算·时长不变，以上为按当前时刻的演示值）' : ''}`]);
               }
               if (category === 'procurement_document') {
                 summaryRows.push(['引用采购文件', officialTender ? officialTender.fileName : '不引用（03 步骤未标记正式盖章版）']);
