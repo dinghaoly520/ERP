@@ -30,8 +30,9 @@ interface MetaField { key: string; label: string; area?: boolean; date?: boolean
 const ANNO_TYPE_META: Record<string, MetaField[]> = {
   BID_NOTICE: [
     { key: "projectCode", label: "项目编号" }, { key: "method", label: "采购方式" }, { key: "budget", label: "预算金额" },
-    { key: "downloadDeadline", label: "采购文件下载时间" },
+    { key: "downloadDeadline", label: "采购文件下载截止", date: true },
     { key: "deadline", label: "报名/投标截止", date: true }, { key: "openTime", label: "开标时间", date: true }, { key: "contact", label: "联系方式" },
+    { key: "downloadMode", label: "采购文件下载方式" },
     // 采购内容/范围、投标人资格要求不在顶部平铺（正文已载同文，2026-11-23 用户裁定；与采购管理工作台一致）
   ],
   ADDENDUM: [
@@ -247,7 +248,19 @@ export default function AnnouncementDetailPage() {
                   <span className="meta-chip">
                     <span className="meta-chip-label" style={{ color: metaLabelColor(f) }}>{f.label}</span>
                     {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
-                    <span className="meta-chip-value">{fmtMeta(f, f.key === 'downloadDeadline' ? (metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline) : metaFields.meta[f.key])}</span>
+                    <span className="meta-chip-value">{(() => {
+                      if (f.key === 'downloadDeadline') {
+                        // 与项目机会详情同款（2026-11-24 用户裁定）：止点单值——区间「A 至 B」取 B
+                        const raw = metaFields.meta.downloadDeadline ?? metaFields.meta.downloadPeriod;
+                        const s = raw == null ? "" : String(raw);
+                        return s.includes("至") ? s.split("至").pop()!.trim() : s;
+                      }
+                      if (f.key === 'downloadMode') {
+                        const v = String(metaFields.meta.downloadMode ?? "");
+                        return v === "encrypted" ? "解密下载" : v === "paid" ? "付费下载" : "免费下载";
+                      }
+                      return fmtMeta(f, metaFields.meta[f.key]);
+                    })()}</span>
                   </span>
                 );
                 const base = metaFields.short.filter((f) => !f.date);
