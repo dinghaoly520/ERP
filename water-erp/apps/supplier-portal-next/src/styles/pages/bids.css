@@ -307,6 +307,13 @@
 .cc-cond-hd { display: block; font-size: 10px; font-weight: 700; color: var(--brand); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
 .cc-cond-bd { margin: 0; font-size: 12px; line-height: 1.6; color: var(--foreground); white-space: pre-wrap; }
 .cc-body { font-size: 14px; line-height: 1.85; color: var(--foreground); word-break: break-word; }
+/* 公文排版（2026-11-24 用户裁定，与公告中心 .detail-content 同款）：标题居中、「一、」节标题
+   加粗缩进 2 字符、正文首行缩进 2 字符、数字/西文 Times New Roman */
+.cc-body { font-family: "Times New Roman", "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
+.cc-body p { text-indent: 2em; }
+.cc-body .ann-prose-title { text-indent: 0; text-align: center; font-weight: 700; font-size: 17px; line-height: 1.6; color: var(--foreground); }
+.cc-body .ann-prose-h { font-weight: 700; }
+.cc-body table td p, .cc-body table th p { text-indent: 0; }
 /* 原 :deep 表格/标题样式 → 全局选择器（dangerouslySetInnerHTML 内容） */
 .cc-body table { width: 100%; border-collapse: collapse; margin: 12px 0; }
 .cc-body td, .cc-body th { border: 1px solid var(--hairline); padding: 7px 10px; font-size: 12px; }
@@ -976,3 +983,11 @@ a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0
   line-height: 1.7;
   margin: 0;
 }
+
+
+/* ═══ 公告摘要（2026-11-24 用户裁定：原 AI 项目概览改为公告摘要并上移标题下方）═══ */
+.bd-summary { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 4px; padding: 14px 16px;
+  border-radius: 14px; background: var(--surface-soft, oklch(0.975 0.012 258 / 0.6));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.55), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.05); }
+.bd-summary-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--brand); }
+.bd-summary-text { font-size: 13px; line-height: 1.9; color: var(--foreground); text-align: justify; }

@@ -6,12 +6,13 @@ import Link from "next/link";
 import { toast } from "sonner";
 import dayjs from "dayjs";
 import {
-  FileText, TriangleAlert, Lock, Upload, Download, Sparkles, Loader2, ArrowLeft,
+  FileText, TriangleAlert, Lock, Upload, Download, ArrowLeft,
   CircleX, CircleCheck, Info, KeyRound, Copy, Check, Coins, Trophy, Paperclip,
 } from "lucide-react";
 import { bidApi } from "@/lib/api/bid";
 import { TenderClarificationCard } from "@/components/tender-clarification-card";
 import { CaReceiptSignButton } from "@/components/ca-receipt-sign-button";
+import { normalizeAnnouncementContentHtml } from '@/lib/announcement-prose';
 import { CountdownTimer } from "@/components/countdown-timer";
 import { supplierApi } from "@/lib/api/supplier";
 import { announcementApi } from "@/lib/api/announcement";
@@ -79,25 +80,6 @@ function fmtMetaDate(raw: any): string {
 }
 
 /** 将纯文本公告格式化为 HTML（处理中文招标公告结构；已是 HTML 则原样返回） */
-function formatContent(raw: string): string {
-  if (!raw) return "";
-  if (/<[a-zA-Z][^>]*>/.test(raw)) return raw;
-  // 先按一、二、三级标题拆，其余为正文段落
-  return raw
-    .split("\n")
-    .map((line) => {
-      const t = line.trim();
-      if (!t) return "";
-      // 一级标题：一、 二、 三、...
-      if (/^[一二三四五六七八九十]+、/.test(t)) return `<h2>${t}</h2>`;
-      // 二级标题：X.X 如 2.1 、（一）（二）
-      if (/^\d+\.\d+\s/.test(t)) return `<h3>${t}</h3>`;
-      if (/^（[一二三四五六七八九十]+）/.test(t)) return `<h3>${t}</h3>`;
-      // 正文段落
-      return `<p>${t}</p>`;
-    })
-    .join("\n");
-}
 
 function BidDetailInner() {
   const router = useRouter();
@@ -130,8 +112,6 @@ function BidDetailInner() {
   const [negoPending, setNegoPending] = useState<NegoFilesMeta | null>(null);
 
   // ── AI 融合概览（采购内容 + 通知内容 + 两个时间）──
-  const [overview, setOverview] = useState<any>(null);
-  const [overviewLoading, setOverviewLoading] = useState(false);
 
   // ── 招标文件要点（A-87）板块已按 2026-09-11 拍板移除（解析不可用造成长期空态）──
 
@@ -313,16 +293,6 @@ function BidDetailInner() {
     }
   }
 
-  async function loadOverview() {
-    setOverviewLoading(true);
-    try {
-      setOverview(await bidApi.getProjectOverview(projectId));
-    } catch {
-      /* 拦截器已提示 */
-    } finally {
-      setOverviewLoading(false);
-    }
-  }
 
   const loadAll = useCallback(async () => {
     setError(false);
@@ -345,7 +315,6 @@ function BidDetailInner() {
         loadBidDoc();
       }
       void loadOutcome();
-      loadOverview();
       // A-101 回执卡：仅已入库（APPROVED）供应商拉本人递交记录——临时/待审供应商
       // 虽有 Supplier 行但尚未入库，无递交记录可展示（2026-09-28 修正注释：此前误写「临时供应商无 Supplier 行」）
       if (prof?.status === "APPROVED") void reloadSubmission();
@@ -502,6 +471,14 @@ function BidDetailInner() {
                 </div>
               </header>
 
+              {/* ═══ 公告摘要（2026-11-24 用户裁定：原「AI 项目概览」改为公告摘要并上移标题下方）═══ */}
+              {project.announcement?.summary && (
+                <div className="bd-summary">
+                  <span className="bd-summary-label">公告摘要</span>
+                  <p className="bd-summary-text">{project.announcement.summary}</p>
+                </div>
+              )}
+
               {/* ═══ 投标操作条（2026-10-19 重设计：内容区首卡）═══
                   cgzxui：并排主/次按钮 .neu-btn-group 统一等高；状态说明常驻卡内（原藏原生 title，触屏不可见）。
                   CountdownTimer 挂载即同步服务器时钟——canSubmit 预检同源（列表路径 info-bar 隐藏时不退化本地时钟） */}
@@ -585,45 +562,6 @@ function BidDetailInner() {
                 </div>
               )}
 
-              {/* ═══ AI 融合概览（采购内容 + 通知 + 两个时间）═══ */}
-              <div className="overview-card neu-card">
-                <div className="ov-head">
-                  <span className="ov-head-icon"><Sparkles size={16} strokeWidth={1.75} /></span>
-                  <h3>项目概览</h3>
-                </div>
-                {overviewLoading ? (
-                  <div className="ov-loading"><Loader2 size={18} className="is-loading" /><span>正在生成项目概览…</span></div>
-                ) : overview ? (
-                  <>
-                    <p className="ov-text">{overview.overview}</p>
-                    {/* 两个时间 */}
-                    {(overview.acquireStartTime || overview.bidOpeningTime) && (
-                      <div className="ov-times">
-                        {overview.acquireStartTime && (
-                          <div className="ov-time-item">
-                            <span className="ov-time-label">采购文件获取</span>
-                            <span className="ov-time-val">{fmtTime(overview.acquireStartTime)} ~ {fmtTime(overview.acquireEndTime)}</span>
-                          </div>
-                        )}
-                        {overview.bidOpeningTime && (
-                          <div className="ov-time-item">
-                            <span className="ov-time-label">开标时间</span>
-                            <span className="ov-time-val">{fmtTime(overview.bidOpeningTime)}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {/* 通知原文 */}
-                    {overview.notification && (
-                      <details className="ov-notif">
-                        <summary>查看邀请通知原文</summary>
-                        <div className="ov-notif-body">{overview.notification}</div>
-                      </details>
-                    )}
-                  </>
-                ) : null}
-              </div>
-
               {/* ═══ 公告正文 ═══ */}
               <div className="content-card neu-card">
                 {/* 公告结构化信息（镜像信息发布中心 :3005——chip 瓷片 + 分类色） */}
@@ -641,12 +579,18 @@ function BidDetailInner() {
 
                 {/* 招标条件（招标范围已融入上方项目概览，此处不再单独展示）；
                     联系方式已在上方结构化信息条展示，此处不再重复 */}
-                {(project.qualification || project.qualityRequirement) && (
+                {(() => {
+                  // 资质要求（2026-11-24 用户裁定）：正文同源 qualificationConditions 优先——
+                  // announcement.metadata.qualification 是公告编写时 AI 填充的报名/资格长文（含编造日期），
+                  // 正文「资格条件」才是问卷 canonical 值；无公告（邀请书项目）回落项目列
+                  const meta = ((project.announcement?.metadata ?? {}) as Record<string, any>);
+                  const qualification = String(meta.qualificationConditions ?? "").trim() || project.qualification;
+                  return (
                   <div className="cc-conds">
-                    {project.qualification && (
+                    {qualification && (
                       <div className="cc-cond">
                         <span className="cc-cond-hd">资质要求</span>
-                        <p className="cc-cond-bd">{project.qualification}</p>
+                        <p className="cc-cond-bd">{qualification}</p>
                       </div>
                     )}
                     {project.qualityRequirement && (
@@ -656,10 +600,11 @@ function BidDetailInner() {
                       </div>
                     )}
                   </div>
-                )}
+                  );
+                })()}
 
                 {project.announcement?.content ? (
-                  <div className="cc-body" dangerouslySetInnerHTML={{ __html: formatContent(project.announcement.content) }} />
+                  <div className="cc-body" dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(project.announcement.content, project.announcement.title) }} />
                 ) : (project as any).invitationLetter?.kind === "file" ? (
                   /* 无公告（谈判/邀请采购以邀请书代替）：在线预览采购邀请书 DOCX 原文 */
                   <InvitationDocxPreview
