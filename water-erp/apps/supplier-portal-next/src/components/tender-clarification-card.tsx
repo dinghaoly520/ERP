@@ -18,12 +18,15 @@ export function TenderClarificationCard({
   projectId,
   stage,
   deadline,
+  className,
 }: {
   projectId: string;
   /** 项目阶段；缺省视为开放，交由后端闸门兜底 */
   stage?: string | null;
   /** 投标截止时间；缺省视为窗口未判，交由后端闸门兜底 */
   deadline?: string | Date | null;
+  /** 追加根容器类（如 bottom-grid 内 col-span-full 跨列） */
+  className?: string;
 }) {
   const [data, setData] = useState<Awaited<ReturnType<typeof bidApi.listTenderClarifications>> | null>(null);
   const [question, setQuestion] = useState("");
@@ -77,7 +80,7 @@ export function TenderClarificationCard({
   };
 
   return (
-    <div className="neu-card bottom-card">
+    <div className={`neu-card bottom-card${className ? ` ${className}` : ""}`}>
       <div className="bc-hd flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5">
           <FileQuestion size={14} /> 澄清与修改（就招标文件提问 / 澄清文件下载）

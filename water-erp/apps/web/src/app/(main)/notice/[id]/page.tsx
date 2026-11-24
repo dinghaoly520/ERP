@@ -207,7 +207,7 @@ export default function NoticeDetailPage() {
                 const tone: 'blue' | 'orange' | 'gray' = leftMs < 0 ? 'gray' : leftMs <= 3 * 86400000 ? 'orange' : 'blue';
                 return (
                   <StatusBadge tone={tone}>
-                    公示{leftMs >= 0 ? '中' : '期满'} · 至 {new Date(ann.publicityEnd).toLocaleDateString('zh-CN')}
+                    公示{leftMs >= 0 ? '中' : '期满'} · 至 {new Date(ann.publicityEnd).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </StatusBadge>
                 );
               })()}
@@ -223,7 +223,9 @@ export default function NoticeDetailPage() {
               <StatusBadge tone={typeTone[ann.type]}>{ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}</StatusBadge>
               <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
               {ann.isTop && <StatusBadge tone="red">置顶</StatusBadge>}
-              {ann.dataClass && (
+              {/* 数据公开范围徽章：「应公开」不展示（2026-11-24 用户裁定——公告默认即应公开，
+                  无信息量）；宜公开/可公开/应保密保留提示 */}
+              {ann.dataClass && ann.dataClass !== 'public_mandatory' && (
                 <StatusBadge tone={ann.dataClass === 'confidential' ? 'red' : 'gray'}>
                   {DATA_CLASS_LABELS[ann.dataClass as keyof typeof DATA_CLASS_LABELS] ?? ann.dataClass}
                 </StatusBadge>
@@ -351,10 +353,11 @@ function renderMeta(ann: AnnouncementListItem) {
         </span>
           );
           return (
-            <>
+            // 两组同排一行（2026-11-24 二次裁定：能一行显示必须一行）——横向容器，窄屏才换行
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {base.length > 0 && <Group title="基本信息" items={base} />}
               {times.length > 0 && <Group title="时间节点" items={times} />}
-            </>
+            </div>
           );
         })()}
         {areaFields.map(f => (
