@@ -246,8 +246,8 @@ export default function NoticePage() {
                         {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
                         {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
                       </div>
-                      {/* 2026-11-24 三次裁定：摘要两行截断——利用行内空白显示更多内容 */}
-                      {a.summary && <p className="w-full line-clamp-2 text-left text-[11px] leading-relaxed break-all text-[var(--muted-foreground)]">{a.summary}</p>}
+                      {/* 2026-11-24 定稿：摘要单行、超出以省略号（···）截断——宽度 560px 单行可显 ~50 字 */}
+                      {a.summary && <p className="w-full truncate text-left text-[11px] text-[var(--muted-foreground)]">{a.summary}</p>}
                     </div>
                   </td>
                   <td>
