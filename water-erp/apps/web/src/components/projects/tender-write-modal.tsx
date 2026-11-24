@@ -555,10 +555,12 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     [selectedType],
   );
 
-  // 前置章节闸（询比 v2）：评审标准章节待前四章填完才开放（与 /tender-write 同口径）
+  // 前置章节闸（询比 v2；2026-11-24 扩邀请/公开招标）：评审/评标标准章节待其前所有
+  // 章节填完才开放（与 /tender-write 同口径）
   const sectionGate = useMemo(() => {
-    if (selectedType !== 'INQUIRY_PURCHASE') return undefined;
-    return { key: 'evaluation' as const, ...tenderSectionPrereq(INQUIRY_PURCHASE_SECTIONS, currentDraft, 'evaluation') };
+    if (!isScoringRequiredType(selectedType)) return undefined;
+    const sections = selectedType === 'INQUIRY_PURCHASE' ? INQUIRY_PURCHASE_SECTIONS : INVITED_BIDDING_SECTIONS;
+    return { key: 'evaluation' as const, ...tenderSectionPrereq(sections, currentDraft, 'evaluation') };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType, currentDraft]);
 

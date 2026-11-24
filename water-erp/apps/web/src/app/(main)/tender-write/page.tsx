@@ -287,10 +287,12 @@ export default function TenderWritePage() {
     return createEmptyCompetitiveNegotiationDraft();
   }, [selectedType, drafts]);
 
-  // 前置章节闸（询比 v2，2026-10-29 裁定）：评审标准章节待前四章填完才开放填写
+  // 前置章节闸（询比 v2，2026-10-29 裁定；2026-11-24 扩邀请/公开招标）：评审/评标标准
+  // 章节待其前所有章节（含采购需求）填完才开放填写——AI 生成时前章内容均可作参考
   const sectionGate = useMemo(() => {
-    if (selectedType !== "INQUIRY_PURCHASE") return undefined;
-    return { key: "evaluation" as const, ...tenderSectionPrereq(INQUIRY_PURCHASE_SECTIONS, currentDraft, "evaluation") };
+    if (!isScoringRequiredType(selectedType)) return undefined;
+    const sections = selectedType === "INQUIRY_PURCHASE" ? INQUIRY_PURCHASE_SECTIONS : INVITED_BIDDING_SECTIONS;
+    return { key: "evaluation" as const, ...tenderSectionPrereq(sections, currentDraft, "evaluation") };
   }, [selectedType, currentDraft]);
 
   const updateDraft = (key: CompetitiveNegotiationFieldKey | SingleSourceFieldKey | InquiryPurchaseFieldKey | InternalBiddingFieldKey | InvitedBiddingFieldKey | "scoringItems", value: string) => {
