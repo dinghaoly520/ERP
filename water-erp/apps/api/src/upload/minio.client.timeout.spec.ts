@@ -11,9 +11,9 @@ jest.mock('minio', () => {
 describe('minio.client 请求超时（M3）', () => {
   it('默认 120_000ms 兜底并挂在单例上', () => {
     jest.isolateModules(() => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const { minioClient } = require('./minio.client');
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       const { Client } = require('minio') as { Client: jest.Mock };
       expect(Client).toHaveBeenCalledTimes(1);
       const instance = Client.mock.results[0].value;
@@ -27,9 +27,9 @@ describe('minio.client 请求超时（M3）', () => {
     process.env.MINIO_REQUEST_TIMEOUT_MS = '5000';
     try {
       jest.isolateModules(() => {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+         
         require('./minio.client');
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+         
         const { Client } = require('minio') as { Client: jest.Mock };
         expect(Client.mock.results[0].value.setDefaultTimeout).toHaveBeenCalledWith(5000);
       });
