@@ -6,6 +6,7 @@ import { AnnouncementAiService } from './announcement-ai.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { sealField } from '../common/crypto/field-crypto';
 import { minioClient } from '../upload/minio.client';
+import { NOTIFICATION_REGISTRY_MAP } from '@water-erp/shared';
 
 // 解密门控断言依赖 KMS_SECRET（openField 拆封密封 bidPrice）。
 const ANN_SPEC_KMS = 'test-kms-secret-from-announcement-spec';
@@ -2822,6 +2823,53 @@ describe('AnnouncementService — 待发定时草稿互斥（2026-11-24 用户�
     const res: any = await service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {});
     expect(res.id).toBe('a-new');
     expect(res.supersededPendingScheduledIds).toEqual(['a-old']);
+  });
+
+  // ── 审查遗留两项（2026-11-24 用户裁定「前两条要补」）──
+  // ①替换的是他人创建的草稿时，原作者此前毫无感知——自己的定时草稿悄悄进了回收站、不再定时发布
+  it('create：确认替换他人创建的待发草稿 → 替换后通知原作者，写明是哪条、被谁替换', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old', { authorId: 'author-old' })]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old', { authorId: 'author-old' }));
+    tx.announcement.create.mockImplementation(async ({ data }: any) => ({ id: 'a-new', attachments: [], ...data }));
+    await service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u-new', {}, undefined, { operatorId: 'u-new', operatorName: '张三' });
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      userId: 'author-old',
+      type: 'SCHEDULED_PUBLISH_SUPERSEDED',
+      content: expect.stringContaining('询比采购公告 — a-old'),
+    }) });
+    expect(prisma.notification.create).toHaveBeenCalledWith({ data: expect.objectContaining({ content: expect.stringContaining('张三') }) });
+  });
+
+  it('create：替换的是自己创建的待发草稿 → 不另发通知（发布提示里已经告知）', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old', { authorId: 'u1' })]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old', { authorId: 'u1' }));
+    tx.announcement.create.mockImplementation(async ({ data }: any) => ({ id: 'a-new', attachments: [], ...data }));
+    await service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {}, undefined, { operatorId: 'u1', operatorName: '张三' });
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+  });
+
+  it('create：被替换的旧草稿没有作者（历史数据）→ 不发通知、不影响替换', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old', { authorId: null })]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old', { authorId: null }));
+    tx.announcement.create.mockImplementation(async ({ data }: any) => ({ id: 'a-new', attachments: [], ...data }));
+    await expect(service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {})).resolves.toMatchObject({ supersededPendingScheduledIds: ['a-old'] });
+    expect(prisma.notification.create).not.toHaveBeenCalled();
+  });
+
+  it('通知类型须登记在共享清单里且不是待办（未登记只会在运行期告警；待办型必须有消解出口，原作者无此事可办）', () => {
+    expect(NOTIFICATION_REGISTRY_MAP.SCHEDULED_PUBLISH_SUPERSEDED).toMatchObject({ domain: 'announcement', actionable: false });
+  });
+
+  // ②替换落下的「隐藏」操作历史此前没有 IP/浏览器标识，也没有姓名兜底——手动隐藏都有，审计口径不一致
+  it('create：替换产生的隐藏历史带操作人姓名/IP/浏览器标识（与手动隐藏同口径）', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old'));
+    tx.announcement.create.mockImplementation(async ({ data }: any) => ({ id: 'a-new', attachments: [], ...data }));
+    await service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {}, undefined, { operatorId: 'u1', operatorName: 'zhang', ipAddress: '10.0.0.9', userAgent: 'UA-test' });
+    expect(prisma.announcementHistory.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+      announcementId: 'a-old', action: 'HIDE', status: 'HIDDEN',
+      operatorId: 'u1', operatorName: 'zhang', ipAddress: '10.0.0.9', userAgent: 'UA-test',
+    }) });
   });
 
   it('checkDuplicate：同键待发定时草稿单列 pending；已发布查重 matches 口径不变', async () => {

@@ -110,6 +110,8 @@ export class AnnouncementService {
     authorId?: string,
     companyStamp: { companyId?: string; companyName?: string } = {},
     scope?: CompanyScope,
+    /** 操作人上下文（替换他人待发草稿时写隐藏留痕、通知原作者用；与回收站 hide/offline 的 operator 同构） */
+    operator?: RecycleOperator,
   ) {
     // 摘要异步化（2026-11-13 生产实录：发布向导确认发布吃 504「15 秒代理超限」——同步
     // LLM 摘要预算 90s 远超代理窗，而后端建行照常成功、用户重复点发布产重复公告）。
@@ -216,7 +218,7 @@ export class AnnouncementService {
     };
     // 替换建行与旧草稿入回收站同事务；无替换时直接建行
     const { result, supersededPendingIds } = toSupersede.length > 0
-      ? await this.createSupersedingPendingScheduled(createData, toSupersede, { type: dto.type, relatedProjectCode: dto.relatedProjectCode, metadata: dto.metadata }, authorId)
+      ? await this.createSupersedingPendingScheduled(createData, toSupersede, { type: dto.type, relatedProjectCode: dto.relatedProjectCode, metadata: dto.metadata }, authorId, operator)
       : { result: await this.prisma.announcement.create({ data: createData, include: ANNOUNCEMENT_CREATE_INCLUDE }), supersededPendingIds: [] as string[] };
 
     // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设公示期（登记制路径，
@@ -1765,14 +1767,19 @@ export class AnnouncementService {
 
   /** 经办人确认替换的落地——与新建同事务：先逐条复核待替换草稿仍是待发（已发布即拒绝：不得在
    *  已发布公告之上再发一条；已被隐藏/下架 = 他人已处理，跳过），再建新行，最后把旧草稿移入
-   *  回收站并拆定时（恢复后不会重新变成待发草稿）。 */
+   *  回收站并拆定时（恢复后不会重新变成待发草稿）。
+   *  留痕与告知（2026-11-24 用户裁定）：隐藏历史带操作人姓名/IP/浏览器标识（与手动隐藏同口径，
+   *  操作人上下文由控制器传入）；被替换草稿的原作者与替换人不是同一人时，通知原作者（纯告知，
+   *  不占待办——原作者无此事可办）。 */
   private async createSupersedingPendingScheduled(
     createData: Prisma.AnnouncementUncheckedCreateInput,
     targets: PendingScheduledDuplicate[],
     target: { type: string; relatedProjectCode?: string | null; metadata?: unknown },
     authorId?: string,
+    operator?: RecycleOperator,
   ) {
-    const operatorName = (await this.history?.resolvedName(authorId)) ?? null;
+    // 操作人姓名与回收站隐藏（applyRecycle）同口径：显示名优先，解析不到回落登录名
+    const operatorName = (await this.history?.resolvedName(operator?.operatorId ?? authorId, operator?.operatorName)) ?? operator?.operatorName ?? null;
     const confirmed = new Set(targets.map((t) => t.id));
     const { created, superseded } = await this.prisma.$transaction(async (tx) => {
       // 事务内重查（2026-11-24 审查）：预检与落库之间同键若又出现不在确认清单里的待发草稿——典型是
@@ -1784,11 +1791,11 @@ export class AnnouncementService {
           code: 'SUPERSEDE_TARGET_CHANGED',
         });
       }
-      const still: Array<{ id: string; title: string; type: string; metadata: unknown }> = [];
+      const still: Array<{ id: string; title: string; type: string; status: string; authorId: string | null; metadata: unknown }> = [];
       for (const t of targets) {
         const fresh = await tx.announcement.findUnique({
           where: { id: t.id },
-          select: { id: true, title: true, type: true, status: true, metadata: true },
+          select: { id: true, title: true, type: true, status: true, authorId: true, metadata: true },
         });
         if (!fresh || fresh.status === 'HIDDEN' || fresh.status === 'OFFLINE') continue;
         if (!isPendingScheduledDraft(fresh)) {
@@ -1825,9 +1832,28 @@ export class AnnouncementService {
         data: {
           announcementId: old.id, action: 'HIDE', title: old.title, type: old.type, status: 'HIDDEN',
           changedFields: ['status', 'metadata.scheduledPublishDate'],
-          operatorId: authorId ?? null, operatorName,
+          operatorId: operator?.operatorId ?? authorId ?? null, operatorName,
+          ipAddress: operator?.ipAddress ?? null, userAgent: operator?.userAgent ?? null,
         },
       }).catch(e => this.logger.warn(`待发公告替换留痕失败（不阻塞）: ${old.id}: ${(e as Error).message}`));
+    }
+    // 告知被替换草稿的原作者（2026-11-24 用户裁定）：替换人与原作者不是同一人时，原作者此前毫无感知——
+    // 自己的定时草稿进了回收站、不再定时发布。纯告知（非待办）：原作者无此事可办。失败只告警不阻塞。
+    for (const old of superseded) {
+      if (!old.authorId || old.authorId === authorId) continue;
+      const by = operatorName ? `已被${operatorName}发布的新公告取代` : '已被发布的新公告取代';
+      const notice = {
+        type: 'SCHEDULED_PUBLISH_SUPERSEDED',
+        title: '定时待发公告已被替换',
+        content: `您创建的「${old.title}」${by}：该公告已移入回收站，不再定时发布。`,
+        link: '/notice',
+      };
+      try {
+        if (this.notifications) await this.notifications.create({ userId: old.authorId, ...notice });
+        else await this.prisma.notification.create({ data: { userId: old.authorId, ...notice } });
+      } catch (e) {
+        this.logger.warn(`待发公告被替换通知发送失败（不阻塞）: ${old.id}: ${(e as Error).message}`);
+      }
     }
     // 只回实际入回收站的清单（已被他人隐藏/下架的旧草稿不算本次替换）
     return { result: created, supersededPendingIds: superseded.map((old) => old.id) };

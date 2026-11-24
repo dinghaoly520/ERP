@@ -616,6 +616,7 @@ const ANNOUNCEMENT_SPECS: NotificationTypeSpec[] = [
   { code: 'ANNOUNCEMENT_PUBLISHED', label: '公告发布', domain: 'announcement', icon: 'Megaphone', tone: 'blue', actionable: false, audiences: LEGACY('公告订阅供应商定向，挂起待议'), channels: IN_APP },
   { code: 'PRE_WIN_CONFIRM_DUE', label: '成交公告待确认', domain: 'announcement', icon: 'ClipboardCheck', tone: 'orange', actionable: true, sharedResolve: true, audiences: [{ kind: 'ROLE', roles: ['staff'] }], channels: IN_APP, link: () => '/notice' }, // 2026-09-27 从 SYSTEM 拆分；sharedResolve（2026-11-12）：确认发布成交公告是一次性动作（cron 有 winnerConfirmRemindedAt 防重发），一人确认=全组了结
   { code: 'SCHEDULED_PUBLISH_FAILED', label: '定时发布未生效', domain: 'announcement', icon: 'Clock', tone: 'red', actionable: true, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP, link: () => '/notice' }, // 2026-11-23：scheduler 定时发布被闸拒绝时定向通知创建人（同错误只发一次）；失败原因同落 metadata.scheduledPublishError 供管理端展示
+  { code: 'SCHEDULED_PUBLISH_SUPERSEDED', label: '定时公告已被替换', domain: 'announcement', icon: 'Replace', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP, link: () => '/notice' }, // 2026-11-24：同项目同类型待发草稿互斥——经办人确认「替换并发布」时，被替换草稿的原作者（≠替换人）收一条告知；纯告知非待办（原作者无此事可办，登记为待办会成僵尸）
 ];
 
 const SYSTEM_SPECS: NotificationTypeSpec[] = [

@@ -292,7 +292,7 @@ export class AnnouncementController {
     const companyStamp = await this.companyScope.stampFor(req.user);
     // 待发定时草稿互斥闸的公司范围（2026-11-24 审查）：经办人只能替换、在提示中看到本公司的草稿
     const scope = await this.companyScope.resolveScope(req.user);
-    const result = await this.announcementService.create(dto, req.user.sub, companyStamp, scope);
+    const result = await this.announcementService.create(dto, req.user.sub, companyStamp, scope, this.recycleOperator(req));
     // 操作历史（append-only）：新建 + 直接发布各记一条
     await this.history.write({
       announcementId: result.id,
