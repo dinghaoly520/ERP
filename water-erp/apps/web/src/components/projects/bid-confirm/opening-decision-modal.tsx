@@ -251,9 +251,9 @@ export function OpeningDecisionModal({
               </span>
             </div>
           ) : (
-            /* 单一组件框（2026-11-18 排版收敛）：图标+标签+选择器+原开标 同片强制单行 */
-            <div className="flex flex-nowrap items-center gap-2.5 rounded-[12px] px-3.5 py-2"
-              style={{ background: 'oklch(1 0 0 / 0.55)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 1px 2px oklch(0.55 0.03 258 / 0.07), -1px -1px 2px oklch(1 0 0 / 0.6)' }}>
+            /* 单一组件框（2026-11-18 排版收敛）：图标+标签+选择器+原开标 同片强制单行；
+               底色与内高光走 globals.css 的 .bc-decision-box（cgzxui 单一 CSS 源） */
+            <div className="bc-decision-box flex flex-nowrap items-center gap-2.5 rounded-[12px] px-3.5 py-2">
               <CalendarClock size={14} className="shrink-0 text-[var(--accent)]" />
               <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">新的开标时间</span>
               <input
@@ -306,8 +306,7 @@ export function OpeningDecisionModal({
             const body = supplierTpl.body.replace(/\{供应商名称\}/g, name);
             const hl = [name, bidProject.projectCode, bidProject.name, fmtCn(effectiveIso), ...(mode === 'delay' ? [fmtCn(delayDeadlineIso(effectiveIso))] : [])].filter(Boolean) as string[];
             return (
-              <div className="rounded-[12px] px-3.5 py-3"
-                style={{ background: 'oklch(0.965 0.004 258 / 0.55)', boxShadow: 'inset 1px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.5)' }}>
+              <div className="bc-notice-preview rounded-[12px] px-3.5 py-3">
                 <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--foreground)]">
                   {previewSegments(body, hl).map((seg, i) =>
                     hl.includes(seg) ? <b key={i} className="font-semibold text-[var(--accent-strong)]">{seg}</b> : <span key={i}>{seg}</span>)}
@@ -357,8 +356,7 @@ export function OpeningDecisionModal({
             const body = expertTpl.body.replace(/\{专家姓名\}/g, name);
             const hl = [name, bidProject.projectCode, fmtCn(effectiveIso)].filter(Boolean) as string[];
             return (
-              <div className="rounded-[12px] px-3.5 py-3"
-                style={{ background: 'oklch(0.965 0.004 258 / 0.55)', boxShadow: 'inset 1px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.5)' }}>
+              <div className="bc-notice-preview rounded-[12px] px-3.5 py-3">
                 <div className="whitespace-pre-wrap text-xs leading-relaxed text-[var(--foreground)]">
                   {previewSegments(body, hl).map((seg, i) =>
                     hl.includes(seg) ? <b key={i} className="font-semibold text-[var(--accent-strong)]">{seg}</b> : <span key={i}>{seg}</span>)}

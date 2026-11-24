@@ -7242,4 +7242,37 @@ select.workbench-input {
   background: linear-gradient(180deg, color-mix(in oklch, var(--accent) 6%, transparent), transparent);
 }
 
+/* ── 开标确认链路：内联阴影收进类（cgzxui 红牌 H4 整改，2026-11-24）──────────────
+     bid-confirm-panel.tsx（专家替换弹窗）与 bid-confirm/opening-decision-modal.tsx
+     （延时 / 按时开标确认）。数值与整改前的内联值逐字一致。
+     唯一的渲染差别在换入卡底色：原内联写法由浏览器直接求值，纯白的色相失效，color-mix
+     实际呈极淡的偏粉；进样式表后构建把 oklch 纯白转写为 lab，呈品牌淡染
+     （色相 353 → 247，ΔE≈2.3，2026-11-24 无头浏览器实测）。 ── */
+/* 专家替换·换出 / 换入方向卡（双瓷片；--in = 换入侧品牌淡染） */
+.bc-swap-card {
+  background: oklch(1 0 0 / 0.5);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7);
+}
+.bc-swap-card--in { background: color-mix(in oklch, var(--accent) 6%, oklch(1 0 0 / 0.5)); }
+/* 专家替换·被替换正选（carved 内凹盒） */
+.bc-swap-current {
+  background: oklch(0.965 0.004 258 / 0.6);
+  box-shadow: inset 1px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.55);
+}
+/* 专家替换·候补行卡（无外框、内高光） */
+.bc-swap-alt-row {
+  background: oklch(1 0 0 / 0.42);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5);
+}
+/* 延时开标·决策信息单行盒 */
+.bc-decision-box {
+  background: oklch(1 0 0 / 0.55);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.65), 1px 1px 2px oklch(0.55 0.03 258 / 0.07), -1px -1px 2px oklch(1 0 0 / 0.6);
+}
+/* 延时 / 按时开标·通知内容预览盒（carved 内凹） */
+.bc-notice-preview {
+  background: oklch(0.965 0.004 258 / 0.55);
+  box-shadow: inset 1px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.5);
+}
+
 /* cache-bust 2026-11-12: force Tailwind rescan after cgzxui SKILL.md class-name fix */
