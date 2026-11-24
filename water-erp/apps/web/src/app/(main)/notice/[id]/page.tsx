@@ -17,7 +17,7 @@ import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ArrowLeft, Pencil, X, EyeOff, Lock, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
+import { ArrowLeft, Pencil, X, EyeOff, Eye, Lock, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
@@ -190,11 +190,28 @@ export default function NoticeDetailPage() {
                 {ann.publishDate && <span> · {new Date(ann.publishDate).toLocaleDateString('zh-CN')} 发布</span>}
                 {/* 发布单位（2026-10-16）：发布的公告必须标明公司——写时快照 */}
                 {ann.companyName && <span> · 发布单位：{ann.companyName}</span>}
-                <span> · 浏览 {ann.viewCount}</span>
               </div>
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 标题行右侧信息（2026-11-24 用户裁定填充空白）：公示期限状态 + 浏览量
+                （浏览自副标题行上移，避免同页重复） */}
+            <div className="mr-2 flex items-center gap-3">
+              {ann.status === 'PUBLISHED' && ann.publicityEnd && (() => {
+                const leftMs = new Date(ann.publicityEnd).getTime() - Date.now();
+                const tone: 'blue' | 'orange' | 'gray' = leftMs < 0 ? 'gray' : leftMs <= 3 * 86400000 ? 'orange' : 'blue';
+                return (
+                  <StatusBadge tone={tone}>
+                    公示{leftMs >= 0 ? '中' : '期满'} · 至 {new Date(ann.publicityEnd).toLocaleDateString('zh-CN')}
+                  </StatusBadge>
+                );
+              })()}
+              <span className="flex items-center gap-1.5 text-[var(--muted-foreground)]" title="累计浏览">
+                <Eye size={14} />
+                <span className="font-mono text-sm font-bold tabular-nums text-[var(--foreground)]">{ann.viewCount}</span>
+                <span className="text-[10px] font-semibold">次浏览</span>
+              </span>
+            </div>
             {/* 描述性徽章组（采购方式 → 状态类[发布状态/置顶/公开范围]）
                 「已发布」「应公开」同属状态/级别，不再被采购方式隔开 */}
             <div className="flex items-center gap-1.5">
