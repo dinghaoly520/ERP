@@ -243,7 +243,7 @@ export default function NoticePage() {
                       <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
                         {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
                         {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
-                        {a.summary && (<><span aria-hidden>·</span><span className="max-w-[360px] truncate">{a.summary.slice(0, 40)}{a.summary.length > 40 ? '…' : ''}</span></>)}
+                        {a.summary && (<><span aria-hidden>·</span><span className="min-w-0 break-all">{a.summary}</span></>)}
                       </div>
                     </div>
                   </td>
