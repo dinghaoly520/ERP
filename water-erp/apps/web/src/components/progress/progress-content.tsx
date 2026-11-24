@@ -378,7 +378,7 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
             {/* Metadata */}
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
               <span style={{ color: "var(--accent)" }}>所属项目：{project.projectName}</span>
-              <span style={{ color: "var(--success)" }}>申请人：{project.createdBy?.displayName || project.requesterName || "未登记"}</span>
+              <span style={{ color: "var(--success)" }}>经办人：{project.createdBy?.displayName || project.requesterName || "未登记"}</span>
               <span style={{ color: "var(--gold)" }}>归属部门：{project.requesterDepartment || "未设置"}</span>
               <span style={{ color: "var(--accent-strong)" }}>采购方式：{project.procurementMethod || "未设置"}</span>
               <span className="font-medium" style={{ color: "var(--muted-foreground)" }}>项目预算：{formatWan(project.budgetAmount)}</span>
@@ -739,7 +739,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
             </div>
             <div className="wb-panel-body">
               <div className="grid grid-cols-2 gap-2">
-                <PieChartBlock icon={<User size={12} />} label="申请人" items={requesterDist} accent="oklch(0.64 0.14 262)" />
+                <PieChartBlock icon={<User size={12} />} label="经办人" items={requesterDist} accent="oklch(0.64 0.14 262)" />
                 <PieChartBlock icon={<Gavel size={12} />} label="采购方式" items={methodDist} accent="oklch(0.68 0.11 162)" />
                 <PieChartBlock icon={<Building2 size={12} />} label="归属部门" items={deptDist} accent="oklch(0.78 0.12 84)" />
                 <PieChartBlock icon={<LayoutGrid size={12} />} label="归属项目" items={projectDist} accent="oklch(0.61 0.13 272)" />
@@ -808,7 +808,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
       <motion.div {...fadeIn(4, reducedMotion, 0.03)} className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
-          <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索项目、申请人、部门..." className="neu-input !pl-9" />
+          <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索项目、经办人、部门..." className="neu-input !pl-9" />
           {keyword && (
             <button onClick={() => setKeyword('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-[rgba(96,139,239,0.1)] text-[color:var(--muted-foreground)] z-10">
               <X size={14} />
@@ -842,10 +842,10 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
                 options={[{ value: "", label: "全部项目" }, ...projectNames.map((n) => ({ value: n, label: n }))]}
               />
               <FilterSelect
-                ariaLabel="按申请人筛选"
+                ariaLabel="按经办人筛选"
                 value={selectedRequester}
                 onChange={setSelectedRequester}
-                options={[{ value: "", label: "全部申请人" }, ...requesterNames.map((n) => ({ value: n, label: n }))]}
+                options={[{ value: "", label: "全部经办人" }, ...requesterNames.map((n) => ({ value: n, label: n }))]}
               />
               <FilterSelect
                 ariaLabel="排序方式"
