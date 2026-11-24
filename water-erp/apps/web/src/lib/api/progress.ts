@@ -33,6 +33,8 @@ export interface ProjectProgress {
     round?: number | null;
     status: string;
     completedAt: string | null;
+    /** 阶段附件数（2026-11-24）：需求/立项完成但 0 附件时，进度卡该步骤显白不显绿 */
+    attachmentCount?: number;
   }>;
 }
 

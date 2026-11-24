@@ -1,5 +1,6 @@
 import {
   PROJECT_MANAGEMENT_STATUS_LABELS,
+  isCompletedEarlyStageWithoutFiles,
   type ProjectManagementItem,
 } from '@/lib/types/project-management';
 
@@ -146,12 +147,14 @@ export function ProjectCard({
           <div className="flex gap-2">
             {progressStages.map((stage, idx) => {
               const status = stage.status;
+              // 需求/立项完成但未上传任何文件（2026-11-24 用户裁定）：不显绿，落白色分支提示材料缺位
+              const doneWithoutFiles = isCompletedEarlyStageWithoutFiles(stage);
               return (
                 <div
                   key={`${stage.stageKey}-${stage.round ?? 1}-${idx}`}
                   className={[
                     'h-2 rounded-full transition-all duration-300 min-w-0 flex-1',
-                    status === 'COMPLETED'
+                    status === 'COMPLETED' && !doneWithoutFiles
                       ? 'bg-[rgba(92,181,150,1)] shadow-[0_0_6px_rgba(92,181,150,0.3)]'
                       : status === 'IN_PROGRESS'
                         ? 'bg-[rgba(96,139,239,0.2)] border border-[rgba(96,139,239,0.8)] group-hover:border-[rgba(96,139,239,1)] group-hover:shadow-[0_0_8px_rgba(96,139,239,0.2)]'

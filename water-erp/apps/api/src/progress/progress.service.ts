@@ -33,6 +33,8 @@ export interface ProjectWithCreator {
     round: number | null;
     status: string;
     completedAt: Date | null;
+    /** 阶段附件数（2026-11-24 用户裁定）：需求/立项完成但 0 附件时，进度卡该步骤显白不显绿 */
+    attachmentCount: number;
   }>;
 }
 
@@ -260,6 +262,8 @@ export class ProgressService {
           orderBy: {
             stageOrder: 'asc',
           },
+          // 附件计数（2026-11-24）：需求/立项完成但未传材料的显白判定依据
+          include: { _count: { select: { attachments: true } } },
         },
       },
       orderBy: {
@@ -285,6 +289,11 @@ export class ProgressService {
       budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : 0,
       createdAt: project.createdAt.toISOString(),
       updatedAt: project.updatedAt.toISOString(),
+      // _count 收敛为 attachmentCount 平铺字段（Prisma 计数对象不出响应）
+      stages: project.stages.map(({ _count, ...stage }) => ({
+        ...stage,
+        attachmentCount: _count?.attachments ?? 0,
+      })),
     }));
 
     // 月度统计

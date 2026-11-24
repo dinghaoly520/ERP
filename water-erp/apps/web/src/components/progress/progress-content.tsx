@@ -40,6 +40,7 @@ import {
 } from "@/lib/api/progress";
 import {
   PROJECT_WORKFLOW_STAGES_ALL,
+  isCompletedEarlyStageWithoutFiles,
   type ProjectWorkflowStageKey,
   getStagesForMethod,
   type ProcurementMethod,
@@ -412,7 +413,8 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
             {project.projectStages.map((stage, stageIdx) => {
               const ss = stageMap.get(stage.key);
               const sm = getStageMeta(stage.key);
-              const isDone = ss?.status === "COMPLETED";
+              // 需求/立项完成但未上传任何文件（2026-11-24 用户裁定）：不显绿，按白色（未完成观感）呈现
+              const isDone = ss?.status === "COMPLETED" && !isCompletedEarlyStageWithoutFiles(ss);
               const isCur = project.currentStage === stage.key;
               const isLast = stageIdx === project.projectStages.length - 1;
               const state = isDone ? "completed" : isCur ? "current" : "pending";

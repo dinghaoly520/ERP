@@ -148,6 +148,20 @@ export function isPendingSupplementStage(
   return !!currentRow && stage.stageOrder < currentRow.stageOrder;
 }
 
+/** 需求/立项完成但未上传任何文件（2026-11-24 用户裁定）：项目管理/采购进度卡片的
+ *  该步骤不显绿、按白色（未完成观感）呈现，提示材料缺位。兼容两种数据形状——
+ *  项目管理列表带 attachments 数组，/progress/stats 带 attachmentCount 计数。 */
+export function isCompletedEarlyStageWithoutFiles(
+  stage: { stageKey: string; status: string; attachments?: unknown[] | null; attachmentCount?: number | null },
+): boolean {
+  if (stage.status !== 'COMPLETED') return false;
+  if (!PENDING_SUPPLEMENT_STAGE_KEYS.has(stage.stageKey)) return false;
+  const count = typeof stage.attachmentCount === 'number'
+    ? stage.attachmentCount
+    : Array.isArray(stage.attachments) ? stage.attachments.length : 0;
+  return count === 0;
+}
+
 export type ProjectManagementAttachment = {
   id?: string;
   fileName: string;
