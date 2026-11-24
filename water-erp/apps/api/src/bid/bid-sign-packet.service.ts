@@ -634,7 +634,7 @@ export class BidSignPacketService {
 
     // 打印降级（spec §10）：libreoffice 失败时直接提供 DOCX 下载
     const docxName = buildStandardFileName({ code: project.projectCode, docType: '评标签字包' });
-    const pdf = convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', docxName);
+    const pdf = await convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', docxName);
     const buffer = pdf ? pdf.buffer : docxBuffer;
     const mimeType = pdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const fileName = pdf ? docxName.replace(/\.docx$/, '.pdf') : docxName;

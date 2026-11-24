@@ -91,7 +91,7 @@ export class OpeningSignService {
     const snap = await this.buildSnapshot(projectId);
     const doc = this.buildDocx(snap);
     const docxBuffer = await Packer.toBuffer(doc);
-    const pdf = convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buildStandardFileName({ code: snap.project.projectCode, docType: '开标记录签字页' }));
+    const pdf = await convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buildStandardFileName({ code: snap.project.projectCode, docType: '开标记录签字页' }));
     if (!pdf) throw new BadRequestException({ error: '签字页 PDF 转换失败（LibreOffice 不可用）', code: 'PDF_CONVERT_FAILED' });
 
     const buffer = pdf.buffer;

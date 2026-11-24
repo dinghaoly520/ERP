@@ -169,7 +169,7 @@ export class UploadService implements OnModuleInit {
     let mimeType = file.mimetype;
     let displayName = originalName;
     if (!clientEncrypted) {
-      const converted = convertOfficeToPdf(file.buffer, file.mimetype, originalName);
+      const converted = await convertOfficeToPdf(file.buffer, file.mimetype, originalName);
       if (converted) {
         buffer = converted.buffer;
         mimeType = converted.mimeType;

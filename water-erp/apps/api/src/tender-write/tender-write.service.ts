@@ -296,7 +296,7 @@ export class TenderWriteService {
 
     // PDF 版（2026-11-12）：LibreOffice 转换；服务器未装/转换失败回退 docx（format 标记实际产物）
     if (dto.format === 'pdf') {
-      const pdf = convertOfficeToPdf(
+      const pdf = await convertOfficeToPdf(
         docxBuffer,
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         docxFileName,

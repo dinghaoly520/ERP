@@ -48,7 +48,7 @@ export class BidDocumentService {
     let buffer = file.buffer;
     let mimeType = file.mimetype;
     let displayName = originalName;
-    const converted = convertOfficeToPdf(file.buffer, file.mimetype, originalName);
+    const converted = await convertOfficeToPdf(file.buffer, file.mimetype, originalName);
     if (converted) {
       buffer = converted.buffer;
       mimeType = converted.mimeType;
@@ -148,7 +148,7 @@ export class BidDocumentService {
     let buffer = sourceBuffer;
     let mimeType = input.mimeType || 'application/octet-stream';
     let displayName = originalName;
-    const converted = convertOfficeToPdf(sourceBuffer, mimeType, originalName);
+    const converted = await convertOfficeToPdf(sourceBuffer, mimeType, originalName);
     if (converted) {
       buffer = converted.buffer;
       mimeType = converted.mimeType;
