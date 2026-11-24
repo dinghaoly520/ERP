@@ -520,6 +520,30 @@ function saveWizardState(projectId: string, category: string, state: Record<stri
   } catch {}
 }
 
+/** 定时时刻容忍（2026-11-24 用户裁定）：起始时刻允许在此刻前 3 小时内；更早的陈旧值自愈。 */
+const SCHEDULE_PAST_TOLERANCE_MS = 3 * 60 * 60 * 1000;
+
+/** 校正定时时刻：缺失/未来/3 小时内过去原样返回；更早的过去值 → 当前时间
+ *  （datetime-local 本地格式）。naive 值按 +08:00 解释（与后端 scheduled-publish.util 同口径）。 */
+function healedScheduleTime(raw: string): { value: string; corrected: boolean } {
+  if (!raw) return { value: raw, corrected: false };
+  const t = new Date(`${raw}+08:00`).getTime();
+  if (Number.isNaN(t) || t >= Date.now() - SCHEDULE_PAST_TOLERANCE_MS) return { value: raw, corrected: false };
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return { value: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`, corrected: true };
+}
+
+/** 加载自愈（2026-11-24 用户裁定「优化时间选择器」）：公示期限（起）早于此刻 3 小时以上的
+ *  缓存/预填残留 → 就地刷新为当前时间（用户在 Step1 看到的即是可用值，发布不再携带陈旧定时）。 */
+function healStaleAnnouncementStart<T extends Record<string, string>>(d: T): { draft: T; corrected: boolean } {
+  const start = d.announcementStart?.trim();
+  if (!start) return { draft: d, corrected: false };
+  const h = healedScheduleTime(start);
+  if (!h.corrected) return { draft: d, corrected: false };
+  return { draft: { ...d, announcementStart: h.value }, corrected: true };
+}
+
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document', initialDraftPatch }: Props) {
   // Wizard state
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -779,7 +803,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (openSync.applied) {
         saveWizardState(project.id, restoreCategory, { draft: cachedWiz.draft as Record<string, string>, openingTimeSource: openSync.source });
       }
-      setDraft(cachedWiz.draft as AnnouncementDraft);
+      // 加载自愈（2026-11-24）：公示起陈旧（早于此刻 3 小时以上）→ 刷新为当前时间
+      const healedCache = healStaleAnnouncementStart(cachedWiz.draft as Record<string, string>);
+      setDraft(healedCache.draft as AnnouncementDraft);
+      if (healedCache.corrected) toast.info('公示期限（起）已按当前时间刷新（原值早于当前时间 3 小时以上）');
       // 存量缓存若为「部分供应商可见」→ 按新口径转全部可见（选项已下线，2026-11-11）
       if (cachedWiz.visibility === 'RESTRICTED') {
         toast.info('原公告范围「部分供应商可见」已转为全部可见');
@@ -902,7 +929,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     // 采购公告公示期限不再从「采购文件获取时间」预填（2026-11-20 用户裁定：字段整体退役，
     // 与中标/流标/变更同款「必填+快捷件」——起可用「发布时」、止可按天数下拉推算）。
 
-    setDraft(filledDraft);
+    // 加载自愈（2026-11-24）：预填的公示起陈旧（早于此刻 3 小时以上）→ 刷新为当前时间
+    const healedFresh = healStaleAnnouncementStart(filledDraft as Record<string, string>);
+    setDraft(healedFresh.draft as typeof filledDraft);
+    if (healedFresh.corrected) toast.info('公示期限（起）已按当前时间刷新（原值早于当前时间 3 小时以上）');
     // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）；开标时间同步源一并
     //   落缓存——重开向导时据此判定基本信息是否又变过（变了即重新识别覆盖）
     saveWizardState(project.id, procCat, { step: 1, draft: filledDraft as Record<string, string>, openingTimeSource: openSync.source });
@@ -1125,6 +1155,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setPubUp(null);
   };
 
+  /** 定时时刻容忍与自愈（2026-11-24 用户裁定）：起始时刻允许在此刻前 3 小时内——
+   *  更早的陈旧值（缓存/预填残留）不报错，发布时刻自动校正为当前时间（下一分钟 tick 即发布，
+   *  90 秒徽标宽限内不闪「定时未生效」）。 healedScheduleTime/容忍常量在模块层（加载自愈与发布共阅）。 */
+  const scheduleTimeOf = (): string => {
+    if (publishTiming === 'scheduled') return scheduledDate;
+    if (publishTiming === 'announcement_start') return ((draft ?? {}) as Record<string, string>).announcementStart ?? '';
+    return '';
+  };
+
   /** 「预览并发布」：先过发布前校验，再生成公告 docx 进入第三步预览确认（核对版式与文字） */
   const handlePreview = async () => {
     if (!draft || !category || !tenderType) {
@@ -1134,6 +1173,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     if (publishTiming === 'scheduled' && !scheduledDate) {
       toast.error('请选择定时发布时间');
       return;
+    }
+    // 陈旧定时时刻（早于此刻 3 小时以上）不报错——发布时刻自动校正为当前时间
+    if (healedScheduleTime(scheduleTimeOf()).corrected) {
+      toast.info('定时发布时间已按当前时间校正（原定时刻早于当前时间 3 小时以上）');
     }
     // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
     // 采购公告——「采购文件获取时间」退役后公示期限即获取窗口）：四类公告起止都要
@@ -1234,6 +1277,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         return;
       }
     }
+    // 陈旧定时时刻（早于此刻 3 小时以上）不报错——发布时刻自动校正为当前时间（2026-11-24 用户裁定）
+    if (healedScheduleTime(scheduleTimeOf()).corrected) {
+      toast.info('定时发布时间已按当前时间校正（原定时刻早于当前时间 3 小时以上）');
+    }
     // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
     // 采购公告——止点直供公开端显示窗口与供应商下载窗口，缺失即无从起算）：四类公告起止都要
     // （起可用「发布时」一键填充，止可按天数下拉推算）
@@ -1303,8 +1350,13 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
       // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
       const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE') };
-      if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
-      else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
+      // 定时时刻经 3 小时容忍自愈（陈旧值 → 当前时间）：落库即待发下一 tick，不产生「定时未生效」滞留态
+      const healedSchedule = healedScheduleTime(publishTiming === 'scheduled'
+        ? scheduledDate
+        : publishTiming === 'announcement_start'
+          ? (finalDraft as Record<string, string>).announcementStart
+          : '');
+      if (publishTiming !== 'now' && healedSchedule.value) meta.scheduledPublishDate = healedSchedule.value;
       meta.notifyOnPublish = notifyOnPublish;
       // 阳光采购平台同步快照（2026-09-24）：按接口文档 V2.0.5 组织，供后端推送链路消费；
       // issueType/isExternal 由公告范围冻结——公告范围已固定全部可见（2026-11-11），
