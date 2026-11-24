@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { registerChange, listChanges, type ProjectChangeRecord } from '@/lib/api/project-changes';
 import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
-import { fetchProjectManagementList, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
+import { fetchProjectAttributions, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 
 type Step = 'type' | 'form' | 'records';
@@ -99,17 +99,18 @@ export function ChangeModal({
   const [pubEnd, setPubEnd] = useState('');
   const [pubContent, setPubContent] = useState('');
 
-  // 归属项目候选：在办项目清单（排除本项目）；打开弹窗时取一次
+  // 归属项目候选：归属项目库（ProjectAttribution，公司隔离）——与新建弹窗/详情面板同源，
+  // 选中写归属项目名称。2026-11-24 修正：原实现在办项目清单当候选，普通采购项目
+  // （如「便携式全液压岩心钻机（800型）采购」）混入归属选项，且写入 projectCode 与
+  // 详情面板按名称编辑的口径不一致
   useEffect(() => {
     if (!isOpen) return;
-    fetchProjectManagementList('ACTIVE')
+    fetchProjectAttributions()
       .then(list => setProjectOptions(
-        list
-          .filter(p => p.id !== item.id)
-          .map(p => ({ value: p.projectCode || p.id, label: p.title, meta: p.projectCode || undefined })),
+        list.map(a => ({ value: a.name, label: a.name, meta: a.contractNumber ?? undefined })),
       ))
       .catch(() => setProjectOptions([]));
-  }, [isOpen, item.id]);
+  }, [isOpen]);
 
   const pm = { ...(item as unknown as Record<string, string | number | null>), ...(currentValues ?? {}) };
   const currentOf = (f: string): string => {
