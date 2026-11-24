@@ -2258,6 +2258,12 @@ a.group:hover::after {
   outline: 2px solid #064ea2;
   outline-offset: 2px;
 }
+/* 例外：信息公告·发布单位下拉（select 点击聚焦恒 :focus-visible）——聚焦反馈由
+   控件内凹阴影+边框变化表达，蓝环压制。本规则未分层、Tailwind utilities 分层
+   压不过上方全局环，故须在此以作用域规则显式豁免（同 neu-segment-btn 先例）。 */
+.ann-company-select:focus-visible {
+  outline: none;
+}
 
 /* ── reduced motion ── */
 @media (prefers-reduced-motion: reduce) {

@@ -107,14 +107,15 @@ function AnnouncementsContent() {
         {/* ═══ 工具行：公司筛选（最左，2026-11-06 用户裁定）+ 类型分段切换 + 搜索（右）═══ */}
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           {/* 公司筛选 — 发布单位动态去重；原生 select（≤8 项分型规则）。
-              appearance-none 去原生箭头，focus:outline-none 去原生焦点框线（select 点击聚焦
-              恒 focus-visible，appearance-none 不覆盖），聚焦内凹与搜索框同语言 */}
+              appearance-none 去原生箭头；点击聚焦的外围蓝环由 globals.css 的
+              .ann-company-select:focus-visible 作用域规则压制（全局 *:focus-visible
+              未分层，Tailwind utilities 分层压不过），聚焦反馈=内凹阴影+边框变化 */}
           <div className="relative shrink-0">
             <select
               value={company}
               onChange={e => setCompany(e.target.value)}
               aria-label="按发布单位筛选"
-              className="peer h-10 w-[260px] max-w-[60vw] cursor-pointer appearance-none rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all
+              className="ann-company-select peer h-10 w-[260px] max-w-[60vw] cursor-pointer appearance-none rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all
                 shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
                 focus:outline-none focus:border-[#cfd9e6]
                 focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]">
