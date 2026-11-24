@@ -354,7 +354,8 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
 
   return (
     <motion.div {...{ initial, animate, transition }}>
-      <Link href={`/projects?id=${project.id}`} className="neu-card group block !border-none px-3.5 py-3">
+      {/* ?projectId= 深链：项目管理页列表就绪后自动打开该项目详情面板（?id= 无人消费） */}
+      <Link href={`/projects?projectId=${project.id}`} className="neu-card group block !border-none px-3.5 py-3">
         {/* Header row */}
         <div className="flex items-start justify-between gap-2.5">
           <div className="min-w-0 flex-1">
