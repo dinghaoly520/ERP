@@ -250,10 +250,8 @@ export default function AnnouncementDetailPage() {
                     {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
                     <span className="meta-chip-value">{(() => {
                       if (f.key === 'downloadDeadline') {
-                        // 与项目机会详情同款（2026-11-24 用户裁定）：止点单值——区间「A 至 B」取 B
-                        const raw = metaFields.meta.downloadDeadline ?? metaFields.meta.downloadPeriod;
-                        const s = raw == null ? "" : String(raw);
-                        return s.includes("至") ? s.split("至").pop()!.trim() : s;
+                        // 二次裁定（2026-11-24）：改回时间区间——新公告存区间（downloadPeriod）优先，旧公告止点兜底
+                        return fmtMeta(f, metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline);
                       }
                       if (f.key === 'downloadMode') {
                         const v = String(metaFields.meta.downloadMode ?? "");
