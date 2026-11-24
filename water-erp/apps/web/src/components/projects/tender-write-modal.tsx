@@ -23,6 +23,7 @@ import {
   INVITED_BIDDING_SECTIONS,
   PUBLIC_BIDDING_SECTIONS,
   TENDER_DOCUMENT_TYPES,
+  isScoringRequiredType,
 } from '@/lib/tender-write/templates';
 import { exportTenderDocument } from '@/lib/api/tender-write';
 import { hasValidScoringRows } from '@/components/tender-write/scoring-items-editor';
@@ -757,10 +758,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     if (!selectedType || !project) return;
     // 询比 v2：评审方法固定综合评分法——评分标准未填有效行阻止导出（与 /tender-write 同闸门）
     if (
-      selectedType === 'INQUIRY_PURCHASE' &&
+      isScoringRequiredType(selectedType) &&
       !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
     ) {
-      setErrorMessage('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
+      setErrorMessage('综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再导出');
       return;
     }
     setExportFormatOpen(true);
@@ -837,10 +838,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       if (!blob) {
         // 询比 v2：回退重导出同样过评分标准闸门（与直接导出同口径）
         if (
-          selectedType === 'INQUIRY_PURCHASE' &&
+          isScoringRequiredType(selectedType) &&
           !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
         ) {
-          toast.error('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
+          toast.error('综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再导出');
           return;
         }
         // 回退必须显式告知——静默回退时提交稿不含已接受的修改，而弹窗文案承诺包含（二审 P1）

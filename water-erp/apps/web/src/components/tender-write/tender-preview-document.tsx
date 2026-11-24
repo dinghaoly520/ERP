@@ -1932,21 +1932,73 @@ function InternalBiddingPreview({
           <div className="tender-preview-subsection">
             <div className="text-sm leading-7 text-[color:var(--foreground)]">
               <p>1. 本项目采用的评标方法：</p>
-              {!draft.evaluationMethod ? (
-                <p className="ml-4 mt-2">
-                  <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{评标方法}}"}</span>
-                </p>
-              ) : (
-                <>
+              {variant === 'internal' ? (
+                !draft.evaluationMethod ? (
                   <p className="ml-4 mt-2">
-                    {draft.evaluationMethod === '综合评分法' ? '☑' : '☐'}综合评分法
+                    <span className="rounded-[6px] bg-[rgba(234,188,110,0.12)] px-1 text-[rgba(178,124,42,1)]">{"{{评标方法}}"}</span>
                   </p>
-                  <p className="ml-4 mt-1">
-                    {draft.evaluationMethod === '最低评标价法' ? '☑' : '☐'}最低评标价法
-                  </p>
+                ) : (
+                  <>
+                    <p className="ml-4 mt-2">
+                      {draft.evaluationMethod === '综合评分法' ? '☑' : '☐'}综合评分法
+                    </p>
+                    <p className="ml-4 mt-1">
+                      {draft.evaluationMethod === '最低评标价法' ? '☑' : '☐'}最低评标价法
+                    </p>
+                  </>
+                )
+              ) : (
+                // 邀请/公开招标（2026-11-24 用户裁定）：评标方法固定综合评分法 + 必填评分标准
+                <>
+                  <p className="ml-4 mt-2">☑综合评分法</p>
+                  <p className="ml-4 mt-1">☐最低评标价法</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">六、综合评分法评标标准</p>
                 </>
               )}
             </div>
+            {variant !== 'internal' && (
+              (() => {
+                const rows = (draft.scoringItems ?? []).filter(
+                  (it) => it.factor.trim() || it.criteria.trim(),
+                );
+                if (rows.length === 0) {
+                  return (
+                    <p className="mt-3 ml-4">
+                      <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)]">评分标准待填写（在左侧「评标程序和评定成交的标准」中填写）</span>
+                    </p>
+                  );
+                }
+                return (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full border-collapse border border-[oklch(0.55_0.05 258/0.2)]">
+                      <tbody>
+                        <tr className="bg-[oklch(0.55 0.05 258/0.06)] font-semibold text-sm">
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[8%]">序号</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[18%]">评分因素</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[10%]">分值</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">评分标准</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[16%]">说明</td>
+                        </tr>
+                        {rows.map((item, i) => (
+                          <tr key={item.id} className="text-sm">
+                            <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">{i + 1}</td>
+                            <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">{item.factor}</td>
+                            <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center tabular-nums">{item.score}</td>
+                            <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 whitespace-pre-wrap">{item.criteria}</td>
+                            <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2">{item.note}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-[oklch(0.55 0.05 258/0.04)] text-sm font-semibold">
+                          <td colSpan={2} className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">合计</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center tabular-nums">{scoringTotal(draft.scoringItems) ?? "—"}</td>
+                          <td colSpan={2} className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2" />
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()
+            )}
           </div>
         </PreviewSection>
 

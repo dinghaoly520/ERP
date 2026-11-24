@@ -53,6 +53,7 @@ import {
   migrateInquiryDraft,
 } from "@/lib/tender-write/templates";
 import { hasValidScoringRows } from "@/components/tender-write/scoring-items-editor";
+import { isScoringRequiredType } from "@/lib/tender-write/templates";
 import {
   readTenderWriteState,
   resetTenderDraftByType,
@@ -485,10 +486,10 @@ export default function TenderWritePage() {
 
     // 询比 v2：评审方法固定综合评分法，评分标准是法定必备内容——未填有效行阻止导出
     if (
-      selectedType === "INQUIRY_PURCHASE" &&
+      isScoringRequiredType(selectedType) &&
       !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
     ) {
-      setErrorMessage("综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出");
+      setErrorMessage("综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再导出");
       setTimeout(() => setErrorMessage(null), 4000);
       return;
     }

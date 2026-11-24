@@ -276,6 +276,9 @@ export type InquiryPurchaseDraft = Record<InquiryPurchaseFieldKey, string> & {
 
 export type InternalBiddingDraft = Record<InternalBiddingFieldKey, string> & {
   quotationLetterTable?: TableData;
+  /** 综合评分法评分行（2026-11-24 用户裁定：邀请/公开招标评标方法固定综合评分法并必填
+   *  评分标准；竞价 INTERNAL_BIDDING 不使用、恒空） */
+  scoringItems?: ScoringItem[];
 };
 
 export type InvitedBiddingDraft = InternalBiddingDraft;

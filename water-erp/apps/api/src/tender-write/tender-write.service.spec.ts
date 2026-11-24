@@ -302,6 +302,60 @@ describe('single-source tender template helpers', () => {
     expect(plan).toContainEqual({ targetText: '履约保证金9', replacementText: '担保公司出具', highlight: false });
   });
 
+  it('邀请/公开招标评分标准注入（2026-11-24 用户裁定：评标方法固定综合评分法）——scoringItems 产出行注入条目', () => {
+    const plan = buildInternalBiddingReplacementPlan({
+      projectName: '测试项目',
+      coverDate: '2026-06-02',
+      projectOverview: '项目概况内容',
+      procurementContent: '采购内容',
+      maxPrice: '1000元',
+      qualificationRequirements: '特定资质要求',
+      consortiumForm: '',
+      consortiumFormType: 'reject',
+      documentPrice: '0元',
+      responseSubmissionTime: '2026-06-04',
+      contactName: '张三',
+      contactPhone: '13800000000',
+      contactEmail: 'test@example.com',
+      responseDepositType: 'none',
+      responseDepositAmount: '',
+      responseDepositForm: 'cash',
+      responseDepositBankInfo: '',
+      responseDepositOtherForm: '',
+      responseDepositOtherRequirement: '',
+      responseDepositOtherRequirementType: 'none',
+      responseDepositNonRefundType: 'none',
+      responseDepositNonRefundContent: '',
+      performanceDepositType: 'none',
+      performanceDepositAmount: '',
+      performanceDepositForm: 'cash',
+      performanceDepositOtherForm: '',
+      evaluationMethod: '综合评分法',
+      contractSubcontracting: '',
+      contractSubcontractingType: 'none',
+      siteSurvey: '',
+      siteSurveyType: 'none',
+      copyCount: '1',
+      evaluationCommitteeCount: '5',
+      businessRequirements: '商务要求',
+      technicalRequirements: '技术要求',
+      submissionRequirements: '',
+      submissionRequirementsType: 'none',
+      quotationLetterType: 'text',
+      quotationLetter: '',
+      scoringItems: [
+        { id: 'r1', factor: '价格', score: '30', criteria: '报价得分=（评审基准价/评审报价）×30', note: '/' },
+        { id: 'r2', factor: '技术', score: '70', criteria: '完全响应得满分', note: '/' },
+      ],
+    } as any);
+    const scoringEntry = plan.find((r) => r.targetText === '综合评分法评审标准');
+    expect(scoringEntry).toBeTruthy();
+    expect(scoringEntry?.scoringRows).toEqual([
+      { factor: '价格', score: '30', criteria: '报价得分=（评审基准价/评审报价）×30', note: '/' },
+      { factor: '技术', score: '70', criteria: '完全响应得满分', note: '/' },
+    ]);
+  });
+
   it('does not merge placeholders split within a single run', () => {
     const splitXml = `<w:p><w:r><w:t>{{</w:t><w:t>项目名称</w:t><w:t>}}</w:t></w:r></w:p>`;
 

@@ -1180,6 +1180,25 @@ export function buildInternalBiddingReplacementPlan(
   answers: InternalBiddingAnswers,
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
+  // 综合评分法评分行（防御遍历：DTO 零校验，畸形行跳过而非 500——与询比同口径）
+  const internalScoringRows = (
+    ((answers as Record<string, unknown>).scoringItems as Array<Record<string, unknown>> | undefined) ?? []
+  )
+    .filter(
+      (it): it is Required<ScoringItem> =>
+        !!it && typeof it === 'object' && typeof it.factor === 'string',
+    )
+    .filter(
+      (it) =>
+        it.factor.trim() ||
+        (typeof it.criteria === 'string' && it.criteria.trim()),
+    )
+    .map((it) => ({
+      factor: it.factor.trim(),
+      score: (typeof it.score === 'string' ? it.score : '').trim(),
+      criteria: (typeof it.criteria === 'string' ? it.criteria : '').trim(),
+      note: (typeof it.note === 'string' ? it.note : '').trim(),
+    }));
   // Handle quotation letter - could be text or table
   // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
   const isQuotationText = resolveQuotationMode(answers) !== 'table';
@@ -1458,6 +1477,12 @@ export function buildInternalBiddingReplacementPlan(
     // Evaluation method placeholders
     { targetText: '评标方法1', replacementText: evalMethod1, highlight: false },
     { targetText: '评标方法2', replacementText: evalMethod2, highlight: false },
+    // 综合评分法评标标准（2026-11-24 用户裁定：邀请/公开招标评标方法固定综合评分法）——
+    // 评分行注入 docx「六、综合评分法评标标准」表（fillScoringStandardTable 标题正则兼容
+    // 评审/评标两形态）；竞价（INTERNAL_BIDDING）无 scoringItems → 空不注入、表格原样
+    ...(internalScoringRows.length
+      ? [{ targetText: '综合评分法评审标准', replacementText: '', highlight: false, scoringRows: internalScoringRows } as TemplateReplacement]
+      : []),
     {
       targetText: '评标委员会人数',
       ...buildReplacement('评标委员会人数', answers.evaluationCommitteeCount ?? ''),

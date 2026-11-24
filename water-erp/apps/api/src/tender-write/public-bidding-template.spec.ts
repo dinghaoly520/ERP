@@ -64,6 +64,11 @@ function internalFixture(): InternalBiddingAnswers {
     performanceDepositForm: 'cash',
     performanceDepositOtherForm: '',
     evaluationMethod: '综合评分法',
+    // 2026-11-24 用户裁定：邀请/公开招标评标方法固定综合评分法、评分标准必填——导出闸门要求有效行
+    scoringItems: [
+      { id: 'r1', factor: '价格', score: '30', criteria: '报价得分=（评标基准价/评审报价）×30', note: '/' },
+      { id: 'r2', factor: '技术', score: '70', criteria: '完全响应得满分', note: '/' },
+    ],
     contractSubcontracting: '',
     contractSubcontractingType: 'none',
     siteSurvey: '',

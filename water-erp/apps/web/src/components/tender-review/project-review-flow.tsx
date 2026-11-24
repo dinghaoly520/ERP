@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/review';
 import { exportTenderDocument } from '@/lib/api/tender-write';
 import { hasValidScoringRows } from '@/components/tender-write/scoring-items-editor';
+import { isScoringRequiredType } from '@/lib/tender-write/templates';
 import type { ScoringItem } from '@/lib/types/tender-write';
 import { fetchUserSettings } from '@/lib/api/user-settings';
 
@@ -125,10 +126,10 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
     if (!kbId) { toast.error('请选择知识库'); return; }
     // 询比 v2：评审方法固定综合评分法——评分标准未填有效行不导出（与其他导出入口同闸门）
     if (
-      documentType === 'INQUIRY_PURCHASE' &&
+      isScoringRequiredType(documentType) &&
       !hasValidScoringRows((answers as { scoringItems?: ScoringItem[] }).scoringItems)
     ) {
-      toast.error('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再开始审查');
+      toast.error('综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再开始审查');
       return;
     }
     setPhase('starting');
