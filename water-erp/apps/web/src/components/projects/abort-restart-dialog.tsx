@@ -118,7 +118,7 @@ export function AbortRestartDialog({
       procurementCategory: item.procurementCategory ?? '',
       projectReason: item.projectReason ?? '',
       supplierRequirements: item.supplierRequirements ?? '',
-      initiationDate: isoToDatetimeLocal(item.initiationDate),
+      initiationDate: isoToDatetimeLocal(item.initiationDate).slice(0, 10),
     });
     setBudgetInput(item.budgetAmount != null ? String(item.budgetAmount) : '');
     setMethod(item.procurementMethod);
@@ -176,11 +176,11 @@ export function AbortRestartDialog({
       put('procurementCategory', f.procurementCategory, item.procurementCategory);
       put('projectReason', f.projectReason, item.projectReason);
       put('supplierRequirements', f.supplierRequirements, item.supplierRequirements);
-      // AI 提取值归一为 datetime-local 格式（提取产 YYYY-MM-DD 补 T00:00；中文日期走 cn 转换）
+      // AI 提取值归一为纯日期（YYYY-MM-DD 直用；中文日期走 cn 转换后截日期）
       if (f.initiationDate) {
         const raw = String(f.initiationDate).trim();
-        const dtVal = raw.length === 10 ? `${raw}T00:00` : cnToDatetimeLocal(raw) || raw;
-        put('initiationDate', dtVal, isoToDatetimeLocal(item.initiationDate));
+        const dtVal = raw.length === 10 ? raw : cnToDatetimeLocal(raw).slice(0, 10) || raw;
+        put('initiationDate', dtVal, isoToDatetimeLocal(item.initiationDate).slice(0, 10));
       }
       if (f.budgetAmount != null && Number.isFinite(Number(f.budgetAmount))) {
         setBudgetInput(String(f.budgetAmount));
@@ -258,9 +258,9 @@ export function AbortRestartDialog({
       const budget = Number(budgetInput);
       if (budgetInput.trim() && Number.isFinite(budget) && budget !== item.budgetAmount) basicInfo.budgetAmount = budget;
       const dateStr = (form.initiationDate ?? '').trim();
-      if (dateStr && (!item.initiationDate || dateStr !== isoToDatetimeLocal(item.initiationDate))) {
-        // datetime-local → 完整 ISO（+08 墙钟）：后端 parseInitiationDateInput 对裸
-        // datetime-local 串按服务器时区解释（生产 UTC 容器偏 8h），带 Z 的 ISO 无歧义
+      if (dateStr && (!item.initiationDate || dateStr !== isoToDatetimeLocal(item.initiationDate).slice(0, 10))) {
+        // 纯日期 → 完整 ISO（北京零点，+08 墙钟）：后端 parseInitiationDateInput 对裸日期串
+        // 按服务器时区解释（生产 UTC 容器偏 8h），带 Z 的 ISO 无歧义
         basicInfo.initiationDate = localInputToIso(dateStr);
       }
 
@@ -589,7 +589,7 @@ export function AbortRestartDialog({
             <div>
               <span className="block mb-1.5 text-xs font-semibold text-[color:var(--foreground)]">立项日期</span>
               <input
-                type="datetime-local"
+                type="date"
                 value={form.initiationDate ?? ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, initiationDate: e.target.value }))}
                 className="workbench-input w-full text-sm"

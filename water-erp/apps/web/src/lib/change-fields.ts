@@ -8,7 +8,7 @@ import { PROCUREMENT_CATEGORY_OPTIONS } from '@/lib/types/project-management';
 export type ChangeFieldDef = {
   field: string;
   label: string;
-  kind: 'text' | 'number' | 'datetime';
+  kind: 'text' | 'number' | 'datetime' | 'date';
   target: 'PMI' | 'BID' | 'DOC';
   /** 下拉选项（2026-11-11 用户裁定：采购类别用下拉）——仅前端表单渲染用，后端闸不感知 */
   options?: string[];
@@ -50,7 +50,7 @@ export const CHANGE_FIELD_GROUPS: ChangeFieldGroup[] = [
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI', multiline: true, fullRow: true, aiAssist: 'tender-overview' },
-      { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
+      { field: 'initiationDate', label: '立项日期', kind: 'date', target: 'PMI' },
       { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI', widget: 'search-select' },
       { field: 'projectReason', label: '申请立项事由', kind: 'text', target: 'PMI', multiline: true, fullRow: true, aiAssist: 'initiation' },
       { field: 'supplierRequirements', label: '对供方的主要要求', kind: 'text', target: 'PMI', multiline: true, fullRow: true, aiAssist: 'initiation' },

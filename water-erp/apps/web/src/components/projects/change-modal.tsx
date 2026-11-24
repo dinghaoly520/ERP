@@ -28,9 +28,10 @@ export function cnToDatetimeLocal(cn: string | null | undefined): string {
   return `${m[1]}-${p(m[2])}-${p(m[3])}T${p(m[4])}:${m[5]}`;
 }
 
-/** datetime-local 输入值 → ISO（按 +08 墙钟构造，与后端解析同口径） */
+/** datetime-local / date 输入值 → ISO（按 +08 墙钟构造，与后端解析同口径；
+ *  纯日期（YYYY-MM-DD）按北京零点） */
 export function localInputToIso(v: string): string {
-  return new Date(`${v}:00+08:00`).toISOString();
+  return new Date(v.length === 10 ? `${v}T00:00+08:00` : `${v}:00+08:00`).toISOString();
 }
 
 /** ISO（UTC，API 返回值）→ datetime-local 输入值（北京墙上时间，localInputToIso 互逆；
@@ -41,6 +42,13 @@ export function isoToDatetimeLocal(iso: string | Date | null | undefined): strin
   const d = iso instanceof Date ? iso : new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return new Date(d.getTime() + 8 * 3600_000).toISOString().slice(0, 16);
+}
+
+/** 变更正文展示值：开标时间「YYYY-MM-DD HH:mm」、立项日期「YYYY-MM-DD」（ISO 先转北京墙上） */
+function datetimeDisplay(f: string, v: string): string {
+  if (f !== 'bidOpeningTime' && f !== 'initiationDate') return v;
+  const local = v.endsWith('Z') || v.includes('+') ? isoToDatetimeLocal(v) : v;
+  return f === 'initiationDate' ? local.slice(0, 10) : local.replace('T', ' ');
 }
 
 export function ChangeModal({
@@ -106,6 +114,8 @@ export function ChangeModal({
   const pm = { ...(item as unknown as Record<string, string | number | null>), ...(currentValues ?? {}) };
   const currentOf = (f: string): string => {
     if (f === 'bidOpeningTime') return cnToDatetimeLocal(pm.bidOpeningTime as string);
+    // 立项日期=DateTime 列（API 返 ISO UTC）→ 北京墙上日期（纯日期控件，不带时分）
+    if (f === 'initiationDate') return isoToDatetimeLocal(pm.initiationDate as string).slice(0, 10);
     const v = pm[f];
     return v == null ? '' : String(v);
   };
@@ -179,7 +189,8 @@ export function ChangeModal({
         for (const f of g.fields) {
           const v = values[f.field] ?? '';
           if (v === '' || v === currentOf(f.field)) continue;
-          if (f.field === 'bidOpeningTime') { fields[f.field] = localInputToIso(v); continue; }
+          // 两个 DateTime 链字段统一 +08 墙钟转 ISO——后端对裸 datetime-local 串按服务器时区解释
+          if (f.field === 'bidOpeningTime' || f.field === 'initiationDate') { fields[f.field] = localInputToIso(v); continue; }
           fields[f.field] = v;
         }
       }
@@ -239,7 +250,7 @@ export function ChangeModal({
       const changeContent = cs.length > 0
         ? cs.map(([f]) => {
             const def = CHANGE_FIELD_GROUPS.flatMap(g => g.fields).find(x => x.field === f);
-            return `${def?.label ?? f}：${currentOf(f) || '（空）'} → ${payload.fields[f]}`;
+            return `${def?.label ?? f}：${datetimeDisplay(f, currentOf(f) || '（空）')} → ${datetimeDisplay(f, payload.fields[f])}`;
           }).join('\n')
         : (values.changeContent ?? payload.reason);
       // 补遗：公告表单值（正文/公示期/监督块/落款）随 patch 注入向导
@@ -492,9 +503,9 @@ export function ChangeModal({
                               .filter(Boolean)
                               .map(opt => <option key={opt} value={opt}>{opt}</option>)}
                           </select>
-                        ) : f.kind === 'datetime' ? (
+                        ) : f.kind === 'datetime' || f.kind === 'date' ? (
                           <input
-                            type="datetime-local"
+                            type={f.kind === 'date' ? 'date' : 'datetime-local'}
                             className="workbench-input"
                             disabled={!g.unlocked}
                             value={values[f.field] ?? currentOf(f.field)}
