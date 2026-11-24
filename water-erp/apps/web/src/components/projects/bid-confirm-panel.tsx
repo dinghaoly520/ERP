@@ -736,9 +736,10 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         <tr>
                           <th style={{ width: 140 }}>供应商</th>
                           <th style={{ width: 160 }}>业务标签</th>
+                          {/* 文件下载列在前（2026-11-24 用户裁定，与公告列表投标情况弹窗/PDF 导出同序） */}
+                          <th style={{ width: 90 }}>文件下载</th>
                           {!showRsvpColumn && <th style={{ width: 110 }}>意向</th>}
                           {showRsvpColumn && <th style={{ width: 80 }}>回执情况</th>}
-                          <th style={{ width: 90 }}>文件下载</th>
                           <th style={{ width: 70 }}>投递状态</th>
                           <th style={{ width: 130 }}>投递时间</th>
                         </tr>
@@ -754,6 +755,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                             <tr key={r.key} className="row-clickable">
                               <td className="font-medium text-[var(--foreground)]">{r.supplierName}</td>
                               <td className="text-[var(--muted-foreground)]">{r.tags.length > 0 ? r.tags.join('、') : '—'}</td>
+                              <td><StatusPill tone={downloaded ? 'success' : 'muted'}>{downloaded ? '已下载' : '未下载'}</StatusPill></td>
                               {!showRsvpColumn && (
                                 <td>
                                   {r.intentConfirmedAt ? (
@@ -769,7 +771,6 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                                 </td>
                               )}
                               {showRsvpColumn && <td><StatusPill tone={rsvpTone}>{rsvpLabel}</StatusPill></td>}
-                              <td><StatusPill tone={downloaded ? 'success' : 'muted'}>{downloaded ? '已下载' : '未下载'}</StatusPill></td>
                               <td><StatusPill tone={tone}>{label}</StatusPill></td>
                               <td className="tabular-nums text-[var(--muted-foreground)]">{r.submittedAt ? formatDateTime(r.submittedAt) : '—'}</td>
                             </tr>

@@ -610,13 +610,12 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
   const downloadCount = result?.suppliers.filter(s => s.downloadCount > 0).length ?? 0;
 
+  // 2026-11-24 用户裁定：弹窗不显示标题（「投标情况」+ 公告名）——头部仅保留右上角关闭钮
   return (
     <Modal
       open
       onClose={onClose}
       size="3xl"
-      title="投标情况"
-      description={announcement.title}
     >
       {loading ? (
         <div className="flex flex-col items-center gap-3 py-12">
@@ -650,7 +649,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                   </div>
                   {result.project.deadline && (
                     <span className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold tabular-nums text-[var(--muted-foreground)]">
-                      截止 {new Date(result.project.deadline).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                      截止 {new Date(result.project.deadline).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   )}
                 </div>
@@ -685,8 +684,8 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                 <tr>
                   <th className="text-left">供应商</th>
                   <th className="text-left">业务标签</th>
-                  <th className="text-center">意向</th>
                   <th className="text-center">下载</th>
+                  <th className="text-center">意向</th>
                   <th className="text-center">标书状态</th>
                 </tr>
               </thead>
@@ -718,17 +717,18 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
                         )) : <span className="text-[11px] text-[var(--muted-foreground)]/60">—</span>}
                       </div>
                     </td>
-                    {/* 三状态列统一形态（2026-11-13 用户裁定）：状态徽章 + 其下 10px 时间行 */}
-                    <td className="text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <StatusPill text={s.intentConfirmedAt ? '已确认' : '未确认'} tone={s.intentConfirmedAt ? 'accent' : 'muted'} />
-                        <StatusTime iso={s.intentConfirmedAt} extra={undefined} />
-                      </div>
-                    </td>
+                    {/* 三状态列统一形态（2026-11-13 用户裁定）：状态徽章 + 其下 10px 时间行；
+                        下载列在意向列前（2026-11-24 用户裁定，与开标确认面板/PDF 导出同序） */}
                     <td className="text-center">
                       <div className="flex flex-col items-center gap-0.5">
                         <StatusPill text={s.lastDownloadAt ? '已下载' : '未下载'} tone={s.lastDownloadAt ? 'success' : 'muted'} />
                         <StatusTime iso={s.lastDownloadAt} extra={s.downloadCount > 1 ? ` · ${s.downloadCount}次` : undefined} />
+                      </div>
+                    </td>
+                    <td className="text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <StatusPill text={s.intentConfirmedAt ? '已确认' : '未确认'} tone={s.intentConfirmedAt ? 'accent' : 'muted'} />
+                        <StatusTime iso={s.intentConfirmedAt} extra={undefined} />
                       </div>
                     </td>
                     <td className="text-center">
