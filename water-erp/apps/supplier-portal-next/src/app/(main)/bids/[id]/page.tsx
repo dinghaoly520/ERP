@@ -592,11 +592,12 @@ function BidDetailInner() {
                         </div>
                       </div>
                     );
+                    // 两组同一行（2026-11-24 用户裁定）：组标签 + chips 横向连排，窄屏自动换行
                     return (
-                      <>
+                      <div className="cc-meta-row">
                         {base.length > 0 && <Group title="基本信息" items={base} />}
                         {times.length > 0 && <Group title="时间节点" items={times} />}
-                      </>
+                      </div>
                     );
                   })()}
                 </div>

@@ -987,10 +987,10 @@ a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0
 .cc-card-hd { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; color: var(--foreground);
   margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 .cc-card-hd::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
-.cc-meta-group { display: flex; flex-direction: column; gap: 8px; }
-.cc-meta-group + .cc-meta-group { margin-top: 14px; }
+.cc-meta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; }
+.cc-meta-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .cc-meta-group-hd { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
-  color: var(--muted-foreground, oklch(0.55 0.03 258)); }
+  color: var(--muted-foreground, oklch(0.55 0.03 258)); white-space: nowrap; }
 
 
 /* ═══ 标题元信息行（2026-11-24 用户裁定：编号/发布时间/发布单位，公告中心同款）═══ */
