@@ -494,16 +494,17 @@ export function ChangeModal({
                             disabled={!g.unlocked}
                           />
                         ) : f.options ? (
-                          <select
-                            className="workbench-input"
-                            disabled={!g.unlocked}
-                            value={values[f.field] ?? currentOf(f.field)}
-                            onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
-                          >
-                            {(f.options.includes(currentOf(f.field)) ? f.options : [currentOf(f.field), ...f.options])
+                          /* 采购类别下拉（2026-11-24 用户裁定 UI 统一）：与「归属项目」同款
+                             SearchSelect 瓷片下拉（7 项 ≤8 自动省搜索行），不再用原生 select */
+                          <SearchSelect
+                            options={(f.options.includes(currentOf(f.field)) ? f.options : [currentOf(f.field), ...f.options])
                               .filter(Boolean)
-                              .map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
+                              .map(opt => ({ value: opt, label: opt }))}
+                            value={values[f.field] ?? currentOf(f.field)}
+                            onPick={opt => setValues(v => ({ ...v, [f.field]: opt.value }))}
+                            placeholder="请选择采购类别"
+                            disabled={!g.unlocked}
+                          />
                         ) : f.kind === 'datetime' || f.kind === 'date' ? (
                           <input
                             type={f.kind === 'date' ? 'date' : 'datetime-local'}
