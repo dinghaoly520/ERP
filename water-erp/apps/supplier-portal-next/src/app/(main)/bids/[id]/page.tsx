@@ -213,7 +213,7 @@ function BidDetailInner() {
     const m = project?.announcement?.metadata || null;
     if (!m) return [] as { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain'; note?: string }[];
     const fields: { label: string; value: string; kind: 'code' | 'money' | 'date' | 'plain'; note?: string }[] = [];
-    if (m.projectCode) fields.push({ label: "项目编号", value: m.projectCode, kind: 'code' });
+    // 项目编号已上移标题元信息行（2026-11-24 用户裁定，公告中心同款）——chips 不再重复
     if (m.method) fields.push({ label: "采购方式", value: m.method, kind: 'plain' });
     if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), kind: 'money' });
     if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), kind: 'date' });
@@ -471,11 +471,20 @@ function BidDetailInner() {
                 </div>
               </header>
 
-              {/* ═══ 公告摘要（2026-11-24 用户裁定：原「AI 项目概览」改为公告摘要并上移标题下方）═══ */}
-              {project.announcement?.summary && (
-                <div className="bd-summary">
-                  <span className="bd-summary-label">公告摘要</span>
-                  <p className="bd-summary-text">{project.announcement.summary}</p>
+              {/* ═══ 标题元信息行（2026-11-24 用户裁定）：项目编号 + 发布时间 + 发布单位
+                  ——公告中心同款；编号自关键信息 chips 上移至此（chips 不再重复）═══ */}
+              {project.announcement && (
+                <div className="bd-meta">
+                  {(() => {
+                    const code = String(((project.announcement.metadata ?? {}) as Record<string, any>).projectCode ?? "").trim();
+                    return (
+                      <>
+                        {code && <span>项目编号 <span className="bd-meta-code">{code}</span></span>}
+                        {project.announcement.publishDate && <span>发布时间 {dayjs(project.announcement.publishDate).format("YYYY-MM-DD")}</span>}
+                        {(project.announcement as any).companyName && <span>发布单位：{(project.announcement as any).companyName}</span>}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 

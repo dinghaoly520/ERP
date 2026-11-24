@@ -2187,7 +2187,7 @@ export class SupplierPortalService {
       // （2026-10-28）：公告附件随正文一并提供（:3004 项目机会详情下载入口，与公告中心/信息门户
       // 同源；本侧不受公示期满影响，同 resolveOwnAnnouncement 只硬过滤 status 裁定）。
       const announcement = await this.resolveOwnAnnouncement(project, {
-        title: true, content: true, summary: true, publishDate: true, metadata: true,
+        title: true, content: true, summary: true, publishDate: true, metadata: true, companyName: true,
         attachments: {
           select: {
             id: true, title: true, createdAt: true,

@@ -983,16 +983,6 @@ a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0
 }
 
 
-/* ═══ 公告摘要（2026-11-24 用户裁定：原 AI 项目概览改为公告摘要并上移标题下方；
-      UI 重构改引文样式——品牌左竖线 + 弱底，贴头部不抢行动条）═══ */
-.bd-summary { position: relative; margin: 14px 0 4px; padding: 10px 16px 10px 18px;
-  border-left: 3px solid var(--brand);
-  background: oklch(0.975 0.012 258 / 0.45);
-  border-radius: 0 12px 12px 0; }
-.bd-summary-label { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 700;
-  letter-spacing: 0.1em; color: var(--brand); }
-.bd-summary-text { font-size: 13px; line-height: 1.9; color: var(--foreground); text-align: justify; }
-
 /* ═══ 2026-11-24 UI 重构：卡头眉题 + 关键信息分组 ═══ */
 .cc-card-hd { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; color: var(--foreground);
   margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
@@ -1001,3 +991,10 @@ a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0
 .cc-meta-group + .cc-meta-group { margin-top: 14px; }
 .cc-meta-group-hd { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
   color: var(--muted-foreground, oklch(0.55 0.03 258)); }
+
+
+/* ═══ 标题元信息行（2026-11-24 用户裁定：编号/发布时间/发布单位，公告中心同款）═══ */
+.bd-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+  margin: 10px 0 2px; font-size: 12px; color: var(--muted-foreground, oklch(0.5 0.03 258)); }
+.bd-meta-code { font-family: "SF Mono", ui-monospace, monospace; font-weight: 600;
+  color: var(--brand); letter-spacing: -0.01em; }
