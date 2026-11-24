@@ -30,10 +30,28 @@ export function pickNewerDraft(
   return remoteAt > localAt ? 'remote' : 'local';
 }
 
+/** 恢复合并的取件时限：API 挂死时不得挂起调用方的「打开流程门」——超时按无服务端草稿降级 */
+export const DRAFT_RESTORE_TIMEOUT_MS = 6000;
+
+async function fetchDraftWithTimeout(key: string, ms: number): Promise<DraftPayload | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      fetchDraft(key),
+      new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), ms); }),
+    ]);
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * 向导草稿跨设备恢复（账号维度）：服务端草稿与本机缓存按快照时间戳（_ts/savedAt）取新者——
  * 服务端新 → 采用服务端快照（调用方写回本机后照常恢复）；本机新或服务端无记录 → 采用本机并
- * 回写服务端（旧数据一次性上云迁移）。服务端不可达退化为纯本机（离线可用）。两边皆空返回 null。
+ * 回写服务端（旧数据一次性上云迁移）。服务端不可达/超时（6s）退化为纯本机（离线可用）。
+ * 两边皆空返回 null。**保证不抛错、必定落定**——调用方的「打开流程门/恢复落定门」依赖此契约。
  * 与 supplier/selection 内联实现同语义，抽出供项目管理各向导复用（2026-11-24 跨设备维护）。
  */
 export async function restoreSyncedDraft(
@@ -44,7 +62,7 @@ export async function restoreSyncedDraft(
   try { local = localRaw ? (JSON.parse(localRaw) as Record<string, any>) : null; } catch { local = null; }
   if (local && typeof local !== 'object') local = null;
   try {
-    const remote = await fetchDraft(key);
+    const remote = await fetchDraftWithTimeout(key, DRAFT_RESTORE_TIMEOUT_MS);
     const rp = (remote?.payload ?? null) as Record<string, any> | null;
     const winner = pickNewerDraft(rp, local);
     if (winner === 'remote' && rp) return rp;
@@ -64,7 +82,9 @@ export function createDraftPusher(key: string, delayMs = 2000) {
   let latest: Record<string, any> | null = null;
   const send = () => {
     timer = null;
-    if (latest) void saveDraft(key, latest).catch(() => { /* 同步失败不打断向导（localStorage 仍有本机缓存） */ });
+    if (latest) {
+      void saveDraft(key, latest).catch((e) => console.warn('[draft-sync] 服务端草稿推送失败，本机缓存不受影响', key, e?.message ?? e));
+    }
   };
   return {
     push(payload: Record<string, any>) {

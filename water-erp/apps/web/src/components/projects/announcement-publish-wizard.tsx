@@ -704,11 +704,14 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setLoading(true);
     let alive = true;
     void (async () => {
-      const lk = wizardStorageKey(project.id, initialCategory);
-      const merged = initialDraftPatch
-        ? null // 变更/补遗注入：忽略缓存，也无须跨设备合并
-        : await restoreSyncedDraft(wizardDraftKey(project.id, initialCategory), localStorage.getItem(lk));
-      if (merged) { try { localStorage.setItem(lk, JSON.stringify(merged)); } catch {} }
+      try {
+        const lk = wizardStorageKey(project.id, initialCategory);
+        const merged = initialDraftPatch
+          ? null // 变更/补遗注入：忽略缓存，也无须跨设备合并
+          : await restoreSyncedDraft(wizardDraftKey(project.id, initialCategory), localStorage.getItem(lk));
+        if (merged) { try { localStorage.setItem(lk, JSON.stringify(merged)); } catch {} }
+      } catch { /* 合并链意外抛错不拦打开流程 */ }
+      // 保底落定：无论合并成败，打开流程必须继续（否则向导卡 loading）
       if (alive) setCacheSynced(true);
     })();
     return () => { alive = false; };

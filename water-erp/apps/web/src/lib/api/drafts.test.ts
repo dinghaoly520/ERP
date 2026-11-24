@@ -34,3 +34,10 @@ test('pickNewerDraft: 非对象载荷按空处理（字符串数字等畸形不�
   assert.equal(pickNewerDraft('raw', { savedAt: 1 }), 'local');
   assert.equal(pickNewerDraft({ savedAt: 1 }, 'raw'), 'remote');
 });
+
+test('pickNewerDraft: 畸形时间戳（NaN/非数字串）不炸——比较按 false 处理、本机胜出', () => {
+  assert.equal(pickNewerDraft({ savedAt: 'abc' }, { savedAt: 100 }), 'local');
+  assert.equal(pickNewerDraft({ savedAt: 'abc' }, { savedAt: 'def' }), 'local');
+  // 数字串时间戳按数值比较（JSON 里 number 存成 string 的宽容面）
+  assert.equal(pickNewerDraft({ savedAt: '200' }, { savedAt: '100' }), 'remote');
+});

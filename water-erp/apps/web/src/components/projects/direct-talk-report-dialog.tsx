@@ -277,9 +277,12 @@ export function DirectTalkReportDialog(props: Props) {
     if (!isOpen) return;
     let alive = true;
     void (async () => {
-      const merged = await restoreSyncedDraft(serverDraftKey, localStorage.getItem(draftKey));
+      let merged: Record<string, any> | null = null;
+      try {
+        merged = await restoreSyncedDraft(serverDraftKey, localStorage.getItem(draftKey));
+      } catch { /* 意外抛错按无服务端草稿降级（restoreSyncedDraft 自身保证不抛，双保险） */ }
       if (!alive) return;
-      // 先置恢复落定位：随后的 setDraft 触发自动保存（含服务端推送）不再被拦
+      // 保底落定：自动保存门永不悬置（否则挂起期的编辑既不落本机也不推服务端）
       restoreSettledRef.current = true;
       if (!merged) return;
       try { localStorage.setItem(draftKey, JSON.stringify(merged)); } catch {}

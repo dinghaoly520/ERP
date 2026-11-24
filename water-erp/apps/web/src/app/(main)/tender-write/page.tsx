@@ -171,9 +171,12 @@ export default function TenderWritePage() {
     // 换设备登录同账号时工作台草稿完整可见；应用前重读本机时间戳，防 fetch 窗口内的新编辑被旧远端覆盖
     let alive = true;
     void (async () => {
-      const remote = await restoreSyncedDraft(TENDER_WRITE_GLOBAL_DRAFT_SERVER_KEY, tenderWriteLocalSyncRaw());
+      let remote: Record<string, any> | null = null;
+      try {
+        remote = await restoreSyncedDraft(TENDER_WRITE_GLOBAL_DRAFT_SERVER_KEY, tenderWriteLocalSyncRaw());
+      } catch { /* 意外抛错按无服务端草稿降级（restoreSyncedDraft 自身保证不抛，双保险） */ }
       if (!alive) return;
-      // 先置落定位：随后应用远端触发的写效应正常推送；无远端/更旧也放行后续编辑的推送
+      // 保底落定：服务端推送门永不悬置（否则本次会话的编辑始终只写本机）
       globalDraftSyncSettledRef.current = true;
       if (!remote) return;
       if (Number(remote.savedAt ?? 0) <= tenderWriteLocalSavedAt()) return;

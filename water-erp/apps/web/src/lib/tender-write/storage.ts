@@ -149,8 +149,11 @@ export function writeTenderWriteState(
   }
 
   const savedAt = Date.now();
-  window.localStorage.setItem(DRAFTS_KEY, JSON.stringify({ ...payload.drafts, _savedAt: savedAt }));
-  window.localStorage.setItem(SELECTED_TYPE_KEY, payload.selectedType);
+  // 本机写失败（配额满/隐私模式）不拦服务端推送，也不把异常抛进调用方 effect
+  try {
+    window.localStorage.setItem(DRAFTS_KEY, JSON.stringify({ ...payload.drafts, _savedAt: savedAt }));
+    window.localStorage.setItem(SELECTED_TYPE_KEY, payload.selectedType);
+  } catch { /* 本机缓存尽力而为 */ }
   // 双写服务端草稿（账号维度）：换设备登录同账号时工作台草稿完整可见；
   // sync:false 供打开时的跨设备合并未落定前只写本机（防预填空草稿以新时间戳覆盖服务端旧草稿）
   if (opts?.sync !== false) {

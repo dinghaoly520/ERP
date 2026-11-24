@@ -572,9 +572,11 @@ export function ExpertExtractPage({
   // ① modal 模式 localStorage 恢复（pid 就绪即触发，不依赖 invitationData）
   const lskeyForPid = `${storageKey}-${pid}`;
   const modalLocalRestoredRef = useRef(false);
-  /** modal 模式会话快照应用（本机缓存与服务端草稿共用）——preview 空或缺 pid 的畸形快照拒收 */
+  /** modal 模式会话快照应用（本机缓存与服务端草稿共用）——缺 pid 的畸形快照拒收；
+   *  preview 为空（步骤1配好配额还没抽取就关闭）照常恢复（2026-11-24 修正：此前整份丢弃，
+   *  与 standalone 恢复语义对齐——确认名单依赖 preview，早期会话不可能有确认态，无冲突） */
   const applyModalSnapshot = (snap: any, pid: string) => {
-    if (snap.pid !== pid || !snap.preview) return false;
+    if (snap.pid !== pid) return false;
     modalLocalRestoredRef.current = true;
     if (snap.extractMode) setExtractMode(snap.extractMode);
     if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
@@ -594,16 +596,18 @@ export function ExpertExtractPage({
     }
     if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
     if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
-    setPreview(snap.preview);
-    // 旧快照占位/过期分析（2026-11-04 前会话存下「项目已有分配专家」/过渡文案/含组长表述的旧组队总结）→ 重新生成。
-    // 仅限重建类快照（候选池为空）——首次抽取的 preview（池非空）analysis 是抽取逻辑分析，不动。
-    const snapAnalysis = String(snap.preview?.analysis || '');
-    const isRebuildSnap = (snap.preview?.candidatePool?.length ?? 0) === 0;
-    if (!snapAnalysis || snapAnalysis === '项目已有分配专家' || snapAnalysis === '正在总结组队逻辑…'
-      || (isRebuildSnap && snapAnalysis.includes('组长'))) {
-      fetchCommitteeAnalysis(pid).then(res => {
-        if (res?.analysis) setPreview(p => p ? { ...p, analysis: res.analysis, engine: res.engine } : p);
-      }).catch(() => {});
+    if (snap.preview) {
+      setPreview(snap.preview);
+      // 旧快照占位/过期分析（2026-11-04 前会话存下「项目已有分配专家」/过渡文案/含组长表述的旧组队总结）→ 重新生成。
+      // 仅限重建类快照（候选池为空）——首次抽取的 preview（池非空）analysis 是抽取逻辑分析，不动。
+      const snapAnalysis = String(snap.preview?.analysis || '');
+      const isRebuildSnap = (snap.preview?.candidatePool?.length ?? 0) === 0;
+      if (!snapAnalysis || snapAnalysis === '项目已有分配专家' || snapAnalysis === '正在总结组队逻辑…'
+        || (isRebuildSnap && snapAnalysis.includes('组长'))) {
+        fetchCommitteeAnalysis(pid).then(res => {
+          if (res?.analysis) setPreview(p => p ? { ...p, analysis: res.analysis, engine: res.engine } : p);
+        }).catch(() => {});
+      }
     }
     if (snap.done) setDone(snap.done);
     if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
@@ -724,11 +728,14 @@ export function ExpertExtractPage({
       const s = stateRef.current;
       if (!s.pid) return;
       const payload = { ...s, notifyMessagesArr: [...notifyMessages.entries()], savedAt: Date.now() };
-      localStorage.setItem(`${storageKey}-${s.pid}`, JSON.stringify(payload));
-      localStorage.setItem(LAST_PID_KEY, s.pid);
+      // 本机写失败（配额满/隐私模式）不拦服务端留档——服务端无此限，仍可跨设备恢复
+      try {
+        localStorage.setItem(`${storageKey}-${s.pid}`, JSON.stringify(payload));
+        localStorage.setItem(LAST_PID_KEY, s.pid);
+      } catch { /* 本机缓存尽力而为 */ }
       // 双写服务端草稿（账号维度）：换设备打开同账号时各步骤内容完整可见；
       // 卸载/通知变更时点即存，频率低无须防抖
-      void saveDraft(draftKeyFor(s.pid), payload).catch(() => {});
+      void saveDraft(draftKeyFor(s.pid), payload).catch((e) => console.warn('[draft-sync] 抽取会话服务端留档失败', s.pid, e?.message ?? e));
     };
     window.addEventListener('beforeunload', save);
     return () => { save(); window.removeEventListener('beforeunload', save); };
