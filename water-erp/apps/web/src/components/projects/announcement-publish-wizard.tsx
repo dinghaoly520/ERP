@@ -1187,6 +1187,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
         return;
       }
+      // 公示止必须晚于当前时间（2026-11-24 用户裁定）：已过的止点无公示意义
+      const endT = fd.announcementEnd ? new Date(`${fd.announcementEnd}+08:00`).getTime() : NaN;
+      if (!Number.isNaN(endT) && endT <= Date.now()) {
+        toast.error('公示期限（止）必须晚于当前时间——请重新选择止点（可按天数下拉推算）');
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -1288,6 +1294,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       const fd = draft as Record<string, string>;
       if (!fd.announcementEnd || !fd.announcementStart) {
         toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
+        return;
+      }
+      // 公示止必须晚于当前时间（2026-11-24 用户裁定）：已过的止点无公示意义
+      const endT = fd.announcementEnd ? new Date(`${fd.announcementEnd}+08:00`).getTime() : NaN;
+      if (!Number.isNaN(endT) && endT <= Date.now()) {
+        toast.error('公示期限（止）必须晚于当前时间——请重新选择止点（可按天数下拉推算）');
         return;
       }
     }
