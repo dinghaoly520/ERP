@@ -250,8 +250,10 @@ export default function AnnouncementDetailPage() {
                     {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
                     <span className="meta-chip-value">{(() => {
                       if (f.key === 'downloadDeadline') {
-                        // 二次裁定（2026-11-24）：改回时间区间——新公告存区间（downloadPeriod）优先，旧公告止点兜底
-                        return fmtMeta(f, metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline);
+                        // 二次裁定（2026-11-24）：改回时间区间。值是已格式化中文串（区间/止点），
+                        // 直出原文——不走 fmtMeta 日期解析（date 标记会把它判 NaN 成「待定」）
+                        const raw = metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline;
+                        return raw == null ? "" : String(raw);
                       }
                       if (f.key === 'downloadMode') {
                         const v = String(metaFields.meta.downloadMode ?? "");
