@@ -39,7 +39,6 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '招标方式' }, { key: 'budget', label: '预算金额' },
     // 采购内容/范围、投标人资格要求不在顶部平铺（正文已载同文，2026-11-23 用户裁定；与编辑页 noHeader 同口径）
     { key: 'downloadDeadline', label: '采购文件下载时间' },
-    { key: 'downloadDeadline', label: '采购文件下载时间' },
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
   ],
   PRE_WIN_NOTICE: [

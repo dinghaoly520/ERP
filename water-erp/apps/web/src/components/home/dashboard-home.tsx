@@ -416,9 +416,12 @@ export function TrendChartPanel({ profile, index, reducedMotion }: { profile: Da
   const labelY=ch-10;                // 日期标签基线（底部留白 38px：刻度 5px + 标签 10px + 呼吸）
   const caw=cw-lp-rp;
   const dc=S.length||1;
-  const lStep=trendLabelStep(dc,caw);// 日期标签抽稀步长（桶距不足 46px 时隔 N 桶显 1）
-  const bw=Math.max(14,Math.min(44,(caw/dc)*0.5));
-  const gap=Math.max(6,Math.min(16,bw*0.4));
+  const lStep=trendLabelStep(dc,caw);// 日期标签抽稀步长（桶距不足 72px 时隔 N 桶显 1）
+  // 桶宽随可用轴宽缩放，恒有 bw+gap ≤ caw/dc：日粒度桶多时（实测 95 桶）收窄桶距而非溢出轴宽。
+  // 旧钳制 14/6px 使 pitch 恒 20px、总宽超轴约 1.5 倍，右侧数十桶被卡片 overflow-hidden 裁掉
+  // ——横轴看似止于 9/21 而数据已到 11/24（2026-11-24 用户报告修复；导出 PDF trendSvg 同款）
+  const bw=Math.max(2,Math.min(44,(caw/dc)*0.6));
+  const gap=Math.max(1,Math.min(16,bw*0.4));
   const tw=dc*(bw+gap)-gap;
   const sx=lp+Math.max(0,(caw-tw)/2);
   const xc=(i:number)=>sx+i*(bw+gap)+bw/2;
@@ -450,7 +453,7 @@ export function TrendChartPanel({ profile, index, reducedMotion }: { profile: Da
     <>
       <motion.div {...{ initial, animate, transition }} className="h-full">
         <section className="wb-panel h-full">
-          <div className="wb-panel-header"><div className="flex items-center gap-2.5"><BarChart3 size={15} className="text-[var(--accent)]"/><div><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购时间点</h2><div className="text-xs text-[var(--muted-foreground)]">立项 → 归档 双节点 · 采购数量 · 成交金额与节资率</div></div></div><div className="flex items-center gap-3"><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--accent)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--accent)]"/>{tc}项</span><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--success)_15%,transparent)] bg-[color-mix(in_oklch,var(--success)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--success)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--success)]"/>{ta.toFixed(1)}万</span></div></div>
+          <div className="wb-panel-header"><div className="flex items-center gap-2.5"><BarChart3 size={15} className="text-[var(--accent)]"/><div><h2 className="text-[0.92rem] font-semibold tracking-[-0.025em] text-[var(--foreground)]">采购趋势</h2><div className="text-xs text-[var(--muted-foreground)]">立项 → 归档 双节点 · 采购数量 · 成交金额与节资率</div></div></div><div className="flex items-center gap-3"><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--accent)_15%,transparent)] bg-[color-mix(in_oklch,var(--accent)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--accent)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--accent)]"/>{tc}项</span><span className="flex items-center gap-1.5 rounded-[8px] border border-[color-mix(in_oklch,var(--success)_15%,transparent)] bg-[color-mix(in_oklch,var(--success)_4%,transparent)] px-2.5 py-1 text-xs font-bold text-[var(--success)]"><span className="h-2 w-2 rounded-[3px] bg-[var(--success)]"/>{ta.toFixed(1)}万</span></div></div>
           <div ref={cr} className="wb-panel-body"><div className="neu-card-static rounded-[14px] p-3 overflow-hidden">
             <svg width="100%" height={ch} viewBox={`0 0 ${cw} ${ch}`} preserveAspectRatio="xMidYMid meet" className="overflow-visible" role="img" aria-label="采购执行趋势图：横轴为日期，主区为成交金额曲线与节资率点划线，副带为立项/归档数量与在执行净值" onMouseLeave={()=>setHoveredIdx(null)}>
               <defs>

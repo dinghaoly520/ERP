@@ -3,10 +3,11 @@
 import { Fragment, useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField } from '@/lib/api/supplier';
+import { getSupplier, getSupplierChanges, getSupplierEvaluations, getQualifications, approveChange, rejectChange, approveSupplier, rejectSupplier, returnSupplier, updateSupplierStatus, restoreSupplier, updateSupplierTags, getTagVocabulary, blacklistSupplier, unblacklistSupplier, revealSupplierField, getCorrectionDiff } from '@/lib/api/supplier';
 import type { Supplier, SupplierChangeRecord, SupplierEvaluation, SupplierQualification } from '@/lib/types';
-import type { RsvpHistoryResult, TagVocabularyItem } from '@/lib/api/supplier';
+import type { RsvpHistoryResult, TagVocabularyItem, CorrectionDiffResult } from '@/lib/api/supplier';
 import { getRsvpHistory } from '@/lib/api/supplier';
+import { CorrectionDiffList } from '@/components/supplier/correction-diff-list';
 import { splitQualificationItems } from '@/lib/qualification-split';
 // ApprovalTimeline 已随变更表格版下线（2026-11-09）：混排组件内自带展开时间线
 import { AlertBanner, type AlertSeverity, StatusBadge, Modal } from '@/components/workbench';
@@ -101,6 +102,8 @@ export default function SupplierDetailPage() {
   const [qualifications, setQualifications] = useState<SupplierQualification[]>([]);
   const [evaluations, setEvaluations] = useState<SupplierEvaluation[]>([]);
   const [changes, setChanges] = useState<SupplierChangeRecord[]>([]);
+  // 补正变更清单（2026-11-24）：退回时点快照 vs 当前申请比对，仅补正周期内有变化时展示
+  const [correctionDiff, setCorrectionDiff] = useState<CorrectionDiffResult | null>(null);
   // 履约评价行展开（2026-10-23）：点击行看详情——四维等级/评语/评价人/关联项目（与变更记录同款模式）
   const [expandedEvalId, setExpandedEvalId] = useState<string | null>(null);
   // tab 深链（2026-09-29 审批「详情」入口直达资质材料）：?tab=xxx——初值恒 info（SSR/客户端
@@ -173,16 +176,18 @@ export default function SupplierDetailPage() {
   const loadAll = useCallback(async () => {
     if (!id) return;
     setLoading(true);
-    const [s, q, e, c] = await Promise.all([
+    const [s, q, e, c, d] = await Promise.all([
       getSupplier(id).catch(() => null),
       getQualifications(id).catch(() => []),
       getSupplierEvaluations(id).catch(() => []),
       getSupplierChanges(id).catch(() => []),
+      getCorrectionDiff(id).catch(() => null),
     ]);
     setSupplier(s);
     setQualifications(q);
     setEvaluations(e);
     setChanges(c);
+    setCorrectionDiff(d);
     setLoading(false);
   }, [id]);
 
@@ -480,6 +485,24 @@ export default function SupplierDetailPage() {
             标题行下长横线对齐公司信息管理同款 page-hero__divider */}
         <div className="page-hero__divider" />
       </div>
+
+      {/* 本次补正变更（2026-11-24）：退回时点申请 vs 当前申请比对，仅补正周期内且有变化时显示 */}
+      {correctionDiff?.hasRound && (correctionDiff.sections ?? []).some((sec) => sec.items.length > 0) && (
+        <details open className="neu-card mt-3 p-4">
+          <summary className="cursor-pointer text-sm font-bold text-[var(--foreground)]">
+            本次补正变更
+            {correctionDiff.returnedAt && (
+              <span className="ml-2 text-xs font-normal text-[var(--muted-foreground)]">退回于 {new Date(correctionDiff.returnedAt).toLocaleDateString('zh-CN')}</span>
+            )}
+            {correctionDiff.returnReason && (
+              <span className="ml-2 text-xs font-normal text-[var(--warning)]">退回原因：{correctionDiff.returnReason}</span>
+            )}
+          </summary>
+          <div className="mt-3">
+            <CorrectionDiffList diff={correctionDiff} />
+          </div>
+        </details>
+      )}
 
       {/* 信息分区切换（2026-11-06 用户裁定：移出标题卡，hero 下方独立工具行，
           与供应商库状态分段同款 neu-segment）——外层 flex 包裹（grid 轨道防拉满） */}

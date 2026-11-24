@@ -42,6 +42,9 @@ export interface AnnouncementListItem {
   /** 2026-11-23：待发布（草稿）公告带 selectedTenderObjectKey 指针时后端合成的展示标记——
    *  BidDocument 实体仍在发布时创建，此标记仅用于列表「附件/采购文件」列显示 */
   bidDocumentPending?: boolean;
+  /** 发布人（2026-11-24 用户裁定）：管理端列表联查附名（displayName 优先、缺失回落 username）；
+   *  仅管理端 list 返回——公开/供应商端不携带 */
+  authorName?: string | null;
 }
 
 export interface BidDocumentAccess {

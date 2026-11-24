@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useState, useEffect, useMemo } from 'react';
+import { Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { sortByCompanyName } from '@water-erp/shared';
-import { Building2, ChevronDown, Eye, Loader2, Megaphone, Search, TriangleAlert } from 'lucide-react';
+import { Building2, Check, ChevronDown, Eye, Loader2, Megaphone, Search, TriangleAlert } from 'lucide-react';
 import { fetchPublicAnnouncements, ANNOUNCEMENT_TABS, type AnnouncementItem } from '@/lib/announcements';
 import { UnifiedHeader } from '@/components/unified-header';
 import { FlowBackdrop } from '@/components/flow-stage';
@@ -25,6 +25,65 @@ function ViewsBadge({ count }: { count: number }) {
   );
 }
 
+/** 公司筛选自绘下拉（2026-11-24 用户裁定）：原生 <select> 弹层在 macOS 与选中项
+ *  对齐绘制、直接覆盖触发框本体，且原生弹层无法控制锚定位置——改为自绘，弹层恒在
+ *  框下方展开（top-full，不遮触发框）；触发器外观与旧原生版同款瓷片。弹层/选项
+ *  样式见 globals.css .ann-company-* 分节。 */
+function CompanyFilterSelect({ value, onChange, options }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (!rootRef.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label="按发布单位筛选"
+        className="ann-company-select flex h-10 w-[260px] max-w-[60vw] cursor-pointer items-center rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-left text-sm text-[#18243a] transition-all
+          shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
+          focus:outline-none focus:border-[#cfd9e6]
+          focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]">
+        <span className="truncate">{value || '全部单位'}</span>
+      </button>
+      <Building2 size={15} strokeWidth={1.8}
+        className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors ${value || open ? 'text-[#5a6d8a]' : 'text-[#9aa8ba]'}`} />
+      <ChevronDown size={14} strokeWidth={2}
+        className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 transition-all duration-200 ${open ? 'rotate-180 text-[#5a6d8a]' : 'text-[#9aa8ba]'}`} />
+      {/* 弹层恒在触发框下方（top-full mt-2），不覆盖框本体 */}
+      {open && (
+        <div role="listbox" aria-label="发布单位" className="ann-company-menu absolute left-0 top-full z-30 mt-2 w-full">
+          {['', ...options].map(v => (
+            <button key={v || '__all__'} type="button" role="option" aria-selected={value === v}
+              onClick={() => { onChange(v); setOpen(false); }}
+              className={`ann-company-opt${value === v ? ' is-current' : ''}`}>
+              <span className="min-w-0 flex-1 truncate">{v || '全部单位'}</span>
+              {value === v && <Check size={12} strokeWidth={2.6} className="shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnnouncementsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -40,7 +99,7 @@ function AnnouncementsContent() {
   /** 公司筛选项 — 从已拉取公告的发布单位动态去重；排序走 canon（2026-11-06
       用户裁定：集团第一、设计公司第二、其余随后，与全系统公司筛选一致） */
   const companyOptions = useMemo(
-    () => sortByCompanyName([...new Set(items.map(a => a.companyName).filter(Boolean))], c => c),
+    () => sortByCompanyName([...new Set(items.map(a => a.companyName).filter((c): c is string => Boolean(c)))], c => c),
     [items]);
   /** 公司筛选为客户端精确匹配（数据量级=单页全量拉取，与服务端搜索互补） */
   const visibleItems = useMemo(
@@ -106,25 +165,11 @@ function AnnouncementsContent() {
 
         {/* ═══ 工具行：公司筛选（最左，2026-11-06 用户裁定）+ 类型分段切换 + 搜索（右）═══ */}
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
-          {/* 公司筛选 — 发布单位动态去重；原生 select（≤8 项分型规则）。
-              appearance-none 去原生箭头与焦点蓝环，聚焦内凹与搜索框同语言 */}
-          <div className="relative shrink-0">
-            <select
-              value={company}
-              onChange={e => setCompany(e.target.value)}
-              aria-label="按发布单位筛选"
-              className="peer h-10 w-[260px] max-w-[60vw] cursor-pointer appearance-none rounded-xl border border-[#dbe4ef] bg-[oklch(1_0_0/0.6)] pl-10 pr-9 text-sm text-[#18243a] transition-all
-                shadow-[inset_0_1px_0_oklch(1_0_0/0.8),1px_1px_3px_oklch(0.55_0.03_258/0.08)]
-                focus:border-[#cfd9e6]
-                focus:shadow-[inset_1px_1px_3px_oklch(0.55_0.03_258/0.12),inset_-1px_-1px_2px_oklch(1_0_0/0.9)]">
-              <option value="">全部单位</option>
-              {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <Building2 size={15} strokeWidth={1.8}
-              className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors ${company ? 'text-[#5a6d8a]' : 'text-[#9aa8ba] peer-focus:text-[#5a6d8a]'}`} />
-            <ChevronDown size={14} strokeWidth={2}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#9aa8ba] transition-all duration-200 peer-focus:translate-y-[-55%] peer-focus:text-[#5a6d8a]" />
-          </div>
+          {/* 公司筛选 — 发布单位动态去重；自绘下拉（2026-11-24：原生 select 弹层在
+              macOS 覆盖框本体且无法锚定，改弹层恒在框下方展开）。触发钮外围蓝环由
+              globals.css 的 .ann-company-select:focus-visible 作用域规则压制（全局
+              *:focus-visible 未分层，Tailwind utilities 分层压不过） */}
+          <CompanyFilterSelect value={company} onChange={setCompany} options={companyOptions} />
           <div
             className="neu-segment"
             role="group"

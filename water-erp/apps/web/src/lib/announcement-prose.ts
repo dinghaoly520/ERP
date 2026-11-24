@@ -73,8 +73,20 @@ function markSectionHeadings(html: string): string {
   });
 }
 
+/** 单项列表包壳的节标题解包（2026-11-23 生产实录：竞价公告模板「四、五、六」行用了
+ *  Word 列表样式，mammoth 产 <ol><li><strong>四、公示期限</strong></li></ol>——列表项
+ *  非 <p>：节标题加粗标记不命中、首行缩进不适用、另吃列表缩进致视觉错位）。仅解
+ *  「恰一个 <li> 且纯文本命中『N、』节标题形态」的 ol/ul；真列表（多项/非标题文本）不动。 */
+function unwrapSingleItemHeadingLists(html: string): string {
+  if (!/<(ol|ul)\b/i.test(html)) return html;
+  return html.replace(/<(ol|ul)[^>]*>\s*<li[^>]*>((?:(?!<\/li>)[\s\S])*)<\/li>\s*<\/\1>/gi, (whole, _tag: string, inner: string) => {
+    const text = inner.replace(/<[^>]+>/g, '').trim();
+    return /^[一二三四五六七八九十百]+、/.test(text) ? `<p>${inner}</p>` : whole;
+  });
+}
+
 export function normalizeAnnouncementContentHtml(html: string, title?: string | null): string {
-  return markSectionHeadings(splitNumberedBrLines(splitLeadingTitle(stripBlankParagraphs(breakGluedSupervisionLabels(html)), title)));
+  return markSectionHeadings(splitNumberedBrLines(splitLeadingTitle(stripBlankParagraphs(unwrapSingleItemHeadingLists(breakGluedSupervisionLabels(html))), title)));
 }
 
 /** 段内 <br/> 断行的编号项拆为独立段落（2026-11-23 用户裁定：编号项也要首行缩进——

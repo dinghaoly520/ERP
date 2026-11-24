@@ -9,6 +9,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import { VerificationService } from '../verification/verification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CorrectionSubmitDto } from './dto/correction-request.dto';
+import { buildCorrectionDiff } from './correction-diff.util';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
@@ -2004,6 +2005,30 @@ export class SupplierService {
     return records;
   }
 
+  /** 补正变更清单（2026-11-24 spec）：退回时点快照 vs 当前申请自动比对。
+   *  展示条件=存在 RETURNED 留痕且 status∈{RETURNED,PENDING}（注册流程未终局，三级续审人人可看）；
+   *  退回原因取留痕记录 reason（权威）——Supplier.returnReason 列会被缺陷 approve 清空。 */
+  async getCorrectionDiff(supplierId: string) {
+    const supplier = await this.prisma.supplier.findUnique({
+      where: { id: supplierId },
+      select: { id: true, status: true },
+    });
+    if (!supplier) throw new NotFoundException('供应商不存在');
+    if (!['RETURNED', 'PENDING'].includes(supplier.status)) return { hasRound: false };
+    const lastReturned = await this.prisma.supplierApprovalRecord.findFirst({
+      where: { supplierId, action: 'RETURNED' },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true, reason: true, snapshot: true },
+    });
+    if (!lastReturned) return { hasRound: false };
+    return {
+      hasRound: true,
+      returnedAt: lastReturned.createdAt.toISOString(),
+      returnReason: lastReturned.reason ?? null,
+      sections: buildCorrectionDiff(lastReturned.snapshot as Record<string, unknown>, await this.buildApprovalSnapshot(supplierId) as Record<string, unknown>),
+    };
+  }
+
   /** 审批留痕附件解析（2026-09-30）：FileAsset id → 文件名/大小（历史与 stepper 展示用） */
   async resolveApprovalAttachments(ids: string[]) {
     if (!ids.length) return [];
@@ -2259,6 +2284,11 @@ export class SupplierService {
       industry: supplier.industry,
       companyEmail: supplier.companyEmail,
       companyWebsite: supplier.companyWebsite,
+      // 补正可改、审批人需比对的变化面（2026-11-24 补正变更清单）：归属公司/成立日期/企业简介
+      companyId: supplier.companyId,
+      companyName: supplier.companyName,
+      establishedDate: supplier.establishedDate ? supplier.establishedDate.toISOString().slice(0, 10) : null,
+      companyProfile: supplier.companyProfile,
       tags: supplier.tags,
       isTemporary: supplier.isTemporary,
       account: { username: supplier.user?.username, displayName: supplier.user?.displayName, email: maskEmail(openPiiForMask(supplier.user?.email)) },

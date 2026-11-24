@@ -168,6 +168,14 @@ export class SupplierController {
     return this.supplierService.getApprovalHistory(id);
   }
 
+  @Get(':id/correction-diff')
+  @UseGuards(SupplierScopeGuard)
+  @Roles('admin', 'leader', 'staff') // 补正变更清单：审批读口径，同 :id/approval-history
+  @ApiOperation({ summary: '本次补正变更清单（退回时点快照 vs 当前申请自动比对）' })
+  async getCorrectionDiff(@Param('id') id: string) {
+    return this.supplierService.getCorrectionDiff(id);
+  }
+
   @Get(':id/participation')
   @UseGuards(SupplierScopeGuard)
   @Roles('admin', 'leader', 'staff') // 参与情况（履约）：供应商库读口径，同 :id/approval-history

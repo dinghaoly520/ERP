@@ -548,6 +548,30 @@ export function getApprovalHistory(id: string) {
   return api.get<ApprovalRecord[]>(`/supplier/${id}/approval-history`);
 }
 
+/** 补正变更清单（2026-11-24）：退回时点快照 vs 当前申请自动比对（两侧即掩码口径） */
+export interface CorrectionDiffItem {
+  kind: 'modified' | 'added' | 'removed';
+  rowLabel: string;
+  fieldLabel?: string;
+  oldValue?: string;
+  newValue?: string;
+  fileReplaced?: boolean;
+}
+export interface CorrectionDiffSection {
+  key: 'main' | 'account' | 'contacts' | 'qualifications' | 'bankAccounts' | 'performances';
+  label: string;
+  items: CorrectionDiffItem[];
+}
+export interface CorrectionDiffResult {
+  hasRound: boolean;
+  returnedAt?: string;
+  returnReason?: string | null;
+  sections?: CorrectionDiffSection[];
+}
+export function getCorrectionDiff(id: string) {
+  return api.get<CorrectionDiffResult>(`/supplier/${id}/correction-diff`);
+}
+
 /** 全量审批记录（admin only，2026-09-30）：跨供应商全流程（三级通过+驳回+退回补正） */
 export interface AllApprovalRecord {
   id: string;

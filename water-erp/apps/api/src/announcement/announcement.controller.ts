@@ -95,6 +95,8 @@ export class AnnouncementController {
     return this.announcementService.list(
       { type, status, search, page, pageSize, sortBy, sortOrder },
       this.companyScope.filter(scope),
+      // 发布人列（2026-11-24 用户裁定）：仅管理端联查附名——公开/供应商端共用 list 不带此旗标
+      { includeAuthorName: true },
     );
   }
 

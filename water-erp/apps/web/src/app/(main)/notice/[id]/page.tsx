@@ -17,7 +17,7 @@ import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
 import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
-import { ArrowLeft, Pencil, X, EyeOff, Lock, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
+import { ArrowLeft, Pencil, X, EyeOff, Eye, Lock, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { fetchProjectManagementList, fetchPmBidProjectRefs } from '@/lib/api/project-management';
 import { PublishConfigSection, configFromMetadata, configToMetadata, type PublishConfig } from '@/components/notice/publish-config-section';
@@ -26,6 +26,18 @@ import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
 import { isOverdueScheduledDraft, scheduledPublishErrorOf, scheduledDuplicatePendingErrorOf } from '@/lib/notice/schedule';
 import { formatYuanExact } from '@/lib/format';
+import { normalizeAnnouncementContentHtml } from '@/lib/announcement-prose';
+
+/* 正文公文排版（2026-11-23 用户裁定，与 :3002/:3004 详情页及发布预览同款）：
+   粘连标题拆分居中、「一、」节标题加粗+缩进 2 字符、正文首行缩进 2 字符、
+   数字/西文 Times New Roman（Times 置前——CJK 回落中文字体） */
+const NOTICE_DOC_CONTENT_CSS = `
+.notice-doc-content { font-family: "Times New Roman", "Microsoft YaHei", "PingFang SC", Arial, sans-serif; }
+.notice-doc-content p { text-indent: 2em; }
+.notice-doc-content .ann-prose-title { text-indent: 0; text-align: center; font-weight: 700; font-size: 17px; line-height: 1.6; color: var(--foreground); }
+.notice-doc-content .ann-prose-h { font-weight: 700; }
+.notice-doc-content table td p, .notice-doc-content table th p { text-indent: 0; }
+`;
 
 /* 类型/状态标签 */
 const typeTone: Record<AnnouncementType, 'blue' | 'green' | 'orange' | 'gray'> = {
@@ -151,6 +163,10 @@ export default function NoticeDetailPage() {
     </div>
   );
 
+  // 项目编号入标题区（2026-11-24 用户裁定，与 :3002/:3004 同款）：写进标题下元信息行，
+  // 关键信息芯片区不再重复平铺（renderMeta 同步过滤）
+  const projectCode = String(((ann.metadata || {}) as Record<string, any>).projectCode ?? '').trim();
+
   // 定时待处理（2026-11-24 浏览器验收）：只读视图一进来就要看得到完整的处理办法——
   // 列表里的原因只显示一行，只放在编辑表单里的话经办人不点「编辑」就看不到
   const viewDupPendingErr = !editing && ann.status === 'DRAFT' ? scheduledDuplicatePendingErrorOf(ann) : null;
@@ -174,14 +190,32 @@ export default function NoticeDetailPage() {
               <div className="page-hero__title truncate">{ann.title}</div>
               <div className="page-hero__sub">
                 {ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}
+                {projectCode && <span> · 项目编号 <span className="font-mono font-semibold tracking-tight text-[var(--accent-strong)]">{projectCode}</span></span>}
                 {ann.publishDate && <span> · {new Date(ann.publishDate).toLocaleDateString('zh-CN')} 发布</span>}
                 {/* 发布单位（2026-10-16）：发布的公告必须标明公司——写时快照 */}
                 {ann.companyName && <span> · 发布单位：{ann.companyName}</span>}
-                <span> · 浏览 {ann.viewCount}</span>
               </div>
             </div>
           </div>
           <div className="page-hero__right">
+            {/* 标题行右侧信息（2026-11-24 用户裁定填充空白）：公示期限状态 + 浏览量
+                （浏览自副标题行上移，避免同页重复） */}
+            <div className="mr-2 flex items-center gap-3">
+              {ann.status === 'PUBLISHED' && ann.publicityEnd && (() => {
+                const leftMs = new Date(ann.publicityEnd).getTime() - Date.now();
+                const tone: 'blue' | 'orange' | 'gray' = leftMs < 0 ? 'gray' : leftMs <= 3 * 86400000 ? 'orange' : 'blue';
+                return (
+                  <StatusBadge tone={tone}>
+                    公示{leftMs >= 0 ? '中' : '期满'} · 至 {new Date(ann.publicityEnd).toLocaleDateString('zh-CN')}
+                  </StatusBadge>
+                );
+              })()}
+              <span className="flex items-center gap-1.5 text-[var(--muted-foreground)]" title="累计浏览">
+                <Eye size={14} />
+                <span className="font-mono text-sm font-bold tabular-nums text-[var(--foreground)]">{ann.viewCount}</span>
+                <span className="text-[10px] font-semibold">次浏览</span>
+              </span>
+            </div>
             {/* 描述性徽章组（采购方式 → 状态类[发布状态/置顶/公开范围]）
                 「已发布」「应公开」同属状态/级别，不再被采购方式隔开 */}
             <div className="flex items-center gap-1.5">
@@ -256,7 +290,8 @@ function renderMeta(ann: AnnouncementListItem) {
       { key: 'newDeadline', label: '调整后递交截止（存量）', date: true },
     );
   }
-  const allFields = baseFields.filter(f => !f.noHeader).filter(hasVal);
+  // projectCode 已上移标题元信息行（2026-11-24），芯片区不再重复平铺；编辑表单照常维护
+  const allFields = baseFields.filter(f => !f.noHeader).filter(f => f.key !== 'projectCode').filter(hasVal);
   if (allFields.length === 0) return null;
   const shortFields = allFields.filter(f => !f.area);
   const areaFields = allFields.filter(f => f.area);
@@ -386,10 +421,11 @@ function ReadOnlyView({ ann }: { ann: AnnouncementListItem }) {
       {/* 左列：正文 —— 凸起卡片 */}
       <div className="neu-table-card min-w-0">
         <div className="p-5 sm:p-6">
+          <style>{NOTICE_DOC_CONTENT_CSS}</style>
           {ann.content ? (
             <div
-              className="prose prose-sm text-[var(--foreground)] leading-relaxed break-words [&_table]:w-full [&_table]:border-collapse [&_table_td]:border [&_table_td]:border-[var(--border)] [&_table_td]:px-3 [&_table_td]:py-2 [&_table_td]:break-all [&_table_th]:border [&_table_th]:border-[var(--border)] [&_table_th]:px-3 [&_table_th]:py-2 [&_table_th]:bg-[var(--muted)]/60 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-              dangerouslySetInnerHTML={{ __html: ann.content }}
+              className="notice-doc-content prose prose-sm text-[var(--foreground)] leading-relaxed break-words [&_table]:w-full [&_table]:border-collapse [&_table_td]:border [&_table_td]:border-[var(--border)] [&_table_td]:px-3 [&_table_td]:py-2 [&_table_td]:break-all [&_table_th]:border [&_table_th]:border-[var(--border)] [&_table_th]:px-3 [&_table_th]:py-2 [&_table_th]:bg-[var(--muted)]/60 [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:mt-4 [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+              dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(ann.content, ann.title) }}
             />
           ) : (
             <p className="py-12 text-center text-sm text-[var(--muted-foreground)]">暂无正文内容</p>

@@ -22,9 +22,11 @@ import {
   getSupplierList, getSupplier, approveSupplier, rejectSupplier, returnSupplier, reactivateSupplier,
   getApprovalHistory, fetchMyPendingReviewCount,
   resolveApprovalAttachments, uploadReviewAttachment,
+  getCorrectionDiff,
   companyLinksApi, type CompanyLinkRow,
-  type ApprovalRecord, type ApprovalAttachment,
+  type ApprovalRecord, type ApprovalAttachment, type CorrectionDiffResult,
 } from '@/lib/api/supplier';
+import { CorrectionDiffList } from './correction-diff-list';
 import { BusinessTagReview } from './business-tag-review';
 import { ApprovalHistoryModal } from './approval-history-modal';
 import { FilePreviewModal, type FilePreviewTarget } from './file-preview-modal';
@@ -476,6 +478,8 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Supplier | null>(null);
   const [history, setHistory] = useState<ApprovalRecord[] | null>(null);
+  // 补正变更清单（2026-11-24）：退回时点快照 vs 当前申请比对，仅补正周期内有变化时展示
+  const [correctionDiff, setCorrectionDiff] = useState<CorrectionDiffResult | null>(null);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -540,10 +544,11 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
   const [filePreview, setFilePreview] = useState<FilePreviewTarget>(null);
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗选中项初始化重置，符合模态惯例 */
   useEffect(() => {
-    if (!selected) { setHistory(null); setFull(null); setReason(''); setAttachments({}); return; }
+    if (!selected) { setHistory(null); setFull(null); setReason(''); setAttachments({}); setCorrectionDiff(null); return; }
     setHistory(null);
     setFull(null);
     setAttachments({});
+    setCorrectionDiff(null);
     getApprovalHistory(selected.id).then(recs => {
       setHistory(recs);
       const ids = recs.flatMap(r => r.attachmentIds ?? []);
@@ -559,6 +564,7 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
       }
     }).catch(() => setHistory([]));
     getSupplier(selected.id).then(setFull).catch(() => setFull(null));
+    getCorrectionDiff(selected.id).then(setCorrectionDiff).catch(() => setCorrectionDiff(null));
   }, [selected]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -808,6 +814,15 @@ function RegistrationPanel({ myRole, onChanged, preselectId }: { myRole?: string
                   </div>
                 )}
               </div>
+
+              {/* 分段一·补：本次补正变更（2026-11-24）——退回时点申请 vs 当前申请比对，
+                  仅补正周期内且有变化时显示 */}
+              {correctionDiff?.hasRound && (correctionDiff.sections ?? []).some((sec) => sec.items.length > 0) && (
+                <div className="rc-section">
+                  <div className="rc-section-label">本次补正变更</div>
+                  <CorrectionDiffList diff={correctionDiff} />
+                </div>
+              )}
 
               {/* 分段二～N：注册申请资料——按注册向导分节（2026-11-20 用户裁定：审批展示与
                   注册填报同构——企业信息→法人信息→公司联系方式→业务标签→联系人→银行账户→

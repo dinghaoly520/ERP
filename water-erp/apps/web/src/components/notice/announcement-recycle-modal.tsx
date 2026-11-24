@@ -76,7 +76,7 @@ export function AnnouncementRecycleModal({ onClose, onChanged }: { onClose: () =
         onClose={onClose}
         title={<span className="flex items-center gap-2"><Trash2 size={16} className="text-[var(--accent)]" /> 回收站</span>}
         description="隐藏的公告在此存放：可恢复到隐藏前状态，或永久删除（删除留档公告历史）"
-        size="2xl"
+        size="3xl"
         footer={
           <div className="flex w-full items-center justify-between">
             <span className="text-xs text-[var(--muted-foreground)]">共 {data.total} 条 · 第 {page}/{totalPages} 页</span>

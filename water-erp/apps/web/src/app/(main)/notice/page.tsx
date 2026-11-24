@@ -186,26 +186,27 @@ export default function NoticePage() {
   const renderAnnouncementTable = (rows: AnnouncementListItem[]) => (
     <div className="neu-table-card">
       <div className="overflow-x-auto">
-        <table className="neu-table w-full min-w-[760px]">
+        <table className="neu-table w-full min-w-[820px]">
           <thead>
             <tr>
               <th style={{ width: 44 }}>
                 <input type="checkbox" className="neu-checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }} onChange={toggleAll} aria-label="全选" />
               </th>
               <th>标题</th>
+              <th>发布人</th>
               <SortTh label="类型" sortKey="type" current={sortKey} dir={sortDir} onToggle={toggleSort} />
               <SortTh label="状态" sortKey="status" current={sortKey} dir={sortDir} onToggle={toggleSort} />
               <th>附件 / 采购文件</th>
-              <SortTh label="浏览" sortKey="viewCount" current={sortKey} dir={sortDir} onToggle={toggleSort} align="right" />
+              <SortTh label="浏览" sortKey="viewCount" current={sortKey} dir={sortDir} onToggle={toggleSort} align="center" />
               <th style={{ textAlign: 'center' }}>操作</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <TableSkeleton cols={7} rows={5} />
+              <TableSkeleton cols={8} rows={5} />
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-16">
+                <td colSpan={8} className="px-4 py-16">
                   <div className="flex flex-col items-center gap-3">
                     <div className="neu-icon-well flex h-14 w-14 items-center justify-center rounded-2xl">
                       <FileText size={22} className="text-[var(--muted-foreground)]" />
@@ -233,20 +234,27 @@ export default function NoticePage() {
                     <input type="checkbox" className="neu-checkbox" checked={isSel} onChange={() => toggleRow(a.id)} aria-label={`选择 ${a.title}`} />
                   </td>
                   <td>
-                    <div className="flex flex-col gap-1">
+                    {/* 列宽（2026-11-24 用户裁定二次修订）：内容宽上限放宽填充行内空白，
+                        摘要两行截断显示更多内容 */}
+                    <div className="flex max-w-[560px] flex-col items-start gap-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-[var(--foreground)]">{a.title}</span>
+                        <span className="text-left text-sm font-bold text-[var(--foreground)]">{a.title}</span>
                         {a.isTop && <StatusBadge tone="red" className="!text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
                         {noBidDoc && (
                           <span className="rounded-md bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]">未上传采购文件</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
                         {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
                         {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
-                        {a.summary && (<><span aria-hidden>·</span><span className="max-w-[360px] truncate">{a.summary.slice(0, 40)}{a.summary.length > 40 ? '…' : ''}</span></>)}
                       </div>
+                      {/* 2026-11-24 定稿：摘要单行、超出以省略号（···）截断——宽度 560px 单行可显 ~50 字 */}
+                      {a.summary && <p className="w-full truncate text-left text-[11px] text-[var(--muted-foreground)]">{a.summary}</p>}
                     </div>
+                  </td>
+                  <td>
+                    {/* 发布人（2026-11-24 用户裁定）：管理端联查 displayName——无发布人（系统生成/存量）显 — */}
+                    <span className="text-sm text-[var(--foreground)]">{a.authorName || '—'}</span>
                   </td>
                   <td><StatusBadge tone={tm.tone}>{typeLabel}</StatusBadge></td>
                   <td>
@@ -290,7 +298,7 @@ export default function NoticePage() {
                       </>)}
                     </div>
                   </td>
-                  <td style={{ textAlign: 'right' }} className="tabular-nums font-semibold text-[var(--foreground)]">{a.viewCount}</td>
+                  <td style={{ textAlign: 'center' }} className="tabular-nums font-semibold text-[var(--foreground)]">{a.viewCount}</td>
                   <td onClick={e => e.stopPropagation()}>
                     <div className="flex flex-wrap justify-center gap-1.5">
                       {a.type === 'BID_NOTICE' && <button onClick={() => setPartAnn(a)} className="neu-btn-xs is-success">投标情况</button>}
