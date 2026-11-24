@@ -871,8 +871,14 @@ function BidDetailInner() {
                     )}
                   </div>
 
-                  {/* W1（A-80~86）：澄清与修改——提问 + 澄清文件下载（区别于上方评标澄清答疑只读区） */}
-                  <TenderClarificationCard projectId={projectId} stage={project?.stage} deadline={project?.deadline} />
+                  {/* W1（A-80~86）：澄清与修改——提问 + 澄清文件下载（区别于上方评标澄清答疑只读区）；
+                      未投递时右侧投标回执不渲染，本卡横跨整行（提问框与问答列表放开宽度） */}
+                  <TenderClarificationCard
+                    projectId={projectId}
+                    stage={project?.stage}
+                    deadline={project?.deadline}
+                    className={submission?.status === "submitted" ? undefined : "col-span-full"}
+                  />
 
                   {/* ═══ 投标回执（A-101）：已递交后查看编号/递交时间/签名状态；未签署时经 dual-v3 盾签补签（CaReceiptSignButton）═══ */}
                   {submission?.status === "submitted" && (
