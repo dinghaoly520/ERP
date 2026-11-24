@@ -614,7 +614,7 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
     <Modal
       open
       onClose={onClose}
-      size="xl"
+      size="3xl"
       title="投标情况"
       description={announcement.title}
     >
