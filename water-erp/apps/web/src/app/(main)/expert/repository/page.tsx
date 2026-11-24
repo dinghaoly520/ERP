@@ -289,7 +289,7 @@ export default function ExpertRepositoryPage() {
                     />
                   </th>
                 )}
-                <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
+                <SortableTh label="专家" field="displayName" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} />
                 <SortableTh label="专业" field="expertProfile.specialty" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
                 <SortableTh label="职称" field="expertProfile.title" sortKey={sortKey} sortDir={sortDir} onToggle={sortToggle} center />
                 <th className="text-center">部门</th>
@@ -329,8 +329,8 @@ export default function ExpertRepositoryPage() {
                         <input type="checkbox" className="neu-checkbox" checked={selectedIds.has(e.id)} onChange={() => toggleSelect(e.id)} aria-label={`选择 ${e.displayName}`} />
                       </td>
                     )}
-                    <td className="text-center">
-                      <div className="flex items-center justify-center gap-2.5">
+                    <td className="text-left">
+                      <div className="flex items-center gap-2.5">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--accent)_9%,transparent)] text-xs font-extrabold text-[var(--accent)]">{e.displayName[0]}</div>
                         <span className="text-sm font-bold text-[var(--foreground)] truncate hover:text-[var(--accent)] transition-colors">{e.displayName}</span>
                       </div>
