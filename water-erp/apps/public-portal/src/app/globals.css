@@ -2258,12 +2258,40 @@ a.group:hover::after {
   outline: 2px solid #064ea2;
   outline-offset: 2px;
 }
-/* 例外：信息公告·发布单位下拉（select 点击聚焦恒 :focus-visible）——聚焦反馈由
-   控件内凹阴影+边框变化表达，蓝环压制。本规则未分层、Tailwind utilities 分层
-   压不过上方全局环，故须在此以作用域规则显式豁免（同 neu-segment-btn 先例）。 */
+/* 例外：信息公告·发布单位下拉触发钮——聚焦反馈由控件内凹阴影+边框变化表达，
+   蓝环压制。本规则未分层、Tailwind utilities 分层压不过上方全局环，故须在此以
+   作用域规则显式豁免（同 neu-segment-btn 先例）。 */
 .ann-company-select:focus-visible {
   outline: none;
 }
+
+/* ── 信息公告·发布单位自绘下拉（2026-11-24）：原生 select 弹层在 macOS 与选中项
+   对齐绘制、覆盖触发框且无法锚定位置——自绘后弹层恒在框下方（组件内 top-full）。
+   瓷片渐变+方向性双影配方同 .uss-panel/.uss-opt（变量挂 :root，不涉 body-portal）。 ── */
+.ann-company-menu {
+  padding: 6px;
+  border-radius: 14px;
+  overflow-y: auto;
+  max-height: 320px;
+  background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
+  box-shadow: 6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9);
+}
+.ann-company-opt {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; padding: 8px 10px;
+  border: none; border-radius: 9px;
+  font-size: 12.5px; text-align: left; color: var(--fg); outline: none; cursor: pointer;
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.ann-company-opt:hover { background: color-mix(in oklch, var(--brand) 6%, transparent); }
+/* 当前值：白瓷片凸起 + 品牌蓝粗体 + 对勾（neu-tab v2 激活语义，同 uss-opt.is-current） */
+.ann-company-opt.is-current {
+  font-weight: 700; color: var(--brand);
+  background: oklch(1 0 0);
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9);
+}
+.ann-company-opt.is-current:hover { background: oklch(1 0 0); }
 
 /* ── reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
