@@ -559,7 +559,12 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
   // 章节填完才开放（与 /tender-write 同口径）
   const sectionGate = useMemo(() => {
     if (!isScoringRequiredType(selectedType)) return undefined;
-    const sections = selectedType === 'INQUIRY_PURCHASE' ? INQUIRY_PURCHASE_SECTIONS : INVITED_BIDDING_SECTIONS;
+    const sections =
+      selectedType === 'INQUIRY_PURCHASE'
+        ? INQUIRY_PURCHASE_SECTIONS
+        : selectedType === 'COMPETITIVE_NEGOTIATION'
+          ? COMPETITIVE_NEGOTIATION_SECTIONS
+          : INVITED_BIDDING_SECTIONS;
     return { key: 'evaluation' as const, ...tenderSectionPrereq(sections, currentDraft, 'evaluation') };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType, currentDraft]);

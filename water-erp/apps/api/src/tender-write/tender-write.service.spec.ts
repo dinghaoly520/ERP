@@ -246,6 +246,79 @@ describe('single-source tender template helpers', () => {
     });
   });
 
+  it('谈判采购评分标准注入（2026-11-24 用户裁定：谈判也固定综合评分法）——scoringItems 产出行注入条目', () => {
+    const base = buildCompetitiveNegotiationReplacementPlan({
+      projectName: '测试项目',
+      coverDate: '2026-06-02',
+      projectOverview: '项目概况内容',
+      procurementContent: '采购内容',
+      maxPrice: '1000元',
+      qualificationRequirements: '特定资质要求',
+      responseSubmissionTime: '2026-06-04',
+      contactName: '张三',
+      contactPhone: '13800000000',
+      contactEmail: 'test@example.com',
+      responseDepositType: 'none',
+      responseDepositAmount: '',
+      responseDepositBankInfo: '',
+      responseDepositOtherForm: '',
+      responseDepositOtherRequirement: '',
+      responseDepositNonRefundType: 'none',
+      responseDepositNonRefundContent: '',
+      performanceDepositType: 'none',
+      performanceDepositAmount: '',
+      performanceDepositForm: 'cash',
+      performanceDepositOtherForm: '',
+      contractSubcontracting: '',
+      contractSubcontractingType: 'none',
+      siteSurvey: '',
+      siteSurveyType: 'none',
+      copyCount: '4',
+      quotationLetterType: 'text',
+      quotationLetter: '',
+    } as any);
+    expect(base.find((r) => r.targetText === '综合评分法评审标准')).toBeUndefined();
+
+    const plan = buildCompetitiveNegotiationReplacementPlan({
+      projectName: '测试项目',
+      coverDate: '2026-06-02',
+      projectOverview: '项目概况内容',
+      procurementContent: '采购内容',
+      maxPrice: '1000元',
+      qualificationRequirements: '特定资质要求',
+      responseSubmissionTime: '2026-06-04',
+      contactName: '张三',
+      contactPhone: '13800000000',
+      contactEmail: 'test@example.com',
+      responseDepositType: 'none',
+      responseDepositAmount: '',
+      responseDepositBankInfo: '',
+      responseDepositOtherForm: '',
+      responseDepositOtherRequirement: '',
+      responseDepositNonRefundType: 'none',
+      responseDepositNonRefundContent: '',
+      performanceDepositType: 'none',
+      performanceDepositAmount: '',
+      performanceDepositForm: 'cash',
+      performanceDepositOtherForm: '',
+      contractSubcontracting: '',
+      contractSubcontractingType: 'none',
+      siteSurvey: '',
+      siteSurveyType: 'none',
+      copyCount: '4',
+      quotationLetterType: 'text',
+      quotationLetter: '',
+      scoringItems: [
+        { id: 'r1', factor: '价格', score: '40', criteria: '报价得分=（评审基准价/最后报价）×40', note: '/' },
+      ],
+    } as any);
+    const scoringEntry = plan.find((r) => r.targetText === '综合评分法评审标准');
+    expect(scoringEntry).toBeTruthy();
+    expect(scoringEntry?.scoringRows).toEqual([
+      { factor: '价格', score: '40', criteria: '报价得分=（评审基准价/最后报价）×40', note: '/' },
+    ]);
+  });
+
   it('响应/履约保证金形式多选（2026-11-24 用户裁定）：逗号串多值同时勾选、未选项保持空框', () => {
     const plan = buildInternalBiddingReplacementPlan({
       projectName: '测试项目',

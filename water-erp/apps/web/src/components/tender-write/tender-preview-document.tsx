@@ -674,10 +674,67 @@ function CompetitiveNegotiationPreview({
           </div>
         </PreviewSection>
 
-        {/* 第三章 采购需求 */}
+        {/* 第三章 评审程序和评定成交的标准（2026-11-24 用户裁定：谈判评审办法固定综合评分法 + 必填评分标准） */}
+        <PreviewSection
+          sectionKey="evaluation"
+          chapterLabel="第三章"
+          title="评审程序和评定成交的标准"
+          activeSectionKey={activeSectionKey}
+          onSectionClick={onSectionClick}
+        >
+          <div className="tender-preview-subsection">
+            <div className="text-sm leading-7 text-[color:var(--foreground)]">
+              <p>5.1 谈判小组将按照综合评分法评审标准，对质量和服务均能满足谈判文件实质性响应要求的供应商进行评审，按评审后得分由高到低的顺序推荐成交候选人；得分相同的，按最后报价由低到高的顺序排列；得分且报价相同的，由谈判小组投票确定排序。评分标准见本章节《综合评分法评审标准》，采购文件中没有规定的评审标准不得作为评审的依据。</p>
+              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--muted-foreground)]">综合评分法评审标准</p>
+            </div>
+            {(() => {
+              const rows = (draft.scoringItems ?? []).filter(
+                (it) => it.factor.trim() || it.criteria.trim(),
+              );
+              if (rows.length === 0) {
+                return (
+                  <p className="mt-3 ml-4">
+                    <span className="rounded-[10px] bg-[rgba(234,188,110,0.12)] px-2 py-1 text-[rgba(178,124,42,1)]">评分标准待填写（在左侧「评审程序和评定成交的标准」中填写）</span>
+                  </p>
+                );
+              }
+              return (
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full border-collapse border border-[oklch(0.55 0.05 258/0.2)]">
+                    <tbody>
+                      <tr className="bg-[oklch(0.55 0.05 258/0.06)] font-semibold text-sm">
+                        <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[8%]">序号</td>
+                        <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[18%]">评分因素</td>
+                        <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[10%]">分值</td>
+                        <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">评分标准</td>
+                        <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center w-[16%]">说明</td>
+                      </tr>
+                      {rows.map((item, i) => (
+                        <tr key={item.id} className="text-sm">
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">{i + 1}</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">{item.factor}</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center tabular-nums">{item.score}</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 whitespace-pre-wrap">{item.criteria}</td>
+                          <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2">{item.note}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-[oklch(0.55 0.05 258/0.04)] text-sm font-semibold">
+                        <td colSpan={2} className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center">合计</td>
+                        <td className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2 text-center tabular-nums">{scoringTotal(draft.scoringItems) ?? "—"}</td>
+                        <td colSpan={2} className="border border-[oklch(0.55 0.05 258/0.2)] px-2 py-2" />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        </PreviewSection>
+
+        {/* 第四章 采购需求（2026-11-24 顺带修正：原标「第三章」与采购文件构成清单第四章口径不符） */}
         <PreviewSection
           sectionKey="requirements"
-          chapterLabel="第三章"
+          chapterLabel="第四章"
           title="采购需求"
           activeSectionKey={activeSectionKey}
           onSectionClick={onSectionClick}

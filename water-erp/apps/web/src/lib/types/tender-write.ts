@@ -263,6 +263,8 @@ export type CompetitiveNegotiationDraft = Record<
   string
 > & {
   quotationLetterTable?: TableData;
+  /** 综合评分法评分行（2026-11-24 用户裁定：谈判评审办法固定综合评分法并必填评分标准） */
+  scoringItems?: ScoringItem[];
 };
 
 export type SingleSourceDraft = Record<SingleSourceFieldKey, string> & {

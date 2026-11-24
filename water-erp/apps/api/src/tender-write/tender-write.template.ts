@@ -594,6 +594,25 @@ export function buildCompetitiveNegotiationReplacementPlan(
   answers: CompetitiveNegotiationAnswers,
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
+  // 综合评分法评分行（2026-11-24 用户裁定：谈判也固定综合评分法）——防御遍历同竞价/询比口径
+  const negScoringRows = (
+    ((answers as Record<string, unknown>).scoringItems as Array<Record<string, unknown>> | undefined) ?? []
+  )
+    .filter(
+      (it): it is Required<ScoringItem> =>
+        !!it && typeof it === 'object' && typeof it.factor === 'string',
+    )
+    .filter(
+      (it) =>
+        it.factor.trim() ||
+        (typeof it.criteria === 'string' && it.criteria.trim()),
+    )
+    .map((it) => ({
+      factor: it.factor.trim(),
+      score: (typeof it.score === 'string' ? it.score : '').trim(),
+      criteria: (typeof it.criteria === 'string' ? it.criteria : '').trim(),
+      note: (typeof it.note === 'string' ? it.note : '').trim(),
+    }));
   // Handle quotation letter - could be text or table
   // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
   const isQuotationText = resolveQuotationMode(answers) !== 'table';
@@ -671,7 +690,12 @@ export function buildCompetitiveNegotiationReplacementPlan(
   };
 
   return [
-    {
+
+    // 综合评分法评标标准（2026-11-24 用户裁定）：谈判评审办法固定综合评分法——
+    // scoringRows 非空时注入 docx 第三章「综合评分法评审标准」表
+    ...(negScoringRows.length
+      ? [{ targetText: '综合评分法评审标准', replacementText: '', highlight: false, scoringRows: negScoringRows } as TemplateReplacement]
+      : []),    {
       targetText: '项目名称',
       ...buildReplacement('项目名称', answers.projectName),
     },
@@ -1581,7 +1605,8 @@ function fillScoringStandardTable(
     ]
       .map((x) => x[1])
       .join('');
-    if (/六、\s*综合评分法评[审标]标准/.test(plain)) {
+    // 锚定整段（可带「六、」等编号前缀）——防正文引用（见《综合评分法评审标准》）误命中
+    if (/^(?:[一二三四五六七八九十\d]+[、.．]?\s*)?综合评分法评[审标]标准\s*$/.test(plain)) {
       headingEnd = pEnd + 6;
       break;
     }

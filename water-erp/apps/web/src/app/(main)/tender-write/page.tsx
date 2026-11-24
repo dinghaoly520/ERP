@@ -291,7 +291,12 @@ export default function TenderWritePage() {
   // 章节待其前所有章节（含采购需求）填完才开放填写——AI 生成时前章内容均可作参考
   const sectionGate = useMemo(() => {
     if (!isScoringRequiredType(selectedType)) return undefined;
-    const sections = selectedType === "INQUIRY_PURCHASE" ? INQUIRY_PURCHASE_SECTIONS : INVITED_BIDDING_SECTIONS;
+    const sections =
+      selectedType === "INQUIRY_PURCHASE"
+        ? INQUIRY_PURCHASE_SECTIONS
+        : selectedType === "COMPETITIVE_NEGOTIATION"
+          ? COMPETITIVE_NEGOTIATION_SECTIONS
+          : INVITED_BIDDING_SECTIONS;
     return { key: "evaluation" as const, ...tenderSectionPrereq(sections, currentDraft, "evaluation") };
   }, [selectedType, currentDraft]);
 
