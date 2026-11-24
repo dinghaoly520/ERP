@@ -21,7 +21,7 @@ import type { ProjectManagementItem } from '@/lib/types/project-management';
 type Step = 'type' | 'form' | 'records';
 
 /** PMI 中文开标时间（YYYY年M月D日 HH:mm，+08 墙钟）→ datetime-local 输入值 */
-function cnToDatetimeLocal(cn: string | null | undefined): string {
+export function cnToDatetimeLocal(cn: string | null | undefined): string {
   const m = (cn ?? '').match(/(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2}):(\d{2})/);
   if (!m) return '';
   const p = (x: string) => x.padStart(2, '0');
@@ -29,8 +29,18 @@ function cnToDatetimeLocal(cn: string | null | undefined): string {
 }
 
 /** datetime-local 输入值 → ISO（按 +08 墙钟构造，与后端解析同口径） */
-function localInputToIso(v: string): string {
+export function localInputToIso(v: string): string {
   return new Date(`${v}:00+08:00`).toISOString();
+}
+
+/** ISO（UTC，API 返回值）→ datetime-local 输入值（北京墙上时间，localInputToIso 互逆；
+ *  供立项日期等 DateTime 字段回填控件——后端 parseInitiationDateInput 对裸
+ *  datetime-local 串按服务器时区解释（生产 UTC 容器偏 8h），故提交须走 localInputToIso） */
+export function isoToDatetimeLocal(iso: string | Date | null | undefined): string {
+  if (iso == null || iso === '') return '';
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Date(d.getTime() + 8 * 3600_000).toISOString().slice(0, 16);
 }
 
 export function ChangeModal({

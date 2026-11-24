@@ -21,6 +21,7 @@ import { Ban, CheckCircle2, FileUp, Loader2, RefreshCw, Sparkles, Wand2 } from '
 import { toast } from 'sonner';
 import { Modal } from '@/components/workbench';
 import { UploadProgressRow } from '../upload/upload-progress-row';
+import { cnToDatetimeLocal, isoToDatetimeLocal, localInputToIso } from './change-modal';
 import { getNonTenderDeal } from '@/lib/api/bid';
 import {
   aiIdentifyField,
@@ -117,7 +118,7 @@ export function AbortRestartDialog({
       procurementCategory: item.procurementCategory ?? '',
       projectReason: item.projectReason ?? '',
       supplierRequirements: item.supplierRequirements ?? '',
-      initiationDate: item.initiationDate ? new Date(item.initiationDate).toISOString().slice(0, 10) : '',
+      initiationDate: isoToDatetimeLocal(item.initiationDate),
     });
     setBudgetInput(item.budgetAmount != null ? String(item.budgetAmount) : '');
     setMethod(item.procurementMethod);
@@ -175,7 +176,12 @@ export function AbortRestartDialog({
       put('procurementCategory', f.procurementCategory, item.procurementCategory);
       put('projectReason', f.projectReason, item.projectReason);
       put('supplierRequirements', f.supplierRequirements, item.supplierRequirements);
-      if (f.initiationDate) put('initiationDate', f.initiationDate, item.initiationDate ? new Date(item.initiationDate).toISOString().slice(0, 10) : '');
+      // AI 提取值归一为 datetime-local 格式（提取产 YYYY-MM-DD 补 T00:00；中文日期走 cn 转换）
+      if (f.initiationDate) {
+        const raw = String(f.initiationDate).trim();
+        const dtVal = raw.length === 10 ? `${raw}T00:00` : cnToDatetimeLocal(raw) || raw;
+        put('initiationDate', dtVal, isoToDatetimeLocal(item.initiationDate));
+      }
       if (f.budgetAmount != null && Number.isFinite(Number(f.budgetAmount))) {
         setBudgetInput(String(f.budgetAmount));
         if (Number(f.budgetAmount) !== item.budgetAmount) count++;
@@ -252,8 +258,10 @@ export function AbortRestartDialog({
       const budget = Number(budgetInput);
       if (budgetInput.trim() && Number.isFinite(budget) && budget !== item.budgetAmount) basicInfo.budgetAmount = budget;
       const dateStr = (form.initiationDate ?? '').trim();
-      if (dateStr && (!item.initiationDate || dateStr !== new Date(item.initiationDate).toISOString().slice(0, 10))) {
-        basicInfo.initiationDate = dateStr;
+      if (dateStr && (!item.initiationDate || dateStr !== isoToDatetimeLocal(item.initiationDate))) {
+        // datetime-local → 完整 ISO（+08 墙钟）：后端 parseInitiationDateInput 对裸
+        // datetime-local 串按服务器时区解释（生产 UTC 容器偏 8h），带 Z 的 ISO 无歧义
+        basicInfo.initiationDate = localInputToIso(dateStr);
       }
 
       const res = await reprocProject(item.id, {
@@ -581,7 +589,7 @@ export function AbortRestartDialog({
             <div>
               <span className="block mb-1.5 text-xs font-semibold text-[color:var(--foreground)]">立项日期</span>
               <input
-                type="date"
+                type="datetime-local"
                 value={form.initiationDate ?? ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, initiationDate: e.target.value }))}
                 className="workbench-input w-full text-sm"
