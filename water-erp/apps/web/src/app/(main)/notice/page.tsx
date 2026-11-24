@@ -245,7 +245,8 @@ export default function NoticePage() {
                         {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
                         {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
                       </div>
-                      {a.summary && <p className="w-full text-left text-[11px] leading-relaxed break-all text-[var(--muted-foreground)]">{a.summary}</p>}
+                      {/* 2026-11-24 二次裁定：摘要回单行显示，超出以省略号截断 */}
+                      {a.summary && <p className="w-full truncate text-left text-[11px] text-[var(--muted-foreground)]">{a.summary}</p>}
                     </div>
                   </td>
                   <td>
