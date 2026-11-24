@@ -19,6 +19,7 @@ import { useCompanyInfo } from '@/lib/api/company-info';
 import { CloudUpload, X, FileText, Building2, ClipboardCheck, Trophy, Ban } from 'lucide-react';
 import type { AnnouncementCategory, AnnouncementDraft } from '@/lib/types/announcement';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
+import { NeuSelect } from '@/components/workbench';
 
 /* ── 接口枚举映射（文档 byte 码值） ── */
 
@@ -530,14 +531,14 @@ export function SunshinePlatformDialog({
               <Field label="项目编码"><input className={inputCls} value={config.projectCode} onChange={(e) => set('projectCode', e.target.value)} /></Field>
               <Field label="项目名称"><input className={inputCls} value={config.projectName} onChange={(e) => set('projectName', e.target.value)} /></Field>
               <Field label="招标方式">
-                <select className={inputCls} value={config.proctype} onChange={(e) => set('proctype', Number(e.target.value))}>
+                <NeuSelect className="w-full" value={config.proctype} onChange={(e) => set('proctype', Number(e.target.value))}>
                   {PROCTYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                </NeuSelect>
               </Field>
               <Field label="招标计划类型">
-                <select className={inputCls} value={config.type} onChange={(e) => set('type', Number(e.target.value))}>
+                <NeuSelect className="w-full" value={config.type} onChange={(e) => set('type', Number(e.target.value))}>
                   {PLAN_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                </NeuSelect>
               </Field>
               <Field label="招标金额（万元）"><input type="number" step="0.0001" className={inputCls} value={config.tenderAmount ?? ''} onChange={(e) => set('tenderAmount', e.target.value === '' ? null : Number(e.target.value))} /></Field>
               <Field label="标包名称" hint="单标包填计划名称">
@@ -553,10 +554,10 @@ export function SunshinePlatformDialog({
               <Field label="招标组织名称"><input className={inputCls} value={config.handOrganizationName} onChange={(e) => set('handOrganizationName', e.target.value)} /></Field>
               <Field label="采购主体 ID" hint="SCM0010 查询"><input className={inputCls} value={config.procuringentity} onChange={(e) => set('procuringentity', e.target.value)} /></Field>
               <Field label="是否集中采购">
-                <select className={inputCls} value={config.centralized} onChange={(e) => set('centralized', Number(e.target.value) as 0 | 1)}>
+                <NeuSelect className="w-full" value={config.centralized} onChange={(e) => set('centralized', Number(e.target.value) as 0 | 1)}>
                   <option value={1}>1-是</option>
                   <option value={0}>0-否</option>
-                </select>
+                </NeuSelect>
               </Field>
               <Field label="招标采购限额（万元）"><input type="number" step="0.0001" className={inputCls} value={config.standardQuota ?? ''} onChange={(e) => set('standardQuota', e.target.value === '' ? null : Number(e.target.value))} /></Field>
               <Field label="公开采购限额（万元）"><input type="number" step="0.0001" className={inputCls} value={config.publicQuota ?? ''} onChange={(e) => set('publicQuota', e.target.value === '' ? null : Number(e.target.value))} /></Field>
@@ -577,10 +578,10 @@ export function SunshinePlatformDialog({
                 <Field label="公告发布时间"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
                 <Field label="公告截止时间"><input type="datetime-local" className={inputCls} value={config.deadline} onChange={(e) => set('deadline', e.target.value)} /></Field>
                 <Field label="发售期满足川国资委〔2025〕51号文">
-                  <select className={inputCls} value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
+                  <NeuSelect className="w-full" value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
                     <option value={1}>1-是</option>
                     <option value={0}>0-否</option>
-                  </select>
+                  </NeuSelect>
                 </Field>
                 {config.annrequire === 0 && (
                   <Field label="不满足原因"><input className={inputCls} value={config.annreason} onChange={(e) => set('annreason', e.target.value)} placeholder="发售期不满足要求原因" /></Field>
@@ -598,10 +599,10 @@ export function SunshinePlatformDialog({
                 <Field label="公示期起"><input type="datetime-local" className={inputCls} value={config.startTime} onChange={(e) => set('startTime', e.target.value)} /></Field>
                 <Field label="公示期止"><input type="datetime-local" className={inputCls} value={config.endTime} onChange={(e) => set('endTime', e.target.value)} /></Field>
                 <Field label="公示期满足51号文">
-                  <select className={inputCls} value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
+                  <NeuSelect className="w-full" value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
                     <option value={1}>1-是</option>
                     <option value={0}>0-否</option>
-                  </select>
+                  </NeuSelect>
                 </Field>
                 {config.annrequire === 0 && (
                   <Field label="不满足原因"><input className={inputCls} value={config.annreason} onChange={(e) => set('annreason', e.target.value)} /></Field>

@@ -66,7 +66,7 @@ import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { ScoreStandardCard } from './score-standard-card';
 import { OfficialTenderWizard } from './official-tender-wizard';
-import { Modal, StatusBadge } from '@/components/workbench';
+import { Modal, StatusBadge, NeuSelect } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { syncConfirmThresholdFromServer } from '@/lib/supplier-confirm-threshold';
@@ -1564,12 +1564,12 @@ export function ProjectDetailPanel({
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购方式</span>
                     {editingField === 'procurementMethod' ? (
                       <div className="mt-0.5 flex items-center gap-1.5">
-                        <select value={editValues.procurementMethod} onChange={(e) => setEditValues((prev) => ({ ...prev, procurementMethod: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus>
+                        <NeuSelect value={editValues.procurementMethod} onChange={(e) => setEditValues((prev) => ({ ...prev, procurementMethod: e.target.value }))} className="!text-xs flex-1" autoFocus>
                           <option value="">请选择</option>
                           {methodOptions.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
-                        </select>
+                        </NeuSelect>
                         <button type="button" onClick={() => void handleSaveField('procurementMethod')} className="neu-btn-xs"><Save size={13} /></button>
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>
@@ -1584,12 +1584,12 @@ export function ProjectDetailPanel({
                     <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">采购类别</span>
                     {editingField === 'procurementCategory' ? (
                       <div className="mt-0.5 flex items-center gap-1.5">
-                        <select value={editValues.procurementCategory} onChange={(e) => setEditValues((prev) => ({ ...prev, procurementCategory: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus>
+                        <NeuSelect value={editValues.procurementCategory} onChange={(e) => setEditValues((prev) => ({ ...prev, procurementCategory: e.target.value }))} className="!text-xs flex-1" autoFocus>
                           <option value="">请选择</option>
                           {categoryOptions.map((option) => (
                             <option key={option} value={option}>{option}</option>
                           ))}
-                        </select>
+                        </NeuSelect>
                         <button type="button" onClick={() => void handleSaveField('procurementCategory')} className="neu-btn-xs"><Save size={13} /></button>
                         <button type="button" onClick={() => setEditingField(null)} className="neu-btn-xs"><X size={13} /></button>
                       </div>

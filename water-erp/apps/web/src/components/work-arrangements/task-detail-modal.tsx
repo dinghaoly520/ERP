@@ -16,7 +16,7 @@ import {
   ChevronUp,
 } from 'lucide-react';
 import Link from 'next/link';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import {
   WORK_ARRANGEMENT_STATUS_LABELS,
   type WorkArrangementItem,
@@ -531,18 +531,18 @@ export function TaskDetailModal({
 
                             {/* 新增记录 */}
                             <div className="mt-3 space-y-2">
-                              <select
+                              <NeuSelect
                                 value={noteType}
                                 onChange={(e) =>
                                   onNoteTypeChange(
                                     e.target.value as WorkArrangementNoteType,
                                   )
                                 }
-                                className="workbench-input text-sm"
+                               
                               >
                                 <option value="PROGRESS">过程记录</option>
                                 <option value="INSIGHT">心得补充</option>
-                              </select>
+                              </NeuSelect>
                               <textarea
                                 value={noteDraft}
                                 onChange={(e) => onNoteDraftChange(e.target.value)}

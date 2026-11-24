@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { X, Plus, Search, Check } from 'lucide-react';
 import type { HardConditions, HardConditionVocab } from '@/lib/api/supplier';
+import { NeuSelect } from '@/components/workbench';
 
 /**
  * 硬性筛选（2026-11-04 二次裁定）：行业/资质与业务标签同款三层设计（搜索栏/已选条/内凹词表区）、依次放置；
@@ -181,12 +182,12 @@ export function HardConditionsSection({ vocab, value, onChange }: {
           renderSelected={(key) => (
             <span className="neu-tag is-on text-xs">
               {qualLabelOf(key)}
-              <select value={(value.qualifications || []).find((q) => q.key === key)?.required === false ? 'preferred' : 'required'}
+              <NeuSelect value={(value.qualifications || []).find((q) => q.key === key)?.required === false ? 'preferred' : 'required'}
                 onChange={(e) => setQualRequired(key, e.target.value === 'required')}
-                className="cursor-pointer bg-transparent text-[10px] font-bold outline-none">
+                className="bg-transparent text-[10px] font-bold outline-none">
                 <option value="required">必须</option>
                 <option value="preferred">优先</option>
-              </select>
+              </NeuSelect>
               <button type="button" onClick={() => toggleQualification(key)} aria-label={`移除 ${qualLabelOf(key)}`} className="neu-tag__x">
                 <X size={11} strokeWidth={2.5} />
               </button>

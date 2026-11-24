@@ -19,7 +19,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, CheckCircle2, FileUp, Loader2, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { UploadProgressRow } from '../upload/upload-progress-row';
 import { cnToDatetimeLocal, isoToDatetimeLocal, localInputToIso } from './change-modal';
 import { getNonTenderDeal } from '@/lib/api/bid';
@@ -334,16 +334,16 @@ export function AbortRestartDialog({
           </button>
         </div>
       ) : def.options ? (
-        <select
+        <NeuSelect
           value={form[def.formKey] ?? ''}
           onChange={(e) => setForm((prev) => ({ ...prev, [def.formKey]: e.target.value }))}
-          className="workbench-input w-full text-sm"
+          className="w-full"
         >
           <option value="">{def.placeholder ?? '请选择'}</option>
           {def.options.map((o) => (
             <option key={o} value={o}>{o}</option>
           ))}
-        </select>
+        </NeuSelect>
       ) : (
         <input
           value={form[def.formKey] ?? ''}

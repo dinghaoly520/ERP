@@ -17,6 +17,7 @@ import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
 import { fetchProjectAttributions, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
+import { NeuSelect } from '@/components/workbench';
 
 type Step = 'type' | 'form' | 'records';
 
@@ -469,8 +470,8 @@ export function ChangeModal({
                                 )}
                                 <div className="flex items-center gap-1.5">
                                   <span className="shrink-0 text-xs text-[color:var(--muted-foreground)]">替换为</span>
-                                  <select
-                                    className="workbench-input !h-[34px] min-w-0 flex-1"
+                                  <NeuSelect
+                                    className="min-w-0 flex-1"
                                     disabled={!g.unlocked}
                                     value={values[f.field] ?? ''}
                                     onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))}
@@ -479,7 +480,7 @@ export function ChangeModal({
                                     {newer.map(o => (
                                       <option key={o.id} value={o.id}>{o.fileName}</option>
                                     ))}
-                                  </select>
+                                  </NeuSelect>
                                 </div>
                               </div>
                             );

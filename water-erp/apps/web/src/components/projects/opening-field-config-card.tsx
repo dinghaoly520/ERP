@@ -19,7 +19,7 @@ import {
   type OpeningFieldDef,
   type OpeningFieldType,
 } from '@/lib/api/bid';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { OpeningTemplateLibraryDialog } from './opening-template-library-dialog';
 
 type Props = {
@@ -237,8 +237,8 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
                         {TYPE_OPTIONS.find((t) => t.value === f.type)?.label ?? f.type}
                       </span>
                     ) : (
-                      <select
-                        className={`${inputCls} w-24`}
+                      <NeuSelect
+                        className="w-24"
                         value={f.type}
                         disabled={locked}
                         onChange={(e) => updateField(i, { type: e.target.value as OpeningFieldType })}
@@ -248,7 +248,7 @@ export function OpeningFieldConfigCard({ bidProject, onChanged }: Props) {
                             {t.label}
                           </option>
                         ))}
-                      </select>
+                      </NeuSelect>
                     )}
                   </td>
                   <td>

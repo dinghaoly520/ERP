@@ -62,6 +62,7 @@ import { useConfirm } from "@/components/workbench/use-confirm";
 import { apiFetch } from '@/lib/api/api-fetch';
 import { formatWan } from '@/lib/format';
 import { toast } from "sonner";
+import { NeuSelect } from '@/components/workbench';
 
 const accentMap = {
   blue: "rgba(96,139,239,1)",
@@ -228,24 +229,24 @@ function PageHero({
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
-          <select
+          <NeuSelect
             value={sortBy}
             onChange={(e) => onSortChange(e.target.value)}
-            className="workbench-input workbench-input-sm !w-auto min-w-[100px]"
+            className="workbench-input-sm min-w-[100px]"
           >
             <option value="procurementDate">时间</option>
             <option value="amount">金额</option>
-          </select>
+          </NeuSelect>
 
           <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
-          <select
+          <NeuSelect
             value={filters.procurementMethod || ""}
             onChange={(e) => onFilterChange("procurementMethod", e.target.value || null)}
-            className="workbench-input workbench-input-sm !w-auto min-w-[120px]"
+            className="workbench-input-sm min-w-[120px]"
           >
             <option value="">全部方式</option>
             {methods.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
+          </NeuSelect>
 
           {/* 日期区间 + 部门筛选（2026-09-28 审计 P2：后端支持、前端零入口——台账无法按时间段查） */}
           <input
@@ -266,20 +267,20 @@ function PageHero({
             title="采购日期止"
           />
           {departments.length > 0 && (
-            <select
+            <NeuSelect
               value={filters.departmentId || ""}
               onChange={(e) => onFilterChange("departmentId", e.target.value || null)}
-              className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
+              className="workbench-input-sm min-w-[110px]"
               aria-label="部门"
             >
               <option value="">全部部门</option>
               {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            </NeuSelect>
           )}
 
           {/* 状态+类型+回收站 合一（单选收窄，互斥）：cat:=类型项、recycle:=回收站。
               选项按实际使用频率排序：常用在前、罕见审查类状态殿后 */}
-          <select
+          <NeuSelect
             value={filters.recycleStatus === "RECYCLED" ? "recycle:RECYCLED" : filters.category ? `cat:${filters.category}` : filters.resultStatus || ""}
             onChange={(e) => {
               const v = e.target.value;
@@ -291,7 +292,7 @@ function PageHero({
               else if (v.startsWith("recycle:")) onFilterChange("recycleStatus", "RECYCLED");
               else onFilterChange("resultStatus", v as ResultStatusKey);
             }}
-            className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
+            className="workbench-input-sm min-w-[110px]"
           >
             <option value="">全部</option>
             <option value="AWARDED">已成交</option>
@@ -303,7 +304,7 @@ function PageHero({
               <option key={k} value={k}>{RESULT_STATUS_CONFIG[k].label}</option>
             ))}
             <option value="recycle:RECYCLED">回收站</option>
-          </select>
+          </NeuSelect>
         </div>
       </div>
     </>

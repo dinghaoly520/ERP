@@ -37,6 +37,7 @@ import type { FieldCandidate, ProjectManagementItem } from "@/lib/types/project-
 import { ANNOUNCEMENT_TYPE_LABELS } from "@water-erp/shared";
 import { PurchaserPickerDialog } from "./purchaser-picker-dialog";
 import { fetchCurrentUser } from "@/lib/api/auth";
+import { NeuSelect } from '@/components/workbench';
 
 /** 公示载体公告类型 → 中文名（publicity-status.announcement.type 展示用；系统实际只有中标公告一轨） */
 /** 公示载体类型名——用 shared 单一来源标签表（2026-11-09：本地残缺映射致存量
@@ -763,16 +764,16 @@ export function NotificationLetterDialog({
                         {/* Select dropdown */}
                         {field.type === "select" ? (
                           <div className="relative mt-2">
-                            <select
+                            <NeuSelect
                               value={draft[field.key]}
                               onChange={(e) => handleFieldChange(field.key, e.target.value)}
-                              className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
+                              className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
                             >
                               <option value="" disabled>请选择</option>
                               {field.options!.map((opt) => (
                                 <option key={opt} value={opt}>{opt}</option>
                               ))}
-                            </select>
+                            </NeuSelect>
                             <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
                               <svg className="h-4 w-4 text-[color:var(--muted-foreground)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

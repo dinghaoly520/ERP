@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
 import { updatePriceConfig, type BidProjectDetail } from "@/lib/api/bid";
+import { NeuSelect } from '@/components/workbench';
 
 const EVAL_METHOD_OPTIONS: { value: string; label: string; hint: string }[] = [
   { value: "comprehensive", label: "综合评估法", hint: "资格+符合性+商务+技术+价格" },
@@ -265,15 +266,15 @@ export function EvaluationBasisFields({
               </span>
             )}
           </span>
-          <select
+          <NeuSelect
             value={evaluationMethod} onChange={(e) => onMethodChange(e.target.value)}
             disabled={softLocked}
-            className="workbench-input mt-1 w-full !text-[13px]"
+            className="mt-1 w-full !text-[13px]"
           >
             {EVAL_METHOD_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}（{o.hint}）</option>
             ))}
-          </select>
+          </NeuSelect>
         </label>
         {formulaVisible && (
           <label className="block text-xs text-[var(--muted-foreground)]">
@@ -286,15 +287,15 @@ export function EvaluationBasisFields({
                 </span>
               ) : null; })()}
             </span>
-            <select
+            <NeuSelect
               value={formulaCalc} onChange={(e) => setFormulaCalc(e.target.value)}
               disabled={softLocked}
-              className="workbench-input mt-1 w-full !text-[13px]"
+              className="mt-1 w-full !text-[13px]"
             >
               {PRICE_CALC_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}（{o.hint}）</option>
               ))}
-            </select>
+            </NeuSelect>
           </label>
         )}
       </div>

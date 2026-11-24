@@ -53,6 +53,7 @@ import { checkSupplierChange } from "@/lib/api/project-management";
 import { getSupplierList } from "@/lib/api/supplier";
 import { confirmDialog } from "@/components/catalog/confirm-dialog";
 import { tenderDraftStorageKey } from "@/lib/tender-write/storage";
+import { NeuSelect } from '@/components/workbench';
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -451,10 +452,10 @@ function AnnouncementFieldEditor({
 
       {field.select ? (
         <div className="relative mt-2">
-          <select
+          <NeuSelect
             value={value}
             onChange={(e) => onChange(field.key, e.target.value)}
-            className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
+            className="w-full appearance-none rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 pr-10 text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] focus:shadow-[0_0_0_4px_rgba(113,152,242,0.08)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
           >
             <option value="" disabled>
               请选择
@@ -464,7 +465,7 @@ function AnnouncementFieldEditor({
                 {opt.label}
               </option>
             ))}
-          </select>
+          </NeuSelect>
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-4">
             <svg className="h-4 w-4 text-[color:var(--muted-foreground)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -619,7 +620,7 @@ function AnnouncementFieldEditor({
             const startVal = (draftRecord[field.key] ?? '').trim();
             const base = /^\d{4}-\d{2}-\d{2}/.test(startVal) ? `${startVal.length <= 10 ? `${startVal}T00:00` : startVal}` : '';
             return (
-              <select
+              <NeuSelect
                 aria-label="公示期限天数快捷选择"
                 value=""
                 disabled={!base}
@@ -629,13 +630,13 @@ function AnnouncementFieldEditor({
                   if (!days || !base) return;
                   onChange(field.rangeEndKey!, plusDaysIso(base, days));
                 }}
-                className="shrink-0 cursor-pointer rounded-[10px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.45)] px-2 py-1.5 text-xs font-semibold text-[color:var(--foreground)] outline-none transition-colors hover:border-[rgba(107,149,240,0.4)] disabled:cursor-not-allowed disabled:opacity-45"
+                className="shrink-0 rounded-[10px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.45)] px-2 py-1.5 font-semibold text-[color:var(--foreground)] outline-none transition-colors hover:border-[rgba(107,149,240,0.4)] disabled:cursor-not-allowed disabled:opacity-45"
               >
                 <option value="">+N天</option>
                 {PUBLICITY_QUICK_DAYS.map((n) => (
                   <option key={n} value={n}>{`${n}天`}</option>
                 ))}
-              </select>
+              </NeuSelect>
             );
           })()}
         </div>

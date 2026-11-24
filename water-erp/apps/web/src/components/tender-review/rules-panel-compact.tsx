@@ -20,7 +20,7 @@ import {
 import { fetchRules, extractRules, getExtractionTask, findActiveExtraction, deleteRule, updateRule, createRuleLegacy } from '@/lib/api/rules';
 import type { ComplianceRule, RuleType, Severity } from '@/lib/types/tender-review';
 import { RULE_TYPE_LABELS, SEVERITY_LABELS, SEVERITY_COLORS } from '@/lib/types/tender-review';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
 /** 规则表单枚举域（2026-11-19 审查 #13）：自 @water-erp/shared 单源——
@@ -188,27 +188,27 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
 
         <div>
           <label className="block text-xs text-[var(--muted-foreground)] mb-1">严重程度</label>
-          <select
+          <NeuSelect
             value={draft.severity}
             onChange={(e) => patch({ severity: e.target.value })}
-            className="workbench-input w-full"
+            className="w-full"
           >
             {opts(RULE_SEVERITIES, draft.severity).map((v) => (
               <option key={v} value={v}>{(SEVERITY_LABELS as Record<string, string>)[v] ?? v}</option>
             ))}
-          </select>
+          </NeuSelect>
         </div>
         <div>
           <label className="block text-xs text-[var(--muted-foreground)] mb-1">规则类型</label>
-          <select
+          <NeuSelect
             value={draft.ruleType}
             onChange={(e) => patch({ ruleType: e.target.value as RuleType })}
-            className="workbench-input w-full"
+            className="w-full"
           >
             <option value="numeric_compare">数值比较</option>
             <option value="existence_check">存在性检查</option>
             <option value="semantic">语义判定</option>
-          </select>
+          </NeuSelect>
         </div>
       </div>
 
@@ -228,13 +228,13 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
               {/* 字段名=封闭下拉（2026-11-19）：执行器按 fields[field] 精确键名匹配、
                   无别名映射——自由文本拼错=每次审查静默「数据缺失」；中文标签+绑定
                   单位联动，词表外存量值追加为选项原样保留（#6 惯例） */}
-              <select
+              <NeuSelect
                 value={l.field ?? ''}
                 onChange={(e) => {
                   const bound = RULE_NUMERIC_FIELDS.find((f) => f.value === e.target.value);
                   patchLogic(bound ? { field: e.target.value, unit: bound.unit } : { field: e.target.value });
                 }}
-                className="workbench-input flex-1"
+                className="flex-1"
                 disabled={disabled}
               >
                 {(RULE_NUMERIC_FIELDS.some((f) => f.value === (l.field ?? ''))
@@ -243,28 +243,28 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
                 ).map((f) => (
                   <option key={f.value} value={f.value}>{f.label}</option>
                 ))}
-              </select>
-              <select value={l.operator ?? '>='} onChange={(e) => patchLogic({ operator: e.target.value })}
-                className="workbench-input w-16">
+              </NeuSelect>
+              <NeuSelect value={l.operator ?? '>='} onChange={(e) => patchLogic({ operator: e.target.value })}
+                className="w-16">
                 {opts(RULE_OPERATORS, l.operator ?? '>=').map((op) => (
                   <option key={op} value={op}>{OPERATOR_LABELS[op] ?? op}</option>
                 ))}
-              </select>
+              </NeuSelect>
               <input type="text" value={l.threshold ?? ''} onChange={(e) => patchLogic({ threshold: e.target.value })}
                 className="workbench-input flex-1" readOnly={disabled} placeholder="阈值" inputMode="decimal" />
               {/* 单位随字段锁定：执行比裸数值、unit 不参与运算，自由单位=「看起来对
                   实际差一万倍」；词表外字段（无绑定）保持可改 */}
-              <select
+              <NeuSelect
                 value={l.unit ?? 'cny'}
                 onChange={(e) => patchLogic({ unit: e.target.value })}
-                className="workbench-input w-20"
+                className="w-20"
                 disabled={disabled || RULE_NUMERIC_FIELDS.some((f) => f.value === (l.field ?? ''))}
                 title="单位由所选字段锁定（词表外字段可修改）"
               >
                 {opts(RULE_UNITS.map((u) => u.value), l.unit ?? 'cny').map((v) => (
                   <option key={v} value={v}>{RULE_UNITS.find((u) => u.value === v)?.label ?? v}</option>
                 ))}
-              </select>
+              </NeuSelect>
             </div>
             <p className="text-[10px] leading-relaxed text-[var(--muted-foreground)]">
               字段由系统审查时从上传的采购文件中自动提取；文档未包含该信息时，规则将报告「数据缺失」而非不通过。
@@ -276,15 +276,15 @@ function RuleFormFields({ draft, onChange, disabled, source }: {
           <div className="grid grid-cols-3 gap-x-3 gap-y-2.5">
             <div>
               <label className="block text-xs text-[var(--muted-foreground)] mb-1">检查方式</label>
-              <select
+              <NeuSelect
                 value={l.checkType ?? 'keyword'}
                 onChange={(e) => patchLogic({ checkType: e.target.value })}
-                className="workbench-input w-full"
+                className="w-full"
               >
                 {opts(RULE_CHECK_TYPES, l.checkType ?? 'keyword').map((v) => (
                   <option key={v} value={v}>{CHECK_TYPE_LABELS[v] ?? v}</option>
                 ))}
-              </select>
+              </NeuSelect>
             </div>
             {/* 双侧都驻留 draft（审查 #1）：executor 对 keywords→sectionName 是回退链，
                 只渲染一侧+收割抹掉另一侧=静默废掉规则；生效侧由检查方式决定。

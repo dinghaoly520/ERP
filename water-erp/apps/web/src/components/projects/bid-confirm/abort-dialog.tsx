@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react';
 import { Ban, Loader2, CheckCircle2, AlertTriangle, ArrowRightLeft, Megaphone } from 'lucide-react';
 import { abortBidProject, archiveAll, getNonTenderDeal, registerNonTenderDeal, type NonTenderDealRecord } from '@/lib/api/bid';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 
 type Props = {
   bidProjectId: string;
@@ -182,10 +182,10 @@ export function AbortDialog({ bidProjectId, projectName, projectCode, isOpen, on
                 <ArrowRightLeft size={14} /> 转非招标方式成交登记
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <select value={dealMethod} onChange={e => setDealMethod(e.target.value)}
-                  className="workbench-input text-sm">
+                <NeuSelect value={dealMethod} onChange={e => setDealMethod(e.target.value)}
+                 >
                   {NON_TENDER_METHOD_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
+                </NeuSelect>
                 <input value={dealWinner} onChange={e => setDealWinner(e.target.value)} placeholder="成交供应商名称"
                   className="workbench-input text-sm" />
               </div>

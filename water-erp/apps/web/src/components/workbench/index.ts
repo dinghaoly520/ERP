@@ -5,3 +5,4 @@ export type { AlertSeverity } from './alert-banner';
 export { Breadcrumb } from './breadcrumb';
 export { UnifiedHeader } from './unified-header';
 export { Modal } from './modal';
+export { NeuSelect } from './neu-select';

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { listExperts, setExpertAvailability, batchOperation, exportExperts, updateExpertEntryStatus, fetchExpertCompanyCounts, getExpertStatistics, clearExpertRoster } from '@/lib/api/expert';
 import { exportExpertsToExcel } from '@/lib/excel-export';
 import type { ExpertListItem } from '@/lib/api/expert';
-import { Modal, StatusBadge, TableSkeleton } from '@/components/workbench';
+import { Modal, StatusBadge, TableSkeleton, NeuSelect } from '@/components/workbench';
 import { ExpertEvaluationDialog } from '@/components/expert/expert-evaluation-dialog';
 import { ExpertEntryDialog } from '@/components/expert/expert-entry-dialog';
 import { ExpertOperationHistory } from '@/components/expert/expert-operation-history';
@@ -581,7 +581,7 @@ export default function ExpertRepositoryPage() {
           {selectedIds.size === 0 && <span className="text-[11px] text-[var(--muted-foreground)] mr-2">勾选当前页专家或翻页继续选择</span>}
           {selectedIds.size > 0 && (
             <>
-              <select value={batchAction} onChange={e => setBatchAction(e.target.value as any)} className="workbench-input !w-[90px] !h-[30px] text-xs"><option value="disable">批量停用</option><option value="enable">批量启用</option></select>
+              <NeuSelect value={batchAction} onChange={e => setBatchAction(e.target.value as any)} className="!w-[90px] !h-[30px]"><option value="disable">批量停用</option><option value="enable">批量启用</option></NeuSelect>
               {batchAction === 'disable' && <input value={batchReason} onChange={e => setBatchReason(e.target.value)} placeholder="停用原因" className="workbench-input !w-[140px] !h-[30px] text-xs" />}
               <button onClick={() => setConfirmBatch(true)} disabled={batchSaving} className="neu-btn-xs is-warning">{batchSaving ? '处理中...' : '执行'}</button>
             </>

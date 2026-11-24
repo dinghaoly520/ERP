@@ -17,7 +17,7 @@ import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidPr
 import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, ChevronRight, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
@@ -2186,10 +2186,10 @@ export function SupplierSelectionPage({
               <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-strong)]">{METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}</span>
             </div>
           ) : (
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} className="workbench-input w-full text-sm">
+            <NeuSelect value={projectId} onChange={e => setProjectId(e.target.value)} className="w-full">
               <option value="">不关联项目</option>
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </NeuSelect>
           )}
 
           {/* 选取方式（2026-11-18 用户裁定）：仅直接采购分「智能推荐 / 手动选择」两模式；
@@ -2279,9 +2279,9 @@ export function SupplierSelectionPage({
           <div className="flex items-center justify-end gap-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-[var(--muted-foreground)]">
               <span>推荐</span>
-              <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input !w-[60px] text-xs !h-7">
+              <NeuSelect value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="!w-[60px] !h-7">
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
+              </NeuSelect>
               <span>家供应商</span>
             </div>
             <button onClick={run} disabled={loading || selectedTags.length === 0} title={selectedTags.length === 0 ? '请先选择业务标签（必选）' : undefined} className="neu-btn-primary gap-2">

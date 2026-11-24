@@ -15,7 +15,7 @@ import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/li
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
-import { StatusBadge } from '@/components/workbench';
+import { StatusBadge, NeuSelect } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ArrowLeft, Pencil, X, EyeOff, Eye, Lock, Megaphone, Upload, Sparkles, Clock } from 'lucide-react';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -665,12 +665,12 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">类型</label>
-            <select value={type} onChange={e => onTypeChange(e.target.value as AnnouncementType)} className="neu-input" disabled>
+            <NeuSelect value={type} onChange={e => onTypeChange(e.target.value as AnnouncementType)} disabled>
               {/* 2026-10-23 用户裁定：合同/履行结果公告由合同与履约流程自动生成（contract.service/
                   project-management.service），不提供手工发布/转入入口——类型选项剔除；已是该类的
                   存量公告保留自身选项（仅展示，防下拉值悬空），但不可被其它公告切换进去 */}
               {((Object.keys(typeLabel) as AnnouncementType[]).filter(t => !['CONTRACT_NOTICE', 'PERFORMANCE_NOTICE'].includes(t) || t === type).sort((a, b) => ANNOUNCEMENT_TYPE_ORDER.indexOf(a) - ANNOUNCEMENT_TYPE_ORDER.indexOf(b))).map(t => <option key={t} value={t}>{typeLabel[t]}</option>)}
-            </select>
+            </NeuSelect>
           </div>
           <div>
             <label className="block text-xs font-semibold text-[var(--muted-foreground)] mb-1.5">状态</label>

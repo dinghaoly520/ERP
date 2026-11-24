@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { CopyIconButton } from '@/components/copy-icon-button';
 import { getExpertPortrait, getExpertEvaluations, getViolations, addViolation, proxyMarkExpertInvitation, updateExpertProfile, getRiskBrief, type ExpertPortrait, type ExpertRiskBrief, revealExpertField } from '@/lib/api/expert';
-import { Modal, AlertBanner, StatusBadge } from '@/components/workbench';
+import { Modal, AlertBanner, StatusBadge, NeuSelect } from '@/components/workbench';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 import { EXPERT_TITLES, EXPERT_QUALIFICATIONS } from '@/lib/expert-standard-options';
 import { listSpecialties } from '@/lib/api/expert';
@@ -901,7 +901,7 @@ export default function ExpertDetailPage() {
             <div className="neu-table-card p-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">违规类型</span><input value={vioType} onChange={e => setVioType(e.target.value)} placeholder="如 迟到、泄密、受贿" className="workbench-input" /></label>
-                <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">严重程度</span><select value={vioSeverity} onChange={e => setVioSeverity(e.target.value as any)} className="workbench-input"><option value="warning">警告</option><option value="danger">严重</option></select></label>
+                <label className="space-y-1"><span className="text-xs font-semibold text-[var(--muted-foreground)]">严重程度</span><NeuSelect value={vioSeverity} onChange={e => setVioSeverity(e.target.value as any)}><option value="warning">警告</option><option value="danger">严重</option></NeuSelect></label>
               </div>
               <label className="space-y-1 block"><span className="text-xs font-semibold text-[var(--muted-foreground)]">详情</span><textarea value={vioDetail} onChange={e => setVioDetail(e.target.value)} placeholder="详细描述违规事项..." className="neu-input text-sm w-full" rows={2} /></label>
               <div className="flex justify-end gap-2">
@@ -1055,10 +1055,10 @@ export default function ExpertDetailPage() {
                 </label>
                 <label className="space-y-1 block">
                   <span className="text-xs font-semibold text-[var(--muted-foreground)]">库内等级<span className="ml-1 text-[10px] font-normal opacity-70">清空保存即清除</span></span>
-                  <select value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} className="workbench-input" title="专家库档案等级（区别于履职评价等级），抽取配额可按此过滤">
+                  <NeuSelect value={editForm.expertLevel} onChange={e => setEditForm(prev => ({ ...prev, expertLevel: e.target.value }))} title="专家库档案等级（区别于履职评价等级），抽取配额可按此过滤">
                     <option value="">未设置</option>
                     {(['A', 'B', 'C', 'D', 'E'] as const).map(l => <option key={l} value={l}>{l} 级</option>)}
-                  </select>
+                  </NeuSelect>
                 </label>
               </div>
             </section>

@@ -21,6 +21,7 @@ import { DeletionRecordList } from './deletion-record-list';
 import { useAssistant } from "@/components/assistant/assistant-provider";
 import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from "@/components/company/company-select";
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from "@/components/company/company-tag";
+import { NeuSelect } from '@/components/workbench';
 
 export function ProjectManagementPage() {
   const [items, setItems] = useState<ProjectManagementItem[]>([]);
@@ -350,34 +351,34 @@ export function ProjectManagementPage() {
                   </button>
                 </div>
                 <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
-                <select
+                <NeuSelect
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                  className="workbench-input workbench-input-sm !w-auto min-w-[110px]"
+                  className="workbench-input-sm min-w-[110px]"
                 >
                   <option value="updatedAt">最近更新</option>
                   <option value="createdAt">最近创建</option>
                   <option value="budgetAmount">预算金额</option>
                   <option value="title">项目名称</option>
-                </select>
+                </NeuSelect>
                 <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
-                <select
+                <NeuSelect
                   value={filterType}
                   onChange={(e) => { setFilterType(e.target.value as typeof filterType); setFilterValue(''); }}
-                  className="workbench-input workbench-input-sm !w-auto min-w-[100px]"
+                  className="workbench-input-sm min-w-[100px]"
                 >
                   <option value="method">采购方式</option>
                   <option value="department">申请部门</option>
                   <option value="operator">经办人</option>
-                </select>
-                <select
+                </NeuSelect>
+                <NeuSelect
                   value={filterValue}
                   onChange={(e) => setFilterValue(e.target.value)}
-                  className="workbench-input workbench-input-sm !w-auto min-w-[130px]"
+                  className="workbench-input-sm min-w-[130px]"
                 >
                   <option value="">全部</option>
                   {filterOptions.map((v) => <option key={v} value={v ?? ''}>{v}</option>)}
-                </select>
+                </NeuSelect>
               </div>
           </div>
 

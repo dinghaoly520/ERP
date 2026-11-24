@@ -7,7 +7,7 @@ import {
   getEvaluationProjects, getEvaluationProjectDetail, analyzeExpertBehavior,
 } from '@/lib/api/expert';
 import type { ExpertListItem, ExpertEvaluationProject, EvaluationProjectDetail, ExpertBehaviorAnalysis } from '@/lib/api/expert';
-import { StatusBadge, Modal } from '@/components/workbench';
+import { StatusBadge, Modal, NeuSelect } from '@/components/workbench';
 import { Sparkles, Loader2, Brain, FileSearch, TrendingUp, TrendingDown } from 'lucide-react';
 import { LEVEL_LABEL, LEVEL_WEIGHT, STAGE_LABEL } from '@water-erp/shared';
 
@@ -188,14 +188,14 @@ export function ExpertEvaluationDialog({
           <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs text-[var(--warning)]">该专家尚未参与任何评审项目，无法发起履职评价</div>
         ) : (
           <div className="flex items-center gap-2">
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm flex-1 min-w-0">
+            <NeuSelect value={projectId} onChange={e => setProjectId(e.target.value)} className="flex-1 min-w-0">
               <option value="">请选择本次评价对应的评审项目（{projects.length} 个真实参评记录）</option>
               {projects.map(p => (
                 <option key={p.projectId} value={p.projectId}>
                   {p.project.name}（{STAGE_LABEL[p.project.stage] ?? p.project.stage} · {participationLabel(p)}{p.expertRole === '候补' ? ' · 候补' : ''}{p.resultsGenerated ? ' · 已出评标结果' : ''}）
                 </option>
               ))}
-            </select>
+            </NeuSelect>
             <button
               onClick={() => setResultOpen(true)}
               disabled={!projectId}

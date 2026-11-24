@@ -12,7 +12,7 @@ import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNo
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
-import { StatusBadge, Modal } from '@/components/workbench';
+import { StatusBadge, Modal, NeuSelect } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
@@ -142,16 +142,16 @@ function NotifyKeywordsEditor({ openTimeDate, openTimeTime, onOpenTimeChange, ke
         </span>
         {usePlaceDropdown ? (
           <div className="flex flex-col gap-1.5">
-            <select
+            <NeuSelect
               value={placeInList ? keywords.openLocation.trim() : '__custom__'}
               onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value === '__custom__' ? '' : e.target.value })}
-              className="neu-input text-sm w-full"
+              className="w-full"
             >
               {placeChoices.map(p => <option key={p} value={p}>{p}</option>)}
               <option value="__custom__">
                 {placeInList ? '自定义地点…' : keywords.openLocation.trim() ? `自定义：${keywords.openLocation.trim().slice(0, 18)}${keywords.openLocation.trim().length > 18 ? '…' : ''}` : '自定义地点…'}
               </option>
-            </select>
+            </NeuSelect>
             {!placeInList && (
               <input value={keywords.openLocation}
                 onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value })}
@@ -2199,7 +2199,7 @@ export function ExpertExtractPage({
                     {projects.length === 0 ? (
                       <div className="neu-input text-sm w-full flex items-center justify-center py-3 text-[var(--muted-foreground)]">暂无采购项目，请先在开评标管理端创建，或切换到「自定义项目」</div>
                     ) : (
-                      <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm max-w-[600px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
+                      <NeuSelect value={pid} onChange={e => setPid(e.target.value)} className="max-w-[600px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</NeuSelect>
                     )}
                   </div>
                 )}
@@ -3312,10 +3312,10 @@ export function ExpertExtractPage({
                           </td>
                           {/* A-132：评审分组（「不设置」= 本次不提交该项；「清除」= 置空已保存分组） */}
                           <td className="text-center">
-                            <select
+                            <NeuSelect
                               value={committeeDraft[e.userId]?.reviewGroup ?? ''}
                               onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: ev.target.value, dutyRole: prev[e.userId]?.dutyRole ?? '' } }))}
-                              className="neu-input !h-[30px] !w-[96px] !px-2 text-xs"
+                              className="!h-[30px] !w-[96px] !px-2"
                               title="评审分组（技术组/商务组/综合组）；「不设置」＝ 本次不提交该项（保留现值）；「清除」＝ 置空已保存分组"
                             >
                               <option value="">不设置</option>
@@ -3323,14 +3323,14 @@ export function ExpertExtractPage({
                               <option value="技术组">技术组</option>
                               <option value="商务组">商务组</option>
                               <option value="综合组">综合组</option>
-                            </select>
+                            </NeuSelect>
                           </td>
                           {/* A-132：组内职责（组长另由 isLead 表达，不在此列；「清除」= 置空已保存职责） */}
                           <td className="text-center">
-                            <select
+                            <NeuSelect
                               value={committeeDraft[e.userId]?.dutyRole ?? ''}
                               onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: prev[e.userId]?.reviewGroup ?? '', dutyRole: ev.target.value } }))}
-                              className="neu-input !h-[30px] !w-[80px] !px-2 text-xs"
+                              className="!h-[30px] !w-[80px] !px-2"
                               title="组内职责（主审/复核/成员）；「不设置」＝ 本次不提交该项（保留现值）；「清除」＝ 置空已保存职责"
                             >
                               <option value="">不设置</option>
@@ -3338,7 +3338,7 @@ export function ExpertExtractPage({
                               <option value="主审">主审</option>
                               <option value="复核">复核</option>
                               <option value="成员">成员</option>
-                            </select>
+                            </NeuSelect>
                           </td>
                           {selectingLeader && (
                             <td className="text-center">
