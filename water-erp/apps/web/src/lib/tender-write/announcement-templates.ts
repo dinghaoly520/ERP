@@ -32,11 +32,15 @@ export function getAnnouncementLabel(
   const tenderLabel = tenderMeta?.label ?? "";
 
   if (category === "procurement_document") {
+    // 名称统一（2026-11-24 用户裁定）：招标两方式用法定名，其余四方式一律「X采购公告」
+    // ——谈判此前落兜底 `${tenderLabel}公告`=「谈判文件公告」（tenderLabel 是采购文件名），
+    // 与后端导出 typeLabel（tender-write.service.ts）对齐
     if (tenderType === "INVITED_BIDDING") return "邀请招标公告";
     if (tenderType === "PUBLIC_BIDDING") return "招标公告";
     if (tenderType === "INTERNAL_BIDDING") return "竞价采购公告";
     if (tenderType === "SINGLE_SOURCE") return "直接采购公告";
     if (tenderType === "INQUIRY_PURCHASE") return "询比采购公告";
+    if (tenderType === "COMPETITIVE_NEGOTIATION") return "谈判采购公告";
   }
   if (category === "failed_bid") return "流标公告";
   if (category === "winning_bid") return "中标公告";
