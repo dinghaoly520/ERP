@@ -525,10 +525,10 @@ const SCHEDULE_PAST_TOLERANCE_MS = 3 * 60 * 60 * 1000;
 
 /** 校正定时时刻：缺失/未来/3 小时内过去原样返回；更早的过去值 → 当前时间
  *  （datetime-local 本地格式）。naive 值按 +08:00 解释（与后端 scheduled-publish.util 同口径）。 */
-function healedScheduleTime(raw: string): { value: string; corrected: boolean } {
+function healedScheduleTime(raw: string, toleranceMs: number = SCHEDULE_PAST_TOLERANCE_MS): { value: string; corrected: boolean } {
   if (!raw) return { value: raw, corrected: false };
   const t = new Date(`${raw}+08:00`).getTime();
-  if (Number.isNaN(t) || t >= Date.now() - SCHEDULE_PAST_TOLERANCE_MS) return { value: raw, corrected: false };
+  if (Number.isNaN(t) || t >= Date.now() - toleranceMs) return { value: raw, corrected: false };
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   return { value: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`, corrected: true };
@@ -1174,9 +1174,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('请选择定时发布时间');
       return;
     }
-    // 陈旧定时时刻（早于此刻 3 小时以上）不报错——发布时刻自动校正为当前时间
-    if (healedScheduleTime(scheduleTimeOf()).corrected) {
-      toast.info('定时发布时间已按当前时间校正（原定时刻早于当前时间 3 小时以上）');
+    // 定时时刻已过即校正为当前（不报错；3 小时容忍只属公示起字段——调度时刻带过去值会闪「定时未生效」）
+    if (healedScheduleTime(scheduleTimeOf(), 0).corrected) {
+      toast.info('定时发布时间已过——将按当前时间于下一分钟内发布');
     }
     // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
     // 采购公告——「采购文件获取时间」退役后公示期限即获取窗口）：四类公告起止都要
@@ -1292,9 +1292,9 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         return;
       }
     }
-    // 陈旧定时时刻（早于此刻 3 小时以上）不报错——发布时刻自动校正为当前时间（2026-11-24 用户裁定）
-    if (healedScheduleTime(scheduleTimeOf()).corrected) {
-      toast.info('定时发布时间已按当前时间校正（原定时刻早于当前时间 3 小时以上）');
+    // 定时时刻已过即校正为当前（不报错；3 小时容忍只属公示起字段——调度时刻带过去值会闪「定时未生效」）
+    if (healedScheduleTime(scheduleTimeOf(), 0).corrected) {
+      toast.info('定时发布时间已过——将按当前时间于下一分钟内发布');
     }
     // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
     // 采购公告——止点直供公开端显示窗口与供应商下载窗口，缺失即无从起算）：四类公告起止都要
@@ -1385,7 +1385,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         ? scheduledDate
         : publishTiming === 'announcement_start'
           ? (finalDraft as Record<string, string>).announcementStart
-          : '');
+          : '', 0);
       if (publishTiming !== 'now' && healedSchedule.value) meta.scheduledPublishDate = healedSchedule.value;
       meta.notifyOnPublish = notifyOnPublish;
       // 阳光采购平台同步快照（2026-09-24）：按接口文档 V2.0.5 组织，供后端推送链路消费；
