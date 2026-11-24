@@ -610,12 +610,13 @@ function ParticipantsModal({ announcement, onClose }: { announcement: Announceme
   const pct = result && result.stats.total > 0 ? Math.round((result.stats.submitted / result.stats.total) * 100) : 0;
   const downloadCount = result?.suppliers.filter(s => s.downloadCount > 0).length ?? 0;
 
-  // 2026-11-24 用户裁定：弹窗不显示标题（「投标情况」+ 公告名）——头部仅保留右上角关闭钮
+  // 2026-11-24 用户裁定：弹窗只保留「投标情况」标题，不再显示公告名副标题
   return (
     <Modal
       open
       onClose={onClose}
       size="3xl"
+      title="投标情况"
     >
       {loading ? (
         <div className="flex flex-col items-center gap-3 py-12">
