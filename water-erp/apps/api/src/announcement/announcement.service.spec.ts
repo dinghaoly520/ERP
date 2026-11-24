@@ -1398,7 +1398,7 @@ describe('AnnouncementService — 直接采购公告发布不提前回填中标�
   });
 });
 
-describe('AnnouncementService — BID_NOTICE 公示止点兜底取公示期限（止）（2026-11-24，SWHI-GK-2026112002 实录）', () => {
+describe('AnnouncementService — 公示止点一律按实际填写（2026-11-24 用户裁定「不允许强加 3 天」；SWHI-GK-2026112002 实录）', () => {
   // 固定发布时刻：生产实录 11-20 发布，旧 +3 天兜底 11-23 到期 → 11-24 公开端误显「公示期满」
   const publishDate = new Date('2026-11-20T06:00:00.000Z');
 
@@ -1445,7 +1445,7 @@ describe('AnnouncementService — BID_NOTICE 公示止点兜底取公示期限�
     expect((write[0].data.publicityEnd as Date).getTime()).toBe(new Date('2026-12-10T23:59+08:00').getTime());
   });
 
-  it('metadata.announcementEnd 缺失/无效/不晚于发布时刻 → 维持 +3 天旧兜底（2026-09-09 口径）', async () => {
+  it('metadata.announcementEnd 缺失 → 不再强加 +3 天：不设止点（publicityEnd 保持 null，永不下线）', async () => {
     const row = {
       id: 'a2', type: 'BID_NOTICE', status: 'PUBLISHED', publishDate,
       publicityEnd: null, relatedProjectCode: null, metadata: {}, authorId: 'u1',
@@ -1457,9 +1457,8 @@ describe('AnnouncementService — BID_NOTICE 公示止点兜底取公示期限�
       publishDate: publishDate.toISOString(), metadata: {},
     } as any);
 
-    const write = publicityWrite(prisma);
-    expect(write).toBeTruthy();
-    expect((write[0].data.publicityEnd as Date).getTime()).toBe(new Date('2026-11-23T06:00:00.000Z').getTime());
+    // 2026-11-24 用户裁定「不允许强加为 3 天」：未填写 → 不写止点
+    expect(publicityWrite(prisma)).toBeFalsy();
   });
 
   it('update 草稿转发布（定时发布链路）：草稿 metadata.announcementEnd 保留并派生止点', async () => {
@@ -1476,6 +1475,41 @@ describe('AnnouncementService — BID_NOTICE 公示止点兜底取公示期限�
     const write = publicityWrite(prisma);
     expect(write).toBeTruthy();
     expect((write[0].data.publicityEnd as Date).getTime()).toBe(new Date(`${endStr}+08:00`).getTime());
+  });
+
+  it('WIN_NOTICE（GB/T 7.5.2 法定轨，无填写面）未填写 → 维持三个日历日（confirmWinnerNotice 对 null 恒判「未满」，死锁防御）', async () => {
+    const row = {
+      id: 'a4', type: 'WIN_NOTICE', status: 'PUBLISHED', publishDate,
+      publicityEnd: null, relatedProjectCode: null, metadata: {}, authorId: 'u1',
+    };
+    const { service, prisma } = mkSvc(row);
+
+    await service.create({
+      title: '成交公告', content: 'c', type: 'WIN_NOTICE', status: 'PUBLISHED',
+      publishDate: publishDate.toISOString(), metadata: {},
+    } as any);
+
+    const write = publicityWrite(prisma);
+    expect(write).toBeTruthy();
+    expect((write[0].data.publicityEnd as Date).getTime()).toBe(new Date('2026-11-23T06:00:00.000Z').getTime());
+  });
+
+  it('WIN_NOTICE 填写了公示期限（止）→ 按实际填写，不用法定缺省', async () => {
+    const row = {
+      id: 'a5', type: 'WIN_NOTICE', status: 'PUBLISHED', publishDate,
+      publicityEnd: null, relatedProjectCode: null,
+      metadata: { announcementEnd: '2026-12-05T17:00' }, authorId: 'u1',
+    };
+    const { service, prisma } = mkSvc(row);
+
+    await service.create({
+      title: '成交公告', content: 'c', type: 'WIN_NOTICE', status: 'PUBLISHED',
+      publishDate: publishDate.toISOString(), metadata: { announcementEnd: '2026-12-05T17:00' },
+    } as any);
+
+    const write = publicityWrite(prisma);
+    expect(write).toBeTruthy();
+    expect((write[0].data.publicityEnd as Date).getTime()).toBe(new Date('2026-12-05T17:00+08:00').getTime());
   });
 });
 
