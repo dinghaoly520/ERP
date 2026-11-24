@@ -7,7 +7,7 @@
  * 前缀入库——正则漏词致剥离 no-op；读端展示侧亦统一过本工具兜底）。
  */
 const ANNOUNCEMENT_TITLE_PREFIX_RE =
-  /^(?:单源直接采购公告|直接采购公告|谈判文件公告|谈判采购公告|竞价采购公告|询比采购公告|邀请招标公告|招标公告|采购公告|中标结果公示|中标公示|预成交公示|成交公告|中标公告|流标公告|合同公告|履约公告)\s*[—\-–·]\s*/;
+  /^(?:单源直接采购公告|直接采购公告|谈判文件公告|谈判采购公告|竞价采购公告|询比采购公告|邀请招标公告|公开招标公告|招标公告|采购公告|中标结果公示|中标公示|预成交公示|成交公告|中标公告|流标公告|合同公告|履约公告)\s*[—\-–·]\s*/;
 
 export function stripAnnouncementTitlePrefix(title: string): string {
   return title.replace(ANNOUNCEMENT_TITLE_PREFIX_RE, '').trim() || title;

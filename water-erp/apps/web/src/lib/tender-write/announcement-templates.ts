@@ -36,7 +36,9 @@ export function getAnnouncementLabel(
     // ——谈判此前落兜底 `${tenderLabel}公告`=「谈判文件公告」（tenderLabel 是采购文件名），
     // 与后端导出 typeLabel（tender-write.service.ts）对齐
     if (tenderType === "INVITED_BIDDING") return "邀请招标公告";
-    if (tenderType === "PUBLIC_BIDDING") return "招标公告";
+    // 公开招标（2026-11-24 用户裁定）：公告名称改「公开招标公告」（与「邀请招标公告」对仗）；
+    // docx 文书内部标题仍「招标公告」法定口吻（2026-11-20 裁定，两面对象不同）
+    if (tenderType === "PUBLIC_BIDDING") return "公开招标公告";
     if (tenderType === "INTERNAL_BIDDING") return "竞价采购公告";
     if (tenderType === "SINGLE_SOURCE") return "直接采购公告";
     if (tenderType === "INQUIRY_PURCHASE") return "询比采购公告";

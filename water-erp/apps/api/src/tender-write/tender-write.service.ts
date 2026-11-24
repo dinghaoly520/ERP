@@ -514,7 +514,9 @@ export class TenderWriteService {
           draft as Record<string, string>,
           { scheduleLabelNo: '4' },
         );
-        typeLabel = '招标公告';
+        // 公告名称「公开招标公告」（2026-11-24 用户裁定，导出文件名同款）；docx 文书
+        // 内部标题仍「招标公告」法定口吻（2026-11-20 裁定）——两面对象不同
+        typeLabel = '公开招标公告';
       } else {
         // INVITED_BIDDING/SINGLE_SOURCE 已被上方硬闸拦截，此处不可达（保留兜底防枚举漂移）
         templatePath = path.resolve(
