@@ -330,7 +330,7 @@ export class AnnouncementController {
     // 编辑前快照：判定状态流转与变更字段
     const before = await this.announcementService.get(id);
     const scope = await this.companyScope.resolveScope(req.user);
-    const result = await this.announcementService.update(id, dto, scope);
+    const result = await this.announcementService.update(id, dto, scope, req.user?.sub);
     const changedFields = Object.keys(dto).filter(
       (k) => (dto as any)[k] !== undefined && (dto as any)[k] !== (before as any)[k],
     );

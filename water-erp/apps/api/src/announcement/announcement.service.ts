@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { assertBidNoticeTiming } from '../bid/bid-timing-rules';
 import { parseFlexibleDate } from '../common/parse-date.util';
 import { joinSoftWrappedPlainText } from '../tender-write/announcement-content-html.util';
@@ -123,6 +123,10 @@ export class AnnouncementService {
     // 本次提交是否形成「待发定时草稿」（DRAFT + 定时时刻）——与即时发布同受待发互斥闸与盖章版预检
     const becomesPendingScheduled = isPendingScheduledDraft({ status, metadata: dto.metadata });
 
+    // 项目归属校验（2026-11-24 用户裁定）——置于一切之前：有副作用的闸（赋码自愈、终止闸的回收）
+    // 与建行都不得发生。存草稿时就拦，经办人立刻知道。
+    await this.assertMayPublishForProject(dto.relatedProjectCode, authorId, scope);
+
     // 终止项目发布闸（2026-11-16 用户裁定，同 update 路径）：即时发布关联已终止项目——
     // 置于建行之前拒绝、不留孤儿公告（同 W2/T4 预检口径）
     if (status === 'PUBLISHED' && await this.isLinkedProjectTerminated(dto.relatedProjectCode)) {
@@ -191,12 +195,13 @@ export class AnnouncementService {
 
     // 待发定时草稿互斥（2026-11-24 用户裁定）：本次发布是即时发布或形成定时草稿时，同项目
     // 同类型不得另有待发定时草稿——默认 409 拒绝；仅经办人在向导确认替换时携清单放行并替换。
-    const toSupersede = status === 'PUBLISHED' || becomesPendingScheduled
-      ? await this.resolvePendingScheduledDuplicates(
-          { type: dto.type, relatedProjectCode: dto.relatedProjectCode, metadata: dto.metadata },
-          { confirmedSupersedeIds: dto.supersedePendingScheduledIds, scope },
-        )
-      : [];
+    // 查互斥与建行在同一事务内、先锁项目行（2026-11-24 用户裁定）：「先查后建」两步之间会被同时
+    // 到达的同项目请求插队（两台电脑/两个标签页同一瞬间点「确认发布」）——都查到「没有待发」于是
+    // 各建一条。锁住项目行后同项目的建公告请求排队，后到的等前一个提交再查，就能查到它建的那条。
+    const mutexTarget = { type: dto.type, relatedProjectCode: dto.relatedProjectCode, metadata: dto.metadata };
+    const mutexCode = (status === 'PUBLISHED' || becomesPendingScheduled) && scheduledDuplicateKey(mutexTarget)
+      ? dto.relatedProjectCode!.trim()
+      : null;
     const createData: Prisma.AnnouncementUncheckedCreateInput = {
       title: dto.title,
       content: dto.content,
@@ -216,10 +221,25 @@ export class AnnouncementService {
       dataDomain: 'trade',
       ...(dto.metadata !== undefined && { metadata: normalizeScheduledPublishMetadata(dto.metadata) as any }),
     };
-    // 替换建行与旧草稿入回收站同事务；无替换时直接建行
-    const { result, supersededPendingIds } = toSupersede.length > 0
-      ? await this.createSupersedingPendingScheduled(createData, toSupersede, { type: dto.type, relatedProjectCode: dto.relatedProjectCode, metadata: dto.metadata }, authorId, operator)
-      : { result: await this.prisma.announcement.create({ data: createData, include: ANNOUNCEMENT_CREATE_INCLUDE }), supersededPendingIds: [] as string[] };
+    let result;
+    let supersededPendingIds: string[] = [];
+    if (mutexCode) {
+      const locked = await this.runInProjectRowLock(mutexCode, async (tx) => {
+        const toSupersede = await this.resolvePendingScheduledDuplicates(
+          mutexTarget,
+          { confirmedSupersedeIds: dto.supersedePendingScheduledIds, scope, db: tx },
+        );
+        if (toSupersede.length > 0) return this.replacePendingScheduledInTx(tx, createData, toSupersede, authorId, operator);
+        return { result: await tx.announcement.create({ data: createData, include: ANNOUNCEMENT_CREATE_INCLUDE }), superseded: [], operatorName: null as string | null };
+      });
+      result = locked.result;
+      supersededPendingIds = locked.superseded.map((old) => old.id);
+      // 留痕与告知在提交之后（事务回滚时不留孤儿留痕/通知）
+      await this.finishPendingSupersede(locked.superseded, locked.operatorName, authorId, operator);
+    } else {
+      // 没有互斥键（无项目编号的政策/平台通知等）：不存在同项目并发建行，直接建
+      result = await this.prisma.announcement.create({ data: createData, include: ANNOUNCEMENT_CREATE_INCLUDE });
+    }
 
     // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设公示期（登记制路径，
     // publishDate 可回填线下发布日→公示期随之起算）。公示止点一律按实际填写
@@ -803,7 +823,7 @@ export class AnnouncementService {
     }).catch(e => this.logger.warn(`终止发布闸回收留痕失败（不阻塞）: ${(e as Error).message}`));
   }
 
-  async update(id: string, dto: UpdateAnnouncementDto, scope?: CompanyScope) {
+  async update(id: string, dto: UpdateAnnouncementDto, scope?: CompanyScope, actorId?: string) {
     const announcement = await this.prisma.announcement.findUnique({ where: { id } });
     if (!announcement) throw new BadRequestException({ error: '公告不存在', code: 'NOT_FOUND' });
 
@@ -852,6 +872,16 @@ export class AnnouncementService {
     // 能被转发布（生产事故同形：隐藏掉的草稿又被发出去）。回收站里的公告要发须先恢复。
     if (isPublishTransition && (announcement.status === 'HIDDEN' || announcement.status === 'OFFLINE')) {
       throw new ConflictException({ error: '公告已在回收站中，不能发布；如需发布请先从回收站恢复', code: 'ANNOUNCEMENT_IN_RECYCLE' });
+    }
+    // 项目归属校验（2026-11-24 用户裁定，同 create 路径）：本次会发布、或显式带了项目编号（编辑页
+    // 保存恒带）时，按**操作人**（而非草稿作者）校验能否给这个项目发公告——置于终止闸等有副作用的
+    // 闸之前。批量发布只带 status，取库中的项目编号。
+    if (isPublishTransition || dto.relatedProjectCode !== undefined) {
+      await this.assertMayPublishForProject(
+        dto.relatedProjectCode ?? announcement.relatedProjectCode,
+        actorId,
+        scope,
+      );
     }
     // 终止项目发布闸（2026-11-16 用户裁定）：终止后未发布的关联公告不得发布——
     // 直接移入回收站（HIDDEN+recycle 快照+HIDE 历史）并以 409 拒绝发布请求。
@@ -941,12 +971,20 @@ export class AnnouncementService {
     // 待发定时草稿互斥（2026-11-24 用户裁定）：发布转换，或本次保存新进入/改变了待发关系时，同项目
     // 同类型不得另有待发定时草稿。update 路径没有经办人确认替换的入口（发布向导走 create）——一律
     // 409，提示经办人先处理那条公告。定时任务到点发布同走此闸：同键多条时一条都不发。
-    if (isPublishTransition || entersPending) {
+    if (isPublishTransition) {
       await this.resolvePendingScheduledDuplicates(
         { type: effectiveType, relatedProjectCode: effectiveCode, metadata: effectiveMeta },
         { excludeId: id, scope },
       );
     }
+    // 新进入待发（普通草稿存成定时草稿 / 改挂项目后存成定时）：归属校验在前；互斥闸与写入同事务、
+    // 先锁项目行（见下方写入处）——与 create 路径同一临界区，否则「新建」与「存成定时」同时到达仍会
+    // 各自查到「没有待发」而建出两条
+    if (entersPending) {
+      await this.assertMayPublishForProject(effectiveCode, actorId, scope);
+    }
+    // 保存后的互斥键：没有项目编号的公告（政策/平台通知等）不存在「同项目并发建行」，无需加锁
+    const mutexAfterSave = scheduledDuplicateKey({ type: effectiveType, relatedProjectCode: effectiveCode, metadata: effectiveMeta });
 
     let result;
     try {
@@ -956,25 +994,34 @@ export class AnnouncementService {
         dto.publicityEnd,
         dto.publishDate ?? (announcement.publishDate?.toISOString() || undefined),
       );
-      result = await this.prisma.announcement.update({
+      const updateArgs: Prisma.AnnouncementUpdateArgs = {
         where: {
           id,
           ...(isPublishTransition ? { status: { not: 'PUBLISHED' } } : {}),
         },
         data: {
-        ...(dto.title !== undefined && { title: dto.title }),
-        ...(dto.content !== undefined && { content: dto.content }),
-        ...(dto.type !== undefined && { type: dto.type as any }),
-        ...(dto.summary !== undefined && { summary: dto.summary }),
-        ...(aiSummary !== undefined && { aiSummary }),
-        ...(dto.status !== undefined && { status: dto.status as any }),
-        ...(dto.publishDate !== undefined && { publishDate: new Date(dto.publishDate) }),
-        ...(chosenPublicityEnd && { publicityEnd: chosenPublicityEnd }),
-        ...(dto.isTop !== undefined && { isTop: dto.isTop }),
-        ...(dto.relatedProjectCode !== undefined && { relatedProjectCode: dto.relatedProjectCode }),
-        ...(nextMetadata !== undefined && { metadata: normalizeScheduledPublishMetadata(nextMetadata) as any }),
-      },
-    });
+          ...(dto.title !== undefined && { title: dto.title }),
+          ...(dto.content !== undefined && { content: dto.content }),
+          ...(dto.type !== undefined && { type: dto.type as any }),
+          ...(dto.summary !== undefined && { summary: dto.summary }),
+          ...(aiSummary !== undefined && { aiSummary }),
+          ...(dto.status !== undefined && { status: dto.status as any }),
+          ...(dto.publishDate !== undefined && { publishDate: new Date(dto.publishDate) }),
+          ...(chosenPublicityEnd && { publicityEnd: chosenPublicityEnd }),
+          ...(dto.isTop !== undefined && { isTop: dto.isTop }),
+          ...(dto.relatedProjectCode !== undefined && { relatedProjectCode: dto.relatedProjectCode }),
+          ...(nextMetadata !== undefined && { metadata: normalizeScheduledPublishMetadata(nextMetadata) as any }),
+        },
+      };
+      result = entersPending && mutexAfterSave
+        ? await this.runInProjectRowLock(effectiveCode!.trim(), async (tx) => {
+          await this.resolvePendingScheduledDuplicates(
+            { type: effectiveType, relatedProjectCode: effectiveCode, metadata: effectiveMeta },
+            { excludeId: id, scope, db: tx },
+          );
+          return tx.announcement.update(updateArgs);
+        })
+        : await this.prisma.announcement.update(updateArgs);
     } catch (e: any) {
       if (
         isPublishTransition &&
@@ -1761,9 +1808,10 @@ export class AnnouncementService {
    *  且须覆盖全部待发草稿（不做部分替换）。返回经办人确认替换的清单（空 = 无需替换）。 */
   private async resolvePendingScheduledDuplicates(
     target: { type: string; relatedProjectCode?: string | null; metadata?: unknown },
-    opts: { excludeId?: string; confirmedSupersedeIds?: string[]; scope?: CompanyScope } = {},
+    opts: { excludeId?: string; confirmedSupersedeIds?: string[]; scope?: CompanyScope; db?: { announcement: { findMany: (args: any) => Promise<any> } } } = {},
   ): Promise<PendingScheduledDuplicate[]> {
-    const pending = await this.findPendingScheduledDuplicates(target, opts.excludeId);
+    // db：加锁事务内调用时传事务客户端，保证查到的是锁内最新数据
+    const pending = await this.findPendingScheduledDuplicates(target, opts.excludeId, undefined, opts.db);
     // 公司隔离（2026-11-24 审查）：拦截判定看全部同键待发草稿，但只有登录人公司范围内的草稿能被其替换、
     // 在提示中具名——create 是唯一不经 assertAnnouncementScope 的写路径，不收窄则他公司经办人携他公司
     // 草稿 id 即可把它移入回收站，未发布公告的标题也会经提示泄露。
@@ -1793,68 +1841,129 @@ export class AnnouncementService {
     });
   }
 
-  /** 经办人确认替换的落地——与新建同事务：先逐条复核待替换草稿仍是待发（已发布即拒绝：不得在
-   *  已发布公告之上再发一条；已被隐藏/下架 = 他人已处理，跳过），再建新行，最后把旧草稿移入
-   *  回收站并拆定时（恢复后不会重新变成待发草稿）。
-   *  留痕与告知（2026-11-24 用户裁定）：隐藏历史带操作人姓名/IP/浏览器标识（与手动隐藏同口径，
-   *  操作人上下文由控制器传入）；被替换草稿的原作者与替换人不是同一人时，通知原作者（纯告知，
-   *  不占待办——原作者无此事可办）。 */
-  private async createSupersedingPendingScheduled(
+  /** 发布入口的项目归属校验（2026-11-24 用户裁定）：公告与项目只靠编号字符串关联，此前任何内部账号都能
+   *  给他公司的项目编号发布公告（信息发布中心打开一条采购公告草稿、把「项目编号」改成别家的再点发布
+   *  即可）——即时发布会改写他公司投标项目的名称/时间/预算、把公告挂到人家项目下、通知全部供应商，
+   *  且「引用文件须为 03 盖章版」不带引用即可绕过。项目管理里写权限归创建人，公告发布却不设防，
+   *  是公司隔离（2026-08-20）在写侧的缺口。
+   *  放行：管理员（scope.all）；项目创建人（即使已调离公司——创建人对自己的项目一直可写）；项目归属
+   *  公司就是登录人公司；项目无归属公司（历史数据，无人可保护）。编号对不上任何项目也放行（照旧）。
+   *  拒绝：403 COMPANY_SCOPE_FORBIDDEN。无登录人上下文（定时任务等 scope 缺省）不校验。 */
+  private async assertMayPublishForProject(
+    relatedProjectCode: string | null | undefined,
+    actorId: string | undefined,
+    scope: CompanyScope | undefined,
+  ): Promise<void> {
+    const code = relatedProjectCode?.trim();
+    if (!code || !scope || scope.all) return;
+    // 编号优先按立项项目解析（向导传的是立项编号），miss 再按投标项目编号（公告直建回写的编码）
+    const pmi = await this.prisma.projectManagementItem.findUnique({
+      where: { projectCode: code },
+      select: { companyId: true, createdById: true },
+    });
+    const owner: { companyId: string | null; createdById?: string | null } | null = pmi
+      ? pmi
+      : await this.prisma.bidProject.findUnique({ where: { projectCode: code }, select: { companyId: true } });
+    if (!owner || owner.companyId == null) return;
+    if (!!actorId && owner.createdById === actorId) return;
+    if (scope.companyIds.includes(owner.companyId)) return;
+    throw new ForbiddenException({ error: '该项目不属于本公司，不能为其发布公告', code: 'COMPANY_SCOPE_FORBIDDEN' });
+  }
+
+  /** 建公告临界区的项目行锁（2026-11-24 用户裁定）：同项目的建公告请求在此排队。编号先按立项项目、
+   *  miss 再按投标项目（公告直建回写的编码）；都对不上时无行可锁，只靠定时任务的冲突兜底。
+   *  与库内既有 FOR UPDATE 用法同构（开标/评分标准/立项发号），KingBase 与 PostgreSQL 均支持。 */
+  private async lockProjectRowForAnnouncement(tx: Prisma.TransactionClient, code: string): Promise<void> {
+    const pmi = await tx.projectManagementItem.findUnique({ where: { projectCode: code }, select: { id: true } });
+    if (pmi) {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "ProjectManagementItem" WHERE id = ${pmi.id} FOR UPDATE`);
+      return;
+    }
+    const bp = await tx.bidProject.findUnique({ where: { projectCode: code }, select: { id: true } });
+    if (bp) {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM "BidProject" WHERE id = ${bp.id} FOR UPDATE`);
+    }
+  }
+
+  /** 锁项目行后执行临界区（查互斥 + 写入）。锁等待被数据库判为死锁/写冲突（P2034）时转 409 提示重试，
+   *  不裸露 500；事务超时（P2028）由异常过滤器映射。 */
+  private async runInProjectRowLock<T>(code: string, fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await this.lockProjectRowForAnnouncement(tx, code);
+        return fn(tx);
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2034') {
+        throw new ConflictException({ error: '操作与其他请求冲突，请重试', code: 'TX_CONFLICT' });
+      }
+      throw e;
+    }
+  }
+
+  /** 操作人姓名与回收站隐藏（applyRecycle）同口径：显示名优先，解析不到回落登录名 */
+  private async resolveOperatorName(operatorId?: string, fallbackName?: string | null): Promise<string | null> {
+    return (await this.history?.resolvedName(operatorId, fallbackName)) ?? fallbackName ?? null;
+  }
+
+  /** 经办人确认替换的事务内部分（须在锁项目行之后调用）：先逐条复核待替换草稿仍是待发（已发布即
+   *  拒绝：不得在已发布公告之上再发一条；已被隐藏/下架 = 他人已处理，跳过），再建新行，最后把旧草稿
+   *  移入回收站并拆定时（恢复后不会重新变成待发草稿）。留痕与告知在提交之后，见 finishPendingSupersede。 */
+  private async replacePendingScheduledInTx(
+    tx: Prisma.TransactionClient,
     createData: Prisma.AnnouncementUncheckedCreateInput,
     targets: PendingScheduledDuplicate[],
-    target: { type: string; relatedProjectCode?: string | null; metadata?: unknown },
     authorId?: string,
     operator?: RecycleOperator,
   ) {
-    // 操作人姓名与回收站隐藏（applyRecycle）同口径：显示名优先，解析不到回落登录名
-    const operatorName = (await this.history?.resolvedName(operator?.operatorId ?? authorId, operator?.operatorName)) ?? operator?.operatorName ?? null;
-    const confirmed = new Set(targets.map((t) => t.id));
-    const { created, superseded } = await this.prisma.$transaction(async (tx) => {
-      // 事务内重查（2026-11-24 审查）：预检与落库之间同键若又出现不在确认清单里的待发草稿——典型是
-      // 同一「替换」请求重复提交（第一次已把旧稿换成新稿）——整体拒绝，不做部分替换，也不建第二行
-      const strays = (await this.findPendingScheduledDuplicates(target, undefined, undefined, tx as any)).filter((p) => !confirmed.has(p.id));
-      if (strays.length > 0) {
+    const operatorName = await this.resolveOperatorName(operator?.operatorId ?? authorId, operator?.operatorName);
+    // 调用方已在锁项目行之后查过互斥（同项目的建行请求全部排队），这里只复核待替换草稿本身的状态
+    const still: Array<{ id: string; title: string; type: string; status: string; authorId: string | null; metadata: unknown }> = [];
+    for (const t of targets) {
+      const fresh = await tx.announcement.findUnique({
+        where: { id: t.id },
+        select: { id: true, title: true, type: true, status: true, authorId: true, metadata: true },
+      });
+      if (!fresh || fresh.status === 'HIDDEN' || fresh.status === 'OFFLINE') continue;
+      if (!isPendingScheduledDraft(fresh)) {
         throw new ConflictException({
-          error: `同项目同类型刚新增了 ${strays.length} 条定时待发公告，请刷新确认后再发布`,
+          error: `待替换的公告「${fresh.title}」状态已变化（已发布或定时已被取消），请刷新确认后再发布`,
           code: 'SUPERSEDE_TARGET_CHANGED',
         });
       }
-      const still: Array<{ id: string; title: string; type: string; status: string; authorId: string | null; metadata: unknown }> = [];
-      for (const t of targets) {
-        const fresh = await tx.announcement.findUnique({
-          where: { id: t.id },
-          select: { id: true, title: true, type: true, status: true, authorId: true, metadata: true },
+      still.push(fresh);
+    }
+    const created = await tx.announcement.create({ data: createData, include: ANNOUNCEMENT_CREATE_INCLUDE });
+    for (const old of still) {
+      const meta = { ...((old.metadata as Record<string, any> | null) ?? {}) };
+      delete meta.scheduledPublishDate;
+      delete meta.scheduledPublishError;
+      meta.recycle = {
+        from: 'DRAFT', action: 'HIDDEN', at: new Date().toISOString(), by: operatorName,
+        reason: '已被重新发布的公告取代', supersededBy: created.id,
+      };
+      // 带状态条件的更新（2026-11-24 审查）：复核之后、建行前后这段窗口里旧草稿若已被定时任务发布，
+      // 无条件 update 会把一条刚发布、通知已发出的公告改回回收站——未命中即抛错，整个事务回滚
+      const hid = await tx.announcement.updateMany({ where: { id: old.id, status: 'DRAFT' }, data: { status: 'HIDDEN', metadata: meta as any } });
+      if (hid.count === 0) {
+        throw new ConflictException({
+          error: `待替换的公告「${old.title}」状态已变化（已发布或已被处理），请刷新确认后再发布`,
+          code: 'SUPERSEDE_TARGET_CHANGED',
         });
-        if (!fresh || fresh.status === 'HIDDEN' || fresh.status === 'OFFLINE') continue;
-        if (!isPendingScheduledDraft(fresh)) {
-          throw new ConflictException({
-            error: `待替换的公告「${fresh.title}」状态已变化（已发布或定时已被取消），请刷新确认后再发布`,
-            code: 'SUPERSEDE_TARGET_CHANGED',
-          });
-        }
-        still.push(fresh);
       }
-      const created = await tx.announcement.create({ data: createData, include: ANNOUNCEMENT_CREATE_INCLUDE });
-      for (const old of still) {
-        const meta = { ...((old.metadata as Record<string, any> | null) ?? {}) };
-        delete meta.scheduledPublishDate;
-        delete meta.scheduledPublishError;
-        meta.recycle = {
-          from: 'DRAFT', action: 'HIDDEN', at: new Date().toISOString(), by: operatorName,
-          reason: '已被重新发布的公告取代', supersededBy: created.id,
-        };
-        // 带状态条件的更新（2026-11-24 审查）：复核之后、建行前后这段窗口里旧草稿若已被定时任务发布，
-        // 无条件 update 会把一条刚发布、通知已发出的公告改回回收站——未命中即抛错，整个事务回滚
-        const hid = await tx.announcement.updateMany({ where: { id: old.id, status: 'DRAFT' }, data: { status: 'HIDDEN', metadata: meta as any } });
-        if (hid.count === 0) {
-          throw new ConflictException({
-            error: `待替换的公告「${old.title}」状态已变化（已发布或已被处理），请刷新确认后再发布`,
-            code: 'SUPERSEDE_TARGET_CHANGED',
-          });
-        }
-      }
-      return { created, superseded: still };
-    });
+    }
+    return { result: created, superseded: still, operatorName };
+  }
+
+  /** 替换提交之后的留痕与告知（2026-11-24 用户裁定）：隐藏历史带操作人姓名/IP/浏览器标识（与手动隐藏
+   *  同口径，操作人上下文由控制器传入）；被替换草稿的原作者与替换人不是同一人时，通知原作者
+   *  （纯告知，不占待办——原作者无此事可办）。失败只告警不阻塞。 */
+  private async finishPendingSupersede(
+    superseded: Array<{ id: string; title: string; type: string; authorId: string | null }>,
+    operatorName: string | null,
+    authorId?: string,
+    operator?: RecycleOperator,
+  ) {
     for (const old of superseded) {
       await this.prisma.announcementHistory.create({
         data: {
@@ -1865,8 +1974,8 @@ export class AnnouncementService {
         },
       }).catch(e => this.logger.warn(`待发公告替换留痕失败（不阻塞）: ${old.id}: ${(e as Error).message}`));
     }
-    // 告知被替换草稿的原作者（2026-11-24 用户裁定）：替换人与原作者不是同一人时，原作者此前毫无感知——
-    // 自己的定时草稿进了回收站、不再定时发布。纯告知（非待办）：原作者无此事可办。失败只告警不阻塞。
+    // 告知被替换草稿的原作者：替换人与原作者不是同一人时，原作者此前毫无感知——自己的定时草稿进了
+    // 回收站、不再定时发布。纯告知（非待办）：原作者无此事可办。
     for (const old of superseded) {
       if (!old.authorId || old.authorId === authorId) continue;
       const by = operatorName ? `已被${operatorName}发布的新公告取代` : '已被发布的新公告取代';
@@ -1883,8 +1992,6 @@ export class AnnouncementService {
         this.logger.warn(`待发公告被替换通知发送失败（不阻塞）: ${old.id}: ${(e as Error).message}`);
       }
     }
-    // 只回实际入回收站的清单（已被他人隐藏/下架的旧草稿不算本次替换）
-    return { result: created, supersededPendingIds: superseded.map((old) => old.id) };
   }
 
   /** 变更采购文件发布联动（2026-11-20 用户裁定）：变更公告引用了新采购文件（meta.
