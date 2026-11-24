@@ -1,13 +1,16 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
   ArrowUpRight,
   BarChart3,
   Building2,
+  Check,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Filter,
   FolderKanban,
@@ -93,6 +96,105 @@ const DEFAULT_STAGE_META: StageMeta = {
 function getStageMeta(stageKey?: string | null): StageMeta {
   if (!stageKey) return DEFAULT_STAGE_META;
   return STAGE_META[stageKey as ProjectWorkflowStageKey] ?? { ...DEFAULT_STAGE_META, label: stageKey };
+}
+
+// ─── 筛选下拉（自绘，2026-11-24 用户裁定）────────────────────────────────────
+/** 原生 select 换自绘：macOS 原生弹层与选中项对齐绘制、盖住触发框且无法锚定位置；
+ *  触发器=凸起白瓷片（同 CompanySelect 语言，选中非默认值亮品牌蓝示意「筛选生效」），
+ *  弹层 portal 到 body 恒在触发框下方展开；外点/Esc/滚动/resize 关闭。
+ *  约定：options[0] 为默认值（全部×/默认排序），value 偏离即触发器亮色。 */
+function FilterSelect({ value, onChange, options, ariaLabel }: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+
+  const isActive = value !== options[0]?.value;
+  const currentLabel = options.find((o) => o.value === value)?.label ?? options[0]?.label ?? "";
+
+  const syncAnchor = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setAnchor({ top: r.bottom + 6, left: r.left, width: Math.max(r.width, 180) });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!popRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const away = () => setOpen(false);
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", away, true);
+    window.addEventListener("resize", away);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", away, true);
+      window.removeEventListener("resize", away);
+    };
+  }, [open]);
+
+  const pick = (v: string) => { setOpen(false); onChange(v); };
+
+  return (
+    <div className="relative">
+      <button
+        ref={btnRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        onClick={() => { if (!open) syncAnchor(); setOpen((o) => !o); }}
+        className={`inline-flex h-8 max-w-[220px] items-center gap-1.5 rounded-[10px] px-2.5 text-xs transition-all ${
+          isActive
+            ? "bg-[color-mix(in_oklch,var(--accent)_8%,white)] shadow-[inset_0_1px_0_oklch(1_0_0/0.7),1px_1px_3px_oklch(0.45_0.1_258/0.14),-1px_-1px_2px_oklch(1_0_0/0.9)]"
+            : "bg-oklch(1_0_0) shadow-[inset_0_1px_0_oklch(1_0_0/0.9),1.5px_1.5px_3.5px_oklch(0.55_0.03_258/0.12),-1px_-1px_2.5px_oklch(1_0_0/0.85)]"
+        } hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1`}
+      >
+        <span className={`truncate ${isActive ? "font-semibold text-[var(--accent)]" : "font-medium text-[color:var(--foreground)]"}`}>{currentLabel}</span>
+        <ChevronDown size={12} strokeWidth={2} className={`shrink-0 text-[color:var(--muted-foreground)] transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && anchor && createPortal(
+        <div
+          ref={popRef}
+          role="listbox"
+          aria-label={ariaLabel}
+          style={{ position: "fixed", top: anchor.top, left: anchor.left, width: anchor.width, background: "linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)", boxShadow: "6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)" }}
+          className="z-[90] max-h-[300px] overflow-y-auto rounded-[14px] p-1.5"
+        >
+          {options.map((o, i) => {
+            const selected = o.value === value;
+            return (
+              <button
+                key={`${o.value}-${i}`}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onClick={() => pick(o.value)}
+                className={`flex w-full items-center justify-between gap-2 rounded-[9px] px-2.5 py-2 text-left text-xs transition-colors ${
+                  selected
+                    ? "bg-[color-mix(in_oklch,var(--accent)_10%,white)] font-semibold text-[var(--accent)]"
+                    : "text-[color:var(--foreground)] hover:bg-[color-mix(in_oklch,var(--accent)_6%,transparent)]"
+                }`}
+              >
+                <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                {selected && <Check size={12} strokeWidth={2.4} className="shrink-0 text-[var(--accent)]" />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
 }
 
 // ─── KPI Card (matches dashboard KpiCard pattern) ─────────────────────────
@@ -702,7 +804,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
         </motion.div>
       </div>
 
-      {/* ── 搜索 + 排序/筛选行 ── */}
+      {/* ── 搜索行（筛选/排序下拉已归一到「项目清单」标题右侧，2026-11-24 用户裁定）── */}
       <motion.div {...fadeIn(4, reducedMotion, 0.03)} className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--muted-foreground)] z-10" />
@@ -713,39 +815,53 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
             </button>
           )}
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">排序</span>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="workbench-input !w-auto min-w-[110px]">
-            <option value="updatedAt">按更新时间</option>
-            <option value="budgetDesc">预算 高→低</option>
-            <option value="progressAsc">完成度 低→高</option>
-            <option value="stalledDesc">停滞天数 高→低</option>
-          </select>
-          <span className="ml-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[color:var(--muted-foreground)]">筛选</span>
-          <select value={selectedStage ?? ""} onChange={(e) => setSelectedStage(e.target.value || null)} className="workbench-input !w-auto min-w-[110px]">
-            <option value="">全部阶段</option>
-            {PROJECT_WORKFLOW_STAGES_ALL.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
-          </select>
-          <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="workbench-input !w-auto min-w-[110px]">
-            <option value="">全部项目</option>
-            {projectNames.map((n, i) => (<option key={`${n}-${i}`} value={n}>{n}</option>))}
-          </select>
-        </div>
-        {activeFilterCount > 0 && (
-          <button onClick={clearAll} className="neu-btn-soft is-danger"><Filter size={11} /> 清除</button>
-        )}
       </motion.div>
 
       {/* ── Project List ── */}
       <motion.div {...fadeIn(5, reducedMotion, 0.03)} id="project-list">
         <section className="wb-panel">
-          <div className="wb-panel-header">
+          <div className="wb-panel-header flex-wrap gap-y-2">
             <div className="flex items-center gap-3">
               <h2 className="neu-section-heading">项目清单</h2>
               <span className="text-xs text-[color:var(--muted-foreground)]">共 {derivedProjects.length} 个项目</span>
-            </div>
-            <div className="flex items-center gap-2">
               {lastRefreshedAt && <span className="text-xs text-[color:var(--muted-foreground)]">{lastRefreshedAt}</span>}
+            </div>
+            {/* 筛选/排序下拉群（2026-11-24 用户裁定：置于标题右侧；自绘下拉，
+                弹层恒在触发框下方） */}
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <FilterSelect
+                ariaLabel="按阶段筛选"
+                value={selectedStage ?? ""}
+                onChange={(v) => setSelectedStage(v || null)}
+                options={[{ value: "", label: "全部阶段" }, ...PROJECT_WORKFLOW_STAGES_ALL.map((s) => ({ value: s.key, label: s.label }))]}
+              />
+              <FilterSelect
+                ariaLabel="按项目筛选"
+                value={selectedProject}
+                onChange={setSelectedProject}
+                options={[{ value: "", label: "全部项目" }, ...projectNames.map((n) => ({ value: n, label: n }))]}
+              />
+              <FilterSelect
+                ariaLabel="按申请人筛选"
+                value={selectedRequester}
+                onChange={setSelectedRequester}
+                options={[{ value: "", label: "全部申请人" }, ...requesterNames.map((n) => ({ value: n, label: n }))]}
+              />
+              <FilterSelect
+                ariaLabel="排序方式"
+                value={sortBy}
+                onChange={setSortBy}
+                options={[
+                  { value: "updatedAt", label: "按更新时间" },
+                  { value: "budgetDesc", label: "预算 高→低" },
+                  { value: "progressAsc", label: "完成度 低→高" },
+                  { value: "stalledDesc", label: "停滞天数 高→低" },
+                ]}
+              />
+              <span className="text-xs text-[color:var(--muted-foreground)]">{filteredProjects.length}/{derivedProjects.length}</span>
+              {activeFilterCount > 0 && (
+                <button onClick={clearAll} className="neu-btn-soft is-danger"><Filter size={11} /> 清除 {activeFilterCount} 项</button>
+              )}
             </div>
           </div>
           <div className="wb-panel-body space-y-3">
@@ -753,31 +869,6 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
             {!companyViewAll && currentUserRole === "admin" && selectedCompanyName && (
               <CompanySectionHeader name={selectedCompanyName} count={filteredProjects.length} />
             )}
-            {/* Filter bar */}
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={selectedStage ?? ""} onChange={(e) => setSelectedStage(e.target.value || null)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
-                <option value="">全部阶段</option>
-                {PROJECT_WORKFLOW_STAGES_ALL.map((s) => (<option key={s.key} value={s.key}>{s.label}</option>))}
-              </select>
-              <select value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
-                <option value="">全部项目</option>
-                {projectNames.map((n, i) => (<option key={`${n}-${i}`} value={n}>{n}</option>))}
-              </select>
-              <select value={selectedRequester} onChange={(e) => setSelectedRequester(e.target.value)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
-                <option value="">全部申请人</option>
-                {requesterNames.map((n) => (<option key={n} value={n}>{n}</option>))}
-              </select>
-              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="workbench-input !h-[44px] !w-auto min-w-[110px]">
-                <option value="updatedAt">按更新时间</option>
-                <option value="budgetDesc">预算 高→低</option>
-                <option value="progressAsc">完成度 低→高</option>
-                <option value="stalledDesc">停滞天数 高→低</option>
-              </select>
-              <span className="text-xs text-[color:var(--muted-foreground)]">{filteredProjects.length}/{derivedProjects.length}</span>
-              {activeFilterCount > 0 && (
-                <button onClick={clearAll} className="neu-btn-soft is-danger"><Filter size={11} /> 清除 {activeFilterCount} 项</button>
-              )}
-            </div>
 
             {/* List / Empty */}
             {filteredProjects.length === 0 ? (
