@@ -163,6 +163,10 @@ export default function NoticeDetailPage() {
     </div>
   );
 
+  // 项目编号入标题区（2026-11-24 用户裁定，与 :3002/:3004 同款）：写进标题下元信息行，
+  // 关键信息芯片区不再重复平铺（renderMeta 同步过滤）
+  const projectCode = String(((ann.metadata || {}) as Record<string, any>).projectCode ?? '').trim();
+
   return (
     <div className="flex flex-col gap-5">
       <button onClick={() => router.push('/notice')} className="flow-back shrink-0 self-start">
@@ -182,6 +186,7 @@ export default function NoticeDetailPage() {
               <div className="page-hero__title truncate">{ann.title}</div>
               <div className="page-hero__sub">
                 {ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}
+                {projectCode && <span> · 项目编号 <span className="font-mono font-semibold tracking-tight text-[var(--accent-strong)]">{projectCode}</span></span>}
                 {ann.publishDate && <span> · {new Date(ann.publishDate).toLocaleDateString('zh-CN')} 发布</span>}
                 {/* 发布单位（2026-10-16）：发布的公告必须标明公司——写时快照 */}
                 {ann.companyName && <span> · 发布单位：{ann.companyName}</span>}
@@ -255,7 +260,8 @@ function renderMeta(ann: AnnouncementListItem) {
       { key: 'newDeadline', label: '调整后递交截止（存量）', date: true },
     );
   }
-  const allFields = baseFields.filter(f => !f.noHeader).filter(hasVal);
+  // projectCode 已上移标题元信息行（2026-11-24），芯片区不再重复平铺；编辑表单照常维护
+  const allFields = baseFields.filter(f => !f.noHeader).filter(f => f.key !== 'projectCode').filter(hasVal);
   if (allFields.length === 0) return null;
   const shortFields = allFields.filter(f => !f.area);
   const areaFields = allFields.filter(f => f.area);
