@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { Document } from 'docx';
 import { OpeningSignService } from './opening-sign.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -72,6 +73,23 @@ describe('OpeningSignService — P1-3①A 开标记录纸面签字', () => {
       await expect(svc.generateSignPage('p1', 'u1'))
         .rejects.toMatchObject({ response: { code: 'PROJECT_TERMINAL' } });
       expect(storage.upload).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('generateSignPage — PDF 转换拿不到结果', () => {
+    it('400 PDF_CONVERT_FAILED，文案指引稍后重试（原因可能是 LibreOffice 不可用，也可能是转换繁忙），且不写存储', async () => {
+      // 这里只验「转换拿不到结果」这一步的表现：组卷两步打桩跳过
+      jest.spyOn(svc, 'buildSnapshot').mockResolvedValue({ project: { projectCode: 'GK-1' } });
+      jest.spyOn(svc, 'buildDocx').mockReturnValue(new Document({ sections: [{ children: [] }] }));
+      const util = require('../common/office-to-pdf.util');
+      const convertSpy = jest.spyOn(util, 'convertOfficeToPdf').mockResolvedValue(null);
+      try {
+        await expect(svc.generateSignPage('p1', 'u1')).rejects.toMatchObject({
+          response: { code: 'PDF_CONVERT_FAILED', error: expect.stringContaining('稍后重试') },
+        });
+        expect(storage.upload).not.toHaveBeenCalled();
+        expect(prisma.fileAsset.upsert).not.toHaveBeenCalled();
+      } finally { convertSpy.mockRestore(); }
     });
   });
 

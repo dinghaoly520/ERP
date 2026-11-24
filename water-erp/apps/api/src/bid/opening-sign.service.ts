@@ -92,7 +92,8 @@ export class OpeningSignService {
     const doc = this.buildDocx(snap);
     const docxBuffer = await Packer.toBuffer(doc);
     const pdf = await convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buildStandardFileName({ code: snap.project.projectCode, docType: '开标记录签字页' }));
-    if (!pdf) throw new BadRequestException({ error: '签字页 PDF 转换失败（LibreOffice 不可用）', code: 'PDF_CONVERT_FAILED' });
+    // 转换拿不到结果有两种原因：LibreOffice 不可用，或并发已满等槽超时（见 convertOfficeToPdf）——文案不能把原因说死
+    if (!pdf) throw new BadRequestException({ error: '签字页 PDF 转换失败（LibreOffice 不可用或转换繁忙），请稍后重试', code: 'PDF_CONVERT_FAILED' });
 
     const buffer = pdf.buffer;
     const objectKey = `opening-sign-page/${projectId}.pdf`;

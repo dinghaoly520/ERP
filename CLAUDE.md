@@ -430,7 +430,7 @@ DOWNLOAD → SUBMIT → OPENING → EVALUATING → ARCHIVED
 
 **multipart 文件名 latin1 铁律（2026-11-13）**：multer 2.2/busboy ^1.6.0 栈对普通 `filename=` 参数恒以 latin1 形态交付 `file.originalname`（浏览器/undici 的原始 UTF-8 中文名必变 `æŠ€æœ¯`，ASCII 无恙）——**任何新的 multer 上传端点写 `originalName` 前必须过 `common/filename-encoding.util.ts` 的 `normalizeMultipartFilename`（条件式安全版）**；勿用无条件 `Buffer.from(s,'latin1').toString('utf8')`——对 `filename*` 扩展参数来的干净 UTF-8 名会二次毁伤（bid-document.service 注释曾踩过认知）。沿革：2026-07-16 曾修 /upload 等三处（97dea7740），2026-11 dual-v3 `ca/encrypted-asset.controller` 漏接复发（生产专家端标书获取乱码，#150 反显真实名后暴露）；存量修复脚本 `apps/api/scripts/fix-filename-mojibake.ts`（dry-run 默认、--execute 回填）。
 
-> **Office 转 PDF 不经 shell（2026-11-24）**：`common/office-to-pdf.util.ts` 的 `convertOfficeToPdf` 已改异步——`execFile` 数组参数、临时名固定 `input.doc|docx`（扩展名只取自声明 MIME，永不出自文件名）、每次转换独立 LibreOffice 配置目录、进程内并发上限 2（两槽都忙最多等 5 秒即降级 `null`）。新增调用点必须 `await`；评审见 `execSync` 或字符串拼接命令一律拒。
+> **Office 转 PDF 不经 shell（2026-11-24）**：`common/office-to-pdf.util.ts` 的 `convertOfficeToPdf` 已改异步——`execFile` 数组参数、临时名固定 `input.doc|docx`（扩展名永远是 doc、docx 两个常量之一，不取文件名片段）、每次转换独立 LibreOffice 配置目录、进程内并发上限 2（两槽都忙最多等 5 秒即降级 `null`）。新增调用点必须 `await`；评审见 `execSync` 或字符串拼接命令一律拒。
 
 ### Frontend Conventions
 

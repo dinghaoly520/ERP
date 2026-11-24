@@ -134,11 +134,17 @@ export async function convertOfficeToPdf(
   const ext = resolveOfficeExtension(mimeType, originalName);
   if (!ext) return null; // 非 Office 文档，跳过
 
-  const gotSlot = await acquireSlot(
-    limits?.maxConcurrent ?? OFFICE_CONVERT_LIMITS_DEFAULT.maxConcurrent,
-    limits?.slotWaitMs ?? OFFICE_CONVERT_LIMITS_DEFAULT.slotWaitMs,
-  );
-  if (!gotSlot) return null; // 两个槽都忙：降级存原文件，不排长队
+  const maxConcurrent = limits?.maxConcurrent ?? OFFICE_CONVERT_LIMITS_DEFAULT.maxConcurrent;
+  const slotWaitMs = limits?.slotWaitMs ?? OFFICE_CONVERT_LIMITS_DEFAULT.slotWaitMs;
+  const gotSlot = await acquireSlot(maxConcurrent, slotWaitMs);
+  if (!gotSlot) {
+    // 降级路径要留痕（2026-11-24 终审）：不留的话，供应商的 Word 被静默存成未转换的原件、
+    // 现场签字页报「转换失败」，事后在日志里查不到任何线索
+    console.warn(
+      `[OfficeToPdf] LibreOffice 转换并发已满：在跑 ${active} 个，等槽 ${slotWaitMs}ms 未果——降级存原文件`,
+    );
+    return null; // 两个槽都忙：降级存原文件，不排长队
+  }
 
   let tmpDir: string | null = null;
   try {
