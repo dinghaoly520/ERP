@@ -347,6 +347,158 @@ describe('publishScheduledAnnouncements — P0-2 走 announcementService.update 
   });
 });
 
+describe('publishScheduledAnnouncements — 待发定时草稿冲突兜底（2026-11-24 用户裁定）', () => {
+  // 用户裁定：兜底不替经办人选择。同项目同类型出现多条待发定时草稿时系统无从判定哪条正确——
+  // 一条都不发，全部写失败原因并通知经办人；经办人保留一条、隐藏其余后，保留的那条下一分钟自动发出。
+  // 生产实录：XCZY-XB-2026112302 两条定时草稿（04 向导两次「确认发布」）同刻到期，各发一条、31 家供应商收两遍通知。
+  const makeScheduler = () => {
+    const prisma: any = { announcement: { findMany: jest.fn(), update: jest.fn().mockResolvedValue({}) } };
+    const notification: any = { create: jest.fn().mockResolvedValue({}) };
+    const announcementService: any = { update: jest.fn().mockResolvedValue({ id: 'x', status: 'PUBLISHED' }) };
+    const scheduler = new SchedulerService(prisma, notification, {} as any, announcementService, {} as any);
+    const errorLog = jest.spyOn((scheduler as any).logger, 'error').mockImplementation(() => undefined);
+    return { scheduler, prisma, notification, announcementService, errorLog };
+  };
+  const CODE = 'XCZY-XB-2026112302';
+  const past = () => new Date(Date.now() - 60_000).toISOString();
+  const future = () => new Date(Date.now() + 3_600_000).toISOString();
+  const draft = (id: string, scheduledPublishDate: string, extra: Record<string, any> = {}) => ({
+    id, title: '询比采购公告 — 外立面清洗服务项目', type: 'BID_NOTICE', status: 'DRAFT', authorId: 'author-1',
+    relatedProjectCode: CODE, metadata: { scheduledPublishDate }, ...extra,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('同项目同类型两条待发草稿同时到期 → 一条都不发，两条都写失败原因并各通知创建人', async () => {
+    const { scheduler, prisma, notification, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([draft('a', past()), draft('b', past())]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).not.toHaveBeenCalled();
+    const writes = prisma.announcement.update.mock.calls.map((c) => c[0]);
+    expect(writes.map((w) => w.where.id).sort()).toEqual(['a', 'b']);
+    for (const w of writes) {
+      expect(w.data.status).toBeUndefined(); // cron 直写不得碰 status
+      expect(w.data.metadata.scheduledPublishDate).toBeTruthy(); // 定时保留：经办人处理后据此自动发出
+      expect(w.data.metadata.scheduledPublishError).toMatchObject({ code: 'SCHEDULED_DUPLICATE_PENDING' });
+    }
+    expect(notification.create).toHaveBeenCalledTimes(2);
+    expect(notification.create).toHaveBeenCalledWith(expect.objectContaining({ userId: 'author-1', type: 'SCHEDULED_PUBLISH_FAILED' }));
+  });
+
+  it('冲突通知给出的处理办法必须是「隐藏多余的」——不得沿用发布失败的建议让经办人重新发布（那会被互斥闸 409 拒绝）', async () => {
+    const { scheduler, prisma, notification } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([draft('a', past()), draft('b', past())]);
+    await scheduler.publishScheduledAnnouncements();
+    const content: string = notification.create.mock.calls[0][0].content;
+    expect(content).toContain('隐藏');
+    expect(content).not.toContain('切回立即发布');
+    expect(content).not.toContain('重新发布');
+  });
+
+  it('同键冲突未到点也提前发现：写失败原因并通知，给经办人留处理时间，不触发发布', async () => {
+    const { scheduler, prisma, notification, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([draft('a', future()), draft('b', future(), { metadata: { scheduledPublishDate: past() } })]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).not.toHaveBeenCalled();
+    expect(prisma.announcement.update.mock.calls.map((c) => c[0].where.id).sort()).toEqual(['a', 'b']);
+    expect(notification.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('到期时间不同也算冲突（一条 09:00、一条 10:00）：先到的那条不得先发，否则到点又发一条', async () => {
+    const { scheduler, prisma, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([draft('a', future()), draft('b', past(), { metadata: { scheduledPublishDate: past() } })]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).not.toHaveBeenCalled();
+  });
+
+  it('经办人隐藏多余的一条后：保留的那条已到期 → 下一轮自动发出并清除失败标记', async () => {
+    const { scheduler, prisma, notification, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([
+      draft('a', past(), { metadata: {
+        scheduledPublishDate: past(),
+        scheduledPublishError: { message: '旧标记', code: 'SCHEDULED_DUPLICATE_PENDING', at: new Date().toISOString() },
+      } }),
+    ]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).toHaveBeenCalledWith('a', expect.objectContaining({ status: 'PUBLISHED' }));
+    const arg = prisma.announcement.update.mock.calls[0][0];
+    expect(arg.where).toEqual({ id: 'a' });
+    expect(arg.data.metadata.scheduledPublishError).toBeUndefined();
+    expect(notification.create).not.toHaveBeenCalled();
+  });
+
+  it('冲突已解除但还没到点 → 清掉残留的冲突标记（不再误标红），不触发发布', async () => {
+    const { scheduler, prisma, announcementService } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([
+      draft('a', future(), { metadata: {
+        scheduledPublishDate: future(),
+        scheduledPublishError: { message: '旧标记', code: 'SCHEDULED_DUPLICATE_PENDING', at: new Date().toISOString() },
+      } }),
+    ]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).not.toHaveBeenCalled();
+    const arg = prisma.announcement.update.mock.calls[0][0];
+    expect(arg.where).toEqual({ id: 'a' });
+    expect(arg.data.metadata.scheduledPublishError).toBeUndefined();
+    expect(arg.data.status).toBeUndefined();
+  });
+
+  // 各自的破坏点：分组不看类型→①误拦；不看项目编号→②误拦；变更/补遗不带轮次→③④误拦；无项目编号入组→⑤误拦
+  it.each<[string, object, object]>([
+    ['同项目不同类型', draft('a', past()), draft('b', past(), { type: 'FAILED_BID_NOTICE' })],
+    ['不同项目同类型', draft('a', past()), draft('b', past(), { relatedProjectCode: 'OTHER-XB-1' })],
+    ['同项目变更公告不同轮次（数字与字符串轮次同值）', draft('a', past(), { type: 'CHANGE_NOTICE', metadata: { scheduledPublishDate: past(), changeRound: 1 } }), draft('b', past(), { type: 'CHANGE_NOTICE', metadata: { scheduledPublishDate: past(), changeRound: '2' } })],
+    ['同项目补遗公告不同轮次', draft('a', past(), { type: 'ADDENDUM', metadata: { scheduledPublishDate: past(), changeRound: '1' } }), draft('b', past(), { type: 'ADDENDUM', metadata: { scheduledPublishDate: past(), changeRound: '2' } })],
+    ['无项目编号的手工公告（标题相同）', { ...draft('a', past()), relatedProjectCode: null }, { ...draft('b', past()), relatedProjectCode: null }],
+  ])('不构成冲突的到点草稿照常发布 — %s', async (_label, first, second) => {
+    const { scheduler, prisma, announcementService, notification } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([first, second]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).toHaveBeenCalledTimes(2);
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    expect(notification.create).not.toHaveBeenCalled();
+  });
+
+  it('冲突原因不变 → 不重复写库、不重复通知', async () => {
+    const { scheduler, prisma, notification, announcementService } = makeScheduler();
+    // 先跑一轮拿到系统写入的失败原因，再把该原因原样放回库中模拟「下一分钟」
+    prisma.announcement.findMany.mockResolvedValue([draft('a', past()), draft('b', past())]);
+    await scheduler.publishScheduledAnnouncements();
+    const marked = prisma.announcement.update.mock.calls.map((c) => c[0].data.metadata);
+    prisma.announcement.update.mockClear();
+    notification.create.mockClear();
+    prisma.announcement.findMany.mockResolvedValue([
+      { ...draft('a', past()), metadata: marked[0] },
+      { ...draft('b', past()), metadata: marked[1] },
+    ]);
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).not.toHaveBeenCalled();
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+    expect(notification.create).not.toHaveBeenCalled();
+  });
+
+  it('同一发布失败原因每分钟重试 → 错误日志只打一次（不再每分钟刷屏）', async () => {
+    const { scheduler, prisma, announcementService, errorLog } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([draft('a', past(), { metadata: { scheduledPublishDate: past(), scheduledPublishError: { message: '同一原因', code: 'X', at: new Date().toISOString() } } })]);
+    announcementService.update.mockRejectedValue(Object.assign(new Error('x'), { response: { error: '同一原因', code: 'X' } }));
+    await scheduler.publishScheduledAnnouncements();
+    await scheduler.publishScheduledAnnouncements();
+    expect(announcementService.update).toHaveBeenCalledTimes(2); // 每分钟照常重试（闸门解除即自愈）
+    expect(errorLog).not.toHaveBeenCalled();
+  });
+
+  it('发布失败原因变化 → 重新打错误日志', async () => {
+    const { scheduler, prisma, announcementService, errorLog } = makeScheduler();
+    prisma.announcement.findMany.mockResolvedValue([draft('a', past(), { metadata: { scheduledPublishDate: past(), scheduledPublishError: { message: '旧原因', code: 'X', at: new Date().toISOString() } } })]);
+    announcementService.update.mockRejectedValue(Object.assign(new Error('x'), { response: { error: '新原因', code: 'Y' } }));
+    await scheduler.publishScheduledAnnouncements();
+    expect(errorLog).toHaveBeenCalledTimes(1);
+    expect(String(errorLog.mock.calls[0][0])).toContain('新原因');
+  });
+});
+
 describe('buildCertExpiryNotification（A-13）', () => {
   it('即将到期：30 天档文案含证书序列号与剩余天数', () => {
     const n = buildCertExpiryNotification({ certSn: 'MOCK-AB12CD34', expiresAt: new Date('2026-11-16T00:00:00Z'), daysLeft: 60, expired: false });

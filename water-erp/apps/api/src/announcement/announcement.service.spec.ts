@@ -713,6 +713,7 @@ describe('AnnouncementService — 对接专项 T4 发布赋码闸（自愈版，
       bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(proj) },
       announcement: {
         findUnique: jest.fn().mockResolvedValue({ id: 'a1', status: 'DRAFT', type: 'BID_NOTICE', relatedProjectCode: 'BID-1', metadata: {} }),
+        findMany: jest.fn().mockResolvedValue([]), // 待发定时草稿互斥闸（2026-11-24）查同键待发草稿：无
         update: jest.fn().mockResolvedValue({ id: 'a1', status: 'PUBLISHED' }),
         create: jest.fn().mockResolvedValue({ id: 'a2', status: 'PUBLISHED' }),
       },
@@ -766,6 +767,7 @@ describe('W2 依法必招标示录入口（P1-4，2026-09-09）— guard 读 met
     const prisma: any = {
       announcement: {
         create: jest.fn().mockResolvedValue({ id: 'a1', title: 'T', type: 'BID_NOTICE', status: 'PUBLISHED', publishDate: new Date(), metadata: {}, relatedProjectCode: null, authorId: 'u1' }),
+        findMany: jest.fn().mockResolvedValue([]), // 待发定时草稿互斥闸（2026-11-24）查同键待发草稿：无
         findUnique: jest.fn(),
         // 对方会话 919d5391：BID_NOTICE 直接发布也派生 publicityEnd（create 内二次 update）
         update: jest.fn().mockImplementation(async (_args: any) => ({ id: 'a1', publicityEnd: new Date(Date.now() + 3 * 86400000) })),
@@ -1849,6 +1851,7 @@ describe('AnnouncementService — 流标公告发布联动流标（create/update
   const makePublishSvc = async (bidService: any, prismaOverrides: Record<string, any> = {}) => {
     const prisma: any = {
       announcement: {
+        findMany: jest.fn().mockResolvedValue([]), // 待发定时草稿互斥闸（2026-11-24）查同键待发草稿：无
         create: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 'ann-fb', publicityEnd: null, ...data })),
         findUnique: jest.fn().mockResolvedValue({
           id: 'ann-fb', type: 'FAILED_BID_NOTICE', status: 'DRAFT', title: '流标公告 — X',
@@ -2409,5 +2412,216 @@ describe('终止项目发布闸（2026-11-16 用户裁定：终止后未发布�
       title: 'T', type: 'POLICY', status: 'PUBLISHED', content: 'c', relatedProjectCode: 'SWHI-JJ-9',
     } as any, 'u1')).rejects.toMatchObject({ response: { code: 'TERMINATED_PROJECT' } });
     expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('AnnouncementService — 待发定时草稿互斥（2026-11-24 用户裁定：默认拒绝，经办人确认后替换）', () => {
+  const FUTURE = '2099-01-01T09:00';
+  const CODE = 'XCZY-XB-2026112302';
+  let service: AnnouncementService;
+  let prisma: any;
+  let tx: any;
+
+  /** 同键待发定时草稿行（生产实录形态：04 向导两次「确认发布」各建一条） */
+  const pendingDraft = (id: string, extra: Record<string, any> = {}) => ({
+    id, title: `询比采购公告 — ${id}`, type: 'BID_NOTICE', status: 'DRAFT', relatedProjectCode: CODE,
+    metadata: { scheduledPublishDate: FUTURE }, ...extra,
+  });
+  /** 04 向导「按公示期限（起）发布」的建行载荷 */
+  const scheduledDto = (extra: Record<string, any> = {}) => ({
+    title: '询比采购公告 — 清洗服务项目', content: '<p>c</p>', type: 'BID_NOTICE', status: 'DRAFT',
+    relatedProjectCode: CODE, metadata: { scheduledPublishDate: FUTURE, announcementStart: FUTURE }, ...extra,
+  });
+  /** 03 步正式盖章版指针：att-official → obj/official.docx */
+  const stubOfficialPointer = () => {
+    prisma.projectManagementItem.findUnique.mockResolvedValue({ id: 'pmi-1', currentRound: 1, status: 'ACTIVE' });
+    prisma.projectManagementStage.findFirst.mockResolvedValue({ officialTenderAttachmentId: 'att-official' });
+    prisma.attachment.findUnique.mockResolvedValue({ objectKey: 'obj/official.docx' });
+  };
+
+  beforeEach(async () => {
+    tx = { announcement: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() } };
+    prisma = {
+      announcement: { findUnique: jest.fn(), findMany: jest.fn().mockResolvedValue([]), create: jest.fn(), update: jest.fn() },
+      announcementHistory: { create: jest.fn().mockResolvedValue({}) },
+      projectManagementItem: { findUnique: jest.fn().mockResolvedValue(null) },
+      projectManagementStage: { findFirst: jest.fn() },
+      attachment: { findUnique: jest.fn() },
+      bidProject: { findFirst: jest.fn().mockResolvedValue(null), findUnique: jest.fn().mockResolvedValue(null) },
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      notification: { create: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn(async (cb: any) => cb(tx)),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        AnnouncementService,
+        { provide: PrismaService, useValue: prisma },
+        // 桩照真实服务给全：直供摘要的保存会先过提示词泄漏识别 looksLikePromptLeak
+        { provide: AnnouncementAiService, useValue: { summarize: jest.fn().mockResolvedValue(null), looksLikePromptLeak: jest.fn().mockReturnValue(false) } },
+        { provide: SunshinePushService, useValue: { onPublish: jest.fn() } },
+      ],
+    }).compile();
+    service = module.get(AnnouncementService);
+  });
+
+  it('create 定时草稿：同项目同类型已有待发草稿且未确认替换 → 409 SCHEDULED_ANNOUNCEMENT_EXISTS，零建行', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    await expect(service.create(scheduledDto(), 'u1', {})).rejects.toMatchObject({
+      response: { code: 'SCHEDULED_ANNOUNCEMENT_EXISTS', items: [expect.objectContaining({ id: 'a-old' })] },
+    });
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('create 定时草稿：经办人确认替换 → 旧草稿入回收站并拆定时，新草稿建成且响应带被替换清单', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old'));
+    tx.announcement.create.mockImplementation(async ({ data }: any) => ({ id: 'a-new', attachments: [], ...data }));
+    const res: any = await service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {});
+    expect(res.id).toBe('a-new');
+    expect(res.status).toBe('DRAFT');
+    expect(res.supersededPendingScheduledIds).toEqual(['a-old']);
+    expect(tx.announcement.update).toHaveBeenCalledTimes(1);
+    const arg = tx.announcement.update.mock.calls[0][0];
+    expect(arg.where).toEqual({ id: 'a-old' });
+    expect(arg.data.status).toBe('HIDDEN');
+    expect(arg.data.metadata.recycle).toMatchObject({ from: 'DRAFT', action: 'HIDDEN', supersededBy: 'a-new' });
+    // 拆定时：回收站恢复后不得重新变成待发草稿
+    expect(arg.data.metadata.scheduledPublishDate).toBeUndefined();
+    expect(prisma.announcementHistory.create).toHaveBeenCalledWith({ data: expect.objectContaining({ announcementId: 'a-old', action: 'HIDE' }) });
+  });
+
+  it('create：确认清单未覆盖全部待发草稿 → 整体 409、零写入（不做部分替换）', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old'), pendingDraft('b-old')]);
+    await expect(service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {})).rejects.toMatchObject({
+      response: { code: 'SCHEDULED_ANNOUNCEMENT_EXISTS' },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('create：确认替换时旧草稿已到点发布 → 409 且不建行（不得在已发布公告之上再发一条）', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old', { status: 'PUBLISHED' }));
+    await expect(service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {})).rejects.toMatchObject({
+      response: { code: 'SUPERSEDE_TARGET_CHANGED' },
+    });
+    expect(tx.announcement.create).not.toHaveBeenCalled();
+    expect(tx.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('create：确认替换时旧草稿已被他人隐藏 → 视为已处理，照常建成', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old', { status: 'HIDDEN' }));
+    tx.announcement.create.mockImplementation(async ({ data }: any) => ({ id: 'a-new', attachments: [], ...data }));
+    const res: any = await service.create(scheduledDto({ supersedePendingScheduledIds: ['a-old'] }), 'u1', {});
+    expect(res.id).toBe('a-new');
+    expect(tx.announcement.update).not.toHaveBeenCalled();
+    expect(res.supersededPendingScheduledIds).toBeUndefined();
+  });
+
+  // 各自的破坏点：类型不入键→①误拦；项目编号不入键→②误拦；待发判定只看定时键不看状态→③④⑤误拦；变更/补遗不带轮次→⑥误拦
+  it.each<[string, Record<string, any>, Record<string, any>]>([
+    ['同项目不同类型', pendingDraft('o1', { type: 'FAILED_BID_NOTICE' }), { type: 'BID_NOTICE', metadata: { changeRound: undefined } }],
+    ['不同项目同类型', pendingDraft('o2', { relatedProjectCode: 'OTHER-XB-1' }), { type: 'BID_NOTICE', metadata: { changeRound: undefined } }],
+    ['对方是普通草稿（无定时）', pendingDraft('o3', { metadata: {} }), { type: 'BID_NOTICE', metadata: { changeRound: undefined } }],
+    ['对方已隐藏（暂停中）', pendingDraft('o4', { status: 'HIDDEN' }), { type: 'BID_NOTICE', metadata: { changeRound: undefined } }],
+    ['对方已发布（残留定时键）', pendingDraft('o5', { status: 'PUBLISHED' }), { type: 'BID_NOTICE', metadata: { changeRound: undefined } }],
+    ['同项目变更公告不同轮次', pendingDraft('o6', { type: 'CHANGE_NOTICE', metadata: { scheduledPublishDate: FUTURE, changeRound: '1' } }), { type: 'CHANGE_NOTICE', metadata: { changeRound: '2' } }],
+  ])('create：不构成互斥的情形照常建成 — %s', async (_label, row, patch) => {
+    prisma.announcement.findMany.mockResolvedValue([row]);
+    prisma.announcement.create.mockResolvedValue({ id: 'created', attachments: [] });
+    const dto: any = scheduledDto({ type: patch.type, metadata: { scheduledPublishDate: FUTURE, announcementStart: FUTURE, ...patch.metadata } });
+    await expect(service.create(dto, 'u1', {})).resolves.toMatchObject({ id: 'created' });
+    expect(prisma.announcement.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('create 即时发布：同项目同类型有待发定时草稿 → 409（否则现在发一条、到点再发一条）', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    await expect(service.create(scheduledDto({ status: 'PUBLISHED' }), 'u1', {})).rejects.toMatchObject({
+      response: { code: 'SCHEDULED_ANNOUNCEMENT_EXISTS' },
+    });
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('create 即时发布：经办人确认替换 → 旧草稿入回收站后发布', async () => {
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    tx.announcement.findUnique.mockResolvedValue(pendingDraft('a-old'));
+    tx.announcement.create.mockImplementation(async ({ data }: any) => ({ id: 'a-new', attachments: [], bidDocument: null, ...data }));
+    // 即时发布路径的响应取自 get()（整行随附件返回）——桩照真实行结构给全
+    prisma.announcement.findUnique.mockImplementation(async ({ where }: any) => ({ id: where.id, title: 't', type: 'BID_NOTICE', status: 'PUBLISHED', relatedProjectCode: CODE, metadata: {}, attachments: [], bidDocument: null }));
+    await expect(service.create(scheduledDto({ status: 'PUBLISHED', supersedePendingScheduledIds: ['a-old'] }), 'u1', {})).resolves.toMatchObject({ id: 'a-new', status: 'PUBLISHED' });
+    expect(tx.announcement.create.mock.calls[0][0].data.status).toBe('PUBLISHED');
+    expect(tx.announcement.update.mock.calls[0][0]).toMatchObject({ where: { id: 'a-old' }, data: { status: 'HIDDEN' } });
+  });
+
+  it('create 定时草稿：引用的采购文件与 03 正式盖章版不一致 → 当场 400 OFFICIAL_TENDER_MISMATCH，零建行', async () => {
+    stubOfficialPointer();
+    await expect(service.create(scheduledDto({ metadata: { scheduledPublishDate: FUTURE, selectedTenderObjectKey: 'obj/stale.docx' } }), 'u1', {})).rejects.toMatchObject({
+      response: { code: 'OFFICIAL_TENDER_MISMATCH' },
+    });
+    expect(prisma.announcement.create).not.toHaveBeenCalled();
+  });
+
+  it('create 定时草稿：引用与 03 正式盖章版一致 → 照常建成', async () => {
+    stubOfficialPointer();
+    prisma.announcement.create.mockResolvedValue({ id: 'created', attachments: [] });
+    await expect(service.create(scheduledDto({ metadata: { scheduledPublishDate: FUTURE, selectedTenderObjectKey: 'obj/official.docx' } }), 'u1', {})).resolves.toMatchObject({ id: 'created' });
+  });
+
+  it('update 转发布：同项目同类型另有待发定时草稿 → 409（手工发布/批量发布不得绕过）', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'x', title: 't', type: 'BID_NOTICE', status: 'DRAFT', relatedProjectCode: CODE, metadata: {} });
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    await expect(service.update('x', { status: 'PUBLISHED' })).rejects.toMatchObject({ response: { code: 'SCHEDULED_ANNOUNCEMENT_EXISTS' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('update 把普通草稿存成定时发布：同键已有待发草稿 → 409', async () => {
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'x', title: 't', type: 'BID_NOTICE', status: 'DRAFT', relatedProjectCode: CODE, metadata: {} });
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    await expect(service.update('x', { metadata: { scheduledPublishDate: FUTURE } })).rejects.toMatchObject({ response: { code: 'SCHEDULED_ANNOUNCEMENT_EXISTS' } });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('update 改待发草稿自身（如调整定时时间）→ 查互斥排除自身，照常保存', async () => {
+    prisma.announcement.findUnique.mockResolvedValue(pendingDraft('x'));
+    prisma.announcement.findMany.mockResolvedValue([]);
+    prisma.announcement.update.mockResolvedValue({ id: 'x', status: 'DRAFT', type: 'BID_NOTICE' });
+    await expect(service.update('x', { metadata: { scheduledPublishDate: '2099-02-01T09:00' } })).resolves.toMatchObject({ id: 'x' });
+    expect(prisma.announcement.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: { not: 'x' } }),
+    }));
+  });
+
+  it.each<[string, Record<string, any>]>([
+    ['只改标题', { title: '改个错别字' }],
+    ['只重新生成摘要', { aiSummary: '新摘要' }],
+    ['只改正文', { content: '<p>改正文</p>' }],
+  ])('update 只改待发草稿的无关字段（%s）→ 不触发互斥闸：同键另有待发也放行、不查库', async (_label, dto) => {
+    // 破坏点：互斥闸挂在「保存后恰好是待发草稿」上而非「本次保存改变了定时状态」上——
+    // 存量两条待发时，经办人连改其中一条的错别字/重新生成摘要都会被 409，反而妨碍处理
+    prisma.announcement.findUnique.mockResolvedValue(pendingDraft('x'));
+    prisma.announcement.findMany.mockResolvedValue([pendingDraft('a-old')]);
+    prisma.announcement.update.mockResolvedValue({ id: 'x', status: 'DRAFT', type: 'BID_NOTICE' });
+    await expect(service.update('x', dto)).resolves.toMatchObject({ id: 'x' });
+    expect(prisma.announcement.findMany).not.toHaveBeenCalled();
+  });
+
+  it('update 存定时草稿：引用的采购文件与 03 正式盖章版不一致 → 当场 400', async () => {
+    stubOfficialPointer();
+    prisma.announcement.findUnique.mockResolvedValue({ id: 'x', title: 't', type: 'BID_NOTICE', status: 'DRAFT', relatedProjectCode: CODE, metadata: {} });
+    await expect(service.update('x', { metadata: { scheduledPublishDate: FUTURE, selectedTenderObjectKey: 'obj/stale.docx' } })).rejects.toMatchObject({
+      response: { code: 'OFFICIAL_TENDER_MISMATCH' },
+    });
+    expect(prisma.announcement.update).not.toHaveBeenCalled();
+  });
+
+  it('checkDuplicate：同键待发定时草稿单列 pending；已发布查重 matches 口径不变', async () => {
+    prisma.announcement.findMany
+      .mockResolvedValueOnce([])                       // 已发布/已归档查重
+      .mockResolvedValueOnce([pendingDraft('a-old')]); // 待发定时草稿
+    const res: any = await service.checkDuplicate({ title: '无关标题', relatedProjectCode: CODE, type: 'BID_NOTICE' });
+    expect(res.matches).toEqual([]);
+    expect(res.pending).toEqual([expect.objectContaining({ id: 'a-old', scheduledPublishDate: FUTURE })]);
   });
 });

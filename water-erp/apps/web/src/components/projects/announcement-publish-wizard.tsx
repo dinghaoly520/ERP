@@ -35,6 +35,7 @@ import {
   type SunshinePublishConfig,
 } from '@/components/projects/sunshine-platform-dialog';
 import { confirmDialog } from '@/components/catalog/confirm-dialog';
+import { pendingScheduledDuplicateLines } from '@/lib/notice/schedule';
 import { mapProcurementMethodToTenderType } from '@/lib/tender-write/procurement-method-map';
 import { buildPrefillFromProject } from '@/lib/tender-write/prefill-from-project';
 import {
@@ -1348,12 +1349,30 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         if (draftObjection) meta.objection = draftObjection;
       }
       // 发布前查重：同标题或同项目同类型已发布公告 → 提示确认（流标重发等场景可确认后继续）
+      // 经办人确认替换的待发定时公告（2026-11-24 用户裁定）——确认后随建行请求提交
+      let supersedePendingIds: string[] = [];
       try {
         const dup = await checkAnnouncementDuplicate({
           title,
           relatedProjectCode: project?.projectCode || undefined,
           type: announcementType,
+          // 变更/补遗按轮次区分互斥：同项目不同轮次的变更公告是合法并存
+          changeRound: (finalDraft as Record<string, string>).changeRound,
         });
+        // 待发定时草稿（2026-11-24 生产实录：同项目两次「确认发布」各建一条定时草稿、到点各发一条）：
+        // 同项目同类型还有一条在等定时发布——后端默认拒绝本次发布，经办人在此确认后才替换
+        const pendingDup = dup.pending ?? [];
+        if (pendingDup.length > 0) {
+          const okReplace = await confirmDialog({
+            title: '已有定时待发的同类公告',
+            message: `检出 ${pendingDup.length} 条同项目同类、尚未发布的定时公告：\n\n${pendingScheduledDuplicateLines(pendingDup).join('\n\n')}\n\n继续发布将替换它：旧公告移入回收站，不再定时发出，以本次发布为准。`,
+            confirmText: '替换并发布',
+            cancelText: '返回检查',
+            danger: true,
+          });
+          if (!okReplace) return;
+          supersedePendingIds = pendingDup.map((p) => p.id);
+        }
         if (dup.matches.length > 0) {
           // 命中行排版（2026-11-16 用户裁定：分行结构化——标题一行、属性一行括注）。
           // 弹窗正文 whitespace-pre-line：换行保留、行首空格折叠——缩进用「（…）」括注行表达层级
@@ -1439,7 +1458,12 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
           : {}),
         metadata: meta,
         relatedProjectCode: project?.projectCode || undefined,
+        ...(supersedePendingIds.length > 0 && { supersedePendingScheduledIds: supersedePendingIds }),
       });
+      // 替换结果不静默（2026-11-24）：旧公告已入回收站，经办人须知道
+      if (saved.supersededPendingScheduledIds?.length) {
+        toast.info('已替换此前定时待发的公告，旧公告已移入回收站');
+      }
       // 联动失败不静默（2026-10-30）：流标公告发布但置 ABORTED 未完成时，收尾决策向导
       // 会撞 BID_NOT_ABORTED——发布时刻就把服务端警示亮出来
       if (saved.projectSyncWarning) toast.error(saved.projectSyncWarning);

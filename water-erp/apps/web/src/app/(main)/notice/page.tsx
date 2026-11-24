@@ -12,7 +12,7 @@ import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Partic
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
-import { isOverdueScheduledDraft, scheduledPublishErrorOf } from '@/lib/notice/schedule';
+import { isOverdueScheduledDraft, scheduledPublishErrorOf, scheduledDuplicatePendingErrorOf } from '@/lib/notice/schedule';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER, STAGE_LABEL } from '@water-erp/shared';
 import {
@@ -222,6 +222,8 @@ export default function NoticePage() {
                 ? methodOf.trim()
                 : tm.label;
               const sm = displayStatus(a);
+              // 定时待处理（2026-11-24）：同项目同类型有多条待发定时草稿，到点一条都不发——未到点就提前亮出
+              const dupPending = a.status === 'DRAFT' ? scheduledDuplicatePendingErrorOf(a) : null;
               const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
               const isSel = selectedIds.has(a.id);
               const hasAttachments = a.attachments && a.attachments.length > 0;
@@ -259,6 +261,13 @@ export default function NoticePage() {
                             ? <span className="max-w-[220px] truncate text-[10px] leading-tight text-[var(--danger)]" title={`${err.message}${err.at ? `（首次失败 ${new Date(err.at).toLocaleString('zh-CN', { hour12: false })}）` : ''}`}>{err.message}</span>
                             : <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">发布被拒/滞留，请检查</span>;
                         })()}
+                      </div>
+                    ) : dupPending ? (
+                      /* 定时待处理（2026-11-24 用户裁定）：定时任务检出同项目同类型多条待发草稿，不替经办人选择、
+                         一条都不发——经办人保留正确的一条、隐藏其余后，保留的那条自动发出 */
+                      <div className="flex flex-col items-center gap-1">
+                        <StatusBadge tone="orange">定时待处理</StatusBadge>
+                        <span className="max-w-[220px] truncate text-[10px] leading-tight text-[var(--warning)]" title={dupPending.message}>{dupPending.message}</span>
                       </div>
                     ) : (
                       <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>
@@ -545,6 +554,8 @@ export default function NoticePage() {
                   {(() => {
                     // 草稿速览同款红标（审计 F）：定时已过未发布一眼可见
                     if (isOverdueScheduledDraft(a)) return <StatusBadge tone="red">定时未生效</StatusBadge>;
+                    // 冲突待处理同款橙标（2026-11-24）：未到点也要一眼看到
+                    if (scheduledDuplicatePendingErrorOf(a)) return <StatusBadge tone="orange">定时待处理</StatusBadge>;
                     const sm = displayStatus(a); return <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>;
                   })()}
                   <span className="shrink-0 font-mono text-[11px] text-[var(--muted-foreground)]">

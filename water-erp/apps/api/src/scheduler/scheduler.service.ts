@@ -5,7 +5,7 @@ import { NotificationService } from '../notification/notification.service';
 import { ExpertAdminService } from '../expert/expert-admin.service';
 import { BID_CONFIRM_TIMEOUT_AFTER_WINDOW_MS } from '@water-erp/shared';
 import { AnnouncementService } from '../announcement/announcement.service';
-import { parseScheduledPublishDate } from '../announcement/scheduled-publish.util';
+import { parseScheduledPublishDate, isPendingScheduledDraft, scheduledDuplicateKey, SCHEDULED_DUPLICATE_PENDING_CODE } from '../announcement/scheduled-publish.util';
 import { BidService } from '../bid/bid.service';
 import { nudgeWindowOpen } from '../bid/opening-deadline.util';
 import { pendingBondReturnWhere } from '../bid/bond-pending.util';
@@ -510,12 +510,25 @@ export class SchedulerService {
    *  发布失败（如时限/赋码闸拒绝）→ 失败原因持久化 metadata.scheduledPublishError 并通知
    *  创建人（2026-11-23 优化：管理端「定时未生效」从「请检查」变为显示实际原因；同错误
    *  不重复写库/打扰——每分钟重试的写放大与通知风暴收敛到原因变化事件），保留 DRAFT
-   *  下轮重扫（闸门解除即自愈发出，自愈成功清除失败标记）。 */
+   *  下轮重扫（闸门解除即自愈发出，自愈成功清除失败标记）。
+   *
+   *  同键冲突兜底（2026-11-24 用户裁定）：同项目同类型（变更/补遗再带轮次）出现多条待发
+   *  定时草稿时，系统无从判定哪条正确——一条都不发，全部写失败原因并通知经办人；经办人保留
+   *  一条、隐藏其余后，保留的那条下一分钟自动发出。兜底不替经办人选择。未到点的草稿同样
+   *  提前判冲突，给经办人留处理时间。生产实录：XCZY-XB-2026112302 两条定时草稿同刻到期
+   *  各发一条、31 家供应商收两遍通知。 */
   @Cron('0 * * * * *')
   async publishScheduledAnnouncements() {
     const drafts = await this.prisma.announcement.findMany({
       where: { status: 'DRAFT' },
     });
+    // 待发定时草稿按互斥键计数（键口径与发布互斥闸同源 scheduledDuplicateKey）
+    const pendingCountByKey = new Map<string, number>();
+    for (const a of drafts) {
+      if (!isPendingScheduledDraft(a)) continue;
+      const key = scheduledDuplicateKey(a);
+      if (key) pendingCountByKey.set(key, (pendingCountByKey.get(key) ?? 0) + 1);
+    }
     for (const a of drafts) {
       const meta = (a.metadata as Record<string, any>) || {};
       // 解析走 scheduled-publish.util（2026-10-29 审计 C）：无时区 datetime-local 值按
@@ -523,41 +536,75 @@ export class SchedulerService {
       //  非法值返回 null 按「无定时」跳过（此前 NaN 比较恒 false，行为一致但不再依赖巧合）。
       const due = parseScheduledPublishDate(meta.scheduledPublishDate);
       if (!due) continue;
-      if (due <= new Date()) {
-        try {
-          await this.announcementService.update(a.id, {
-            status: 'PUBLISHED',
-            publishDate: new Date().toISOString(),
-          });
-          this.logger.log(`定时公告发布: ${a.title} (${a.id})`);
-          // 自愈收尾：曾失败后成功的，清残留失败标记（仅动 metadata，status 仍专属 update）
-          if (meta.scheduledPublishError) {
-            const cleaned = { ...meta };
-            delete cleaned.scheduledPublishError;
-            await this.prisma.announcement.update({ where: { id: a.id }, data: { metadata: cleaned as any } })
-              .catch((err) => this.logger.warn(`定时公告失败标记清除失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
-          }
-        } catch (e) {
-          const resp = (e as any)?.response;
-          const reason = resp?.error ?? (e as Error).message ?? '未知原因';
-          this.logger.error(`定时公告发布失败（保留草稿待修正）: ${a.title} (${a.id}): ${reason}`);
-          if (meta.scheduledPublishError?.message !== reason) {
-            const marked = { ...meta, scheduledPublishError: { message: reason, code: resp?.code ?? null, at: new Date().toISOString() } };
-            await this.prisma.announcement.update({ where: { id: a.id }, data: { metadata: marked as any } })
-              .catch((err) => this.logger.warn(`定时公告失败原因写入失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
-            if (a.authorId) {
-              await this.notification.create({
-                userId: a.authorId,
-                type: 'SCHEDULED_PUBLISH_FAILED',
-                title: '定时公告发布失败',
-                content: `「${a.title}」定时发布未生效：${reason}。请修正后重新发布，或切回立即发布。`,
-                link: '/notice',
-              }).catch((err) => this.logger.warn(`定时公告失败通知发送失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
-            }
-          }
+      const key = scheduledDuplicateKey(a);
+      const duplicates = key ? (pendingCountByKey.get(key) ?? 0) - 1 : 0;
+      if (duplicates > 0) {
+        await this.blockScheduledPublish(a, meta, {
+          code: SCHEDULED_DUPLICATE_PENDING_CODE,
+          reason: `同项目同类型还有 ${duplicates} 条定时待发公告，系统无法判定应发布哪一条，已暂停定时发布——请在信息发布中心保留正确的一条，并将其余同类公告隐藏；处理后系统会自动发出保留的公告`,
+          // 冲突的处理办法已写在原因里；不得沿用「重新发布」类建议——经办人照做会被互斥闸 409 拒绝
+          notice: { title: '定时公告暂停发布，待处理', lead: '定时发布已暂停', advice: '' },
+        });
+        continue;
+      }
+      if (due > new Date()) {
+        // 冲突已解除但还没到点：清掉残留的冲突标记（否则列表继续误标红）
+        if (meta.scheduledPublishError?.code === SCHEDULED_DUPLICATE_PENDING_CODE) {
+          await this.clearScheduledPublishError(a.id, meta);
         }
+        continue;
+      }
+      try {
+        await this.announcementService.update(a.id, {
+          status: 'PUBLISHED',
+          publishDate: new Date().toISOString(),
+        });
+        this.logger.log(`定时公告发布: ${a.title} (${a.id})`);
+        // 自愈收尾：曾失败后成功的，清残留失败标记（仅动 metadata，status 仍专属 update）
+        if (meta.scheduledPublishError) await this.clearScheduledPublishError(a.id, meta);
+      } catch (e) {
+        const resp = (e as any)?.response;
+        const reason = resp?.error ?? (e as Error).message ?? '未知原因';
+        await this.blockScheduledPublish(a, meta, {
+          code: resp?.code ?? null,
+          reason,
+          notice: { title: '定时公告发布失败', lead: '定时发布未生效', advice: '请修正后重新发布，或切回立即发布。' },
+        });
       }
     }
+  }
+
+  /** 发布被拦下的留痕：失败原因持久化到 metadata.scheduledPublishError 并通知创建人。
+   *  同一原因不重复写库/通知/打错误日志（写放大与通知风暴 2026-11-23 收敛到原因变化事件；
+   *  错误日志 2026-11-24 同口径——此前滞留件每分钟刷一条 ERROR）。
+   *  status 不动：发布仍专属 announcementService.update（P0-2 旁路禁令）。 */
+  private async blockScheduledPublish(
+    a: { id: string; title: string; authorId: string | null },
+    meta: Record<string, any>,
+    block: { code: string | null; reason: string; notice: { title: string; lead: string; advice: string } },
+  ) {
+    if (meta.scheduledPublishError?.message === block.reason) return;
+    this.logger.error(`定时公告发布失败（保留草稿待修正）: ${a.title} (${a.id}): ${block.reason}`);
+    const marked = { ...meta, scheduledPublishError: { message: block.reason, code: block.code, at: new Date().toISOString() } };
+    await this.prisma.announcement.update({ where: { id: a.id }, data: { metadata: marked as any } })
+      .catch((err) => this.logger.warn(`定时公告失败原因写入失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
+    if (a.authorId) {
+      await this.notification.create({
+        userId: a.authorId,
+        type: 'SCHEDULED_PUBLISH_FAILED',
+        title: block.notice.title,
+        content: `「${a.title}」${block.notice.lead}：${block.reason}。${block.notice.advice}`,
+        link: '/notice',
+      }).catch((err) => this.logger.warn(`定时公告失败通知发送失败（不阻塞）: ${a.id}: ${(err as Error).message}`));
+    }
+  }
+
+  /** 清除 metadata.scheduledPublishError（仅动 metadata，status 不碰） */
+  private async clearScheduledPublishError(id: string, meta: Record<string, any>) {
+    const cleaned = { ...meta };
+    delete cleaned.scheduledPublishError;
+    await this.prisma.announcement.update({ where: { id }, data: { metadata: cleaned as any } })
+      .catch((err) => this.logger.warn(`定时公告失败标记清除失败（不阻塞）: ${id}: ${(err as Error).message}`));
   }
 
   /** 每分钟扫描"催促未投递供应商"的定时任务（status=SCHEDULED 且 sendAt<=now，通常=开标前间隔常量）。

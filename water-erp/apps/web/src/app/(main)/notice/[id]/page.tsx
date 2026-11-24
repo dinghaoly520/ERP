@@ -24,7 +24,7 @@ import { PublishConfigSection, configFromMetadata, configToMetadata, type Publis
 import { BidDocEditSection, AddendumRefDocSection } from '@/components/notice/bid-doc-edit-section';
 import { DATA_CLASS_LABELS, ANNOUNCEMENT_TYPE_ORDER } from '@water-erp/shared';
 import { ANN_TYPE_LABEL, ANN_STATUS_LABEL, ANN_STATUS_TONE } from '@/lib/announcement-meta';
-import { isOverdueScheduledDraft, scheduledPublishErrorOf } from '@/lib/notice/schedule';
+import { isOverdueScheduledDraft, scheduledPublishErrorOf, scheduledDuplicatePendingErrorOf } from '@/lib/notice/schedule';
 import { formatYuanExact } from '@/lib/format';
 
 /* 类型/状态标签 */
@@ -622,6 +622,9 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
     }
   };
 
+  // 定时待处理（2026-11-24）：同项目同类型有多条待发定时草稿，到点一条都不发——未到点就提前亮出
+  const dupPendingErr = ann.status === 'DRAFT' ? scheduledDuplicatePendingErrorOf(ann) : null;
+
   return (
     <div className="flex flex-col gap-5">
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
@@ -736,7 +739,17 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
         <div className="text-xs font-bold text-[var(--accent-strong)] mb-4">发布配置</div>
         {/* 定时未生效警示（2026-10-29 审计 F）：定时时刻已过仍是草稿——发布被闸拒绝或服务异常滞留。
             2026-11-23：scheduler 持久化的实际拒绝原因（metadata.scheduledPublishError）直接透出 */}
-        {isOverdueScheduledDraft(ann) && (
+        {dupPendingErr ? (
+          /* 定时待处理（2026-11-24 用户裁定）：定时任务检出同项目同类型多条待发草稿，不替经办人选择、
+             一条都不发——经办人保留正确的一条、隐藏其余后，保留的那条自动发出 */
+          <div className="mb-4 flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-2.5 text-xs leading-5 text-[var(--foreground)]">
+            <Clock size={13} className="mt-0.5 shrink-0 text-[var(--warning)]" />
+            <span>
+              定时发布已暂停，需要你处理：<strong className="text-[var(--danger)]">{dupPendingErr.message}</strong>
+              {dupPendingErr.at ? <>（标记于 {new Date(dupPendingErr.at).toLocaleString('zh-CN', { hour12: false })}）</> : null}。
+            </span>
+          </div>
+        ) : isOverdueScheduledDraft(ann) && (
           <div className="mb-4 flex items-start gap-2 rounded-[10px] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-2.5 text-xs leading-5 text-[var(--foreground)]">
             <Clock size={13} className="mt-0.5 shrink-0 text-[var(--warning)]" />
             <span>

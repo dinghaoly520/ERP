@@ -32,3 +32,34 @@ export function scheduledPublishErrorOf(ann: { metadata?: Record<string, any> | 
     ? { message: e.message, code: typeof e.code === 'string' ? e.code : null, at: typeof e.at === 'string' ? e.at : '' }
     : null;
 }
+
+/** 待发定时草稿冲突标记（2026-11-24 用户裁定）：定时任务检出同项目同类型多条待发草稿时，
+ *  一条都不发，并给每条写 metadata.scheduledPublishError（code=SCHEDULED_DUPLICATE_PENDING）、
+ *  通知经办人保留一条、隐藏其余。未到点的草稿也会被提前标记——列表/详情据此亮「定时待处理」，
+ *  不必等定时时刻过了才亮红。只认冲突码：其他失败原因不属于冲突。 */
+export function scheduledDuplicatePendingErrorOf(ann: { metadata?: Record<string, unknown> | null }): { message: string; code: string | null; at: string } | null {
+  const err = scheduledPublishErrorOf(ann);
+  return err?.code === 'SCHEDULED_DUPLICATE_PENDING' ? err : null;
+}
+
+/** 待发定时草稿（查重弹窗 pending 行；与 API 的 AnnouncementPendingScheduledMatch 同构） */
+export interface PendingScheduledDuplicateLine {
+  id: string;
+  title: string;
+  scheduledPublishDate?: string | null;
+  type?: string;
+  status?: string;
+  relatedProjectCode?: string | null;
+}
+
+/** 待发草稿查重弹窗的逐条排版——与已发布查重弹窗同构：标题一行、属性一行括注；
+ *  定时时刻按东八区回显（不依赖浏览器时区）。 */
+export function pendingScheduledDuplicateLines(pending: PendingScheduledDuplicateLine[]): string[] {
+  return pending.map((p) => {
+    const due = scheduledPublishDue(p.scheduledPublishDate);
+    const attrs = [due ? `定时 ${new Date(due.getTime() + 8 * 3_600_000).toISOString().slice(0, 16).replace('T', ' ')} 发布` : '', '待发']
+      .filter(Boolean)
+      .join(' ～ ');
+    return `· ${p.title}\n（${attrs}）`;
+  });
+}

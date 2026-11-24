@@ -404,9 +404,9 @@ export class AnnouncementController {
 
   @Post('check-duplicate')
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  @ApiOperation({ summary: '发布前查重：同标题或同项目同类型的已发布公告（命中不阻断，前端提示确认）' })
+  @ApiOperation({ summary: '发布前查重：同标题或同项目同类型的已发布公告（命中不阻断，前端提示确认）＋同键待发定时草稿（pending）' })
   async checkDuplicate(
-    @Body() dto: { title?: string; relatedProjectCode?: string; type?: string },
+    @Body() dto: { title?: string; relatedProjectCode?: string; type?: string; changeRound?: string | number },
     @Request() req: any,
   ) {
     const scope = await this.companyScope.resolveScope(req.user);
