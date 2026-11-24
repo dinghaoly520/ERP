@@ -25,6 +25,7 @@ import { TenderFieldActions } from '@/components/tender-write/tender-field-actio
 import { TenderFieldSampleDialog } from '@/components/tender-write/tender-field-sample-drawer';
 import { CompanyEntryPickerDialog } from '@/components/tender-write/company-entry-picker-dialog';
 import { createFieldSample, fetchFieldSamples, generateFieldContent } from '@/lib/api/tender-sample';
+import { restoreSyncedDraft, createDraftPusher, deleteDraft } from '@/lib/api/drafts';
 import type { TenderFieldKey } from '@/lib/types/tender-write';
 import { buildDirectTalkReport, type DirectTalkReportDraft } from '@/lib/api/announcement';
 import { polishInitiationField, uploadProjectStageAttachment } from '@/lib/api/project-management';
@@ -257,6 +258,8 @@ export function DirectTalkReportDialog(props: Props) {
   /* 草稿初始化（2026-11-19 用户裁定）：优先恢复上次关闭时的编辑内容（localStorage 按项目+
      轮次存键，弹窗每次开关重新挂载、state 不跨开关存活）；无草稿才走预填导入 */
   const draftKey = talkDraftStorageKey(project.id, round);
+  /** 服务端草稿键（账号维度，跨设备续作）：与本机缓存同「项目+轮次」粒度 */
+  const serverDraftKey = `direct-talk-report:${project.id}:${round ?? 1}`;
   const [draft, setDraft] = useState(() => loadTalkDraft(draftKey) ?? buildPrefill(props));
   const [busy, setBusy] = useState(false);
   /* 字段级 AI 生成中状态（三按钮 Sparkles 脉冲）+ 收藏状态 + 批量填入 + 样本库抽屉 */
@@ -267,13 +270,40 @@ export function DirectTalkReportDialog(props: Props) {
   /* 商谈地点=开标地点条目选择器（公告编写同款） */
   const [placePickerOpen, setPlacePickerOpen] = useState(false);
 
-  /* 草稿随编辑即时落盘：挂载期每次变更即写 localStorage，关闭后内容已在盘，重开即恢复 */
+  /* 跨设备续作（账号维度）：打开时服务端草稿与本机缓存取新者——换设备登录同账号时
+     恢复上次编辑内容；服务端不可达退化为纯本机（离线可用） */
+  const restoreSettledRef = useRef(false);
   useEffect(() => {
     if (!isOpen) return;
+    let alive = true;
+    void (async () => {
+      const merged = await restoreSyncedDraft(serverDraftKey, localStorage.getItem(draftKey));
+      if (!alive) return;
+      // 先置恢复落定位：随后的 setDraft 触发自动保存（含服务端推送）不再被拦
+      restoreSettledRef.current = true;
+      if (!merged) return;
+      try { localStorage.setItem(draftKey, JSON.stringify(merged)); } catch {}
+      const rest = { ...merged } as Partial<typeof draft> & Record<string, unknown>;
+      delete rest.savedAt;
+      setDraft(rest as typeof draft);
+    })();
+    return () => { alive = false; };
+  }, [isOpen, draftKey, serverDraftKey]);
+
+  /* 草稿随编辑即时落盘：挂载期每次变更即写 localStorage（带 savedAt 时间戳），
+     并防抖同步服务端草稿（账号维度）；卸载时冲刷防抖中的最后一次变更。
+     恢复未落定前不落盘——防挂载预填以新时间戳覆盖服务端上的旧草稿（换设备恢复失效） */
+  const draftPusherRef = useRef<ReturnType<typeof createDraftPusher> | null>(null);
+  useEffect(() => {
+    if (!isOpen || !restoreSettledRef.current) return;
     try {
-      localStorage.setItem(draftKey, JSON.stringify(draft));
+      const payload = { ...draft, savedAt: Date.now() };
+      localStorage.setItem(draftKey, JSON.stringify(payload));
+      if (!draftPusherRef.current) draftPusherRef.current = createDraftPusher(serverDraftKey);
+      draftPusherRef.current.push(payload);
     } catch { /* 存储满/隐私模式：不阻断编辑 */ }
-  }, [draftKey, draft, isOpen]);
+  }, [draftKey, draft, isOpen, serverDraftKey]);
+  useEffect(() => () => { draftPusherRef.current?.flushNow(); }, []);
 
   /* 收藏态回填（打开时查样本库已收藏项——星标按服务端真实状态点亮） */
   useEffect(() => {
@@ -417,8 +447,10 @@ export function DirectTalkReportDialog(props: Props) {
     try {
       const { file } = await buildFile();
       await uploadProjectStageAttachment(project.id, 'BID_EVALUATION', file, round);
-      /* 上传成功=草稿使命完成：清空持久化，重开走全新预填 */
+      /* 上传成功=草稿使命完成：清空持久化（本机+服务端草稿），重开走全新预填 */
       try { localStorage.removeItem(draftKey); } catch { /* 忽略 */ }
+      draftPusherRef.current?.cancel();
+      void deleteDraft(serverDraftKey).catch(() => {});
       toast.success('商谈报告已生成并上传至「开标评标」步骤');
       onUploaded?.();
       onClose();

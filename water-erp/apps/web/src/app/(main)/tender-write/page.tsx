@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Eraser, FileDown, FileText, History, Megaphone, Save, ScanText, Mail } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
 import { LoginErrorDialog } from "@/components/login/login-error-dialog";
@@ -56,10 +56,15 @@ import { hasValidScoringRows } from "@/components/tender-write/scoring-items-edi
 import { isScoringRequiredType } from "@/lib/tender-write/templates";
 import {
   readTenderWriteState,
+  tenderWriteLocalSyncRaw,
+  applyTenderWriteSyncRaw,
+  tenderWriteLocalSavedAt,
+  TENDER_WRITE_GLOBAL_DRAFT_SERVER_KEY,
   resetTenderDraftByType,
   sanitizeTenderDraft,
   writeTenderWriteState,
 } from "@/lib/tender-write/storage";
+import { restoreSyncedDraft } from "@/lib/api/drafts";
 import type {
   CompetitiveNegotiationDraft,
   CompetitiveNegotiationFieldKey,
@@ -158,8 +163,25 @@ export default function TenderWritePage() {
   const [showAnnouncementDialog, setShowAnnouncementDialog] = useState(false);
   const [showNotificationDialog, setShowNotificationDialog] = useState(false);
 
+  // 跨设备合并落定标记：未落定前只写本机——防挂载预填/空草稿以新时间戳覆盖服务端旧草稿
+  const globalDraftSyncSettledRef = useRef(false);
   useEffect(() => {
     const cached = readTenderWriteState();
+    // 跨设备续作（账号维度服务端草稿）：服务端快照更新时采用并回写本机、重读覆盖初始恢复——
+    // 换设备登录同账号时工作台草稿完整可见；应用前重读本机时间戳，防 fetch 窗口内的新编辑被旧远端覆盖
+    let alive = true;
+    void (async () => {
+      const remote = await restoreSyncedDraft(TENDER_WRITE_GLOBAL_DRAFT_SERVER_KEY, tenderWriteLocalSyncRaw());
+      if (!alive) return;
+      // 先置落定位：随后应用远端触发的写效应正常推送；无远端/更旧也放行后续编辑的推送
+      globalDraftSyncSettledRef.current = true;
+      if (!remote) return;
+      if (Number(remote.savedAt ?? 0) <= tenderWriteLocalSavedAt()) return;
+      applyTenderWriteSyncRaw(JSON.stringify(remote));
+      const reread = readTenderWriteState();
+      setDrafts(reread.drafts);
+      if (reread.selectedType) setSelectedType(reread.selectedType);
+    })();
     // 2026-10-29 追加裁定：保证金其他要求默认「/」直接落输入框——存量草稿在「收取」
     // 状态下的空值，恢复时补种（无该字段的采购方式自然跳过）
     const seedDepositSlash = <T extends object>(d: T): T => {
@@ -211,10 +233,11 @@ export default function TenderWritePage() {
         };
       });
     });
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
-    writeTenderWriteState({ selectedType, drafts });
+    writeTenderWriteState({ selectedType, drafts }, { sync: globalDraftSyncSettledRef.current });
   }, [selectedType, drafts]);
 
   const selectedMeta = useMemo(

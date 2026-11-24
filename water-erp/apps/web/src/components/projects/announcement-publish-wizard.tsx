@@ -63,6 +63,7 @@ import type {
 import { FilePreviewPane } from './file-preview-pane';
 import { openingTimeFromSources, toDatetimeLocalValue as toDatetimeLocal, toDateInputValue as toDateInput } from '@/lib/tender-write/opening-time';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
+import { restoreSyncedDraft, createDraftPusher } from '@/lib/api/drafts';
 
 /** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段）
  *  INQUIRY_PURCHASE 2026-10-29 模板 v2 起与竞价对齐为 responseSubmissionTime（此处曾漏改，
@@ -499,11 +500,24 @@ function toDatetimeLocalValue(text: string): string {
 /** 缓存键按「项目 + 公告分类」隔离——同一项目先发采购公告再做中标公告时，
  *  两类草稿互不串扰（此前仅按 projectId 存取，定标阶段打开中标公告会错误恢复出采购公告模板）。 */
 function wizardStorageKey(projectId: string, category: string): string { return `ann-wizard-${projectId}:${category}`; }
+/** 服务端草稿键（账号维度，跨设备）：与本机缓存键同「项目+分类」粒度 */
+function wizardDraftKey(projectId: string, category: string): string { return `announce-wizard:${projectId}:${category}`; }
+/** 服务端推送防抖器（键→pusher）：向导本机落盘后合并推送，卸载冲刷由组件 effect 负责 */
+const wizardDraftPushers = new Map<string, ReturnType<typeof createDraftPusher>>();
 function loadWizardState(projectId: string, category: string): Record<string, any> | null {
   try { const r = localStorage.getItem(wizardStorageKey(projectId, category)); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 function saveWizardState(projectId: string, category: string, state: Record<string, any>) {
-  try { const prev = loadWizardState(projectId, category) || {}; localStorage.setItem(wizardStorageKey(projectId, category), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
+  try {
+    const prev = loadWizardState(projectId, category) || {};
+    const merged = { ...prev, ...state, _ts: Date.now() };
+    localStorage.setItem(wizardStorageKey(projectId, category), JSON.stringify(merged));
+    // 双写服务端草稿（账号维度）：换设备打开同账号时向导各步骤内容完整可见
+    const dk = wizardDraftKey(projectId, category);
+    let pusher = wizardDraftPushers.get(dk);
+    if (!pusher) { pusher = createDraftPusher(dk); wizardDraftPushers.set(dk, pusher); }
+    pusher.push(merged);
+  } catch {}
 }
 
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document', initialDraftPatch }: Props) {
@@ -681,10 +695,31 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     [initialDraftPatch],
   );
 
+  // 跨设备草稿预取（账号维度）：服务端与本机缓存按 _ts 取新者写回本机，主打开流程随后照常恢复——
+  // 换设备打开同账号时各步骤已填内容完整可见；服务端不可达退化为纯本机（离线可用）
+  const [cacheSynced, setCacheSynced] = useState(false);
+  useEffect(() => {
+    if (!isOpen || !project) { setCacheSynced(false); return; }
+    setCacheSynced(false);
+    setLoading(true);
+    let alive = true;
+    void (async () => {
+      const lk = wizardStorageKey(project.id, initialCategory);
+      const merged = initialDraftPatch
+        ? null // 变更/补遗注入：忽略缓存，也无须跨设备合并
+        : await restoreSyncedDraft(wizardDraftKey(project.id, initialCategory), localStorage.getItem(lk));
+      if (merged) { try { localStorage.setItem(lk, JSON.stringify(merged)); } catch {} }
+      if (alive) setCacheSynced(true);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, project?.id, initialCategory, !!initialDraftPatch]);
+
   // 打开时：确定 tenderType + 构造预填 draft + 解析 .docx
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时重置表单值，符合模态惯例 */
   useEffect(() => {
     if (!isOpen || !project) return;
+    if (!cacheSynced) return; // 草稿跨设备预取完成后才进入打开流程（loading 态承接等待期）
 
     // ★ 检查 sessionStorage 缓存（按 initialCategory 隔离）—— 同类公告有缓存则恢复，否则全新预填
     // 变更/补遗注入（2026-11-11）：带 initialDraftPatch 时忽略缓存——轮次/理由必须取登记最新值
@@ -1032,7 +1067,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [isOpen, project]);
+  }, [isOpen, project, cacheSynced]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // ESC 关闭

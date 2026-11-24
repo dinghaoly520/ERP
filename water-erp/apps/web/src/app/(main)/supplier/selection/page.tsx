@@ -23,6 +23,7 @@ import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
 import { InvitationLetterModal } from '@/components/supplier/invitation-letter-modal';
 import { fetchDraft, saveDraft, deleteDraft } from '@/lib/api/drafts';
+import { readConfirmThresholdLocal, writeConfirmThreshold, syncConfirmThresholdFromServer } from '@/lib/supplier-confirm-threshold';
 import { QualificationAnalysisPanel } from '@/components/supplier/qualification-analysis-panel';
 import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
@@ -521,11 +522,11 @@ export function SupplierSelectionPage({
   const [completed, setCompleted] = useState(false); // 第 5 步：本批次选取是否已确认完成
   // 核定最少供应商数量：确认参加回执达到该值即可在项目详情标记「供应商邀请」阶段完成
   //（默认 3；lazy init 从 localStorage 恢复用户设置——SSR 预渲染时 window 不存在须守卫）
-  const [confirmThreshold, setConfirmThreshold] = useState(() => {
-    if (typeof window === 'undefined') return 3;
-    const saved = Number(window.localStorage.getItem('supplier-confirm-threshold'));
-    return saved >= 1 && saved <= 50 ? saved : 3;
-  });
+  const [confirmThreshold, setConfirmThreshold] = useState(readConfirmThresholdLocal);
+  // 跨设备同步（账号维度服务端草稿）：他设备保存过的设置在此处生效
+  useEffect(() => {
+    void syncConfirmThresholdFromServer().then((v) => { if (v != null) setConfirmThreshold(v); });
+  }, []);
 
   // 手动搜索状态（「手动补充」折叠面板用；手动选取模式已于 2026-10-19 移除，仅剩 AI 智能选取）
   const [manualSearch, setManualSearch] = useState('');
@@ -3058,7 +3059,7 @@ export function SupplierSelectionPage({
                       onChange={(e) => {
                         const v = Math.min(Math.max(Number(e.target.value) || 3, 1), 50);
                         setConfirmThreshold(v);
-                        localStorage.setItem('supplier-confirm-threshold', String(v));
+                        writeConfirmThreshold(v);
                       }}
                       className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
                       title="供应商回执确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />
@@ -3709,7 +3710,7 @@ export function SupplierSelectionPage({
                   onChange={(e) => {
                     const v = Math.min(Math.max(Number(e.target.value) || 3, 1), 50);
                     setConfirmThreshold(v);
-                    localStorage.setItem('supplier-confirm-threshold', String(v));
+                    writeConfirmThreshold(v);
                   }}
                   className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
                   title="全部供应商（正选+补选）确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />
