@@ -1,4 +1,13 @@
 import { BidDocumentService } from './bid-document.service';
+import { Logger } from '@nestjs/common';
+
+// 源键闸用例（文件末尾的 describe）：转换桩成「不转换」，读取轨换成可观测的桩
+jest.mock('../common/office-to-pdf.util', () => ({ convertOfficeToPdf: jest.fn().mockResolvedValue(null) }));
+jest.mock('../common/attachment-object-store', () => ({
+  ...jest.requireActual('../common/attachment-object-store'),
+  readAttachmentBuffer: jest.fn(),
+}));
+import { readAttachmentBuffer } from '../common/attachment-object-store';
 
 /**
  * checkEligibility OPEN 公司隔离（2026-10-21 边界闭环）：
@@ -302,5 +311,80 @@ describe('BidDocumentService — 下载密码残留清理', () => {
         data: { metadata: {} },
       });
     } finally { putSpy.mockRestore(); }
+  });
+});
+
+describe('BidDocumentService — attachFromObject 源键闸（审计 P1-2 后半）', () => {
+  const readBuffer = readAttachmentBuffer as jest.Mock;
+  const minioMod = require('../upload/minio.client');
+  let getSpy: jest.SpyInstance;
+  let putSpy: jest.SpyInstance;
+  let warnSpy: jest.SpyInstance;
+
+  const mk = () => {
+    const prisma: any = {
+      announcement: { findUnique: jest.fn().mockResolvedValue({ id: 'a1', type: 'BID_NOTICE' }) },
+      bidDocument: { findUnique: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'd1' }) },
+      fileAsset: { create: jest.fn().mockResolvedValue({ id: 'f1' }) },
+    };
+    const svc: any = Object.create(BidDocumentService.prototype);
+    svc.prisma = prisma;
+    // Object.create 不跑构造函数，类字段 logger 是 undefined；attachFromObject 成功路径会打日志
+    svc.logger = { log: jest.fn(), warn: jest.fn() };
+    return { svc, prisma };
+  };
+
+  beforeEach(() => {
+    readBuffer.mockReset();
+    // 对象存储全程打桩：这些用例只证明「有没有走到读写」，不真连开发环境的 MinIO
+    getSpy = jest.spyOn(minioMod.minioClient, 'getObject').mockRejectedValue(new Error('unexpected getObject'));
+    putSpy = jest.spyOn(minioMod.minioClient, 'putObject').mockResolvedValue({} as any);
+    // 被拒的键会打真实警告：接住它，不让输出变脏
+    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => { getSpy.mockRestore(); putSpy.mockRestore(); warnSpy.mockRestore(); });
+
+  it.each(['../../.env', '/proc/self/environ', 'knowledge/x', 'sealed-backup/k'])
+  ('键 %s 不在 PMI 前缀 → 400 FORBIDDEN_SOURCE_KEY，不读任何存储', async (objectKey) => {
+    const { svc, prisma } = mk();
+    await expect(svc.attachFromObject('a1', { objectKey }))
+      .rejects.toMatchObject({ response: { code: 'FORBIDDEN_SOURCE_KEY' } });
+    expect(readBuffer).not.toHaveBeenCalled();
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+  });
+
+  it('前缀合法但含 .. 段 → 400 INVALID_OBJECT_KEY，不读任何存储', async () => {
+    const { svc } = mk();
+    await expect(svc.attachFromObject('a1', { objectKey: 'project-management/../../../etc/passwd' }))
+      .rejects.toMatchObject({ response: { code: 'INVALID_OBJECT_KEY' } });
+    expect(readBuffer).not.toHaveBeenCalled();
+  });
+
+  it('合法键：只经 readAttachmentBuffer 读取，不再按任意键直读对象存储', async () => {
+    const prevSecret = process.env.KMS_SECRET;
+    process.env.KMS_SECRET = prevSecret ?? 'spec-kms-secret-0123456789abcdef-2026';
+    const { svc, prisma } = mk();
+    readBuffer.mockResolvedValue(Buffer.from('docx-bytes'));
+    try {
+      await svc.attachFromObject('a1', {
+        objectKey: 'project-management/1732452000000-tender-document-x.pdf',
+        fileName: 'x.pdf', mimeType: 'application/pdf', title: 'x',
+      });
+      expect(readBuffer).toHaveBeenCalledWith('project-management/1732452000000-tender-document-x.pdf');
+      expect(getSpy).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.create).toHaveBeenCalledTimes(1);
+    } finally {
+      if (prevSecret === undefined) delete process.env.KMS_SECRET; else process.env.KMS_SECRET = prevSecret;
+    }
+  });
+
+  it('合法键但文件不存在 → 400 SOURCE_NOT_FOUND，不建文件记录、不写对象存储', async () => {
+    const { svc, prisma } = mk();
+    readBuffer.mockResolvedValue(null);
+    await expect(svc.attachFromObject('a1', { objectKey: 'project-management/missing.pdf' }))
+      .rejects.toMatchObject({ response: { code: 'SOURCE_NOT_FOUND' } });
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+    expect(putSpy).not.toHaveBeenCalled();
   });
 });

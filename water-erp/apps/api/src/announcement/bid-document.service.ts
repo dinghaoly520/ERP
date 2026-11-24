@@ -1,8 +1,8 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException, ConflictException, Logger } from '@nestjs/common';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { minioClient, MINIO_BUCKET } from '../upload/minio.client';
+import { assertPmiAttachmentSourceKey } from '../common/attachment-key.util';
+import { readAttachmentBuffer } from '../common/attachment-object-store';
 import { encryptBuffer, decryptBuffer, streamToBuffer } from './bid-document.crypto';
 import { wrapKey, unwrapKey, isWrappedKey } from '../common/crypto/envelope-crypto';
 import { convertOfficeToPdf } from '../common/office-to-pdf.util';
@@ -123,18 +123,13 @@ export class BidDocumentService {
       return this.getForManagement(announcementId);
     }
 
-    // ① 读取源对象：优先 MinIO；objectKey 不存在时兜底本地 uploads/ 目录
-    //    （PMI 阶段附件经 persistUploadedFile 存本地磁盘，objectKey 是相对路径约定，不在 MinIO）
-    let sourceBuffer: Buffer;
-    try {
-      const source = await minioClient.getObject(MINIO_BUCKET, input.objectKey);
-      sourceBuffer = await streamToBuffer(source);
-    } catch {
-      try {
-        sourceBuffer = await readFile(resolve(process.cwd(), 'uploads', input.objectKey));
-      } catch {
-        throw new BadRequestException({ error: '采购文件对象不存在（MinIO 与本地均未找到）', code: 'SOURCE_NOT_FOUND' });
-      }
+    // ① 源键闸（审计 P1-2 后半，2026-11-24）：源键来自公告 metadata.selectedTenderObjectKey（客户端可写），
+    //    只认 PMI 阶段附件键；读取统一走带越界拦截的 readAttachmentBuffer（本地主轨优先，miss 回退 MinIO 副本）。
+    //    旧实现按任意键直读对象存储、失败再裸读本地路径——指向 .env 一类文件会被加密成「公开范围」的招标文件。
+    assertPmiAttachmentSourceKey(input.objectKey);
+    const sourceBuffer = await readAttachmentBuffer(input.objectKey);
+    if (!sourceBuffer) {
+      throw new BadRequestException({ error: '采购文件对象不存在（本地与对象存储均未找到）', code: 'SOURCE_NOT_FOUND' });
     }
     if (sourceBuffer.length === 0) {
       throw new BadRequestException({ error: '采购文件对象为空', code: 'EMPTY_SOURCE' });
