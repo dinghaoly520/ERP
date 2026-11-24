@@ -198,28 +198,36 @@ function FilterSelect({ value, onChange, options, ariaLabel }: {
 }
 
 // ─── KPI Card (matches dashboard KpiCard pattern) ─────────────────────────
-function KpiCard({ label, value, sub, signal, index, reducedMotion }: {
+function KpiCard({ label, value, sub, signal, signalLabel, index, reducedMotion }: {
   label: string; value: ReactNode; sub?: string;
-  signal?: "success" | "warning" | "danger";
+  signal?: "success" | "warning" | "danger" | "neutral";
+  /** 覆盖徽章文案（neutral 纯统计卡必传：在办/合计/峰值） */
+  signalLabel?: string;
   index: number; reducedMotion: boolean;
 }) {
   const { initial, animate, transition } = fadeIn(index, reducedMotion, 0.05);
-  const sc = signal === "success" ? "bg-[var(--success)]" : signal === "warning" ? "bg-[var(--warning)]" : "bg-[var(--danger)]";
-  const st = signal === "success" ? "text-[var(--success)]" : signal === "warning" ? "text-[var(--warning)]" : "text-[var(--danger)]";
-  const sl = signal === "success" ? "达标" : signal === "warning" ? "关注" : "告警";
+  /* 七卡统一三段结构（2026-11-24 用户裁定）：阈值卡=达标/关注/告警动态徽章，
+     纯统计卡=中性灰徽章（在办/合计/峰值），徽章位每卡必有不再空洞 */
+  const SIGNAL = {
+    success: { dot: "bg-[var(--success)]", text: "text-[var(--success)]", label: "达标" },
+    warning: { dot: "bg-[var(--warning)]", text: "text-[var(--warning)]", label: "关注" },
+    danger: { dot: "bg-[var(--danger)]", text: "text-[var(--danger)]", label: "告警" },
+    neutral: { dot: "bg-[var(--muted-foreground)]", text: "text-[var(--muted-foreground)]", label: "统计" },
+  } as const;
+  const s = signal ? SIGNAL[signal] : null;
   return (
     <motion.div {...{ initial, animate, transition }}>
       <div className="kpi-card flex h-full flex-col gap-1.5 p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)] leading-none">{label}</span>
-          {signal && (
-            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] ${st}`}>
-              <span className={`h-1 w-1 rounded-full shrink-0 ${sc}`} />{sl}
+          {s && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold bg-[color-mix(in_oklch,var(--muted-foreground)_8%,transparent)] ${s.text}`}>
+              <span className={`h-1 w-1 rounded-full shrink-0 ${s.dot}`} />{signalLabel ?? s.label}
             </span>
           )}
         </div>
 
-        <span className="text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
+        <span className="truncate text-[1.55rem] font-black tracking-[-0.04em] leading-none tabular-nums text-[var(--foreground)]">{value}</span>
         <span className="text-[10px] font-medium text-[var(--muted-foreground)] leading-tight">{sub || " "}</span>
       </div>
     </motion.div>
@@ -720,13 +728,13 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
         {/* KPI 行 — 分割线 + 内容合并在同一容器，间距与项目管理统一 */}
         <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "1rem" }}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7">
-          <KpiCard label="进行中项目" value={stats.totalActive} signal="success" index={1} reducedMotion={reducedMotion} />
+          <KpiCard label="进行中项目" value={stats.totalActive} signal="neutral" signalLabel="在办" sub="在办项目总数" index={1} reducedMotion={reducedMotion} />
           <KpiCard label="平均完成度" value={formatPercent(avgCompletion)} signal={avgCompletion >= 60 ? "success" : avgCompletion >= 40 ? "warning" : "danger"} sub="整体平均推进率" index={2} reducedMotion={reducedMotion} />
-          <KpiCard label="预算总额" value={formatWan(totalBudget)} sub={`${derivedProjects.length}个项目预算合计`} index={3} reducedMotion={reducedMotion} />
-          <KpiCard label="待推进" value={attnCount} signal={attnCount > 0 ? "warning" : "success"} sub="待跟进推进" index={4} reducedMotion={reducedMotion} />
-          <KpiCard label="高风险项目" value={dangerCount} signal={dangerCount > 0 ? "danger" : "success"} sub="停滞超14天" index={5} reducedMotion={reducedMotion} />
-          <KpiCard label="平均停滞" value={avgStalled} sub="天未更新" signal={avgStalled > 7 ? "danger" : avgStalled > 3 ? "warning" : undefined} index={6} reducedMotion={reducedMotion} />
-          <KpiCard label="集中阶段" value={dominantStage?.label ?? "暂无"} sub="项目最密集阶段" index={7} reducedMotion={reducedMotion} />
+          <KpiCard label="预算总额" value={formatWan(totalBudget)} signal="neutral" signalLabel="合计" sub={`${derivedProjects.length} 个项目预算合计`} index={3} reducedMotion={reducedMotion} />
+          <KpiCard label="待推进" value={attnCount} signal={attnCount > 0 ? "warning" : "success"} sub="超 7 天未更新或高预算早期" index={4} reducedMotion={reducedMotion} />
+          <KpiCard label="高风险项目" value={dangerCount} signal={dangerCount > 0 ? "danger" : "success"} sub="停滞超 14 天" index={5} reducedMotion={reducedMotion} />
+          <KpiCard label="平均停滞" value={`${avgStalled} 天`} signal={avgStalled > 7 ? "danger" : avgStalled > 3 ? "warning" : "success"} sub="距最近更新平均天数" index={6} reducedMotion={reducedMotion} />
+          <KpiCard label="集中阶段" value={<span className="text-[1.15rem] tracking-normal">{dominantStage?.label ?? "暂无"}</span>} signal="neutral" signalLabel="峰值" sub="项目最密集阶段" index={7} reducedMotion={reducedMotion} />
         </div>
         </div>
 
