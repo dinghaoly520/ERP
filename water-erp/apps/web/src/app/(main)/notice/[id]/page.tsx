@@ -340,10 +340,11 @@ function renderMeta(ann: AnnouncementListItem) {
         </span>
           );
           return (
-            <>
+            // 两组同排一行（2026-11-24 二次裁定：能一行显示必须一行）——横向容器，窄屏才换行
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               {base.length > 0 && <Group title="基本信息" items={base} />}
               {times.length > 0 && <Group title="时间节点" items={times} />}
-            </>
+            </div>
           );
         })()}
         {areaFields.map(f => (

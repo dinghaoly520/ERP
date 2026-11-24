@@ -104,3 +104,9 @@ test("列表解包防误伤：多项真列表与非标题单 li 不动", () => {
   const plain = normalizeAnnouncementContentHtml("<ol><li>普通列表项</li></ol>", null);
   assert.ok(plain.includes("<ol>"), plain);
 });
+
+test("公示类标题拆分（2026-11-24 流标公示实录）：首段以「X…公示」结尾粘连——启发式边界扩至公示词", () => {
+  const html = "<p><strong>便携式全液压岩心钻机（800型）采购</strong><strong>流标公示</strong>一、项目名称：便携式全液压岩心钻机（800型）采购</p><p>四、流标原因</p>";
+  const out = normalizeAnnouncementContentHtml(html, "流标公告 — 便携式全液压岩心钻机（800型）采购");
+  assert.ok(out.includes('<p class="ann-prose-title">便携式全液压岩心钻机（800型）采购流标公示</p>'), out);
+});
