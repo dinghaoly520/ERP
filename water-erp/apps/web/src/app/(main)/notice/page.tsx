@@ -232,8 +232,9 @@ export default function NoticePage() {
                     <input type="checkbox" className="neu-checkbox" checked={isSel} onChange={() => toggleRow(a.id)} aria-label={`选择 ${a.title}`} />
                   </td>
                   <td>
-                    {/* 列宽收窄（2026-11-24 用户裁定）：内容宽封顶促换行，摘要独立成行居左 */}
-                    <div className="flex max-w-[420px] flex-col items-start gap-1">
+                    {/* 列宽（2026-11-24 用户裁定二次修订）：内容宽上限放宽填充行内空白，
+                        摘要两行截断显示更多内容 */}
+                    <div className="flex max-w-[560px] flex-col items-start gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-left text-sm font-bold text-[var(--foreground)]">{a.title}</span>
                         {a.isTop && <StatusBadge tone="red" className="!text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
@@ -245,8 +246,8 @@ export default function NoticePage() {
                         {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
                         {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
                       </div>
-                      {/* 2026-11-24 二次裁定：摘要回单行显示，超出以省略号截断 */}
-                      {a.summary && <p className="w-full truncate text-left text-[11px] text-[var(--muted-foreground)]">{a.summary}</p>}
+                      {/* 2026-11-24 三次裁定：摘要两行截断——利用行内空白显示更多内容 */}
+                      {a.summary && <p className="w-full line-clamp-2 text-left text-[11px] leading-relaxed break-all text-[var(--muted-foreground)]">{a.summary}</p>}
                     </div>
                   </td>
                   <td>
