@@ -63,8 +63,8 @@ function fmtBudget(raw: any): string {
   if (raw == null || raw === "") return "";
   const n = Number(raw);
   if (isNaN(n)) return String(raw);
-  if (n >= 10000) return `${(n / 10000).toFixed(0)} 万元`;
-  return `${n} 元`;
+  // 精确显示（2026-11-24 用户裁定，与公告顶部金额芯片同口径）：原始数字千分位 + 元，不折万
+  return `${n.toLocaleString('zh-CN')} 元`;
 }
 function fmtAttSize(raw: unknown): string {
   const n = Number(raw);
@@ -232,7 +232,7 @@ function BidDetailInner() {
       });
     }
     if (m.contact) fields.push({ label: "联系方式", value: m.contact, kind: 'plain' });
-    if (m.downloadMode) fields.push({ label: "下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
+    if (m.downloadMode) fields.push({ label: "采购文件下载方式", value: m.downloadMode === "encrypted" ? "解密下载" : m.downloadMode === "paid" ? "付费下载" : "免费下载", kind: 'plain' });
     return fields;
   })();
 
