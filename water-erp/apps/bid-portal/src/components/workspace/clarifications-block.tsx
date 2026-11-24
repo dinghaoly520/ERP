@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/evaluation';
 import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import type { BidProjectDetail } from '@/lib/types';
+import { NeuSelect } from '@/components/neu-select';
 
 type Props = {
   bidProjectId: string;
@@ -412,10 +413,10 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
             <div className="space-y-3.5 px-6 py-5">
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">类型</label>
-                <select value={clarType} onChange={e => setClarType(e.target.value)} className="workbench-input w-full">
+                <NeuSelect value={clarType} onChange={e => setClarType(e.target.value)} className="w-full">
                   <option value="clarification">澄清（招标人发起）</option>
                   <option value="question">答疑（回复供应商提问）</option>
-                </select>
+                </NeuSelect>
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">发起人</label>
@@ -423,7 +424,7 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
               </div>
               <div>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">供应商</label>
-                <select
+                <NeuSelect
                   value={selectedSupplierId}
                   onChange={e => {
                     // F3：澄清供应商契约 = BidSupplier.id（行 id）——专家端校验
@@ -432,13 +433,13 @@ export function ClarificationsBlock({ bidProjectId, detail, onChanged, refreshSi
                     setSelectedSupplierId(e.target.value);
                     setSupplierName(sel?.supplierName ?? '');
                   }}
-                  className="workbench-input w-full"
+                  className="w-full"
                 >
                   <option value="">选择供应商</option>
                   {detail.suppliers.filter(s => s.bidValidity !== 'invalid').map(s => (
                     <option key={s.id} value={s.id}>{s.supplierName}</option>
                   ))}
-                </select>
+                </NeuSelect>
               </div>
               <div>
                 <label className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">

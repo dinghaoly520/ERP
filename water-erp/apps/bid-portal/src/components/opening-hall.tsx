@@ -15,6 +15,7 @@ import { ExchangeDrawer } from '@/components/bid/exchange-drawer';
 import { portalURL } from '@water-erp/config';
 import { useBidUser } from '@/hooks/use-bid-user';
 import { useConfirm } from '@/components/use-confirm';
+import { NeuSelect } from '@/components/neu-select';
 // 注：开标记录签字卡在「评标签字」tab（评标结束一次性办理的运营口径），本组件不再渲染
 
 /** cgzxui 裸面板——无边框玻璃静态卡 */
@@ -1235,13 +1236,13 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
             <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
               缴纳人
-              <select value={bondLedgerForm.supplierName}
+              <NeuSelect value={bondLedgerForm.supplierName}
                 onChange={e => setBondLedgerForm(f => ({ ...f, supplierName: e.target.value }))}
-                className="neu-select mt-1 w-full">
+                className="mt-1 w-full">
                 <option value="">— 选择已提交供应商 —</option>
                 {project.suppliers.filter(s => s.submitStatus === '已提交').map(s =>
                   <option key={s.id} value={s.supplierName}>{s.supplierName}</option>)}
-              </select>
+              </NeuSelect>
             </label>
             <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
               金额（元）
@@ -1263,12 +1264,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
             </label>
             <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
               支付形式
-              <select value={bondLedgerForm.payMethod}
+              <NeuSelect value={bondLedgerForm.payMethod}
                 onChange={e => setBondLedgerForm(f => ({ ...f, payMethod: e.target.value }))}
-                className="neu-select mt-1 w-full">
+                className="mt-1 w-full">
                 <option value="">— 选择 —</option>
                 {['转账', '保函', '支票', '其他'].map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+              </NeuSelect>
             </label>
             <label className="text-xs font-semibold text-[color:var(--muted-foreground)]">
               备注
@@ -1535,12 +1536,12 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                     return (
                       <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                         {labelText}
-                        <select value={recordDraft.bondStatus}
+                        <NeuSelect value={recordDraft.bondStatus}
                           onChange={e => setRecordDraft(d => ({ ...d, bondStatus: e.target.value }))}
-                          className="neu-select mt-1 w-full">
+                          className="mt-1 w-full">
                           <option value="">— 请核对凭证后选择 —</option>
                           {BOND_STATUS_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
+                        </NeuSelect>
                         {/* A-104：到账台账自动比对提示（null=项目不要求保证金/早期守卫，不渲染）——span 块级化，label 内容模型不含块级元素 */}
                         {recordDraft.bondCompliance && (
                           recordDraft.bondCompliance.issues.length > 0 ? (
@@ -1585,11 +1586,11 @@ export function OpeningHall({ project, onRefresh }: { project: BidProjectDetail;
                   <label key={f.key} className="text-xs font-semibold text-[color:var(--muted-foreground)]">
                     {f.label}{f.required ? ' *' : ''}
                     {f.type === 'select' ? (
-                      <select value={value} onChange={e => onCustomChange(e.target.value)}
-                        className="neu-select mt-1 w-full">
+                      <NeuSelect value={value} onChange={e => onCustomChange(e.target.value)}
+                        className="mt-1 w-full">
                         <option value="">— 请选择 —</option>
                         {(f.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
+                      </NeuSelect>
                     ) : (
                       <input value={value} onChange={e => onCustomChange(e.target.value)}
                         inputMode={f.type === 'number' ? 'decimal' : undefined}

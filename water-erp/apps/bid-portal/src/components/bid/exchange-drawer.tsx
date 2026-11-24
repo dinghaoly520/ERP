@@ -6,6 +6,7 @@ import { MessageSquareQuote, Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { openingHallApi } from '@/lib/opening-hall';
 import { useBidWebSocket } from '@/hooks/use-bid-websocket';
+import { NeuSelect } from '@/components/neu-select';
 import type {
   HallMessagePayload,
   HallPresenceUpdatePayload,
@@ -651,10 +652,10 @@ export function ExchangeDrawer({ projectId, initialStageClosed, sessionActive = 
                     <div className="mb-2 flex items-center gap-2">
                       <label className="flex-none text-[11px] font-semibold text-[color:var(--muted-foreground)]">分组</label>
                       {/* .neu-input/.neu-btn-primary is-water 的字号高度写在 layer 外（14px/40px），面板内统一 12px 行高须 ! 覆盖 */}
-                      <select value={newLabel} onChange={e => setNewLabel(e.target.value)} className="neu-input !h-7 min-w-0 flex-1 !text-xs">
+                      <NeuSelect value={newLabel} onChange={e => setNewLabel(e.target.value)} className="min-w-0 flex-1" compact>
                         {HOST_PHRASES.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
                         <option value="自定义">自定义</option>
-                      </select>
+                      </NeuSelect>
                     </div>
                     <textarea value={newText} onChange={e => setNewText(e.target.value)} rows={3}
                       onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) addPhrase(); }}
