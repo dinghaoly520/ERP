@@ -3,11 +3,12 @@ import type {
   TenderDocumentTypeMeta,
 } from "@/lib/types/tender-write";
 
-/** 方式分组（2026-11-24 用户裁定）：邀请招标/公开招标归「招标」，其余四方式归「采购」 */
+/** 方式分组（2026-11-24 用户裁定）：邀请招标/公开招标归「招标」，其余四方式归「采购」
+ *  （采购组须显式排除招标两方式——兜底全量匹配会把它们重复带进采购组） */
 const BIDDING_GROUP_TYPES = new Set<TenderDocumentType>(["INVITED_BIDDING", "PUBLIC_BIDDING"]);
 const GROUPS: { key: string; label: string; match: (t: TenderDocumentType) => boolean }[] = [
   { key: "bidding", label: "招标", match: (t) => BIDDING_GROUP_TYPES.has(t) },
-  { key: "procurement", label: "采购", match: () => true },
+  { key: "procurement", label: "采购", match: (t) => !BIDDING_GROUP_TYPES.has(t) },
 ];
 
 export function TenderTypeSwitcher({
