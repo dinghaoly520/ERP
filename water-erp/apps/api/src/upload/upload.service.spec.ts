@@ -122,6 +122,22 @@ describe('UploadService — download permission', () => {
     });
   });
 
+  describe('generateKey 扩展名白名单（审计第 1 处）', () => {
+    it('正常扩展名保留', () => {
+      expect(service.generateKey('报告.pdf')).toMatch(/^uploads\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{16}\.pdf$/);
+    });
+
+    it.each([
+      'x.`>poc-marker',   // 最后一个点之后是 shell 载荷
+      'x.a.b/c',          // 含路径分隔符
+      'x.',               // 空扩展名
+      'x',                // 没有扩展名
+      'x.' + 'e'.repeat(9), // 超长
+    ])('扩展名不合法（%s）→ bin', (name) => {
+      expect(service.generateKey(name)).toMatch(/\/[a-f0-9]{16}\.bin$/);
+    });
+  });
+
   it('allows the uploader to stream their own file', async () => {
     prisma.fileAsset.findUnique.mockResolvedValue(asset);
     await service.streamFile('fa-1', { sub: 'u-supplier', role: 'supplier' }, res);
