@@ -7,6 +7,10 @@ import type {
   TableData,
 } from './tender-write.types';
 
+/** 保证金形式多选（2026-11-24 用户裁定）：值为逗号串（存量单值兼容）——拆分为成员集 */
+const selectedDepositForms = (value?: string | null): string[] =>
+  (value || '').split(',').map(s => s.trim()).filter(Boolean);
+
 export const COMPETITIVE_NEGOTIATION_TEMPLATE_FILE =
   '模板文件/谈判采购文件模板.docx';
 export const SINGLE_SOURCE_TEMPLATE_FILE = '模板文件/直接采购模板.docx';
@@ -914,18 +918,18 @@ export function buildInquiryPurchaseReplacementPlan(
     : '';
 
   // Deposit form checkboxes
-  const deposit5 = answers.responseDepositForm === 'cash' ? '☑' : '☐';
+  const deposit5 = selectedDepositForms(answers.responseDepositForm).includes('cash') ? '☑' : '☐';
   const deposit6 =
-    answers.responseDepositForm === 'cash'
+    selectedDepositForms(answers.responseDepositForm).includes('cash')
       ? answers.responseDepositBankInfo
       : '/';
-  const deposit7 = answers.responseDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const deposit7 = selectedDepositForms(answers.responseDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const deposit8 =
-    answers.responseDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const deposit9 = answers.responseDepositForm === 'insurance' ? '☑' : '☐';
-  const deposit10 = answers.responseDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.responseDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const deposit9 = selectedDepositForms(answers.responseDepositForm).includes('insurance') ? '☑' : '☐';
+  const deposit10 = selectedDepositForms(answers.responseDepositForm).includes('other') ? '☑' : '☐';
   const deposit11 =
-    answers.responseDepositForm === 'other'
+    selectedDepositForms(answers.responseDepositForm).includes('other')
       ? answers.responseDepositOtherForm
       : '/';
 
@@ -959,14 +963,14 @@ export function buildInquiryPurchaseReplacementPlan(
     : '';
 
   // Performance deposit form checkboxes
-  const perf4 = answers.performanceDepositForm === 'cash' ? '☑' : '☐';
-  const perf5 = answers.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const perf4 = selectedDepositForms(answers.performanceDepositForm).includes('cash') ? '☑' : '☐';
+  const perf5 = selectedDepositForms(answers.performanceDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const perf6 =
-    answers.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const perf7 = answers.performanceDepositForm === 'insurance' ? '☑' : '☐';
-  const perf8 = answers.performanceDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.performanceDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const perf7 = selectedDepositForms(answers.performanceDepositForm).includes('insurance') ? '☑' : '☐';
+  const perf8 = selectedDepositForms(answers.performanceDepositForm).includes('other') ? '☑' : '☐';
   const perf9 =
-    answers.performanceDepositForm === 'other'
+    selectedDepositForms(answers.performanceDepositForm).includes('other')
       ? answers.performanceDepositOtherForm
       : '/';
 
@@ -1230,18 +1234,18 @@ export function buildInternalBiddingReplacementPlan(
     : '';
 
   // Deposit form checkboxes
-  const deposit5 = answers.responseDepositForm === 'cash' ? '☑' : '☐';
+  const deposit5 = selectedDepositForms(answers.responseDepositForm).includes('cash') ? '☑' : '☐';
   const deposit6 =
-    answers.responseDepositForm === 'cash'
+    selectedDepositForms(answers.responseDepositForm).includes('cash')
       ? answers.responseDepositBankInfo
       : '/';
-  const deposit7 = answers.responseDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const deposit7 = selectedDepositForms(answers.responseDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const deposit8 =
-    answers.responseDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const deposit9 = answers.responseDepositForm === 'insurance' ? '☑' : '☐';
-  const deposit10 = answers.responseDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.responseDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const deposit9 = selectedDepositForms(answers.responseDepositForm).includes('insurance') ? '☑' : '☐';
+  const deposit10 = selectedDepositForms(answers.responseDepositForm).includes('other') ? '☑' : '☐';
   const deposit11 =
-    answers.responseDepositForm === 'other'
+    selectedDepositForms(answers.responseDepositForm).includes('other')
       ? answers.responseDepositOtherForm
       : '/';
 
@@ -1278,14 +1282,14 @@ export function buildInternalBiddingReplacementPlan(
     : '';
 
   // Performance deposit form checkboxes
-  const perf4 = answers.performanceDepositForm === 'cash' ? '☑' : '☐';
-  const perf5 = answers.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const perf4 = selectedDepositForms(answers.performanceDepositForm).includes('cash') ? '☑' : '☐';
+  const perf5 = selectedDepositForms(answers.performanceDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const perf6 =
-    answers.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const perf7 = answers.performanceDepositForm === 'insurance' ? '☑' : '☐';
-  const perf8 = answers.performanceDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.performanceDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const perf7 = selectedDepositForms(answers.performanceDepositForm).includes('insurance') ? '☑' : '☐';
+  const perf8 = selectedDepositForms(answers.performanceDepositForm).includes('other') ? '☑' : '☐';
   const perf9 =
-    answers.performanceDepositForm === 'other'
+    selectedDepositForms(answers.performanceDepositForm).includes('other')
       ? answers.performanceDepositOtherForm
       : '/';
 

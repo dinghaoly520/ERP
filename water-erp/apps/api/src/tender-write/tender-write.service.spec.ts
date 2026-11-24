@@ -246,6 +246,62 @@ describe('single-source tender template helpers', () => {
     });
   });
 
+  it('响应/履约保证金形式多选（2026-11-24 用户裁定）：逗号串多值同时勾选、未选项保持空框', () => {
+    const plan = buildInternalBiddingReplacementPlan({
+      projectName: '测试项目',
+      coverDate: '2026-06-02',
+      projectOverview: '项目概况内容',
+      procurementContent: '采购内容',
+      maxPrice: '1000元',
+      qualificationRequirements: '特定资质要求',
+      consortiumForm: '',
+      consortiumFormType: 'reject',
+      documentPrice: '0元',
+      responseSubmissionTime: '2026-06-04',
+      contactName: '张三',
+      contactPhone: '13800000000',
+      contactEmail: 'test@example.com',
+      responseDepositType: 'collect',
+      responseDepositAmount: '50000',
+      responseDepositForm: 'cash,bank_guarantee',
+      responseDepositBankInfo: '测试账号',
+      responseDepositOtherForm: '',
+      responseDepositOtherRequirement: '',
+      responseDepositOtherRequirementType: 'none',
+      responseDepositNonRefundType: 'none',
+      responseDepositNonRefundContent: '',
+      performanceDepositType: 'collect',
+      performanceDepositAmount: '10000',
+      performanceDepositForm: 'bank_guarantee,other',
+      performanceDepositOtherForm: '担保公司出具',
+      evaluationMethod: '综合评分法',
+      contractSubcontracting: '',
+      contractSubcontractingType: 'none',
+      siteSurvey: '',
+      siteSurveyType: 'none',
+      copyCount: '1',
+      evaluationCommitteeCount: '5',
+      businessRequirements: '商务要求',
+      technicalRequirements: '技术要求',
+      submissionRequirements: '',
+      submissionRequirementsType: 'none',
+      quotationLetterType: 'text',
+      quotationLetter: '',
+    });
+    // 响应保证金：cash + bank_guarantee 同选 → 两行 ☑；账号信息随 cash 在选而出值
+    expect(plan).toContainEqual({ targetText: '响应保证金5', replacementText: '☑', highlight: false });
+    expect(plan).toContainEqual({ targetText: '响应保证金6', replacementText: '测试账号', highlight: false });
+    expect(plan).toContainEqual({ targetText: '响应保证金7', replacementText: '☑', highlight: false });
+    expect(plan).toContainEqual({ targetText: '响应保证金8', replacementText: '☐', highlight: false });
+    expect(plan).toContainEqual({ targetText: '响应保证金9', replacementText: '☐', highlight: false });
+    expect(plan).toContainEqual({ targetText: '响应保证金10', replacementText: '☐', highlight: false });
+    // 履约保证金：bank_guarantee + other 同选；其他说明随 other 在选而出值
+    expect(plan).toContainEqual({ targetText: '履约保证金4', replacementText: '☐', highlight: false });
+    expect(plan).toContainEqual({ targetText: '履约保证金5', replacementText: '☑', highlight: false });
+    expect(plan).toContainEqual({ targetText: '履约保证金8', replacementText: '☑', highlight: false });
+    expect(plan).toContainEqual({ targetText: '履约保证金9', replacementText: '担保公司出具', highlight: false });
+  });
+
   it('does not merge placeholders split within a single run', () => {
     const splitXml = `<w:p><w:r><w:t>{{</w:t><w:t>项目名称</w:t><w:t>}}</w:t></w:r></w:p>`;
 

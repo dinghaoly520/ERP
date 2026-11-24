@@ -515,6 +515,8 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
         label: "响应保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },
@@ -580,6 +582,8 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
         label: "履约保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },
@@ -890,6 +894,8 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         label: "响应保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },
@@ -957,6 +963,8 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         label: "履约保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },

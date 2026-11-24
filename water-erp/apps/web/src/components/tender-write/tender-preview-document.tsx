@@ -16,6 +16,9 @@ import { hasValidScoringRows, scoringTotal } from './scoring-items-editor';
 import { numberToChineseAmount } from '@/lib/tender-write/announcement-templates';
 import { useCompanyInfo } from '@/lib/api/company-info';
 
+/** 保证金形式多选（2026-11-24 用户裁定）：值存逗号串——拆成员集判勾选（存量单值兼容） */
+const depositFormsOf = (value?: string): string[] => (value || '').split(',').map(s => s.trim()).filter(Boolean);
+
 const CHINESE_NUMBERS = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const CHINESE_TENS = ['', '十', '二十', '三十'];
 
@@ -1318,18 +1321,18 @@ function InquiryPurchasePreview({
                           <br />☑收取，具体要求：
                           <br />（1）{T.file}保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={numberToChineseAmount(draft.responseDepositAmount)} placeholder="{{{T.file}保证金金额大写}}" />元（大写）。
                           <br />（2）{T.file}保证金的形式：
-                          <br />{draft.responseDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('cash') ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
                           <br />采用现金形式的，收取{T.file}保证金的账号名称、开户银行及账号：
-                          {!draft.responseDepositForm || draft.responseDepositForm === 'cash' ? (
+                          {!draft.responseDepositForm || depositFormsOf(draft.responseDepositForm).includes('cash') ? (
                             <PreviewValue value={draft.responseDepositBankInfo} placeholder="{{账号信息}}" fieldKey="responseDepositBankInfo" onValueChange={onValueChange} />
                           ) : (
                             <PreviewValue value="/" placeholder="{{账号信息}}" />
                           )}。
-                          <br />{draft.responseDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
-                          <br />{draft.responseDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
-                          <br />{draft.responseDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
-                          <br />{draft.responseDepositForm === 'other' ? '☑' : '☐'}其他：
-                          {!draft.responseDepositForm || draft.responseDepositForm === 'other' ? (
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('bank_guarantee') ? '☑' : '☐'}银行保函
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('guarantee_institution') ? '☑' : '☐'}担保机构保函
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('insurance') ? '☑' : '☐'}保险公司保证保险
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('other') ? '☑' : '☐'}其他：
+                          {!draft.responseDepositForm || depositFormsOf(draft.responseDepositForm).includes('other') ? (
                             <PreviewValue value={draft.responseDepositOtherForm} placeholder="{{其他形式}}" fieldKey="responseDepositOtherForm" onValueChange={onValueChange} />
                           ) : (
                             <PreviewValue value="/" placeholder="{{其他形式}}" />
@@ -1384,12 +1387,12 @@ function InquiryPurchasePreview({
                           <br />☑收取，具体要求：
                           <br />（1）履约保证金的金额：<PreviewValue value={draft.performanceDepositAmount} placeholder="{{履约保证金金额}}" fieldKey="performanceDepositAmount" onValueChange={onValueChange} />
                           <br />（2）履约保证金的形式：
-                          <br />{draft.performanceDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
-                          <br />{draft.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
-                          <br />{draft.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
-                          <br />{draft.performanceDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
-                          <br />{draft.performanceDepositForm === 'other' ? '☑' : '☐'}其他：
-                          {!draft.performanceDepositForm || draft.performanceDepositForm === 'other' ? (
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('cash') ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('bank_guarantee') ? '☑' : '☐'}银行保函
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('guarantee_institution') ? '☑' : '☐'}担保机构保函
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('insurance') ? '☑' : '☐'}保险公司保证保险
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('other') ? '☑' : '☐'}其他：
+                          {!draft.performanceDepositForm || depositFormsOf(draft.performanceDepositForm).includes('other') ? (
                             <PreviewValue value={draft.performanceDepositOtherForm} placeholder="{{其他形式}}" fieldKey="performanceDepositOtherForm" onValueChange={onValueChange} />
                           ) : (
                             <PreviewValue value="/" placeholder="{{其他形式}}" />
@@ -1789,20 +1792,20 @@ function InternalBiddingPreview({
                           <br />☑收取，具体要求：
                           <br />（1）{T.file}保证金的金额：<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额}}" fieldKey="responseDepositAmount" onValueChange={onValueChange} />元（小写），<PreviewValue value={draft.responseDepositAmount} placeholder="{{{T.file}保证金金额大写}}" />元（大写）。
                           <br />（2）{T.file}保证金的形式：
-                          <br />{draft.responseDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('cash') ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
                           <br />采用现金形式的，收取{T.file}保证金的账号名称、开户银行及账号：
                           {/* 2026-10-29 裁定：非现金形式渲染不可编辑「/」（与导出 deposit6 同口径）；形式未选保持占位符 */}
-                          {!draft.responseDepositForm || draft.responseDepositForm === 'cash' ? (
+                          {!draft.responseDepositForm || depositFormsOf(draft.responseDepositForm).includes('cash') ? (
                             <PreviewValue value={draft.responseDepositBankInfo} placeholder="{{账号信息}}" fieldKey="responseDepositBankInfo" onValueChange={onValueChange} />
                           ) : (
                             <PreviewValue value="/" placeholder="{{账号信息}}" />
                           )}。
-                          <br />{draft.responseDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
-                          <br />{draft.responseDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
-                          <br />{draft.responseDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
-                          <br />{draft.responseDepositForm === 'other' ? '☑' : '☐'}其他：
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('bank_guarantee') ? '☑' : '☐'}银行保函
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('guarantee_institution') ? '☑' : '☐'}担保机构保函
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('insurance') ? '☑' : '☐'}保险公司保证保险
+                          <br />{depositFormsOf(draft.responseDepositForm).includes('other') ? '☑' : '☐'}其他：
                           {/* 2026-10-29 裁定：非「其他」形式渲染不可编辑「/」（与导出 deposit11 同口径） */}
-                          {!draft.responseDepositForm || draft.responseDepositForm === 'other' ? (
+                          {!draft.responseDepositForm || depositFormsOf(draft.responseDepositForm).includes('other') ? (
                             <PreviewValue value={draft.responseDepositOtherForm} placeholder="{{其他形式}}" fieldKey="responseDepositOtherForm" onValueChange={onValueChange} />
                           ) : (
                             <PreviewValue value="/" placeholder="{{其他形式}}" />
@@ -1860,13 +1863,13 @@ function InternalBiddingPreview({
                           <br />☑收取，具体要求：
                           <br />（1）履约保证金的金额：<PreviewValue value={draft.performanceDepositAmount} placeholder="{{履约保证金金额}}" fieldKey="performanceDepositAmount" onValueChange={onValueChange} />
                           <br />（2）履约保证金的形式：
-                          <br />{draft.performanceDepositForm === 'cash' ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
-                          <br />{draft.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐'}银行保函
-                          <br />{draft.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐'}担保机构保函
-                          <br />{draft.performanceDepositForm === 'insurance' ? '☑' : '☐'}保险公司保证保险
-                          <br />{draft.performanceDepositForm === 'other' ? '☑' : '☐'}其他：
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('cash') ? '☑' : '☐'}现金（电汇、银行转账、汇票、支票）
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('bank_guarantee') ? '☑' : '☐'}银行保函
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('guarantee_institution') ? '☑' : '☐'}担保机构保函
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('insurance') ? '☑' : '☐'}保险公司保证保险
+                          <br />{depositFormsOf(draft.performanceDepositForm).includes('other') ? '☑' : '☐'}其他：
                           {/* 2026-10-29 裁定：履约同口径——非「其他」形式渲染不可编辑「/」（与导出 perf9 同口径） */}
-                          {!draft.performanceDepositForm || draft.performanceDepositForm === 'other' ? (
+                          {!draft.performanceDepositForm || depositFormsOf(draft.performanceDepositForm).includes('other') ? (
                             <PreviewValue value={draft.performanceDepositOtherForm} placeholder="{{其他形式}}" fieldKey="performanceDepositOtherForm" onValueChange={onValueChange} />
                           ) : (
                             <PreviewValue value="/" placeholder="{{其他形式}}" />

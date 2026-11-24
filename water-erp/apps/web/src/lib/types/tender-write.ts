@@ -321,6 +321,9 @@ export type TenderFieldConfig<K extends TenderFieldKey = TenderFieldKey> = {
   typeKey?: TenderFieldKey;
   select?: {
     options: { value: string; label: string }[];
+    /** 多选（2026-11-24 用户裁定：响应/履约保证金形式）——chip 可多选toggle，
+     *  值存逗号串（如 "cash,bank_guarantee"，存量单值兼容） */
+    multiSelect?: boolean;
   };
   quotationType?: {
     options: { value: string; label: string }[];
