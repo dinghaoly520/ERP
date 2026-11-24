@@ -1,3 +1,5 @@
+import type { AnnouncementPendingScheduledMatch } from '@/lib/api/announcement';
+
 /**
  * 定时发布字段的前端解析（2026-10-29 审计 F，与 API 侧 scheduled-publish.util 同口径）：
  * 后端写入口已把无时区 datetime-local 值归一为 "+08:00" 后缀；存量裸值与归一值都按
@@ -42,19 +44,9 @@ export function scheduledDuplicatePendingErrorOf(ann: { metadata?: Record<string
   return err?.code === 'SCHEDULED_DUPLICATE_PENDING' ? err : null;
 }
 
-/** 待发定时草稿（查重弹窗 pending 行；与 API 的 AnnouncementPendingScheduledMatch 同构） */
-export interface PendingScheduledDuplicateLine {
-  id: string;
-  title: string;
-  scheduledPublishDate?: string | null;
-  type?: string;
-  status?: string;
-  relatedProjectCode?: string | null;
-}
-
 /** 待发草稿查重弹窗的逐条排版——与已发布查重弹窗同构：标题一行、属性一行括注；
- *  定时时刻按东八区回显（不依赖浏览器时区）。 */
-export function pendingScheduledDuplicateLines(pending: PendingScheduledDuplicateLine[]): string[] {
+ *  定时时刻按东八区回显（不依赖浏览器时区）。入参即查重接口的 pending 行（只用标题与定时时刻）。 */
+export function pendingScheduledDuplicateLines(pending: ReadonlyArray<AnnouncementPendingScheduledMatch>): string[] {
   return pending.map((p) => {
     const due = scheduledPublishDue(p.scheduledPublishDate);
     const attrs = [due ? `定时 ${new Date(due.getTime() + 8 * 3_600_000).toISOString().slice(0, 16).replace('T', ' ')} 发布` : '', '待发']

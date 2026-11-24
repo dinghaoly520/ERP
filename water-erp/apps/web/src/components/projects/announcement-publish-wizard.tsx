@@ -1365,7 +1365,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         if (pendingDup.length > 0) {
           const okReplace = await confirmDialog({
             title: '已有定时待发的同类公告',
-            message: `检出 ${pendingDup.length} 条同项目同类、尚未发布的定时公告：\n\n${pendingScheduledDuplicateLines(pendingDup).join('\n\n')}\n\n继续发布将替换它：旧公告移入回收站，不再定时发出，以本次发布为准。`,
+            message: `已有 ${pendingDup.length} 条定时待发的同类公告：\n\n${pendingScheduledDuplicateLines(pendingDup).join('\n\n')}\n\n继续发布将替换上述公告：旧公告移入回收站，不再定时发出，以本次发布为准。`,
             confirmText: '替换并发布',
             cancelText: '返回检查',
             danger: true,
@@ -1461,9 +1461,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         ...(supersedePendingIds.length > 0 && { supersedePendingScheduledIds: supersedePendingIds }),
       });
       // 替换结果不静默（2026-11-24）：旧公告已入回收站，经办人须知道
-      if (saved.supersededPendingScheduledIds?.length) {
-        toast.info('已替换此前定时待发的公告，旧公告已移入回收站');
-      }
+      const replacedPending = !!saved.supersededPendingScheduledIds?.length;
       // 联动失败不静默（2026-10-30）：流标公告发布但置 ABORTED 未完成时，收尾决策向导
       // 会撞 BID_NOT_ABORTED——发布时刻就把服务端警示亮出来
       if (saved.projectSyncWarning) toast.error(saved.projectSyncWarning);
@@ -1492,7 +1490,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       // 5. 其他附件（采购文件引用已由后端 P1b 根据 selectedTenderObjectKey 自动生成加密采购文件，不重复放附件）
       await uploadPendingFiles(id);
 
-      toast.success(publishTiming === 'now' ? '已发布' : publishTiming === 'announcement_start' ? '已设定按公示期限起始时间发布' : '已保存为定时发布');
+      const doneText = publishTiming === 'now' ? '已发布' : publishTiming === 'announcement_start' ? '已设定按公示期限起始时间发布' : '已保存为定时发布';
+      // 替换结果并进最终这条提示（2026-11-24 浏览器验收）：单独弹一条会被随后弹出的成功提示盖住，
+      // 经办人看不到「已替换」
+      toast.success(replacedPending ? `已替换此前定时待发的公告，旧公告已移入回收站；本次${doneText}` : doneText);
       if (category === 'failed_bid') toast.info('流标公告已发布，即将进入收尾决策');
       onPublished({ id });
       onClose();

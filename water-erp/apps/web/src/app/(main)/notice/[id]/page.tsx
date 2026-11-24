@@ -151,6 +151,10 @@ export default function NoticeDetailPage() {
     </div>
   );
 
+  // 定时待处理（2026-11-24 浏览器验收）：只读视图一进来就要看得到完整的处理办法——
+  // 列表里的原因只显示一行，只放在编辑表单里的话经办人不点「编辑」就看不到
+  const viewDupPendingErr = !editing && ann.status === 'DRAFT' ? scheduledDuplicatePendingErrorOf(ann) : null;
+
   return (
     <div className="flex flex-col gap-5">
       <button onClick={() => router.push('/notice')} className="flow-back shrink-0 self-start">
@@ -219,6 +223,15 @@ export default function NoticeDetailPage() {
         {/* 结构化元数据（仅阅读模式且有数据时） */}
         {!editing && renderMeta(ann)}
       </div>
+
+      {viewDupPendingErr && (
+        /* 定时任务检出同项目同类型多条待发草稿，不替经办人选择、一条都不发——经办人保留正确的一条、
+           隐藏其余后，保留的那条自动发出 */
+        <div className="wb-alert wb-alert--warning flex items-start gap-2" role="status">
+          <Clock size={14} className="mt-0.5 shrink-0" />
+          <span>定时发布已暂停，需要你处理：<strong>{viewDupPendingErr.message}</strong></span>
+        </div>
+      )}
 
       {editing ? (
         <EditView ann={ann} onCancel={() => setEditing(false)} onSaved={(updated) => { setAnn(updated); setEditing(false); }} />
@@ -746,7 +759,7 @@ function EditView({ ann, onCancel, onSaved }: { ann: AnnouncementListItem; onCan
             <Clock size={13} className="mt-0.5 shrink-0 text-[var(--warning)]" />
             <span>
               定时发布已暂停，需要你处理：<strong className="text-[var(--danger)]">{dupPendingErr.message}</strong>
-              {dupPendingErr.at ? <>（标记于 {new Date(dupPendingErr.at).toLocaleString('zh-CN', { hour12: false })}）</> : null}。
+              {dupPendingErr.at ? <>标记于 {new Date(dupPendingErr.at).toLocaleString('zh-CN', { hour12: false })}。</> : null}
             </span>
           </div>
         ) : isOverdueScheduledDraft(ann) && (

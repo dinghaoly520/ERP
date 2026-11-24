@@ -342,6 +342,11 @@ export default function NoticePage() {
     if (fail === 0) toast.success(`${label}成功 ${ok} 条`);
     else if (ok === 0) toast.error(`${label}失败 ${fail} 条`);
     else toast(`${label}完成：成功 ${ok} / 失败 ${fail}`);
+    // 失败原因不吞（2026-11-24 审查）：此前只报条数——如「同项目同类型已有定时待发公告」这类
+    // 需要经办人处理的拒绝，只报「失败 1 条」等于没说。多条失败只亮第一条，避免提示刷屏
+    const firstReason = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')?.reason;
+    const reasonText = firstReason instanceof Error ? firstReason.message : '';
+    if (reasonText) toast.error(`${label}未成功 ${fail} 条：${reasonText}`);
     // 联动失败不静默（2026-10-30）：批量发布中联动（建项/流标置 ABORTED）失败的服务端警示逐条亮出
     for (const r of results) {
       const w = r.status === 'fulfilled' ? (r.value as { projectSyncWarning?: string })?.projectSyncWarning : undefined;
@@ -554,8 +559,6 @@ export default function NoticePage() {
                   {(() => {
                     // 草稿速览同款红标（审计 F）：定时已过未发布一眼可见
                     if (isOverdueScheduledDraft(a)) return <StatusBadge tone="red">定时未生效</StatusBadge>;
-                    // 冲突待处理同款橙标（2026-11-24）：未到点也要一眼看到
-                    if (scheduledDuplicatePendingErrorOf(a)) return <StatusBadge tone="orange">定时待处理</StatusBadge>;
                     const sm = displayStatus(a); return <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>;
                   })()}
                   <span className="shrink-0 font-mono text-[11px] text-[var(--muted-foreground)]">
