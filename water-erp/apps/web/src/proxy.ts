@@ -48,7 +48,28 @@ const UPSTREAM_SLOW_PATH_EXACT = [
 // ——精确匹配不了带参路径，补后缀匹配层。
 // 2026-11-13：公告详情页手动「生成摘要」同族（/api/announcements/:id/generate-summary，
 // 同步 LLM 同预算）——公告创建/编辑的摘要已异步化不再挡响应，此为手动触发通道。
-const UPSTREAM_SLOW_PATH_SUFFIXES = ['/attachment-ai-polish', '/generate-summary'];
+// 2026-11-24（用户实录「标记完成报错 analyze-step 超过 15 秒代理时限」）：PMI 同步 AI
+// 家族补全——项目管理详情面板的文件分析/步骤分析/需求立项表解析/AI 字段识别/供应商推荐/
+// 拟定供应商核对等全是同步 LLM/文档解析（动态 :id 路径，精确列表够不着），此前全部吃
+// 15s 硬超时：标记完成后步骤分析冷生成 >15s 即被 504。入 120s 慢路径档。
+const UPSTREAM_SLOW_PATH_SUFFIXES = [
+  '/attachment-ai-polish',
+  '/generate-summary',
+  '/analyze',
+  '/analyze-step',
+  '/parse-announcement-fields',
+  '/check-supplier-change',
+  '/optimize-initiation',
+  '/refresh-summary',
+  '/recommend-suppliers',
+  '/ai-identify-field',
+  '/extract-initiation',
+  '/extract-demand',
+];
+// 2026-11-24 同审计：extract-tender-fields / analyze-direct-procurement 客户端自带
+// 150s/180s AbortController 兜底（api/project-management.ts），代理档必须 ≥ 客户端预算
+// 才不会先于用户侧超时掐断 → 330s 特慢档（同 /api/ai/tender-field-generate 先例）。
+const UPSTREAM_LLM_LONG_SUFFIXES = ['/extract-tender-fields', '/analyze-direct-procurement'];
 // 2026-11-06（生产实录）：知识库上传 235MB 经门户 arrayBuffer 缓冲转发，body 传输逼近 15s
 // 临界带宽（~15MB/s）即被击穿 → API 侧 multer Request aborted——放大到 120s 覆盖大件传输窗。
 // 异步化（202）已消掉处理侧长等待，此窗口只需罩住 body 本身的搬运。
@@ -56,7 +77,8 @@ const UPSTREAM_SLOW_PATH_PREFIXES_LARGE_BODY = ['/api/knowledge/'];
 
 function upstreamTimeoutFor(pathname: string): number {
   if (isSocketIoPath(pathname)) return UPSTREAM_TIMEOUT_SOCKETIO_MS;
-  if (UPSTREAM_LLM_LONG_EXACT.includes(pathname)) return UPSTREAM_TIMEOUT_LLM_LONG_MS;
+  if (UPSTREAM_LLM_LONG_EXACT.includes(pathname)
+    || UPSTREAM_LLM_LONG_SUFFIXES.some((s) => pathname.endsWith(s))) return UPSTREAM_TIMEOUT_LLM_LONG_MS;
   return UPSTREAM_SLOW_PATH_PREFIXES.some((p) => pathname.startsWith(p))
     || UPSTREAM_SLOW_PATH_EXACT.includes(pathname)
     || UPSTREAM_SLOW_PATH_SUFFIXES.some((s) => pathname.endsWith(s))
