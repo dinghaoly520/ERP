@@ -1193,6 +1193,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         toast.error('公示期限（止）必须晚于当前时间——请重新选择止点（可按天数下拉推算）');
         return;
       }
+      // 开标时间必须在公示期限（止）之后（2026-11-24 用户裁定）：公示未结束不得开标；
+      // 文字形态的开标时间（不可解析）不在此校验
+      if (category === 'procurement_document') {
+        const openT = fd.bidOpeningTime ? new Date(`${fd.bidOpeningTime}+08:00`).getTime() : NaN;
+        if (!Number.isNaN(openT) && !Number.isNaN(endT) && openT <= endT) {
+          toast.error('开标时间必须在公示期限（止）之后——请调整开标时间或公示止点');
+          return;
+        }
+      }
     }
     setBusy(true);
     try {
@@ -1301,6 +1310,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!Number.isNaN(endT) && endT <= Date.now()) {
         toast.error('公示期限（止）必须晚于当前时间——请重新选择止点（可按天数下拉推算）');
         return;
+      }
+      // 开标时间必须在公示期限（止）之后（2026-11-24 用户裁定）：公示未结束不得开标；
+      // 文字形态的开标时间（不可解析）不在此校验
+      if (category === 'procurement_document') {
+        const openT = fd.bidOpeningTime ? new Date(`${fd.bidOpeningTime}+08:00`).getTime() : NaN;
+        if (!Number.isNaN(openT) && !Number.isNaN(endT) && openT <= endT) {
+          toast.error('开标时间必须在公示期限（止）之后——请调整开标时间或公示止点');
+          return;
+        }
       }
     }
     // 阳光采购平台：勾选同步但未完成配置 → 拦截发布并拉起配置弹窗
