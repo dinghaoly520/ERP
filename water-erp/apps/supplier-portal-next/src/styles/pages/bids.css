@@ -296,8 +296,6 @@
 .cc-meta-chip--date .cc-meta-label { color: var(--warning); }
 .cc-conds {
   display: flex; flex-direction: column; gap: 10px;
-  padding-bottom: 18px; margin-bottom: 18px;
-  box-shadow: inset 0 -1px 0 var(--hairline);
 }
 .cc-cond {
   border-radius: 8px; padding: 10px 14px;
@@ -305,7 +303,7 @@
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.3), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.04), inset -1px -1px 3px oklch(1 0 0 / 0.5);
 }
 .cc-cond-hd { display: block; font-size: 10px; font-weight: 700; color: var(--brand); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
-.cc-cond-bd { margin: 0; font-size: 12px; line-height: 1.6; color: var(--foreground); white-space: pre-wrap; }
+.cc-cond-bd { margin: 0; font-size: 13px; line-height: 1.8; color: var(--foreground); white-space: pre-wrap; }
 .cc-body { font-size: 14px; line-height: 1.85; color: var(--foreground); word-break: break-word; }
 /* 公文排版（2026-11-24 用户裁定，与公告中心 .detail-content 同款）：标题居中、「一、」节标题
    加粗缩进 2 字符、正文首行缩进 2 字符、数字/西文 Times New Roman */
@@ -985,9 +983,21 @@ a.cq-att-item:active { opacity: 0.65; box-shadow: inset 1px 1px 2px oklch(0.55 0
 }
 
 
-/* ═══ 公告摘要（2026-11-24 用户裁定：原 AI 项目概览改为公告摘要并上移标题下方）═══ */
-.bd-summary { display: flex; flex-direction: column; gap: 6px; margin: 14px 0 4px; padding: 14px 16px;
-  border-radius: 14px; background: var(--surface-soft, oklch(0.975 0.012 258 / 0.6));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.55), inset 1px 1px 3px oklch(0.55 0.03 258 / 0.05); }
-.bd-summary-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--brand); }
+/* ═══ 公告摘要（2026-11-24 用户裁定：原 AI 项目概览改为公告摘要并上移标题下方；
+      UI 重构改引文样式——品牌左竖线 + 弱底，贴头部不抢行动条）═══ */
+.bd-summary { position: relative; margin: 14px 0 4px; padding: 10px 16px 10px 18px;
+  border-left: 3px solid var(--brand);
+  background: oklch(0.975 0.012 258 / 0.45);
+  border-radius: 0 12px 12px 0; }
+.bd-summary-label { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.1em; color: var(--brand); }
 .bd-summary-text { font-size: 13px; line-height: 1.9; color: var(--foreground); text-align: justify; }
+
+/* ═══ 2026-11-24 UI 重构：卡头眉题 + 关键信息分组 ═══ */
+.cc-card-hd { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; color: var(--foreground);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.cc-card-hd::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
+.cc-meta-group { display: flex; flex-direction: column; gap: 8px; }
+.cc-meta-group + .cc-meta-group { margin-top: 14px; }
+.cc-meta-group-hd { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--muted-foreground, oklch(0.55 0.03 258)); }

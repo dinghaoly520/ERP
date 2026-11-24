@@ -562,47 +562,68 @@ function BidDetailInner() {
                 </div>
               )}
 
+              {/* ═══ 关键信息（2026-11-24 UI 重构：自正文卡拆出独立卡，chips 分「基本信息/时间节点」两组）═══ */}
+              {metaFields.length > 0 && (
+                <div className="content-card neu-card">
+                  <div className="cc-card-hd">关键信息</div>
+                  {(() => {
+                    const base = metaFields.filter((f) => f.kind !== 'date');
+                    const times = metaFields.filter((f) => f.kind === 'date');
+                    const Group = ({ title, items }: { title: string; items: typeof metaFields }) => (
+                      <div className="cc-meta-group">
+                        <span className="cc-meta-group-hd">{title}</span>
+                        <div className="cc-meta">
+                          {items.map((f) => (
+                            <span key={f.label} className={`cc-meta-chip ${f.kind === 'code' ? 'cc-meta-chip--code' : f.kind === 'money' ? 'cc-meta-chip--money' : f.kind === 'date' ? 'cc-meta-chip--date' : ''}`}>
+                              <span className="cc-meta-label">{f.label}</span>
+                              <span className="cc-meta-value">{f.value}</span>
+                              {f.note && <span className="cc-meta-note">{f.note}</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                    return (
+                      <>
+                        {base.length > 0 && <Group title="基本信息" items={base} />}
+                        {times.length > 0 && <Group title="时间节点" items={times} />}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* ═══ 资质要求（2026-11-24 UI 重构：独立卡，不再混在正文卡里）═══ */}
+              {(() => {
+                // 资质要求（2026-11-24 用户裁定）：正文同源 qualificationConditions 优先——
+                // announcement.metadata.qualification 是公告编写时 AI 填充的报名/资格长文（含编造日期），
+                // 正文「资格条件」才是问卷 canonical 值；无公告（邀请书项目）回落项目列
+                const meta = ((project.announcement?.metadata ?? {}) as Record<string, any>);
+                const qualification = String(meta.qualificationConditions ?? "").trim() || project.qualification;
+                if (!qualification && !project.qualityRequirement) return null;
+                return (
+                  <div className="content-card neu-card">
+                    <div className="cc-card-hd">资质要求</div>
+                    <div className="cc-conds">
+                      {qualification && (
+                        <div className="cc-cond">
+                          <p className="cc-cond-bd">{qualification}</p>
+                        </div>
+                      )}
+                      {project.qualityRequirement && (
+                        <div className="cc-cond">
+                          <span className="cc-cond-hd">质量要求</span>
+                          <p className="cc-cond-bd">{project.qualityRequirement}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* ═══ 公告正文 ═══ */}
               <div className="content-card neu-card">
-                {/* 公告结构化信息（镜像信息发布中心 :3005——chip 瓷片 + 分类色） */}
-                {metaFields.length > 0 && (
-                  <div className="cc-meta">
-                    {metaFields.map((f) => (
-                      <span key={f.label} className={`cc-meta-chip ${f.kind === 'code' ? 'cc-meta-chip--code' : f.kind === 'money' ? 'cc-meta-chip--money' : f.kind === 'date' ? 'cc-meta-chip--date' : ''}`}>
-                        <span className="cc-meta-label">{f.label}</span>
-                        <span className="cc-meta-value">{f.value}</span>
-                        {f.note && <span className="cc-meta-note">{f.note}</span>}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* 招标条件（招标范围已融入上方项目概览，此处不再单独展示）；
-                    联系方式已在上方结构化信息条展示，此处不再重复 */}
-                {(() => {
-                  // 资质要求（2026-11-24 用户裁定）：正文同源 qualificationConditions 优先——
-                  // announcement.metadata.qualification 是公告编写时 AI 填充的报名/资格长文（含编造日期），
-                  // 正文「资格条件」才是问卷 canonical 值；无公告（邀请书项目）回落项目列
-                  const meta = ((project.announcement?.metadata ?? {}) as Record<string, any>);
-                  const qualification = String(meta.qualificationConditions ?? "").trim() || project.qualification;
-                  return (
-                  <div className="cc-conds">
-                    {qualification && (
-                      <div className="cc-cond">
-                        <span className="cc-cond-hd">资质要求</span>
-                        <p className="cc-cond-bd">{qualification}</p>
-                      </div>
-                    )}
-                    {project.qualityRequirement && (
-                      <div className="cc-cond">
-                        <span className="cc-cond-hd">质量要求</span>
-                        <p className="cc-cond-bd">{project.qualityRequirement}</p>
-                      </div>
-                    )}
-                  </div>
-                  );
-                })()}
-
+                <div className="cc-card-hd">公告正文</div>
                 {project.announcement?.content ? (
                   <div className="cc-body" dangerouslySetInnerHTML={{ __html: normalizeAnnouncementContentHtml(project.announcement.content, project.announcement.title) }} />
                 ) : (project as any).invitationLetter?.kind === "file" ? (
