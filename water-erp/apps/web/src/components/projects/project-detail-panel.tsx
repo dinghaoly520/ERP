@@ -744,6 +744,22 @@ export function ProjectDetailPanel({
     loadStepAnalysis();
   }, [loadStepAnalysis]);
 
+  // 需求/立项两步分析进页预热（2026-11-24 用户裁定）：项目建立进入详情页即后台发起
+  // 采购需求/采购立项两步的文件分析与步骤分析——服务端按指纹缓存（analyze/analyze-step
+  // 同款端点），用户点开这两步时命中缓存即时出结果，不必等点击才开始跑 AI。
+  // 跳过当前选中步骤（常规加载路径已在跑，重复请求会双跑 LLM）；纯预热不驱动 UI
+  // state，失败静默（用户点开时常规路径自会再试）；每项目每次打开只预热一轮。
+  const earlyStagesWarmedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (earlyStagesWarmedRef.current === item.id) return;
+    earlyStagesWarmedRef.current = item.id;
+    for (const key of ['PROCUREMENT_DEMAND', 'INITIATION'] as const) {
+      if (key === selectedStageKeyRef.current) continue;
+      void analyzeProjectManagementItem(item.id, key).catch(() => undefined);
+      void analyzeProjectStep(item.id, key).catch(() => undefined);
+    }
+  }, [item.id]);
+
   /** 完成链主体（markStageCompleted 与 03 完成向导确认共用）：updateStage + 推进 + 豁免对话框。
    *  返回结果供向导前台反馈（面板错误区在向导 overlay 后面，向导须自行 toast）。 */
   const completeStageCore = async (stage: ProjectManagementStage, extra?: { directOverview?: string; directOpeningTime?: string }): Promise<{ ok: boolean; message?: string; waived?: boolean }> => {
