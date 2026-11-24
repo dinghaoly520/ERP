@@ -318,7 +318,7 @@ export class AnnouncementService {
   async list(
     params: { type?: string; status?: string; search?: string; page?: number; pageSize?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' },
     companyFilter: CompanyWhere = {},
-    opts: { publicVisibilityOnly?: boolean; excludeIds?: string[]; extraWhere?: Record<string, any> } = {},
+    opts: { publicVisibilityOnly?: boolean; excludeIds?: string[]; extraWhere?: Record<string, any>; includeAuthorName?: boolean } = {},
   ) {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 20;
@@ -432,6 +432,21 @@ export class AnnouncementService {
           };
           it.bidDocumentPending = true;
         }
+      }
+    }
+
+    // 发布人列（2026-11-24 用户裁定，仅管理端）：Announcement.authorId 无关联关系，批量联查
+    // 补 displayName（缺失回落 username——操作人显示姓名口径）；publicList/supplierList 共用
+    // 本方法且不传旗标——内部员工姓名不出公开/供应商端。
+    if (opts.includeAuthorName) {
+      const authorIds = [...new Set((items as any[]).map(i => i.authorId).filter(Boolean))] as string[];
+      if (authorIds.length) {
+        const users = await this.prisma.user.findMany({
+          where: { id: { in: authorIds } },
+          select: { id: true, displayName: true, username: true },
+        });
+        const nameOf = new Map(users.map(u => [u.id, u.displayName?.trim() || u.username]));
+        for (const it of items as any[]) it.authorName = it.authorId ? nameOf.get(it.authorId) : undefined;
       }
     }
 

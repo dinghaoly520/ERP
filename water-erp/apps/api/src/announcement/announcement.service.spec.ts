@@ -135,6 +135,31 @@ describe('AnnouncementService — 待发布公告的采购文件列展示（2026
     expect(item.bidDocumentPending).toBeUndefined();
   });
 
+  it('发布人列（2026-11-24 用户裁定）：includeAuthorName 批量联查 displayName、缺失回落 username、无 authorId 不附名', async () => {
+    prisma.user = { findMany: jest.fn().mockResolvedValue([
+      { id: 'u1', displayName: '张三', username: 'zhang-san' },
+      { id: 'u2', displayName: null, username: 'Swhi-CGZX-05' },
+    ]) };
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a1', status: 'PUBLISHED', bidDocument: null, metadata: null, authorId: 'u1' },
+      { id: 'a2', status: 'PUBLISHED', bidDocument: null, metadata: null, authorId: 'u2' },
+      { id: 'a3', status: 'PUBLISHED', bidDocument: null, metadata: null, authorId: null },
+    ]);
+    const res = await service.list({ page: 1, pageSize: 10 }, {}, { includeAuthorName: true });
+    expect((res.items as any[]).map(i => i.authorName)).toEqual(['张三', 'Swhi-CGZX-05', undefined]);
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('发布人列：默认（publicList/supplierList 共用路径）不联查不附名——内部员工姓名不出公开端', async () => {
+    prisma.user = { findMany: jest.fn() };
+    prisma.announcement.findMany.mockResolvedValue([
+      { id: 'a1', status: 'PUBLISHED', bidDocument: null, metadata: null, authorId: 'u1' },
+    ]);
+    const res = await service.list({ page: 1, pageSize: 10 });
+    expect((res.items[0] as any).authorName).toBeUndefined();
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
   it('无指针草稿/无指针已发布 → 不合成', async () => {
     prisma.announcement.findMany.mockResolvedValue([
       { id: 'a3', status: 'DRAFT', bidDocument: null, metadata: null },
