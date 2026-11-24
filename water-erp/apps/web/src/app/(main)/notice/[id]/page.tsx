@@ -203,7 +203,7 @@ export default function NoticeDetailPage() {
                 const tone: 'blue' | 'orange' | 'gray' = leftMs < 0 ? 'gray' : leftMs <= 3 * 86400000 ? 'orange' : 'blue';
                 return (
                   <StatusBadge tone={tone}>
-                    公示{leftMs >= 0 ? '中' : '期满'} · 至 {new Date(ann.publicityEnd).toLocaleDateString('zh-CN')}
+                    公示{leftMs >= 0 ? '中' : '期满'} · 至 {new Date(ann.publicityEnd).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </StatusBadge>
                 );
               })()}
