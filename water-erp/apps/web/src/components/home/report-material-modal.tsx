@@ -34,7 +34,9 @@ function trendSvg(S: DashboardData['trendSeries']): string {
   const W = 1000, lp = 46, rp = 46, tp = 22, mh = 104, bandHalf = 44;
   const cy = tp + mh + bandHalf + 12, axisY = cy + bandHalf + 6, ch = axisY + 26;
   const caw = W - lp - rp, dc = S.length;
-  const bw = Math.max(14, Math.min(44, (caw / dc) * 0.5)), gap = Math.max(6, Math.min(16, bw * 0.4));
+  // 与页面 TrendChartPanel 同口径（2026-11-24）：桶宽随轴宽缩放，恒有 bw+gap ≤ caw/dc——
+  // 旧钳制 14/6px 在桶多（95 桶）时总宽溢出约一倍，导出 PDF 右段被裁、横轴止于数据中段
+  const bw = Math.max(2, Math.min(44, (caw / dc) * 0.6)), gap = Math.max(1, Math.min(16, bw * 0.4));
   const tw = dc * (bw + gap) - gap, sx = lp + Math.max(0, (caw - tw) / 2);
   const xc = (i: number) => sx + i * (bw + gap) + bw / 2;
   const ma = Math.max(...S.map(i => i.amount), 1);
@@ -174,7 +176,7 @@ h1 { font-size: 20px; letter-spacing: -0.02em; }
   ].map(([l, v]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>
 ${aiBlock}
 <section class="card"><h2>一、节约资金排行</h2>${tableHtml(['项目', '部门', '方式', '预算金额', '成交金额', '节约', '节约率'], data.savingsRanking.slice(0, 10).map(r => [r.project, r.department, r.method, r.controlAmountLabel, r.awardAmountLabel, r.savingsLabel, `${r.savingsRate}%`]), [24, 13, 13, 13, 13, 12, 12], 1)}${note('savings')}</section>
-<section class="card"><h2>二、采购时间点</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
+<section class="card"><h2>二、采购趋势</h2>${trendSvg(data.trendSeries)}${note('trend')}</section>
 <section class="card"><h2>三、${dimLabel}采购分析</h2>${hbarsHtml([...dimStats].sort((a, b) => b.amount - a.amount).slice(0, 10).map(d => ({ label: d.name, value: d.amount })), fmtWanPdf)}${note('department')}</section>
 <section class="card"><h2>四、采购方式分布</h2>${donutSvg(data.methodStats, '总项目')}${note('method')}</section>
 <section class="card"><h2>五、项目规模分析</h2>${hbarsHtml(scaleItems, v => `${v} 项`)}${note('scale')}</section>
