@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { SpButton } from "@/components/ui";
 import { useConfirm } from "@/components/use-confirm";
 import "@/styles/pages/profile.css";
+import { NeuSelect } from '@/components/neu-select';
 
 /* ═══ 联系人 Tab（CompanyInfo 内联版 — 操作栏 + 表格 + 空态）═══ */
 export function ContactsTab({ contacts, onAdd, onEdit, onDelete }: {
@@ -214,15 +215,15 @@ export function ContactPanel({ editing, onSaved, onClose }: {
             <div className="ct-panel-row mt-3.5">
               <div className="ct-panel-field">
                 <label className="ct-panel-label">性别 <i>*</i></label>
-                <select
-                  className="ct-panel-input"
+                <NeuSelect
+                 
                   value={form.gender}
                   onChange={(e) => { setForm((f) => ({ ...f, gender: e.target.value })); markDirty(); }}
                 >
                   <option value="">请选择</option>
                   <option value="男">男</option>
                   <option value="女">女</option>
-                </select>
+                </NeuSelect>
               </div>
               <div className="ct-panel-field">
                 <label className="ct-panel-label">身份证号 <i>*</i></label>

@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import "@/styles/pages/profile.css";
 
 import { QUAL_TYPE_OPTIONS } from "@/constants/supplier";
+import { NeuSelect } from '@/components/neu-select';
 
 /* ═══ 资质类型（B3-1：收敛至 constants/supplier 单一来源，三处口径一致）═══ */
 export const QUAL_TYPES = [...QUAL_TYPE_OPTIONS];
@@ -346,14 +347,14 @@ export function QualAddPanel({ onAdded, onClose }: {
             <div className="add-panel-row">
               <div className="add-panel-field">
                 <label className="add-panel-label">资质类型 <i>*</i></label>
-                <select
-                  className="add-panel-select"
+                <NeuSelect
+                 
                   value={form.type}
                   onChange={(e) => { setForm((f) => ({ ...f, type: e.target.value })); markDirty(); }}
                 >
                   <option value="" disabled>请选择资质类型</option>
                   {QUAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
+                </NeuSelect>
                 <span className="add-panel-select-arrow"><ChevronDown size={12} /></span>
               </div>
               <div className="add-panel-field">

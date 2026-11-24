@@ -10,6 +10,7 @@ import {
 import { api } from '@/lib/api';
 import type { ExpertProject, User } from '@/lib/types';
 import { STAGE_LABEL, STAGE_COLOR } from '@water-erp/shared';
+import { NeuSelect } from '@/components/neu-select';
 
 const VOTE_LABEL: Record<string, string> = { approve: '赞成', reject: '反对', abstain: '弃权' };
 
@@ -293,7 +294,7 @@ export default function ExpertDashboardPage() {
             {showMotionForm && (
               <div className="neu-card-static mb-3 rounded-xl p-4 space-y-3">
                 {activeProjects.length > 1 && (
-                  <select className="workbench-input w-full"
+                  <NeuSelect className="w-full"
                     value={motionForm.projectId}
                     onChange={e => setMotionForm(p => ({ ...p, projectId: e.target.value }))}>
                     <option value="" disabled>选择项目</option>
@@ -302,7 +303,7 @@ export default function ExpertDashboardPage() {
                         {p.project.name} · {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
                       </option>
                     ))}
-                  </select>
+                  </NeuSelect>
                 )}
                 <input className="workbench-input w-full" placeholder="表决标题"
                   value={motionForm.title}
@@ -319,7 +320,7 @@ export default function ExpertDashboardPage() {
             {showDisputeForm && (
               <div className="neu-card-static mb-3 rounded-xl p-4 space-y-3">
                 {activeProjects.length > 1 && (
-                  <select className="workbench-input w-full"
+                  <NeuSelect className="w-full"
                     value={disputeForm.projectId}
                     onChange={e => setDisputeForm(p => ({ ...p, projectId: e.target.value }))}>
                     <option value="" disabled>选择项目</option>
@@ -328,7 +329,7 @@ export default function ExpertDashboardPage() {
                         {p.project.name} · {STAGE_LABEL[p.project.stage as keyof typeof STAGE_LABEL] ?? p.project.stage}
                       </option>
                     ))}
-                  </select>
+                  </NeuSelect>
                 )}
                 <input className="workbench-input w-full" placeholder="异议标题"
                   value={disputeForm.title}
