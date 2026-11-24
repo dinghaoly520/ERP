@@ -222,17 +222,21 @@ export class AnnouncementService {
       : { result: await this.prisma.announcement.create({ data: createData, include: ANNOUNCEMENT_CREATE_INCLUDE }), supersededPendingIds: [] as string[] };
 
     // C1（7.5.2）：直接以 PUBLISHED 创建的预成交公示/成交公告同样设公示期（登记制路径，
-    // publishDate 可回填线下发布日→公示期随之起算）；BID_NOTICE 同设 3 天（2026-09-09：前端状态
-    // 徽标按此判定）。流标/中标公告 2026-11-13 用户裁定移出兜底（「必须填写起止时间，
-    // 不需要兜底」——起止缺失在建行前已 400 PUBLICITY_PERIOD_REQUIRED 拦截）。
+    // publishDate 可回填线下发布日→公示期随之起算）。公示止点一律按实际填写
+    // （2026-11-24 用户裁定，见 resolvePublicityEnd）：BID_NOTICE 取公示期限（止）
+    // metadata.announcementEnd，未填写不再强加 +3 天（2026-09-09 兜底废除）；
+    // 预成交/成交（legacy WIN_NOTICE）法定三个日历日缺省保留（无填写面 + confirm 闸死锁防御）。
+    // 流标/中标/变更公告 2026-11-13 用户裁定必填闸（「必须填写起止时间」——起止缺失
+    // 在建行前已 400 PUBLICITY_PERIOD_REQUIRED 拦截）。
     if (
       (dto.type === 'PRE_WIN_NOTICE' || dto.type === 'WIN_NOTICE' || dto.type === 'BID_NOTICE')
       && status === 'PUBLISHED' && !result.publicityEnd
     ) {
-      const end = new Date(result.publishDate || new Date());
-      end.setDate(end.getDate() + 3);
-      await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
-      result.publicityEnd = end;
+      const end = this.resolvePublicityEnd(result);
+      if (end) {
+        await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
+        result.publicityEnd = end;
+      }
     }
 
     // 中标公告发布即链接/确认中标候选人（2026-10-19）：评标结果结构化落 metadata.winCandidates
@@ -546,6 +550,26 @@ export class AnnouncementService {
       throw new BadRequestException({ error: '公示截止时间须晚于发布时间', code: 'PUBLICITY_END_TOO_EARLY' });
     }
     return end;
+  }
+
+  /** 公示止点兜底（2026-11-24 用户裁定「所有公告公示起止一律按实际填写的时间段，
+   *  不允许强加为 3 天」）：优先取公告编写/向导填写的公示期限（止）
+   *  （metadata.announcementEnd，datetime-local 无时区串按东八区解析）。
+   *  - BID_NOTICE（采购公告/公开招标）：未填写/无效/不晚于发布时刻 → **不设止点**
+   *    （publicityEnd 保持 null，公开端永不下线，与政策/平台类同口径）——推翻
+   *    2026-09-09「+3 天」兜底（SWHI-GK-2026112002 实录：填 20 天被覆盖成 +3 天）。
+   *  - PRE_WIN_NOTICE / WIN_NOTICE：GB/T 43711 7.5.2 系统法定轨（预成交公示/成交公告，
+   *    无用户填写面），未填写维持三个日历日——PRE_WIN 止点 null 会把 confirmWinnerNotice
+   *    的「公示期未满」闸变永久死锁（null 即视为未满）。 */
+  private resolvePublicityEnd(a: { type: string; publishDate?: Date | null; metadata?: unknown }): Date | null {
+    const metaEnd = parseScheduledPublishDate((a.metadata as Record<string, unknown> | null)?.announcementEnd);
+    if (metaEnd && (!a.publishDate || metaEnd.getTime() > new Date(a.publishDate).getTime())) return metaEnd;
+    if (a.type === 'PRE_WIN_NOTICE' || a.type === 'WIN_NOTICE') {
+      const end = new Date(a.publishDate || new Date());
+      end.setDate(end.getDate() + 3);
+      return end;
+    }
+    return null;
   }
 
   /** Public listing — only published items；公开端不含招标文件（首页不泄露）；RESTRICTED 可见范围不流转到首页 */
@@ -975,18 +999,22 @@ export class AnnouncementService {
       throw new BadRequestException({ error: '公告不存在或已删除', code: 'NOT_FOUND' });
     }
 
-    // A1→C1（GB/T 43711 7.5.2）：预成交公示发布时自动设置公示期（3 个日历日）；
-    // WIN_NOTICE 保留同逻辑以兼容存量"中标公示"与手动直发成交公告的路径。
-    // 流标/中标/变更公告 2026-11-13 用户裁定移出兜底（「必须填写起止时间」——转发布前
-    // 已 400 PUBLICITY_PERIOD_REQUIRED 拦截，直供止点随草稿落库）。
+    // A1→C1（GB/T 43711 7.5.2）：预成交公示发布时自动设置公示期（三个日历日，系统法定轨
+    // 无填写面；confirmWinnerNotice 对 null 恒判「未满」，止点不可缺）。
+    // 公示止点一律按实际填写（2026-11-24 用户裁定，见 resolvePublicityEnd）：BID_NOTICE
+    // 取公示期限（止）metadata.announcementEnd（定时发布链路 scheduler 只传
+    // status/publishDate，草稿 metadata 原样保留），未填写不强加 +3 天；
+    // 流标/中标/变更公告 2026-11-13 用户裁定必填闸（转发布前已 400
+    // PUBLICITY_PERIOD_REQUIRED 拦截，直供止点随草稿落库）。
     if (
       (result.type === 'PRE_WIN_NOTICE' || result.type === 'WIN_NOTICE' || result.type === 'BID_NOTICE')
       && targetStatus === 'PUBLISHED' && !result.publicityEnd
     ) {
-      const end = new Date(result.publishDate || new Date());
-      end.setDate(end.getDate() + 3);
-      await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
-      result.publicityEnd = end;
+      const end = this.resolvePublicityEnd(result);
+      if (end) {
+        await this.prisma.announcement.update({ where: { id: result.id }, data: { publicityEnd: end } });
+        result.publicityEnd = end;
+      }
     }
 
     // 中标公告发布即链接/确认中标候选人（2026-10-19，与 create 路径同款）

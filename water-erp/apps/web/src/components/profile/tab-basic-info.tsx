@@ -10,6 +10,7 @@ import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { DepartmentCombobox } from '@/components/profile/department-combobox';
 import type { AuthUser, DepartmentItem, ProfileChangePayload } from '@/lib/api/auth';
 import { api } from '@/lib/api';
+import { NeuSelect } from '@/components/workbench';
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -229,10 +230,10 @@ export function TabBasicInfo({ user, departments }: TabBasicInfoProps) {
                     placeholder={f.placeholder}
                   />
                 ) : f.type === 'select' ? (
-                  <select value={f.val} onChange={e => f.set(e.target.value)} className="workbench-input h-[36px] flex-1 text-[13px]">
+                  <NeuSelect value={f.val} onChange={e => f.set(e.target.value)} className="h-[36px] flex-1 text-[13px]">
                     <option value="">未设置</option>
                     {f.options.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
+                  </NeuSelect>
                 ) : (
                   <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.placeholder} maxLength={f.maxLen} className="neu-input h-[36px] flex-1 py-0 text-[13px]" />
                 )}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { getExpertOperationHistory, type ExpertOperationHistoryItem } from '@/lib/api/expert';
 import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2, Search } from 'lucide-react';
 import { LEVEL_LABEL } from '@water-erp/shared';
@@ -262,16 +262,16 @@ export function ExpertOperationHistory({ open, onClose }: { open: boolean; onClo
         {/* 筛选：操作类型 + 日期范围 */}
         <div className="wb-toolbar !px-3 !py-2 flex flex-wrap items-center gap-2">
           <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">操作类型</span>
-          <select
+          <NeuSelect
             value={actionFilter}
             onChange={e => { const v = e.target.value; setActionFilter(v); doLoad(1, v, dateFrom, dateTo); }}
-            className="workbench-input !w-auto !h-7 !text-[11px] min-w-[130px]"
+            className="!h-7 !text-[11px] min-w-[130px]"
           >
             <option value="">全部</option>
             {Object.entries(ACTION_LABELS).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
             ))}
-          </select>
+          </NeuSelect>
 
           <span className="text-[11px] font-semibold text-[var(--muted-foreground)] flex items-center gap-1">
             <CalendarDays size={12} />日期

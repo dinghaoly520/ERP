@@ -7,6 +7,10 @@ import type {
   TableData,
 } from './tender-write.types';
 
+/** 保证金形式多选（2026-11-24 用户裁定）：值为逗号串（存量单值兼容）——拆分为成员集 */
+const selectedDepositForms = (value?: string | null): string[] =>
+  (value || '').split(',').map(s => s.trim()).filter(Boolean);
+
 export const COMPETITIVE_NEGOTIATION_TEMPLATE_FILE =
   '模板文件/谈判采购文件模板.docx';
 export const SINGLE_SOURCE_TEMPLATE_FILE = '模板文件/直接采购模板.docx';
@@ -590,6 +594,25 @@ export function buildCompetitiveNegotiationReplacementPlan(
   answers: CompetitiveNegotiationAnswers,
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
+  // 综合评分法评分行（2026-11-24 用户裁定：谈判也固定综合评分法）——防御遍历同竞价/询比口径
+  const negScoringRows = (
+    ((answers as Record<string, unknown>).scoringItems as Array<Record<string, unknown>> | undefined) ?? []
+  )
+    .filter(
+      (it): it is Required<ScoringItem> =>
+        !!it && typeof it === 'object' && typeof it.factor === 'string',
+    )
+    .filter(
+      (it) =>
+        it.factor.trim() ||
+        (typeof it.criteria === 'string' && it.criteria.trim()),
+    )
+    .map((it) => ({
+      factor: it.factor.trim(),
+      score: (typeof it.score === 'string' ? it.score : '').trim(),
+      criteria: (typeof it.criteria === 'string' ? it.criteria : '').trim(),
+      note: (typeof it.note === 'string' ? it.note : '').trim(),
+    }));
   // Handle quotation letter - could be text or table
   // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
   const isQuotationText = resolveQuotationMode(answers) !== 'table';
@@ -667,7 +690,12 @@ export function buildCompetitiveNegotiationReplacementPlan(
   };
 
   return [
-    {
+
+    // 综合评分法评标标准（2026-11-24 用户裁定）：谈判评审办法固定综合评分法——
+    // scoringRows 非空时注入 docx 第三章「综合评分法评审标准」表
+    ...(negScoringRows.length
+      ? [{ targetText: '综合评分法评审标准', replacementText: '', highlight: false, scoringRows: negScoringRows } as TemplateReplacement]
+      : []),    {
       targetText: '项目名称',
       ...buildReplacement('项目名称', answers.projectName),
     },
@@ -914,18 +942,18 @@ export function buildInquiryPurchaseReplacementPlan(
     : '';
 
   // Deposit form checkboxes
-  const deposit5 = answers.responseDepositForm === 'cash' ? '☑' : '☐';
+  const deposit5 = selectedDepositForms(answers.responseDepositForm).includes('cash') ? '☑' : '☐';
   const deposit6 =
-    answers.responseDepositForm === 'cash'
+    selectedDepositForms(answers.responseDepositForm).includes('cash')
       ? answers.responseDepositBankInfo
       : '/';
-  const deposit7 = answers.responseDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const deposit7 = selectedDepositForms(answers.responseDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const deposit8 =
-    answers.responseDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const deposit9 = answers.responseDepositForm === 'insurance' ? '☑' : '☐';
-  const deposit10 = answers.responseDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.responseDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const deposit9 = selectedDepositForms(answers.responseDepositForm).includes('insurance') ? '☑' : '☐';
+  const deposit10 = selectedDepositForms(answers.responseDepositForm).includes('other') ? '☑' : '☐';
   const deposit11 =
-    answers.responseDepositForm === 'other'
+    selectedDepositForms(answers.responseDepositForm).includes('other')
       ? answers.responseDepositOtherForm
       : '/';
 
@@ -959,14 +987,14 @@ export function buildInquiryPurchaseReplacementPlan(
     : '';
 
   // Performance deposit form checkboxes
-  const perf4 = answers.performanceDepositForm === 'cash' ? '☑' : '☐';
-  const perf5 = answers.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const perf4 = selectedDepositForms(answers.performanceDepositForm).includes('cash') ? '☑' : '☐';
+  const perf5 = selectedDepositForms(answers.performanceDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const perf6 =
-    answers.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const perf7 = answers.performanceDepositForm === 'insurance' ? '☑' : '☐';
-  const perf8 = answers.performanceDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.performanceDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const perf7 = selectedDepositForms(answers.performanceDepositForm).includes('insurance') ? '☑' : '☐';
+  const perf8 = selectedDepositForms(answers.performanceDepositForm).includes('other') ? '☑' : '☐';
   const perf9 =
-    answers.performanceDepositForm === 'other'
+    selectedDepositForms(answers.performanceDepositForm).includes('other')
       ? answers.performanceDepositOtherForm
       : '/';
 
@@ -1176,6 +1204,25 @@ export function buildInternalBiddingReplacementPlan(
   answers: InternalBiddingAnswers,
 ): TemplateReplacement[] {
   answers = applyTimeFallbacks(answers);
+  // 综合评分法评分行（防御遍历：DTO 零校验，畸形行跳过而非 500——与询比同口径）
+  const internalScoringRows = (
+    ((answers as Record<string, unknown>).scoringItems as Array<Record<string, unknown>> | undefined) ?? []
+  )
+    .filter(
+      (it): it is Required<ScoringItem> =>
+        !!it && typeof it === 'object' && typeof it.factor === 'string',
+    )
+    .filter(
+      (it) =>
+        it.factor.trim() ||
+        (typeof it.criteria === 'string' && it.criteria.trim()),
+    )
+    .map((it) => ({
+      factor: it.factor.trim(),
+      score: (typeof it.score === 'string' ? it.score : '').trim(),
+      criteria: (typeof it.criteria === 'string' ? it.criteria : '').trim(),
+      note: (typeof it.note === 'string' ? it.note : '').trim(),
+    }));
   // Handle quotation letter - could be text or table
   // 2026-09-09 拍板：优先表格——未显式选择且无文字存量时默认表格模式
   const isQuotationText = resolveQuotationMode(answers) !== 'table';
@@ -1230,18 +1277,18 @@ export function buildInternalBiddingReplacementPlan(
     : '';
 
   // Deposit form checkboxes
-  const deposit5 = answers.responseDepositForm === 'cash' ? '☑' : '☐';
+  const deposit5 = selectedDepositForms(answers.responseDepositForm).includes('cash') ? '☑' : '☐';
   const deposit6 =
-    answers.responseDepositForm === 'cash'
+    selectedDepositForms(answers.responseDepositForm).includes('cash')
       ? answers.responseDepositBankInfo
       : '/';
-  const deposit7 = answers.responseDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const deposit7 = selectedDepositForms(answers.responseDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const deposit8 =
-    answers.responseDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const deposit9 = answers.responseDepositForm === 'insurance' ? '☑' : '☐';
-  const deposit10 = answers.responseDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.responseDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const deposit9 = selectedDepositForms(answers.responseDepositForm).includes('insurance') ? '☑' : '☐';
+  const deposit10 = selectedDepositForms(answers.responseDepositForm).includes('other') ? '☑' : '☐';
   const deposit11 =
-    answers.responseDepositForm === 'other'
+    selectedDepositForms(answers.responseDepositForm).includes('other')
       ? answers.responseDepositOtherForm
       : '/';
 
@@ -1278,14 +1325,14 @@ export function buildInternalBiddingReplacementPlan(
     : '';
 
   // Performance deposit form checkboxes
-  const perf4 = answers.performanceDepositForm === 'cash' ? '☑' : '☐';
-  const perf5 = answers.performanceDepositForm === 'bank_guarantee' ? '☑' : '☐';
+  const perf4 = selectedDepositForms(answers.performanceDepositForm).includes('cash') ? '☑' : '☐';
+  const perf5 = selectedDepositForms(answers.performanceDepositForm).includes('bank_guarantee') ? '☑' : '☐';
   const perf6 =
-    answers.performanceDepositForm === 'guarantee_institution' ? '☑' : '☐';
-  const perf7 = answers.performanceDepositForm === 'insurance' ? '☑' : '☐';
-  const perf8 = answers.performanceDepositForm === 'other' ? '☑' : '☐';
+    selectedDepositForms(answers.performanceDepositForm).includes('guarantee_institution') ? '☑' : '☐';
+  const perf7 = selectedDepositForms(answers.performanceDepositForm).includes('insurance') ? '☑' : '☐';
+  const perf8 = selectedDepositForms(answers.performanceDepositForm).includes('other') ? '☑' : '☐';
   const perf9 =
-    answers.performanceDepositForm === 'other'
+    selectedDepositForms(answers.performanceDepositForm).includes('other')
       ? answers.performanceDepositOtherForm
       : '/';
 
@@ -1454,6 +1501,12 @@ export function buildInternalBiddingReplacementPlan(
     // Evaluation method placeholders
     { targetText: '评标方法1', replacementText: evalMethod1, highlight: false },
     { targetText: '评标方法2', replacementText: evalMethod2, highlight: false },
+    // 综合评分法评标标准（2026-11-24 用户裁定：邀请/公开招标评标方法固定综合评分法）——
+    // 评分行注入 docx「六、综合评分法评标标准」表（fillScoringStandardTable 标题正则兼容
+    // 评审/评标两形态）；竞价（INTERNAL_BIDDING）无 scoringItems → 空不注入、表格原样
+    ...(internalScoringRows.length
+      ? [{ targetText: '综合评分法评审标准', replacementText: '', highlight: false, scoringRows: internalScoringRows } as TemplateReplacement]
+      : []),
     {
       targetText: '评标委员会人数',
       ...buildReplacement('评标委员会人数', answers.evaluationCommitteeCount ?? ''),
@@ -1552,7 +1605,8 @@ function fillScoringStandardTable(
     ]
       .map((x) => x[1])
       .join('');
-    if (/六、\s*综合评分法评[审标]标准/.test(plain)) {
+    // 锚定整段（可带「六、」等编号前缀）——防正文引用（见《综合评分法评审标准》）误命中
+    if (/^(?:[一二三四五六七八九十\d]+[、.．]?\s*)?综合评分法评[审标]标准\s*$/.test(plain)) {
       headingEnd = pEnd + 6;
       break;
     }

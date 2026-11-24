@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { getSupplierEvaluationAnalysis, getSupplierEvaluations, createEvaluation, getSupplierEvaluationProjects } from '@/lib/api/supplier';
 import type { DimensionAnalysis, EvaluationAnalysisResult, SupplierEvaluationProject } from '@/lib/api/supplier';
 import type { Supplier, SupplierEvaluation } from '@/lib/types';
-import { StatusBadge, Modal } from '@/components/workbench';
+import { StatusBadge, Modal, NeuSelect } from '@/components/workbench';
 import { Sparkles, Loader2, Brain } from 'lucide-react';
 import { LEVEL_LABEL, LEVEL_COLOR, STAGE_LABEL } from '@water-erp/shared';
 
@@ -161,7 +161,7 @@ export function SupplierEvaluationDialog({
         ) : evalProjects.length === 0 ? (
           <div className="rounded-xl bg-[color-mix(in_oklch,var(--warning)_6%,transparent)] px-3 py-2 text-xs text-[var(--muted-foreground)]">该供应商暂无投标参评项目，本次将作为通用评价提交</div>
         ) : (
-          <select value={projectId} onChange={e => setProjectId(e.target.value)} className="neu-input text-sm w-full">
+          <NeuSelect value={projectId} onChange={e => setProjectId(e.target.value)} className="w-full">
             <option value="">不关联（通用评价）</option>
             {evalProjects.map(p => (
               <option key={p.projectId} value={p.projectId}>
@@ -169,7 +169,7 @@ export function SupplierEvaluationDialog({
                 {p.result ? ` · 第${p.result.rank}名${p.result.recommended ? ' · 中标候选' : p.result.disqualified ? ' · 废标' : ''}` : ''}）
               </option>
             ))}
-          </select>
+          </NeuSelect>
         )}
       </div>
 

@@ -347,14 +347,15 @@ export class ParticipationReportPdfService {
             headerRows: 1,
             widths: ['*', 110, 62, 62, 90], // fixed 324 + 星列 + 40 ≤ 515 ✓
             body: [
-              [th('供应商'), th('业务标签'), th('意向确认'), th('获取文件'), th('投递状态/时间')],
+              // 获取文件列在意向确认列前（2026-11-24 用户裁定，与 :3005 弹窗/开标确认面板同序；两列等宽交换不动 widths）
+              [th('供应商'), th('业务标签'), th('获取文件'), th('意向确认'), th('投递状态/时间')],
               ...rows.map(r => {
                 const st = submitLabel(r.supplierId);
                 return [
                   td(r.name || '—', { align: 'left' }),
                   td(r.tags.length > 0 ? r.tags.slice(0, 4).join('、') : '—', { align: 'left', size: 8 }),
-                  td(r.intentAt ? '已确认' : '未确认'),
                   td(r.download),
+                  td(r.intentAt ? '已确认' : '未确认'),
                   td(`${st.label}${st.at ? `\n${fmt(st.at)}` : ''}`),
                 ];
               }),

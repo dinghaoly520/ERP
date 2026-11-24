@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { History, X, Loader2 } from 'lucide-react';
 import { getScoreHistory, type ScoreHistoryItem } from '@/lib/api';
 import { CATEGORY_LABEL } from '@water-erp/shared';
+import { NeuSelect } from '@/components/neu-select';
 
 interface Props {
   open: boolean;
@@ -57,15 +58,15 @@ export function ScoreHistoryDrawer({ open, projectId, supplierId: initialSupplie
           </button>
         </div>
         <div className="px-4 pb-3">
-          <select
+          <NeuSelect
             value={effectiveSupplier}
             onChange={e => setInnerSupplier(e.target.value)}
-            className="neu-input !h-10 w-full text-sm"
+            className="w-full"
           >
             {suppliers.map(s => (
               <option key={s.id} value={s.id}>{s.supplierName}</option>
             ))}
-          </select>
+          </NeuSelect>
         </div>
         <hr className="wb-section-rule shrink-0" />
         <div className="min-h-0 flex-1 overflow-y-auto p-4">

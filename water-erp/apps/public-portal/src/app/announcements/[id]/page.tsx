@@ -120,24 +120,56 @@ export default function AnnouncementDetailPage() {
             if (fields.length === 0) return null;
             const shortFields = fields.filter(f => !f.area);
             const areaFields = fields.filter(f => f.area);
+            // 关键信息分组（2026-11-24 用户裁定，与 :3004 同款）：基本信息/时间节点两组同排一行
+            const base = shortFields.filter(f => !f.date);
+            const times = shortFields.filter(f => f.date);
+            const chipOf = (f: (typeof shortFields)[number]) => {
+              const isCode = f.key === 'projectCode' || f.key === 'docNo';
+              const isMoney = f.key === 'budget' || f.key === 'amount';
+              const isDate = f.date;
+              const labelColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : isDate ? '#f5a623' : '#8a96aa';
+              const valueColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : '#26364e';
+              let value: string;
+              if (f.key === 'downloadDeadline') {
+                // 区间/止点为已格式化中文串——直出原文，不走日期解析（date 标记会判 NaN 成「待定」）
+                const raw = meta.downloadPeriod ?? meta.downloadDeadline;
+                value = raw == null ? '' : String(raw);
+              } else if (f.key === 'downloadMode') {
+                const v = String(meta.downloadMode ?? '');
+                value = v === 'encrypted' ? '解密下载' : v === 'paid' ? '付费下载' : '免费下载';
+              } else {
+                value = formatMetaValue(f, meta[f.key]);
+              }
+              return (
+                <span key={f.key} className="announce-meta-chip inline-flex items-center gap-2 rounded-lg px-3 py-1.5">
+                  <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
+                  <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{value}</span>
+                </span>
+              );
+            };
             return (
               <div className="mb-6 pb-6 border-b border-[#e5ecf4]">
+                {/* 关键信息卡头（2026-11-24 用户裁定，与 :3004 同款） */}
                 {shortFields.length > 0 && (
-                  <div className="flex flex-wrap gap-x-5 gap-y-2.5">
-                    {shortFields.map(f => {
-                      const isCode = f.key === 'projectCode' || f.key === 'docNo';
-                      const isMoney = f.key === 'budget' || f.key === 'amount';
-                      const isDate = f.date;
-                      const labelColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : isDate ? '#f5a623' : '#8a96aa';
-                      const valueColor = isCode ? '#064ea2' : isMoney ? '#18a56c' : '#26364e';
-                      return (
-                        <span key={f.key} className="announce-meta-chip inline-flex items-center gap-2 rounded-lg px-3 py-1.5">
-                          <span className="text-[11px] font-bold tracking-wide" style={{ color: labelColor }}>{f.label}</span>
-                          {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
-                          <span className="text-[13px] font-semibold" style={{ color: valueColor }}>{formatMetaValue(f, f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key])}</span>
-                        </span>
-                      );
-                    })}
+                  <div className="mb-3 flex items-center gap-3">
+                    <span className="text-[12px] font-extrabold tracking-[0.1em] text-[#18243a]">关键信息</span>
+                    <span className="h-px flex-1 bg-[#e5ecf4]" aria-hidden />
+                  </div>
+                )}
+                {shortFields.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-2.5">
+                    {base.length > 0 && (
+                      <span className="flex flex-wrap items-center gap-2.5">
+                        <span className="whitespace-nowrap text-[11px] font-bold tracking-[0.08em] text-[#8a96aa]">基本信息</span>
+                        {base.map(chipOf)}
+                      </span>
+                    )}
+                    {times.length > 0 && (
+                      <span className="flex flex-wrap items-center gap-2.5">
+                        <span className="whitespace-nowrap text-[11px] font-bold tracking-[0.08em] text-[#8a96aa]">时间节点</span>
+                        {times.map(chipOf)}
+                      </span>
+                    )}
                   </div>
                 )}
                 {areaFields.map(f => (

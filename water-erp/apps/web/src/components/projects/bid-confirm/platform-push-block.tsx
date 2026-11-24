@@ -13,7 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, CheckCircle2, CloudUpload, Eye, FileDown, History, Send, ShieldAlert,
 } from 'lucide-react';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { ApiError } from '@/lib/api';
 import {
   platformPushApi, type ItemHashPair, type PendingItem, type PendingResponse,
@@ -291,8 +291,8 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
 
       {/* 工具行：通道选择 + 预览入口 + 台账 */}
       <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <select
-          className="workbench-input !h-[32px] !w-auto min-w-[190px] !text-xs"
+        <NeuSelect
+          className="!h-[32px] min-w-[190px] !text-xs"
           value={channel}
           onChange={(e) => setChannel(e.target.value as PushChannelCode)}
         >
@@ -305,7 +305,7 @@ export function PlatformPushBlock({ bidProjectId }: Props) {
               </option>
             );
           })}
-        </select>
+        </NeuSelect>
         {channel === 'mock' && (
           <span className="rounded border border-[var(--accent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--accent)]">
             演示通道——非真实推送

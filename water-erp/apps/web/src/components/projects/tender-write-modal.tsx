@@ -23,6 +23,7 @@ import {
   INVITED_BIDDING_SECTIONS,
   PUBLIC_BIDDING_SECTIONS,
   TENDER_DOCUMENT_TYPES,
+  isScoringRequiredType,
 } from '@/lib/tender-write/templates';
 import { exportTenderDocument } from '@/lib/api/tender-write';
 import { hasValidScoringRows } from '@/components/tender-write/scoring-items-editor';
@@ -554,10 +555,17 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     [selectedType],
   );
 
-  // 前置章节闸（询比 v2）：评审标准章节待前四章填完才开放（与 /tender-write 同口径）
+  // 前置章节闸（询比 v2；2026-11-24 扩邀请/公开招标）：评审/评标标准章节待其前所有
+  // 章节填完才开放（与 /tender-write 同口径）
   const sectionGate = useMemo(() => {
-    if (selectedType !== 'INQUIRY_PURCHASE') return undefined;
-    return { key: 'evaluation' as const, ...tenderSectionPrereq(INQUIRY_PURCHASE_SECTIONS, currentDraft, 'evaluation') };
+    if (!isScoringRequiredType(selectedType)) return undefined;
+    const sections =
+      selectedType === 'INQUIRY_PURCHASE'
+        ? INQUIRY_PURCHASE_SECTIONS
+        : selectedType === 'COMPETITIVE_NEGOTIATION'
+          ? COMPETITIVE_NEGOTIATION_SECTIONS
+          : INVITED_BIDDING_SECTIONS;
+    return { key: 'evaluation' as const, ...tenderSectionPrereq(sections, currentDraft, 'evaluation') };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedType, currentDraft]);
 
@@ -757,10 +765,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
     if (!selectedType || !project) return;
     // 询比 v2：评审方法固定综合评分法——评分标准未填有效行阻止导出（与 /tender-write 同闸门）
     if (
-      selectedType === 'INQUIRY_PURCHASE' &&
+      isScoringRequiredType(selectedType) &&
       !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
     ) {
-      setErrorMessage('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
+      setErrorMessage('综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再导出');
       return;
     }
     setExportFormatOpen(true);
@@ -837,10 +845,10 @@ export function TenderWriteModal({ isOpen, onClose, procurementMethod, projectTi
       if (!blob) {
         // 询比 v2：回退重导出同样过评分标准闸门（与直接导出同口径）
         if (
-          selectedType === 'INQUIRY_PURCHASE' &&
+          isScoringRequiredType(selectedType) &&
           !hasValidScoringRows((currentDraft as { scoringItems?: ScoringItem[] }).scoringItems)
         ) {
-          toast.error('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出');
+          toast.error('综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再导出');
           return;
         }
         // 回退必须显式告知——静默回退时提交稿不含已接受的修改，而弹窗文案承诺包含（二审 P1）

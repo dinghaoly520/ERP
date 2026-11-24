@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState, useRef } from 'react';
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, RefreshCw, RotateCcw, ScrollText, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchOperationLogs, type OperationLogRow } from '@/lib/api/operation-log';
-import { TableSkeleton } from '@/components/workbench';
+import { TableSkeleton, NeuSelect } from '@/components/workbench';
 import { downloadOperationLogTxt } from '@/lib/history-export';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -195,24 +195,24 @@ export function OperationLogTab({ active }: { active: boolean }) {
           value={filters.username}
           onChange={(e) => setFilters({ ...filters, username: e.target.value })}
         />
-        <select className="workbench-input workbench-input-sm !w-auto min-w-[110px]" value={filters.portal} onChange={(e) => applyFilter('portal', e.target.value)}>
+        <NeuSelect className="workbench-input-sm min-w-[110px]" value={filters.portal} onChange={(e) => applyFilter('portal', e.target.value)}>
           <option value="">全部门户</option>
           {PORTAL_OPTIONS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-        </select>
-        <select className="workbench-input workbench-input-sm !w-auto min-w-[100px]" value={filters.role} onChange={(e) => applyFilter('role', e.target.value)}>
+        </NeuSelect>
+        <NeuSelect className="workbench-input-sm min-w-[100px]" value={filters.role} onChange={(e) => applyFilter('role', e.target.value)}>
           <option value="">全部角色</option>
           {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <select className="workbench-input workbench-input-sm !w-auto min-w-[96px]" value={filters.method} onChange={(e) => applyFilter('method', e.target.value)}>
+        </NeuSelect>
+        <NeuSelect className="workbench-input-sm min-w-[96px]" value={filters.method} onChange={(e) => applyFilter('method', e.target.value)}>
           <option value="">全部方法</option>
           {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <select className="workbench-input workbench-input-sm !w-auto min-w-[120px]" value={filters.statusClass} onChange={(e) => applyFilter('statusClass', e.target.value)}>
+        </NeuSelect>
+        <NeuSelect className="workbench-input-sm min-w-[120px]" value={filters.statusClass} onChange={(e) => applyFilter('statusClass', e.target.value)}>
           <option value="">全部状态</option>
           <option value="success">成功 2xx/3xx</option>
           <option value="client">客户端错误 4xx</option>
           <option value="server">服务端错误 5xx</option>
-        </select>
+        </NeuSelect>
         <span className="text-[11px] font-semibold text-[var(--muted-foreground)] flex items-center gap-1">时间</span>
         <input
           className="workbench-input workbench-input-sm !w-auto min-w-[168px]" type="datetime-local" title="开始时间"
@@ -376,13 +376,13 @@ export function OperationLogTab({ active }: { active: boolean }) {
             共 {total} 条 · 第 {page}/{totalPages} 页
           </span>
           <div className="flex items-center gap-1.5">
-            <select
-              className="workbench-input !h-[30px] !w-auto !py-0 !text-xs"
+            <NeuSelect
+              className="!h-[30px] !py-0 !text-xs"
               value={limit}
               onChange={(e) => void load({ limit: Number(e.target.value), offset: 0 })}
             >
               {[20, 50, 100].map((n) => <option key={n} value={n}>{n} 条/页</option>)}
-            </select>
+            </NeuSelect>
             <button className="neu-btn-xs" disabled={loading || offset === 0} onClick={() => void load({ offset: Math.max(0, offset - limit) })}>
               <ChevronLeft size={13} />
             </button>

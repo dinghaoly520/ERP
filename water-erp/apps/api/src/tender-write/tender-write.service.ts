@@ -190,9 +190,15 @@ export class TenderWriteService {
   async exportDocument(dto: ExportTenderWriteDto, user?: { sub?: string }) {
     // 询比 v2（2026-10-29 裁定「导出前拦截」）：评审方法固定综合评分法，评分标准为
     // 法定必备内容——有效行（评分因素或评分标准非空）为 0 时拒绝导出。
+    // 2026-11-24 用户裁定扩面：邀请招标/公开招标/谈判采购同口径（评审方法固定综合评分法）。
     // 前端 /tender-write、项目管理内嵌导出与审查流三处均有同口径闸门与友好提示，
     // 此处为兜底（API 直调 / 审查链路漏改时也拦得住），防止空表法定文件流出。
-    if (dto.documentType === 'INQUIRY_PURCHASE') {
+    if (
+      dto.documentType === 'INQUIRY_PURCHASE' ||
+      dto.documentType === 'INVITED_BIDDING' ||
+      dto.documentType === 'PUBLIC_BIDDING' ||
+      dto.documentType === 'COMPETITIVE_NEGOTIATION'
+    ) {
       const items = (dto.answers as Record<string, unknown>).scoringItems;
       const hasValidRow = Array.isArray(items)
         ? items.some(
@@ -206,10 +212,16 @@ export class TenderWriteService {
       if (!hasValidRow) {
         throw new BadRequestException({
           error:
-            '综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再导出',
+            '综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再导出',
           code: 'SCORING_NOT_FILLED',
         });
       }
+    }
+
+    // 邀请/公开招标（2026-11-24 用户裁定）：评标方法固定综合评分法——问卷已无选择器，
+    // 此处对存量草稿的旧值（最低评标价法/空）强制归一，防旧草稿静默导出异方法
+    if (dto.documentType === 'INVITED_BIDDING' || dto.documentType === 'PUBLIC_BIDDING') {
+      (dto.answers as Record<string, unknown>).evaluationMethod = '综合评分法';
     }
 
     const templatePath = this.resolveTemplatePath(dto.documentType);

@@ -8,6 +8,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode, type ComponentType, type RefObject } from "react";
 import { X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { NeuSelect } from '@/components/neu-select';
 
 /* ─── 按钮 ─── */
 type ButtonVariant = "primary" | "soft" | "xs" | "link";
@@ -56,11 +57,12 @@ export function SpTextarea({ className, ...rest }: React.TextareaHTMLAttributes<
   return <textarea className={cn("neu-input text-sm min-h-[88px] py-2.5", className)} {...rest} />;
 }
 
-export function SpSelect({ className, children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+export function SpSelect({ className, children, value, onChange, disabled, id }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  // 2026-11-24 全系统下拉统一：内核换 NeuSelect 瓷片下拉（API 镜像原生，调用面零改动）
   return (
-    <select className={cn("workbench-input appearance-none pr-8", className)} {...rest}>
+    <NeuSelect className={className} value={value as string | number | undefined} onChange={onChange as unknown as (e: { target: { value: string } }) => void} disabled={disabled} id={id}>
       {children}
-    </select>
+    </NeuSelect>
   );
 }
 

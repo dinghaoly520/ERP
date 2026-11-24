@@ -16,8 +16,10 @@ import {
 } from '@/lib/api/review';
 import { exportTenderDocument } from '@/lib/api/tender-write';
 import { hasValidScoringRows } from '@/components/tender-write/scoring-items-editor';
+import { isScoringRequiredType } from '@/lib/tender-write/templates';
 import type { ScoringItem } from '@/lib/types/tender-write';
 import { fetchUserSettings } from '@/lib/api/user-settings';
+import { NeuSelect } from '@/components/workbench';
 
 type Phase = 'checking' | 'config' | 'starting' | 'running' | 'result' | 'failed';
 type ReviewMode = 'strict' | 'general';
@@ -125,10 +127,10 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
     if (!kbId) { toast.error('请选择知识库'); return; }
     // 询比 v2：评审方法固定综合评分法——评分标准未填有效行不导出（与其他导出入口同闸门）
     if (
-      documentType === 'INQUIRY_PURCHASE' &&
+      isScoringRequiredType(documentType) &&
       !hasValidScoringRows((answers as { scoringItems?: ScoringItem[] }).scoringItems)
     ) {
-      toast.error('综合评分法评审标准未填写：请在「评审程序和评定成交的标准」章节填写评分标准后再开始审查');
+      toast.error('综合评分法评审标准未填写：请在「评标（审）程序和评定成交的标准」章节填写评分标准后再开始审查');
       return;
     }
     setPhase('starting');
@@ -201,16 +203,16 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
           </p>
 
           <label className="mt-5 block text-xs font-semibold text-[color:var(--foreground)]">知识库</label>
-          <select
+          <NeuSelect
             value={kbId}
             onChange={(e) => setKbId(e.target.value)}
-            className="mt-1.5 w-full h-10 rounded-xl border border-[oklch(0.6_0.04_258/0.18)] bg-white/80 px-3 text-sm"
+            className="mt-1.5 w-full h-10 rounded-xl border border-[oklch(0.6_0.04_258/0.18)] bg-white/80 px-3"
           >
             {knowledgeBases.length === 0 && <option value="">暂无可用知识库，请先在独立审查页创建</option>}
             {knowledgeBases.map((kb) => (
               <option key={kb.id} value={kb.id}>{kb.name}{kb.isActive ? '' : '（未启用）'}</option>
             ))}
-          </select>
+          </NeuSelect>
 
           <label className="mt-4 block text-xs font-semibold text-[color:var(--foreground)]">审查方式</label>
           <div className="mt-1.5 space-y-2">

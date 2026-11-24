@@ -36,6 +36,7 @@ import { formatBytes } from '@/lib/utils';
 import { SyncConflictModal } from '@/components/evaluate/sync-conflict-modal';
 import { ScoreHistoryDrawer } from '@/components/evaluate/score-history-drawer';
 import { isActiveProjectStage } from '@/components/project-overview-modal';
+import { NeuSelect } from '@/components/neu-select';
 
 type Step = 'verify' | 'documents' | 'assist' | 'compare' | 'scoring' | 'verify-score' | 'report';
 const STEPS: { key: Step; label: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
@@ -1487,20 +1488,20 @@ export default function ExpertEvaluatePage() {
           {/* Post new question */}
           <div className="space-y-2 pt-3">
             <hr className="wb-section-rule" />
-            <select value={clarSupplierId} onChange={e => {
+            <NeuSelect value={clarSupplierId} onChange={e => {
                 // F3：澄清供应商契约 = BidSupplier.id（行 id）——后端归属校验按行 id；同名供应商也不会错行
                 const sel = project.suppliers.find(s => s.id === e.target.value);
                 setClarSupplierId(e.target.value);
                 setClarSupplier(sel?.supplierName ?? '');
               }}
-              className="neu-select w-full !h-8 !text-xs">
+              className="w-full">
               <option value="">选择供应商（必选）</option>
               {project.suppliers.filter(s => s.bidValidity !== 'invalid'
                 // EXP-P2-06：回避供应商不下拉（回避名单=行 id，与勾选集合同键；后端 list/create 已拦）
                 && !conflictedSupplierIds.has(s.id)).map(s => (
                 <option key={s.id} value={s.id}>{s.supplierName}</option>
               ))}
-            </select>
+            </NeuSelect>
             <div className="flex items-end gap-2">
               <div className="flex-1">
                 <textarea value={clarQuestion} onChange={e => setClarQuestion(e.target.value)}

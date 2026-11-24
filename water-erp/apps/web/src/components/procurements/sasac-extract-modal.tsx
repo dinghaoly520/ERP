@@ -11,6 +11,7 @@ import { SASAC_INDICATORS } from "@/lib/data/sasac-indicators";
 import { PROCUREMENT_METHODS, PROCUREMENT_CATEGORY_OPTIONS } from "@/lib/types/project-management";
 import { SASAC_UNITS } from "@/lib/data/sasac-units";
 import * as XLSX from "xlsx-js-style";
+import { NeuSelect } from '@/components/workbench';
 
 /**
  * 国资监管九大领域业务数据指标库·采购领域提取（2026-09-16，表格版）。
@@ -208,7 +209,7 @@ function YesNoCell({
   const empty = value !== "是" && value !== "否";
   return (
     <div className={`relative flex items-center justify-center rounded-[7px] px-1 py-1 transition-colors ${empty ? "bg-[color-mix(in_oklch,var(--danger)_9%,transparent)]" : "hover:bg-[color-mix(in_oklch,var(--accent)_5%,transparent)]"}`}>
-      <select
+      <NeuSelect
         value={empty ? "" : value}
         onChange={(e) => onChange(e.target.value)}
         className={`w-full min-w-0 bg-transparent text-center text-[11px] font-medium outline-none ${empty ? "text-[color:var(--danger)]" : value === "是" ? "text-[var(--success)]" : "text-[color:var(--warning)]"}`}
@@ -217,7 +218,7 @@ function YesNoCell({
         <option value="" disabled className="font-bold">待补录</option>
         <option value="是">是</option>
         <option value="否">否</option>
-      </select>
+      </NeuSelect>
     </div>
   );
 }

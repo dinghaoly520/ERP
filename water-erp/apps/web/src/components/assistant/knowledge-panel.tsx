@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, FileUp, Loader2, Plus, RefreshCw, RotateCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { confirmDialog } from '@/components/catalog/confirm-dialog';
 import {
   createKnowledgeBase,
@@ -271,14 +271,14 @@ export function KnowledgePanel({ open, onClose }: { open: boolean; onClose: () =
           placeholder="新知识库名称（如：采购管理制度）"
           className="workbench-input flex-1 min-w-[200px] text-sm"
         />
-        <select
+        <NeuSelect
           value={newShared ? 'shared' : 'private'}
           onChange={(e) => setNewShared(e.target.value === 'shared')}
-          className="workbench-input w-[130px] text-sm"
+          className="w-[130px]"
         >
           <option value="private">仅自己</option>
           <option value="shared">所有人</option>
-        </select>
+        </NeuSelect>
         <button type="button" className="neu-btn-soft gap-1" disabled={creating} onClick={() => void handleCreate()}>
           {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}新建
         </button>

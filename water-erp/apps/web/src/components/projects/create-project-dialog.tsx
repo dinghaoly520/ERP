@@ -27,6 +27,7 @@ import {
 import { fetchCurrentUser, type AuthUser } from '@/lib/api/auth';
 import { LoginErrorDialog } from '@/components/login/login-error-dialog';
 import { SearchSelect } from '@/components/workbench/search-select';
+import { NeuSelect } from '@/components/workbench';
 
 type Step = 'upload' | 'compare' | 'review';
 
@@ -814,29 +815,29 @@ export function CreateProjectDialog({
         </div>
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[color:var(--foreground)]">采购类别</label>
-          <select
+          <NeuSelect
             value={resolveFieldValue('procurementCategory', initiationFields.procurementCategory || demandFields.procurementCategory || '')}
             onChange={(e) => handleReviewFieldChange('procurementCategory', e.target.value)}
-            className="workbench-input w-full"
+            className="w-full"
           >
             <option value="">请选择采购类别</option>
             {PROCUREMENT_CATEGORY_OPTIONS.map((category) => (
               <option key={category} value={category}>{category}</option>
             ))}
-          </select>
+          </NeuSelect>
         </div>
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[color:var(--foreground)]">采购方式</label>
-          <select
+          <NeuSelect
             value={procurementMethod}
             onChange={(e) => setProcurementMethod(e.target.value)}
-            className="workbench-input w-full"
+            className="w-full"
           >
             <option value="">请选择采购方式</option>
             {PROCUREMENT_METHODS.map((method) => (
               <option key={method} value={method}>{method}</option>
             ))}
-          </select>
+          </NeuSelect>
         </div>
         <div className="space-y-2">
           <label className="text-xs font-semibold text-[color:var(--foreground)]">项目归属</label>

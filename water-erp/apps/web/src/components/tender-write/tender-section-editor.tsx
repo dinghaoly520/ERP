@@ -1039,6 +1039,52 @@ export function TenderSectionEditor({
 
             // Handle select field (multiple choice)
             if (field.select) {
+              // 多选（2026-11-24 用户裁定：保证金形式）：chip toggle，值存逗号串（存量单值兼容）
+              if (field.select.multiSelect) {
+                const selected = (value || '').split(',').map(s => s.trim()).filter(Boolean);
+                const toggle = (optValue: string) => {
+                  const next = selected.includes(optValue)
+                    ? selected.filter(v => v !== optValue)
+                    : [...selected, optValue];
+                  onChange(field.key, next.join(','));
+                };
+                return (
+                  <div key={field.key} className={getFieldCardClassName(field.key, selected.length > 0)}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[0.82rem] font-semibold tracking-[-0.02em] text-[color:var(--foreground)]">
+                          {field.label}
+                        </span>
+                      </div>
+                      <span
+                        className={[
+                          'rounded-[5px] px-2.5 py-1 text-[10px] font-semibold transition-all duration-200',
+                          selected.length > 0
+                            ? 'bg-[rgba(92,181,150,0.1)] text-[rgba(78,150,124,1)]'
+                            : 'bg-[rgba(230,129,102,0.1)] text-[rgba(199,108,83,1)]',
+                        ].join(' ')}
+                      >
+                        {selected.length > 0 ? `已选择 ${selected.length} 项` : '待选择'}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {field.select.options.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => toggle(opt.value)}
+                          className={[
+                            'tender-segment-button',
+                            selected.includes(opt.value) ? 'tender-segment-button--active' : '',
+                          ].join(' ')}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
               const selectedOption = field.select.options.find(opt => opt.value === value);
 
               return (

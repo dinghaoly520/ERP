@@ -221,3 +221,12 @@
 .detail-objection__body { font-size: 13.5px; line-height: 1.7; color: var(--foreground); }
 .detail-objection__body p { margin: 0; }
 .detail-objection__body b { color: var(--brand); font-variant-numeric: tabular-nums; }
+
+/* ═══ 关键信息分组（2026-11-24 用户裁定：应用项目机会详情同款设计）═══ */
+.meta-block-hd { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; color: var(--foreground);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.meta-block-hd::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
+.meta-groups-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; }
+.meta-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.meta-group-hd { font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+  color: var(--muted-foreground, oklch(0.55 0.03 258)); white-space: nowrap; }

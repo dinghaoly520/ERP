@@ -17,7 +17,7 @@ import { isGroupedCompanyView, CompanySelect, readInitialCompanyId } from '@/com
 import { CompanySectionHeader, buildCompanyCounts, useCompanyName } from '@/components/company/company-tag';
 import type { SupplierInvitation } from '@/lib/api/supplier';
 import { BadgeCheck } from 'lucide-react';
-import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
+import { StatusBadge, TableSkeleton, Modal, NeuSelect } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { SupplierEvaluationDialog } from '@/components/supplier/supplier-evaluation-dialog';
 import { ObjectionBoardModal } from '@/components/notice/objection-board-modal';
@@ -645,17 +645,17 @@ function SupplierRepositoryPageInner() {
           <div className="flex items-center gap-1.5 text-[10px] text-[var(--muted-foreground)]">
             入库时间：<input type="date" value={advDateFrom} onChange={e => setAdvDateFrom(e.target.value)} className="neu-input !h-7 !text-[11px] !w-auto !px-2" /> ~ <input type="date" value={advDateTo} onChange={e => setAdvDateTo(e.target.value)} className="neu-input !h-7 !text-[11px] !w-auto !px-2" />
           </div>
-          <select value={advEvalLevel} onChange={e => setAdvEvalLevel(e.target.value)} className="workbench-input !w-auto !h-7 !text-[11px]">
+          <NeuSelect value={advEvalLevel} onChange={e => setAdvEvalLevel(e.target.value)} className="!h-7 !text-[11px]">
             <option value="">评价等级</option>
             {['A','B','C','D','E'].map(l => <option key={l} value={l}>{l} 级</option>)}
-          </select>
+          </NeuSelect>
           {/* S4 已修（2026-09-29 终稿）：后端改按 validTo 派生（与资质预警同口径），筛选恢复 */}
-          <select value={advQualStatus} onChange={e => { setAdvQualStatus(e.target.value); setPage(1); }} className="workbench-input !w-auto !h-7 !text-[11px]">
+          <NeuSelect value={advQualStatus} onChange={e => { setAdvQualStatus(e.target.value); setPage(1); }} className="!h-7 !text-[11px]">
             <option value="">资质状态</option>
             <option value="有效">有效</option>
             <option value="即将过期">即将过期</option>
             <option value="已过期">已过期</option>
-          </select>
+          </NeuSelect>
           {/* 2026-11-17 用户裁定：重置筛选移入面板内（不与「高级筛选」并排）——
               清空搜索与筛选条件，保留当前状态标签 */}
           <button onClick={() => { setSearch(''); setAdvEnterpriseTypes([]); setAdvDateFrom(''); setAdvDateTo(''); setAdvEvalLevel(''); setAdvQualStatus(''); setPage(1); }} className="neu-btn-xs !h-7 ml-auto shrink-0 text-[11px]" title="清空搜索与筛选条件（保留当前状态标签）">重置筛选</button>

@@ -64,6 +64,7 @@ import type {
 import { FilePreviewPane } from './file-preview-pane';
 import { openingTimeFromSources, toDatetimeLocalValue as toDatetimeLocal, toDateInputValue as toDateInput } from '@/lib/tender-write/opening-time';
 import { tenderDraftStorageKey } from '@/lib/tender-write/storage';
+import { restoreSyncedDraft, createDraftPusher } from '@/lib/api/drafts';
 
 /** 各采购方式「采购文件编写草稿」中承载开标时间的字段键（localStorage tender-write 草稿段）
  *  INQUIRY_PURCHASE 2026-10-29 模板 v2 起与竞价对齐为 responseSubmissionTime（此处曾漏改，
@@ -500,11 +501,48 @@ function toDatetimeLocalValue(text: string): string {
 /** 缓存键按「项目 + 公告分类」隔离——同一项目先发采购公告再做中标公告时，
  *  两类草稿互不串扰（此前仅按 projectId 存取，定标阶段打开中标公告会错误恢复出采购公告模板）。 */
 function wizardStorageKey(projectId: string, category: string): string { return `ann-wizard-${projectId}:${category}`; }
+/** 服务端草稿键（账号维度，跨设备）：与本机缓存键同「项目+分类」粒度 */
+function wizardDraftKey(projectId: string, category: string): string { return `announce-wizard:${projectId}:${category}`; }
+/** 服务端推送防抖器（键→pusher）：向导本机落盘后合并推送，卸载冲刷由组件 effect 负责 */
+const wizardDraftPushers = new Map<string, ReturnType<typeof createDraftPusher>>();
 function loadWizardState(projectId: string, category: string): Record<string, any> | null {
   try { const r = localStorage.getItem(wizardStorageKey(projectId, category)); return r ? JSON.parse(r) : null; } catch { return null; }
 }
 function saveWizardState(projectId: string, category: string, state: Record<string, any>) {
-  try { const prev = loadWizardState(projectId, category) || {}; localStorage.setItem(wizardStorageKey(projectId, category), JSON.stringify({ ...prev, ...state, _ts: Date.now() })); } catch {}
+  try {
+    const prev = loadWizardState(projectId, category) || {};
+    const merged = { ...prev, ...state, _ts: Date.now() };
+    localStorage.setItem(wizardStorageKey(projectId, category), JSON.stringify(merged));
+    // 双写服务端草稿（账号维度）：换设备打开同账号时向导各步骤内容完整可见
+    const dk = wizardDraftKey(projectId, category);
+    let pusher = wizardDraftPushers.get(dk);
+    if (!pusher) { pusher = createDraftPusher(dk); wizardDraftPushers.set(dk, pusher); }
+    pusher.push(merged);
+  } catch {}
+}
+
+/** 定时时刻容忍（2026-11-24 用户裁定）：起始时刻允许在此刻前 3 小时内；更早的陈旧值自愈。 */
+const SCHEDULE_PAST_TOLERANCE_MS = 3 * 60 * 60 * 1000;
+
+/** 校正定时时刻：缺失/未来/3 小时内过去原样返回；更早的过去值 → 当前时间
+ *  （datetime-local 本地格式）。naive 值按 +08:00 解释（与后端 scheduled-publish.util 同口径）。 */
+function healedScheduleTime(raw: string, toleranceMs: number = SCHEDULE_PAST_TOLERANCE_MS): { value: string; corrected: boolean } {
+  if (!raw) return { value: raw, corrected: false };
+  const t = new Date(`${raw}+08:00`).getTime();
+  if (Number.isNaN(t) || t >= Date.now() - toleranceMs) return { value: raw, corrected: false };
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return { value: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`, corrected: true };
+}
+
+/** 加载自愈（2026-11-24 用户裁定「优化时间选择器」）：公示期限（起）早于此刻 3 小时以上的
+ *  缓存/预填残留 → 就地刷新为当前时间（用户在 Step1 看到的即是可用值，发布不再携带陈旧定时）。 */
+function healStaleAnnouncementStart<T extends Record<string, string>>(d: T): { draft: T; corrected: boolean } {
+  const start = d.announcementStart?.trim();
+  if (!start) return { draft: d, corrected: false };
+  const h = healedScheduleTime(start);
+  if (!h.corrected) return { draft: d, corrected: false };
+  return { draft: { ...d, announcementStart: h.value }, corrected: true };
 }
 
 export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublished, onStageAttachmentUploaded, initialCategory = 'procurement_document', initialDraftPatch }: Props) {
@@ -682,10 +720,34 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     [initialDraftPatch],
   );
 
+  // 跨设备草稿预取（账号维度）：服务端与本机缓存按 _ts 取新者写回本机，主打开流程随后照常恢复——
+  // 换设备打开同账号时各步骤已填内容完整可见；服务端不可达退化为纯本机（离线可用）
+  const [cacheSynced, setCacheSynced] = useState(false);
+  useEffect(() => {
+    if (!isOpen || !project) { setCacheSynced(false); return; }
+    setCacheSynced(false);
+    setLoading(true);
+    let alive = true;
+    void (async () => {
+      try {
+        const lk = wizardStorageKey(project.id, initialCategory);
+        const merged = initialDraftPatch
+          ? null // 变更/补遗注入：忽略缓存，也无须跨设备合并
+          : await restoreSyncedDraft(wizardDraftKey(project.id, initialCategory), localStorage.getItem(lk));
+        if (merged) { try { localStorage.setItem(lk, JSON.stringify(merged)); } catch {} }
+      } catch { /* 合并链意外抛错不拦打开流程 */ }
+      // 保底落定：无论合并成败，打开流程必须继续（否则向导卡 loading）
+      if (alive) setCacheSynced(true);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, project?.id, initialCategory, !!initialDraftPatch]);
+
   // 打开时：确定 tenderType + 构造预填 draft + 解析 .docx
   /* eslint-disable react-hooks/set-state-in-effect -- 弹窗打开时重置表单值，符合模态惯例 */
   useEffect(() => {
     if (!isOpen || !project) return;
+    if (!cacheSynced) return; // 草稿跨设备预取完成后才进入打开流程（loading 态承接等待期）
 
     // ★ 检查 sessionStorage 缓存（按 initialCategory 隔离）—— 同类公告有缓存则恢复，否则全新预填
     // 变更/补遗注入（2026-11-11）：带 initialDraftPatch 时忽略缓存——轮次/理由必须取登记最新值
@@ -742,7 +804,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (openSync.applied) {
         saveWizardState(project.id, restoreCategory, { draft: cachedWiz.draft as Record<string, string>, openingTimeSource: openSync.source });
       }
-      setDraft(cachedWiz.draft as AnnouncementDraft);
+      // 加载自愈（2026-11-24）：公示起陈旧（早于此刻 3 小时以上）→ 刷新为当前时间
+      const healedCache = healStaleAnnouncementStart(cachedWiz.draft as Record<string, string>);
+      setDraft(healedCache.draft as AnnouncementDraft);
+      if (healedCache.corrected) toast.info('公示期限（起）已按当前时间刷新（原值早于当前时间 3 小时以上）');
       // 存量缓存若为「部分供应商可见」→ 按新口径转全部可见（选项已下线，2026-11-11）
       if (cachedWiz.visibility === 'RESTRICTED') {
         toast.info('原公告范围「部分供应商可见」已转为全部可见');
@@ -865,7 +930,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     // 采购公告公示期限不再从「采购文件获取时间」预填（2026-11-20 用户裁定：字段整体退役，
     // 与中标/流标/变更同款「必填+快捷件」——起可用「发布时」、止可按天数下拉推算）。
 
-    setDraft(filledDraft);
+    // 加载自愈（2026-11-24）：预填的公示起陈旧（早于此刻 3 小时以上）→ 刷新为当前时间
+    const healedFresh = healStaleAnnouncementStart(filledDraft as Record<string, string>);
+    setDraft(healedFresh.draft as typeof filledDraft);
+    if (healedFresh.corrected) toast.info('公示期限（起）已按当前时间刷新（原值早于当前时间 3 小时以上）');
     // ★ 预填后立即持久化草稿，确保发布后再次进入能恢复（而非重新 AI 预填）；开标时间同步源一并
     //   落缓存——重开向导时据此判定基本信息是否又变过（变了即重新识别覆盖）
     saveWizardState(project.id, procCat, { step: 1, draft: filledDraft as Record<string, string>, openingTimeSource: openSync.source });
@@ -1033,7 +1101,7 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [isOpen, project]);
+  }, [isOpen, project, cacheSynced]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // ESC 关闭
@@ -1088,6 +1156,15 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
     setPubUp(null);
   };
 
+  /** 定时时刻容忍与自愈（2026-11-24 用户裁定）：起始时刻允许在此刻前 3 小时内——
+   *  更早的陈旧值（缓存/预填残留）不报错，发布时刻自动校正为当前时间（下一分钟 tick 即发布，
+   *  90 秒徽标宽限内不闪「定时未生效」）。 healedScheduleTime/容忍常量在模块层（加载自愈与发布共阅）。 */
+  const scheduleTimeOf = (): string => {
+    if (publishTiming === 'scheduled') return scheduledDate;
+    if (publishTiming === 'announcement_start') return ((draft ?? {}) as Record<string, string>).announcementStart ?? '';
+    return '';
+  };
+
   /** 「预览并发布」：先过发布前校验，再生成公告 docx 进入第三步预览确认（核对版式与文字） */
   const handlePreview = async () => {
     if (!draft || !category || !tenderType) {
@@ -1098,6 +1175,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       toast.error('请选择定时发布时间');
       return;
     }
+    // 定时时刻已过即校正为当前（不报错；3 小时容忍只属公示起字段——调度时刻带过去值会闪「定时未生效」）
+    if (healedScheduleTime(scheduleTimeOf(), 0).corrected) {
+      toast.info('定时发布时间已过——将按当前时间于下一分钟内发布');
+    }
     // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
     // 采购公告——「采购文件获取时间」退役后公示期限即获取窗口）：四类公告起止都要
     // （起可用「发布时」一键填充，止可按天数下拉推算）
@@ -1106,6 +1187,21 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!fd.announcementEnd || !fd.announcementStart) {
         toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
         return;
+      }
+      // 公示止必须晚于当前时间（2026-11-24 用户裁定）：已过的止点无公示意义
+      const endT = fd.announcementEnd ? new Date(`${fd.announcementEnd}+08:00`).getTime() : NaN;
+      if (!Number.isNaN(endT) && endT <= Date.now()) {
+        toast.error('公示期限（止）必须晚于当前时间——请重新选择止点（可按天数下拉推算）');
+        return;
+      }
+      // 开标时间必须在公示期限（止）之后（2026-11-24 用户裁定）：公示未结束不得开标；
+      // 文字形态的开标时间（不可解析）不在此校验
+      if (category === 'procurement_document') {
+        const openT = fd.bidOpeningTime ? new Date(`${fd.bidOpeningTime}+08:00`).getTime() : NaN;
+        if (!Number.isNaN(openT) && !Number.isNaN(endT) && openT <= endT) {
+          toast.error('开标时间必须在公示期限（止）之后——请调整开标时间或公示止点');
+          return;
+        }
       }
     }
     setBusy(true);
@@ -1197,6 +1293,10 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
         return;
       }
     }
+    // 定时时刻已过即校正为当前（不报错；3 小时容忍只属公示起字段——调度时刻带过去值会闪「定时未生效」）
+    if (healedScheduleTime(scheduleTimeOf(), 0).corrected) {
+      toast.info('定时发布时间已过——将按当前时间于下一分钟内发布');
+    }
     // 公示期起止必填（2026-11-13 用户裁定「必须填写起止时间，不需要兜底」；2026-11-20 扩至
     // 采购公告——止点直供公开端显示窗口与供应商下载窗口，缺失即无从起算）：四类公告起止都要
     // （起可用「发布时」一键填充，止可按天数下拉推算）
@@ -1205,6 +1305,21 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
       if (!fd.announcementEnd || !fd.announcementStart) {
         toast.error('请填写公示期限起止时间（起可用「发布时」一键填充，止可按天数下拉推算）');
         return;
+      }
+      // 公示止必须晚于当前时间（2026-11-24 用户裁定）：已过的止点无公示意义
+      const endT = fd.announcementEnd ? new Date(`${fd.announcementEnd}+08:00`).getTime() : NaN;
+      if (!Number.isNaN(endT) && endT <= Date.now()) {
+        toast.error('公示期限（止）必须晚于当前时间——请重新选择止点（可按天数下拉推算）');
+        return;
+      }
+      // 开标时间必须在公示期限（止）之后（2026-11-24 用户裁定）：公示未结束不得开标；
+      // 文字形态的开标时间（不可解析）不在此校验
+      if (category === 'procurement_document') {
+        const openT = fd.bidOpeningTime ? new Date(`${fd.bidOpeningTime}+08:00`).getTime() : NaN;
+        if (!Number.isNaN(openT) && !Number.isNaN(endT) && openT <= endT) {
+          toast.error('开标时间必须在公示期限（止）之后——请调整开标时间或公示止点');
+          return;
+        }
       }
     }
     // 阳光采购平台：勾选同步但未完成配置 → 拦截发布并拉起配置弹窗
@@ -1266,8 +1381,13 @@ export function AnnouncementPublishWizard({ isOpen, onClose, project, onPublishe
 
       // 3. 创建公告（正文为全文；canonical 精炼字段供「信息发布」详情页与后端消费）
       const meta: Record<string, unknown> = { ...finalDraft, visibility, category, ...buildCanonicalMeta(project, finalDraft, tenderType === 'SINGLE_SOURCE') };
-      if (publishTiming === 'scheduled') meta.scheduledPublishDate = scheduledDate;
-      else if (publishTiming === 'announcement_start') meta.scheduledPublishDate = (finalDraft as Record<string, string>).announcementStart;
+      // 定时时刻经 3 小时容忍自愈（陈旧值 → 当前时间）：落库即待发下一 tick，不产生「定时未生效」滞留态
+      const healedSchedule = healedScheduleTime(publishTiming === 'scheduled'
+        ? scheduledDate
+        : publishTiming === 'announcement_start'
+          ? (finalDraft as Record<string, string>).announcementStart
+          : '', 0);
+      if (publishTiming !== 'now' && healedSchedule.value) meta.scheduledPublishDate = healedSchedule.value;
       meta.notifyOnPublish = notifyOnPublish;
       // 阳光采购平台同步快照（2026-09-24）：按接口文档 V2.0.5 组织，供后端推送链路消费；
       // issueType/isExternal 由公告范围冻结——公告范围已固定全部可见（2026-11-11），

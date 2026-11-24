@@ -30,6 +30,7 @@ import { FilePreviewModal, type FilePreviewTarget } from "@/components/registrat
 import { formatCNYCaps, shiftDecimal } from "@/lib/currency-caps";
 import { sanitizePhoneInput } from "@/lib/phone-input";
 import "@/styles/pages/register2.css";
+import { NeuSelect } from '@/components/neu-select';
 
 interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
 interface BankRow { accountName: string; bankName: string; bankBranch: string; accountNo: string; isDefault: boolean }
@@ -1194,11 +1195,11 @@ export default function RegisterPage() {
                     <span className="reg-row-idx">{i + 1}</span>
                     <div className="reg-row-fields reg-row-fields--qual">
                       <input id={`contact-${i}-name`} className={`reg-inp reg-row-input${errCls(`contact-${i}-name`)}`} aria-label={`联系人 ${i + 1} 姓名`} aria-invalid={Boolean(errors[`contact-${i}-name`])} aria-describedby={errors[`contact-${i}-name`] ? `contact-${i}-errors` : undefined} placeholder="姓名" value={c.name} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-                      <select className="reg-sel reg-row-gender" value={c.gender} aria-label="性别" onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, gender: e.target.value } : x)))}>
+                      <NeuSelect className="reg-row-gender" value={c.gender} aria-label="性别" onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, gender: e.target.value } : x)))}>
                         <option value="">性别</option>
                         <option value="男">男</option>
                         <option value="女">女</option>
-                      </select>
+                      </NeuSelect>
                       <input id={`contact-${i}-phone`} className={`reg-inp reg-row-input${errCls(`contact-${i}-phone`)}`} aria-label={`联系人 ${i + 1} 电话`} aria-invalid={Boolean(errors[`contact-${i}-phone`])} aria-describedby={errors[`contact-${i}-phone`] ? `contact-${i}-errors` : undefined} placeholder="联系电话" inputMode="tel" value={c.phone} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, phone: sanitizePhoneInput(e.target.value) } : x)))} />
                       <input id={`contact-${i}-idCard`} className={`reg-inp reg-row-input${errCls(`contact-${i}-idCard`)}`} aria-label={`联系人 ${i + 1} 身份证号`} aria-invalid={Boolean(errors[`contact-${i}-idCard`])} aria-describedby={errors[`contact-${i}-idCard`] ? `contact-${i}-errors` : undefined} placeholder="身份证号" maxLength={18} value={c.idCard} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, idCard: e.target.value } : x)))} />
                       <input id={`contact-${i}-email`} className={`reg-inp reg-row-input${errCls(`contact-${i}-email`)}`} aria-label={`联系人 ${i + 1} 邮箱`} aria-invalid={Boolean(errors[`contact-${i}-email`])} aria-describedby={errors[`contact-${i}-email`] ? `contact-${i}-errors` : undefined} placeholder="邮箱（选填）" type="email" value={c.email} onChange={(e) => setContacts((cs) => cs.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
@@ -1277,7 +1278,7 @@ export default function RegisterPage() {
                     <div className="reg-row-line">
                     <span className="reg-row-idx">{i + 1}</span>
                     <div className="reg-row-fields reg-row-fields--qual">
-                      <select id={`qual-${i}-type`} className={`reg-sel reg-row-sel${errCls(`qual-${i}-type`)}`} value={q.type} disabled={i === 0} aria-label={`资质 ${i + 1} 类型`} aria-invalid={Boolean(errors[`qual-${i}-type`])} aria-describedby={errors[`qual-${i}-type`] ? `qual-${i}-errors` : undefined}
+                      <NeuSelect id={`qual-${i}-type`} className={`reg-row-sel${errCls(`qual-${i}-type`)}`} value={q.type} disabled={i === 0} aria-label={`资质 ${i + 1} 类型`} aria-invalid={Boolean(errors[`qual-${i}-type`])} aria-describedby={errors[`qual-${i}-type`] ? `qual-${i}-errors` : undefined}
                         onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}>
                         {i === 0 ? (
                           <option value="营业执照">营业执照</option>
@@ -1287,7 +1288,7 @@ export default function RegisterPage() {
                             {QUAL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                           </>
                         )}
-                      </select>
+                      </NeuSelect>
                       <input id={`qual-${i}-name`} className={`reg-inp reg-row-input${errCls(`qual-${i}-name`)}`} aria-label={`材料 ${i + 1} 名称`} aria-invalid={Boolean(errors[`qual-${i}-name`])} aria-describedby={errors[`qual-${i}-name`] || (i === 0 && errors.license) ? `qual-${i}-errors` : undefined} placeholder={i === 0 ? "营业执照名称（必填）" : "材料名称（如：XX品牌代理证书）"} value={q.name}
                         onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
                       <input type="date" className="reg-date reg-row-date" value={q.validFrom} aria-label="有效期起" onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validFrom: e.target.value } : x)))} />

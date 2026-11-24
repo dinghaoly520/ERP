@@ -49,6 +49,7 @@ import { ScoreDetailCard } from './score-detail-card';
 import { Ring, FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import { useBidUser } from '@/hooks/use-bid-user';
 import { HelpTip } from '@/components/help-tip';
+import { NeuSelect } from '@/components/neu-select';
 
 type Props = {
   projectId: string;
@@ -1891,12 +1892,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 className="workbench-input w-full resize-none"
               />
               <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">核验证件类型（可选）</label>
-              <select value={manualDocType} onChange={(e) => setManualDocType(e.target.value)} className="workbench-input w-full">
+              <NeuSelect value={manualDocType} onChange={(e) => setManualDocType(e.target.value)} className="w-full">
                 <option value="">—</option>
                 <option value="身份证">身份证</option>
                 <option value="护照">护照</option>
                 <option value="其他">其他</option>
-              </select>
+              </NeuSelect>
             </div>
             <hr className="wb-section-rule mx-6" />
             <div className="flex justify-end gap-2 px-6 py-4">
@@ -2050,11 +2051,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
             <hr className="wb-section-rule mx-6" />
             <div className="px-6 py-5">
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">异常类型</label>
-              <select value={rejectType} onChange={(e) => setRejectType(e.target.value as typeof rejectType)} className="workbench-input w-full">
+              <NeuSelect value={rejectType} onChange={(e) => setRejectType(e.target.value as typeof rejectType)} className="w-full">
                 <option value="人证不符">人证不符</option>
                 <option value="照片异常">照片异常</option>
                 <option value="到场异常">到场异常</option>
-              </select>
+              </NeuSelect>
               <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">说明（可选）</label>
               <textarea value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} maxLength={200} rows={2} placeholder="补充异常情况说明……" className="workbench-input w-full resize-none" />
             </div>
@@ -2085,11 +2086,11 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 <HelpTip text="登记后该专家方可签到。" className="mt-px shrink-0" />
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">证件类型（不存号码）</label>
-              <select value={verifyDocType} onChange={(e) => setVerifyDocType(e.target.value as typeof verifyDocType)} className="workbench-input w-full">
+              <NeuSelect value={verifyDocType} onChange={(e) => setVerifyDocType(e.target.value as typeof verifyDocType)} className="w-full">
                 <option value="身份证">身份证</option>
                 <option value="护照">护照</option>
                 <option value="其他">其他</option>
-              </select>
+              </NeuSelect>
               <label className="mb-1.5 mt-4 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">备注（可选）</label>
               <textarea value={verifyNote} onChange={(e) => setVerifyNote(e.target.value)} maxLength={200} rows={2} placeholder="现场核验情况备注……" className="workbench-input w-full resize-none" />
             </div>
@@ -2226,12 +2227,12 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
                 已提交评分<span className="font-semibold text-[var(--foreground)]">完整保留</span>（历史改分记录一并保留），本操作将记入高风险监督日志与审计日志。
               </p>
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">重开范围</label>
-              <select value={reopenScope} onChange={(e) => setReopenScope(e.target.value)} className="workbench-input w-full">
+              <NeuSelect value={reopenScope} onChange={(e) => setReopenScope(e.target.value)} className="w-full">
                 <option value="all">全部已确认正选（{reportsDone} 人）</option>
                 {regularExperts.filter(e => e.reportConfirmed).map(e => (
                   <option key={e.id} value={e.id}>{e.expertName}</option>
                 ))}
-              </select>
+              </NeuSelect>
               {reopenDeadlineExpired && (
                 <p className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold leading-4 text-[var(--danger)]">
                   <AlertTriangle size={12} /> 评标已超时——重开后专家无法提交评分，请先办理评标延期审批

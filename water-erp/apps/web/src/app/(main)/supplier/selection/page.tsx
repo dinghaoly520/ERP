@@ -17,12 +17,13 @@ import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidPr
 import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, ChevronRight, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
 import { InvitationLetterModal } from '@/components/supplier/invitation-letter-modal';
 import { fetchDraft, saveDraft, deleteDraft } from '@/lib/api/drafts';
+import { readConfirmThresholdLocal, writeConfirmThreshold, syncConfirmThresholdFromServer } from '@/lib/supplier-confirm-threshold';
 import { QualificationAnalysisPanel } from '@/components/supplier/qualification-analysis-panel';
 import { ComparePanel } from '@/components/supplier/compare-panel';
 import { exportShortlistToExcel } from '@/lib/excel-export';
@@ -521,11 +522,11 @@ export function SupplierSelectionPage({
   const [completed, setCompleted] = useState(false); // 第 5 步：本批次选取是否已确认完成
   // 核定最少供应商数量：确认参加回执达到该值即可在项目详情标记「供应商邀请」阶段完成
   //（默认 3；lazy init 从 localStorage 恢复用户设置——SSR 预渲染时 window 不存在须守卫）
-  const [confirmThreshold, setConfirmThreshold] = useState(() => {
-    if (typeof window === 'undefined') return 3;
-    const saved = Number(window.localStorage.getItem('supplier-confirm-threshold'));
-    return saved >= 1 && saved <= 50 ? saved : 3;
-  });
+  const [confirmThreshold, setConfirmThreshold] = useState(readConfirmThresholdLocal);
+  // 跨设备同步（账号维度服务端草稿）：他设备保存过的设置在此处生效
+  useEffect(() => {
+    void syncConfirmThresholdFromServer().then((v) => { if (v != null) setConfirmThreshold(v); });
+  }, []);
 
   // 手动搜索状态（「手动补充」折叠面板用；手动选取模式已于 2026-10-19 移除，仅剩 AI 智能选取）
   const [manualSearch, setManualSearch] = useState('');
@@ -2185,10 +2186,10 @@ export function SupplierSelectionPage({
               <span className="rounded-lg bg-[color-mix(in_oklch,var(--accent)_8%,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--accent-strong)]">{METHOD_LABELS[selectedProject.procurementMethod] || selectedProject.procurementMethod}</span>
             </div>
           ) : (
-            <select value={projectId} onChange={e => setProjectId(e.target.value)} className="workbench-input w-full text-sm">
+            <NeuSelect value={projectId} onChange={e => setProjectId(e.target.value)} className="w-full">
               <option value="">不关联项目</option>
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            </NeuSelect>
           )}
 
           {/* 选取方式（2026-11-18 用户裁定）：仅直接采购分「智能推荐 / 手动选择」两模式；
@@ -2278,9 +2279,9 @@ export function SupplierSelectionPage({
           <div className="flex items-center justify-end gap-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-[var(--muted-foreground)]">
               <span>推荐</span>
-              <select value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="workbench-input !w-[60px] text-xs !h-7">
+              <NeuSelect value={maxCount} onChange={e => setMaxCount(Number(e.target.value))} className="!w-[60px] !h-7">
                 {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
+              </NeuSelect>
               <span>家供应商</span>
             </div>
             <button onClick={run} disabled={loading || selectedTags.length === 0} title={selectedTags.length === 0 ? '请先选择业务标签（必选）' : undefined} className="neu-btn-primary gap-2">
@@ -3058,7 +3059,7 @@ export function SupplierSelectionPage({
                       onChange={(e) => {
                         const v = Math.min(Math.max(Number(e.target.value) || 3, 1), 50);
                         setConfirmThreshold(v);
-                        localStorage.setItem('supplier-confirm-threshold', String(v));
+                        writeConfirmThreshold(v);
                       }}
                       className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
                       title="供应商回执确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />
@@ -3709,7 +3710,7 @@ export function SupplierSelectionPage({
                   onChange={(e) => {
                     const v = Math.min(Math.max(Number(e.target.value) || 3, 1), 50);
                     setConfirmThreshold(v);
-                    localStorage.setItem('supplier-confirm-threshold', String(v));
+                    writeConfirmThreshold(v);
                   }}
                   className="neu-input !h-8 w-14 text-center text-sm tabular-nums"
                   title="全部供应商（正选+补选）确认参加达到该数量后，可在项目详情页标记「供应商邀请」阶段完成" />

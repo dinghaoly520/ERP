@@ -20,6 +20,12 @@ export class ProjectChangeService {
     return `${bj.getUTCFullYear()}年${bj.getUTCMonth() + 1}月${bj.getUTCDate()}日 ${p(bj.getUTCHours())}:${p(bj.getUTCMinutes())}`;
   }
 
+  /** Date → 中文纯日期（立项日期等无时分字段留痕用，同 +08 墙钟口径） */
+  private static formatBeijingDate(d: Date): string {
+    const bj = new Date(d.getTime() + 8 * 3600_000);
+    return `${bj.getUTCFullYear()}年${bj.getUTCMonth() + 1}月${bj.getUTCDate()}日`;
+  }
+
   async register(
     projectId: string,
     operatorId: string,
@@ -117,6 +123,17 @@ export class ProjectChangeService {
           to = ProjectChangeService.formatBeijingCn(d);
           pmiData.bidOpeningTime = to;
           needsAnnouncement = true;
+        } else if (field === 'initiationDate') {
+          // DateTime 列：值须为 ISO（前端 localInputToIso 产，北京零点）——裸日期串会被
+          // 按服务器时区解释（生产 UTC 容器偏 8h）；留痕/同值比对统一北京墙上中文纯日期
+          const d = new Date(String(raw ?? ''));
+          if (Number.isNaN(d.getTime())) {
+            throw new BadRequestException({ error: '立项日期格式不正确', code: 'BAD_FIELD_VALUE' });
+          }
+          const cur = (pmi as Record<string, unknown>).initiationDate as Date | null | undefined;
+          from = cur ? ProjectChangeService.formatBeijingDate(cur) : '';
+          to = ProjectChangeService.formatBeijingDate(d);
+          (pmiData as Record<string, unknown>).initiationDate = d;
         } else {
           from = String((pmi as Record<string, unknown>)[field] ?? '');
           to = def.kind === 'number' ? String(Number(raw)) : String(raw ?? '');

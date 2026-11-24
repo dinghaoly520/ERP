@@ -263,6 +263,8 @@ export type CompetitiveNegotiationDraft = Record<
   string
 > & {
   quotationLetterTable?: TableData;
+  /** 综合评分法评分行（2026-11-24 用户裁定：谈判评审办法固定综合评分法并必填评分标准） */
+  scoringItems?: ScoringItem[];
 };
 
 export type SingleSourceDraft = Record<SingleSourceFieldKey, string> & {
@@ -276,6 +278,9 @@ export type InquiryPurchaseDraft = Record<InquiryPurchaseFieldKey, string> & {
 
 export type InternalBiddingDraft = Record<InternalBiddingFieldKey, string> & {
   quotationLetterTable?: TableData;
+  /** 综合评分法评分行（2026-11-24 用户裁定：邀请/公开招标评标方法固定综合评分法并必填
+   *  评分标准；竞价 INTERNAL_BIDDING 不使用、恒空） */
+  scoringItems?: ScoringItem[];
 };
 
 export type InvitedBiddingDraft = InternalBiddingDraft;
@@ -321,6 +326,9 @@ export type TenderFieldConfig<K extends TenderFieldKey = TenderFieldKey> = {
   typeKey?: TenderFieldKey;
   select?: {
     options: { value: string; label: string }[];
+    /** 多选（2026-11-24 用户裁定：响应/履约保证金形式）——chip 可多选toggle，
+     *  值存逗号串（如 "cash,bank_guarantee"，存量单值兼容） */
+    multiSelect?: boolean;
   };
   quotationType?: {
     options: { value: string; label: string }[];

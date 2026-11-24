@@ -13,6 +13,7 @@ import { abortBidProject, listEvaluationResults, resolveExpertDispute } from '@/
 import { FeedbackBanner, FEEDBACK_AUTOHIDE_MS } from './shared';
 import { useConfirm } from '@/components/use-confirm';
 import type { BidProjectDetail } from '@/lib/types';
+import { NeuSelect } from '@/components/neu-select';
 
 type Props = {
   bidProjectId: string;
@@ -241,8 +242,8 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                     />
                     {/* 联动废标：选择供应商后「废标并采纳」同事务生效 */}
                     {validSuppliers.length > 0 && (
-                      <select
-                        className="workbench-input w-full"
+                      <NeuSelect
+                        className="w-full"
                         value={invalidateById[d.id] ?? ''}
                         onChange={(e) => setInvalidateById((prev) => ({ ...prev, [d.id]: e.target.value }))}
                         disabled={busyId === d.id}
@@ -251,7 +252,7 @@ export function DisputeBlock({ bidProjectId, detail, onChanged, refreshSignal }:
                         {validSuppliers.map((s) => (
                           <option key={s.id} value={s.id}>{s.supplierName}</option>
                         ))}
-                      </select>
+                      </NeuSelect>
                     )}
                     <div className="flex flex-wrap gap-2">
                       <button

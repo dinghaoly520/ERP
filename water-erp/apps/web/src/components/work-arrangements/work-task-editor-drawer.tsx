@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { ChevronDown, ChevronUp, Save, Trash2 } from 'lucide-react';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import {
   WORK_ARRANGEMENT_RECURRENCE_OPTIONS,
@@ -98,7 +98,7 @@ export function WorkTaskEditorDrawer({
           </label>
           <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
             <span className="font-medium">项目关联</span>
-            <select
+            <NeuSelect
               value={editor.projectManagementItemId}
               onChange={(event) =>
                 onChange((current) => ({
@@ -106,7 +106,7 @@ export function WorkTaskEditorDrawer({
                   projectManagementItemId: event.target.value,
                 }))
               }
-              className="workbench-input"
+             
             >
               <option value="">不关联具体项目</option>
               {projects.map((project) => (
@@ -114,7 +114,7 @@ export function WorkTaskEditorDrawer({
                   {project.projectCode ? `${project.title}（${project.projectCode}）` : project.title}
                 </option>
               ))}
-            </select>
+            </NeuSelect>
             <span className="text-[10px] text-[var(--muted-foreground)]">
               名称 + 项目编号；列表按项目归属隔离（本人 / 本公司可见范围）
             </span>
@@ -139,7 +139,7 @@ export function WorkTaskEditorDrawer({
         <div className="grid gap-4 md:grid-cols-3">
           <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
             <span className="font-medium">类型</span>
-            <select
+            <NeuSelect
               value={editor.type}
               onChange={(event) =>
                 onChange((current) => ({
@@ -147,18 +147,18 @@ export function WorkTaskEditorDrawer({
                   type: event.target.value as WorkArrangementType,
                 }))
               }
-              className="workbench-input"
+             
             >
               {WORK_ARRANGEMENT_TYPE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NeuSelect>
           </label>
           <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
             <span className="font-medium">紧急程度</span>
-            <select
+            <NeuSelect
               value={editor.urgency}
               onChange={(event) =>
                 onChange((current) => ({
@@ -166,18 +166,18 @@ export function WorkTaskEditorDrawer({
                   urgency: event.target.value as WorkArrangementUrgency,
                 }))
               }
-              className="workbench-input"
+             
             >
               {WORK_ARRANGEMENT_URGENCY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NeuSelect>
           </label>
           <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
             <span className="font-medium">状态</span>
-            <select
+            <NeuSelect
               value={editor.status}
               onChange={(event) =>
                 onChange((current) => ({
@@ -185,14 +185,14 @@ export function WorkTaskEditorDrawer({
                   status: event.target.value as WorkArrangementStatus,
                 }))
               }
-              className="workbench-input"
+             
             >
               {WORK_ARRANGEMENT_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NeuSelect>
           </label>
         </div>
 
@@ -267,7 +267,7 @@ export function WorkTaskEditorDrawer({
           </label>
           <label className="grid min-w-0 gap-2 text-sm text-[color:var(--foreground)]">
             <span className="font-medium">重复规则</span>
-            <select
+            <NeuSelect
               value={editor.recurrence}
               onChange={(event) =>
                 onChange((current) => ({
@@ -275,14 +275,14 @@ export function WorkTaskEditorDrawer({
                   recurrence: event.target.value as WorkArrangementRecurrence,
                 }))
               }
-              className="workbench-input min-w-0"
+              className="min-w-0"
             >
               {WORK_ARRANGEMENT_RECURRENCE_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
+            </NeuSelect>
           </label>
         </div>
 

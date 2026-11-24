@@ -45,6 +45,9 @@ export function SearchSelect({
   triggerClassName = "",
   panelMinWidth = 280,
   disabled = false,
+  ariaLabel,
+  title,
+  autoFocus = false,
 }: {
   options: SearchSelectOption[];
   value: string;
@@ -59,6 +62,11 @@ export function SearchSelect({
   triggerClassName?: string;
   panelMinWidth?: number;
   disabled?: boolean;
+  /** 触发钮无障碍名/悬停提示（原生 select 迁移件透传） */
+  ariaLabel?: string;
+  title?: string;
+  /** 挂载即聚焦触发钮（内联编辑流 autoFocus 语义） */
+  autoFocus?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -119,6 +127,9 @@ export function SearchSelect({
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={ariaLabel}
+        title={title}
+        autoFocus={autoFocus}
         className={`flex w-full items-center justify-between gap-1 rounded-[10px] px-2.5 text-left outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${compact ? "h-[28px] text-xs" : "h-[38px] text-[13px]"}`}
         style={open
           ? { background: "oklch(0.985 0.01 252)", boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.9)", border: "none" }

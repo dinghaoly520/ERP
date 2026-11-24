@@ -5,7 +5,7 @@
 export type ChangeFieldDef = {
   field: string;
   label: string;
-  kind: 'text' | 'number' | 'datetime';
+  kind: 'text' | 'number' | 'datetime' | 'date';
   /** 写入目标：PMI=ProjectManagementItem（2026-11-11 用户裁定：变更范围=项目基本信息，采购文件域字段不入白名单）；
    *  DOC=采购文件本体（2026-11-20 变更采购文件）——值为「采购文件」阶段附件 id，
    *  不写 PMI 标量；实际换文件在变更公告发布时联动（建新 BidDocument + 旧文件禁下载） */
@@ -31,7 +31,7 @@ export const CHANGE_FIELD_GROUPS = [
       { field: 'requesterName', label: '需求人', kind: 'text', target: 'PMI' },
       { field: 'requesterDepartment', label: '需求部门', kind: 'text', target: 'PMI' },
       { field: 'projectOverview', label: '项目概况', kind: 'text', target: 'PMI' },
-      { field: 'initiationDate', label: '立项日期', kind: 'text', target: 'PMI' },
+      { field: 'initiationDate', label: '立项日期', kind: 'date', target: 'PMI' },
       { field: 'demandProject', label: '归属项目', kind: 'text', target: 'PMI' },
       { field: 'projectReason', label: '申请立项事由', kind: 'text', target: 'PMI' },
       { field: 'supplierRequirements', label: '对供方的主要要求', kind: 'text', target: 'PMI' },

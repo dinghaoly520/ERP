@@ -79,8 +79,9 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     // 采购内容/范围、投标人资格要求：正文「项目概况」「报名方式及条件」已载同文，顶部不再重复平铺
     // （2026-11-23 用户裁定）——仅从顶部剔除，编辑表单与保存照常维护这两项
     { key: 'scope', label: '采购内容/范围', area: true, noHeader: true }, { key: 'qualification', label: '投标人资格要求', area: true, noHeader: true },
-    { key: 'downloadDeadline', label: '采购文件下载时间' }, // 区间数据（downloadPeriod 优先）——保留自由文本，不用单时刻选择器
+    { key: 'downloadDeadline', label: '采购文件下载截止', date: true }, // 区间数据（downloadPeriod 优先，值直出不走日期解析）
     { key: 'deadline', label: '报名/投标截止', date: true }, { key: 'openTime', label: '开标时间', date: true }, { key: 'contact', label: '联系方式' },
+    { key: 'downloadMode', label: '采购文件下载方式' },
   ],
   PRE_WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '预成交供应商' }, { key: 'amount', label: '预成交价格' },
@@ -297,22 +298,35 @@ function renderMeta(ann: AnnouncementListItem) {
   const areaFields = allFields.filter(f => f.area);
   return (
     <div style={{ borderTop: "1px solid oklch(0.6 0.04 258 / 0.16)", paddingTop: "0.75rem" }}>
+      {/* 关键信息卡头（2026-11-24 用户裁定，与 :3004 同款） */}
+      <div className="mb-2.5 flex items-center gap-3">
+        <span className="text-[12px] font-extrabold tracking-[0.1em] text-[var(--foreground)]">关键信息</span>
+        <span className="h-px flex-1" style={{ background: "oklch(0.6 0.04 258 / 0.16)" }} aria-hidden />
+      </div>
       <div className="flex flex-col gap-2.5">
-        {shortFields.length > 0 && (
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {shortFields.map(f => {
+        {shortFields.length > 0 && (() => {
+          // 两组同排一行（2026-11-24 用户裁定）：基本信息/时间节点——组标签 + chips 横向连排
+          const base = shortFields.filter(f => !f.date);
+          const times = shortFields.filter(f => f.date);
+          const Group = ({ title, items }: { title: string; items: typeof shortFields }) => (
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="whitespace-nowrap text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">{title}</span>
+              {items.map(f => {
               // 对象/数组展平：WIN_NOTICE 的 metadata.winner 是对象（供应商名+报价等），
               // 直接渲染对象会抛 "Objects are not valid as a React child" 崩溃页面。
               // 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先
               let raw = f.key === 'downloadDeadline' ? (meta.downloadPeriod ?? meta.downloadDeadline) : meta[f.key];
               if (f.key === 'amount' && !raw && meta.winner?.price != null) raw = meta.winner.price;
+              // 下载方式枚举映射（2026-11-24，与 :3004 同款）
+              if (f.key === 'downloadMode') raw = String(raw) === 'encrypted' ? '解密下载' : String(raw) === 'paid' ? '付费下载' : '免费下载';
               if (raw && typeof raw === 'object') {
                 raw = Array.isArray(raw)
                   ? raw.map((x: any) => x?.supplierName ?? x?.name ?? '').filter(Boolean).join('、')
                   : (raw.supplierName ?? raw.name ?? JSON.stringify(raw));
               }
               let display = raw;
-              if (f.date && raw) {
+              if (f.date && raw && f.key !== 'downloadDeadline') {
+                // downloadDeadline 的值是已格式化中文区间串——直出不走日期解析（防「待定」）
                 const parsed = new Date(raw);
                 display = Number.isNaN(parsed.getTime())
                   ? "待定"
@@ -327,15 +341,22 @@ function renderMeta(ann: AnnouncementListItem) {
               const isDate = f.date;
               const labelColor = isCode ? "text-[var(--accent)]" : isMoney ? "text-[var(--success)]" : isDate ? "text-[var(--warning)]" : "text-[var(--muted-foreground)]";
               const valueClass = isCode ? "text-[var(--accent-strong)] font-mono tracking-[-0.02em]" : isMoney ? "text-[var(--success)] font-black text-[0.85rem] tabular-nums" : "text-[var(--foreground)]";
-              return (
-                <span key={f.key} className="inline-flex items-center gap-2 rounded-[8px] bg-[var(--surface)] px-3 py-1.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.55),1px_1px_2px_oklch(0.55_0.03_258/0.06),-1px_-1px_1px_oklch(1_0_0/0.7)]">
-                  <span className={"text-[0.65rem] font-bold uppercase tracking-[0.08em] " + labelColor}>{f.label}</span>
-                  <span className={"text-[0.75rem] font-semibold " + valueClass}>{display}</span>
-                </span>
-              );
-            })}
-          </div>
-        )}
+            return (
+              <span key={f.key} className="inline-flex items-center gap-2 rounded-[8px] bg-[var(--surface)] px-3 py-1.5 shadow-[inset_0_1px_0_oklch(1_0_0/0.55),1px_1px_2px_oklch(0.55_0.03_258/0.06),-1px_-1px_1px_oklch(1_0_0/0.7)]">
+                <span className={"text-[0.65rem] font-bold uppercase tracking-[0.08em] " + labelColor}>{f.label}</span>
+                <span className={"text-[0.75rem] font-semibold " + valueClass}>{display}</span>
+              </span>
+            );
+          })}
+        </span>
+          );
+          return (
+            <>
+              {base.length > 0 && <Group title="基本信息" items={base} />}
+              {times.length > 0 && <Group title="时间节点" items={times} />}
+            </>
+          );
+        })()}
         {areaFields.map(f => (
           <div key={f.key} className="rounded-[10px] bg-[var(--accent-soft)]/20 px-4 py-3 shadow-[inset_0_1px_0_oklch(1_0_0/0.4),inset_1px_1px_3px_oklch(0.55_0.03_258/0.06),inset_-1px_-1px_3px_oklch(1_0_0/0.6)]">
             <span className="text-[0.6rem] font-bold uppercase tracking-[0.1em] text-[var(--accent-strong)]/70">{f.label}</span>

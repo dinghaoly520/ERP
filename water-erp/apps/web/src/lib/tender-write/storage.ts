@@ -6,10 +6,15 @@ import type {
 } from "@/lib/types/tender-write";
 import { createEmptyTenderDrafts } from "@/lib/tender-write/templates";
 import { parseQuotationTextToTable, tableHasDataRows } from "@/lib/tender-write/quotation-table-text";
+import { createDraftPusher } from "@/lib/api/drafts";
 
 const SELECTED_TYPE_KEY = "tender-write:selected-type:v1";
 const DRAFTS_KEY = "tender-write:drafts:v1";
 const SESSION_ID_KEY = "tender-write:session-id:v1";
+
+/** 独立工作台全局草稿·服务端草稿键（账号维度，跨设备续作，2026-11-24） */
+const GLOBAL_SERVER_DRAFT_KEY = "tender-write-global:v1";
+const globalDraftPusher = createDraftPusher(GLOBAL_SERVER_DRAFT_KEY);
 
 /**
  * 2026-10-28 二轮隔离：项目草稿缓存键按轮后缀（R1 沿用旧键=存量不迁移不丢），
@@ -112,10 +117,13 @@ export function readTenderWriteState(): {
       SELECTED_TYPE_KEY,
     ) as TenderDocumentType | null;
     const draftsRaw = window.localStorage.getItem(DRAFTS_KEY);
+    // _savedAt 是本机同步时间戳（跨设备合并用），不进工作台状态
+    const parsed = (draftsRaw ? JSON.parse(draftsRaw) : {}) as TenderDraftsState & { _savedAt?: number };
+    delete parsed._savedAt;
     const drafts = draftsRaw
       ? sanitizeTenderDraftsState({
           ...createEmptyTenderDrafts(),
-          ...(JSON.parse(draftsRaw) as TenderDraftsState),
+          ...parsed,
         })
       : createEmptyTenderDrafts();
 
@@ -125,10 +133,13 @@ export function readTenderWriteState(): {
   }
 }
 
-export function writeTenderWriteState(payload: {
-  selectedType: TenderDocumentType | null;
-  drafts: TenderDraftsState;
-}) {
+export function writeTenderWriteState(
+  payload: {
+    selectedType: TenderDocumentType | null;
+    drafts: TenderDraftsState;
+  },
+  opts?: { sync?: boolean },
+) {
   if (typeof window === "undefined") {
     return;
   }
@@ -137,9 +148,65 @@ export function writeTenderWriteState(payload: {
     return;
   }
 
-  window.localStorage.setItem(DRAFTS_KEY, JSON.stringify(payload.drafts));
-  window.localStorage.setItem(SELECTED_TYPE_KEY, payload.selectedType);
+  const savedAt = Date.now();
+  // 本机写失败（配额满/隐私模式）不拦服务端推送，也不把异常抛进调用方 effect
+  try {
+    window.localStorage.setItem(DRAFTS_KEY, JSON.stringify({ ...payload.drafts, _savedAt: savedAt }));
+    window.localStorage.setItem(SELECTED_TYPE_KEY, payload.selectedType);
+  } catch { /* 本机缓存尽力而为 */ }
+  // 双写服务端草稿（账号维度）：换设备登录同账号时工作台草稿完整可见；
+  // sync:false 供打开时的跨设备合并未落定前只写本机（防预填空草稿以新时间戳覆盖服务端旧草稿）
+  if (opts?.sync !== false) {
+    globalDraftPusher.push({ selectedType: payload.selectedType, drafts: payload.drafts, savedAt });
+  }
 }
+
+/** 供跨设备合并读本机原始快照（合并为 selectedType+drafts+savedAt 单串；无任何缓存返回 null） */
+export function tenderWriteLocalSyncRaw(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const draftsRaw = window.localStorage.getItem(DRAFTS_KEY);
+    const selectedType = window.localStorage.getItem(SELECTED_TYPE_KEY);
+    if (!draftsRaw && !selectedType) return null;
+    const parsed = draftsRaw ? (JSON.parse(draftsRaw) as Record<string, unknown>) : {};
+    const { _savedAt, ...drafts } = parsed;
+    return JSON.stringify({ selectedType, drafts, savedAt: Number(_savedAt ?? 0) });
+  } catch {
+    return null;
+  }
+}
+
+/** 合并胜者回写本机两键（selected-type / drafts 带 _savedAt），供跨设备同步采用服务端快照时调用 */
+export function applyTenderWriteSyncRaw(raw: string): number {
+  try {
+    const parsed = JSON.parse(raw) as {
+      selectedType?: string | null;
+      drafts?: Record<string, unknown>;
+      savedAt?: number;
+    };
+    if (parsed.drafts && typeof parsed.drafts === "object") {
+      window.localStorage.setItem(DRAFTS_KEY, JSON.stringify({ ...parsed.drafts, _savedAt: parsed.savedAt ?? 0 }));
+    }
+    if (parsed.selectedType) window.localStorage.setItem(SELECTED_TYPE_KEY, parsed.selectedType);
+    return Number(parsed.savedAt ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+/** 本机当前同步时间戳（无缓存返回 0）——合并应用前重读，防 fetch 窗口内的用户新编辑被旧远端覆盖 */
+export function tenderWriteLocalSavedAt(): number {
+  if (typeof window === "undefined") return 0;
+  try {
+    const draftsRaw = window.localStorage.getItem(DRAFTS_KEY);
+    if (!draftsRaw) return 0;
+    return Number((JSON.parse(draftsRaw) as { _savedAt?: number })._savedAt ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+export const TENDER_WRITE_GLOBAL_DRAFT_SERVER_KEY = GLOBAL_SERVER_DRAFT_KEY;
 
 export function resetTenderDraftByType(
   drafts: TenderDraftsState,

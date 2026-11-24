@@ -16,6 +16,7 @@ import { WaterBar } from '../upload/water-bar';
 import SignRegisterDialog from './sign-register-dialog';
 import { OpeningSignBlock } from '../opening-hall-sign-block';
 import { useBidUser } from '@/hooks/use-bid-user';
+import { NeuSelect } from '@/components/neu-select';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: '待签', SIGNED: '已签字', REFUSED_DISSENT: '拒绝·有异议', DEEMED_AGREED: '视为同意',
@@ -584,10 +585,10 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                 {pendingAssign.map((a, i) => (
                   <div key={i} className="rounded-xl bg-[oklch(0.975_0.012_258/0.6)] p-3">
                     <p className="mb-1.5 truncate font-mono text-xs font-semibold text-[var(--foreground)]" title={a.file.name}>{a.file.name}</p>
-                    <select
+                    <NeuSelect
                       value={a.target}
                       onChange={(e) => setPendingAssign(prev => prev ? prev.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)) : prev)}
-                      className="neu-input !h-9 w-full text-xs"
+                      className="w-full"
                     >
                       <option value="">跳过此文件</option>
                       <option value="host">主持人签字（开标记录）</option>
@@ -596,7 +597,7 @@ export default function SigningTab({ projectId, stage, refreshSignal, assignedHo
                       {(data.experts ?? []).filter(e => e.role === EXPERT_ROLE.REGULAR).map(e => (
                         <option key={e.expertId} value={`expert:${e.expertId}`}>专家·{e.name}</option>
                       ))}
-                    </select>
+                    </NeuSelect>
                   </div>
                 ))}
               </div>

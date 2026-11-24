@@ -115,6 +115,25 @@ describe('ProjectChangeService.register', () => {
     expect(pmiService.syncBidProjectOpeningFromPmi).toHaveBeenCalledWith('p1', '2026年11月16日 09:00');
   });
 
+  it('立项日期变更（2026-11-24 纯日期控件）：ISO 入库为 Date + 中文(+08)纯日期留痕 + 不触发公告', async () => {
+    const { prisma, svc } = mk({ pmi: { ...PMI, initiationDate: new Date('2026-11-01T02:30:00.000Z') } });
+    // 前端 localInputToIso('2026-11-24') 产北京零点 ISO：2026-11-23T16:00:00Z
+    const r = await svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: '更正立项日期', fields: { initiationDate: '2026-11-23T16:00:00.000Z' } });
+    expect(r.needsAnnouncement).toBe(false);
+    expect(prisma.projectManagementItem.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ initiationDate: new Date('2026-11-23T16:00:00.000Z') }),
+    }));
+    const cs = (r.record.changeset as Array<{ field: string; from: string; to: string }>).find((c) => c.field === 'initiationDate')!;
+    expect(cs.from).toBe('2026年11月1日'); // 旧值 ISO → 北京墙上中文纯日期
+    expect(cs.to).toBe('2026年11月24日');
+  });
+
+  it('立项日期同日（北京墙上同日、时刻不同）→ 计入 NO_CHANGE 防空轮次', async () => {
+    const { svc } = mk({ pmi: { ...PMI, initiationDate: new Date('2026-11-24T06:30:00.000Z') } });
+    await expect(svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: 'r', fields: { initiationDate: '2026-11-23T16:00:00.000Z' } }))
+      .rejects.toMatchObject({ response: { code: 'NO_CHANGE' } });
+  });
+
   it('采购文件域字段（资格要求等）→ 400 FIELD_NOT_ALLOWED（2026-11-11 用户裁定：变更范围=项目基本信息）', async () => {
     const { svc } = mk({ pmi: { ...PMI, currentStage: 'TENDER_DOCUMENT' } });
     await expect(svc.register('p1', 'u1', '张三', { type: 'CHANGE', reason: 'r', fields: { qualification: '新资格' } }))

@@ -48,6 +48,7 @@ import { INDUSTRY_GROUPS, COMPANY_PROFILE_MAX, ENTERPRISE_TYPES } from "@/consta
 import { summarizeChangeValue } from "@/lib/change-value";
 import "@/styles/pages/register2.css";
 import "@/styles/pages/profile.css";
+import { NeuSelect } from '@/components/neu-select';
 import "@/styles/pages/shared.css"; // 分段切换 .neu-segment（与「我的投标」状态切换同款）
 
 /* 常量（与 CompanyInfo.vue 一致） */
@@ -888,8 +889,8 @@ export default function ProfilePage() {
                         ) : k === "enterpriseType" ? (
                           /* B4-2（2026-09-30）：注册侧是受控下拉（ENTERPRISE_TYPES），变更弹窗此前是自由文本——
                              随手可写脏值直接入 supplier.enterpriseType */
-                          <select
-                            className="workbench-input"
+                          <NeuSelect
+                           
                             value={crForm[k]}
                             onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
                           >
@@ -898,10 +899,10 @@ export default function ProfilePage() {
                             {crOrig[k] && !ENTERPRISE_TYPES.includes(crOrig[k] as never) && (
                               <option value={crOrig[k]}>（原值）{crOrig[k]}</option>
                             )}
-                          </select>
+                          </NeuSelect>
                         ) : k === "industry" ? (
-                          <select
-                            className="workbench-input"
+                          <NeuSelect
+                           
                             value={crForm[k]}
                             onChange={(e) => setCrForm((f) => ({ ...f, [k]: e.target.value }))}
                           >
@@ -911,7 +912,7 @@ export default function ProfilePage() {
                                 {g.items.map((it) => <option key={it} value={it}>{it}</option>)}
                               </optgroup>
                             ))}
-                          </select>
+                          </NeuSelect>
                         ) : k === "creditCode" ? (
                           /* 统一社会信用代码（2026-11-10 放开变更）：18 位大写受控输入 +
                              审批联动提示（后端审批通过会同步登录账号，见 approveChange creditCode 分支） */

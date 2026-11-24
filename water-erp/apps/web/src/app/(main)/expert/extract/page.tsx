@@ -5,13 +5,14 @@ import { companyColor } from '@/components/company/company-tag';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
+import { restoreSyncedDraft, saveDraft, deleteDraft } from '@/lib/api/drafts';
 import { localDateInputValue, localTimeInputValue } from '@/lib/local-date';
 import { useCompanyInfo } from '@/lib/api/company-info';
 import { listBidProjects, previewExtraction, confirmExtraction, sendExtractionNotify, prepRsvpLinks, getExtractionHistory, listSpecialties, fetchExpertDepartmentOptions, specialtyPoolCounts, listPoolCompanies, listExperts, getDemandRepDirectory, getBidProjectDetail, getProjectInvitations, proxyMarkExpertInvitation, retrospectExtraction, analyzeExtractionFiles, analyzeProjectSpecialties, createCustomProject, uploadExtractionFile, setLeader, aiSelectLeaderApi, setCommitteeAssignment, fetchExtractionProfiles, fetchCommitteeAnalysis, createExternalDemandRep, type BidProjectOption, type BidProjectDetail, type ExtractionPreview, type ExtractionSelected, type ExpertListItem, type ExtractionFileAnalysis, type DemandRepDirectoryItem, stampExpertExtractFinalized } from '@/lib/api/expert';
 import { TypeaheadCombobox } from '@/components/workbench/typeahead-combobox';
 import { UnitSearchSelect } from '@/components/login/unit-search-select';
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
-import { StatusBadge, Modal } from '@/components/workbench';
+import { StatusBadge, Modal, NeuSelect } from '@/components/workbench';
 import { RulesPopover } from '@/components/rules-popover';
 import { QuotaMultiSelect } from '@/components/expert/quota-multi-select';
 import { StepTrack } from '@/components/step-track';
@@ -141,16 +142,16 @@ function NotifyKeywordsEditor({ openTimeDate, openTimeTime, onOpenTimeChange, ke
         </span>
         {usePlaceDropdown ? (
           <div className="flex flex-col gap-1.5">
-            <select
+            <NeuSelect
               value={placeInList ? keywords.openLocation.trim() : '__custom__'}
               onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value === '__custom__' ? '' : e.target.value })}
-              className="neu-input text-sm w-full"
+              className="w-full"
             >
               {placeChoices.map(p => <option key={p} value={p}>{p}</option>)}
               <option value="__custom__">
                 {placeInList ? '自定义地点…' : keywords.openLocation.trim() ? `自定义：${keywords.openLocation.trim().slice(0, 18)}${keywords.openLocation.trim().length > 18 ? '…' : ''}` : '自定义地点…'}
               </option>
-            </select>
+            </NeuSelect>
             {!placeInList && (
               <input value={keywords.openLocation}
                 onChange={e => onKeywordsChange({ ...keywords, openLocation: e.target.value })}
@@ -528,6 +529,8 @@ export function ExpertExtractPage({
   const excludeReqIdRef = useRef(0);
   const storageKey = 'expert-extract-session';
   const LAST_PID_KEY = 'expert-extract-last-pid';
+  /** 服务端草稿键（账号维度，跨设备续作）：与本机缓存同「按项目分桶」语义（pid=BidProject.id） */
+  const draftKeyFor = (pid: string) => `expert-extract-session:${pid}`;
 
   // 步骤3 渲染时：拉 RSVP 链接 + 查服务端通知状态（{RSVP_LINK} 占位符替换已随固定语句拼装下线，2026-10-27）
   // 空 links 结果不 set（防身份变化触发派生 effect 乒乓）；同 pid 只自动拉一次，手动刷新走「刷新确认链接」
@@ -569,35 +572,31 @@ export function ExpertExtractPage({
   // ① modal 模式 localStorage 恢复（pid 就绪即触发，不依赖 invitationData）
   const lskeyForPid = `${storageKey}-${pid}`;
   const modalLocalRestoredRef = useRef(false);
-  useEffect(() => {
-    if (defaultPid === undefined) return; // standalone 页面走自己的 localStorage
-    if (!pid || modalLocalRestoredRef.current) return;
-    // 等一步：pid 刚 setState，React 可能还没 re-render 到 invitationData 加载
-    // 但 localStorage 读是同步的，直接读即可
-    try {
-      const raw = localStorage.getItem(lskeyForPid);
-      if (!raw) return; // 无 localStorage → 留给 invitationData fallback
-      const snap = JSON.parse(raw);
-      if (snap.pid !== pid || !snap.preview) return;
-      modalLocalRestoredRef.current = true;
-      if (snap.extractMode) setExtractMode(snap.extractMode);
-      if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
-      if (snap.selectedExperts?.length) {
-        // 分离需求方代表：旧快照不含 demandRepPersons，需求方代表混在 selectedExperts 中
-        // 迁移键含部门抽取（2026-11-13 修复：旧键只认「指定」，部门抽取代表 reason=
-        // 「部门抽取需求方代表」命中不上——重载后代表无法归位、确认只送部分人（生产实录））
-        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表' || s.reason === '部门抽取需求方代表');
-        const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
-        if (drs.length > 0 && !snap.needDemandRep) {
-          setNeedDemandRep(true);
-          setDemandRepMode('designated');
-          setDemandRepCount(drs.length);
-          setDemandRepPersons(drs.map((s: ExtractionSelected) => ({ userId: s.userId, name: s.name, specialty: s.specialty !== '需求方代表' ? s.specialty : '', title: s.title, employer: s.employer })));
-        }
-        setSelectedExperts(nonDrs);
+  /** modal 模式会话快照应用（本机缓存与服务端草稿共用）——缺 pid 的畸形快照拒收；
+   *  preview 为空（步骤1配好配额还没抽取就关闭）照常恢复（2026-11-24 修正：此前整份丢弃，
+   *  与 standalone 恢复语义对齐——确认名单依赖 preview，早期会话不可能有确认态，无冲突） */
+  const applyModalSnapshot = (snap: any, pid: string) => {
+    if (snap.pid !== pid) return false;
+    modalLocalRestoredRef.current = true;
+    if (snap.extractMode) setExtractMode(snap.extractMode);
+    if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
+    if (snap.selectedExperts?.length) {
+      // 分离需求方代表：旧快照不含 demandRepPersons，需求方代表混在 selectedExperts 中
+      // 迁移键含部门抽取（2026-11-13 修复：旧键只认「指定」，部门抽取代表 reason=
+      // 「部门抽取需求方代表」命中不上——重载后代表无法归位、确认只送部分人（生产实录））
+      const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表' || s.reason === '部门抽取需求方代表');
+      const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
+      if (drs.length > 0 && !snap.needDemandRep) {
+        setNeedDemandRep(true);
+        setDemandRepMode('designated');
+        setDemandRepCount(drs.length);
+        setDemandRepPersons(drs.map((s: ExtractionSelected) => ({ userId: s.userId, name: s.name, specialty: s.specialty !== '需求方代表' ? s.specialty : '', title: s.title, employer: s.employer })));
       }
-      if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
-      if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
+      setSelectedExperts(nonDrs);
+    }
+    if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
+    if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
+    if (snap.preview) {
       setPreview(snap.preview);
       // 旧快照占位/过期分析（2026-11-04 前会话存下「项目已有分配专家」/过渡文案/含组长表述的旧组队总结）→ 重新生成。
       // 仅限重建类快照（候选池为空）——首次抽取的 preview（池非空）analysis 是抽取逻辑分析，不动。
@@ -609,26 +608,52 @@ export function ExpertExtractPage({
           if (res?.analysis) setPreview(p => p ? { ...p, analysis: res.analysis, engine: res.engine } : p);
         }).catch(() => {});
       }
-      if (snap.done) setDone(snap.done);
-      if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
-      if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
-      if (snap.step) setStep(snap.step);
-      if (snap.needDemandRep || snap.demandRepPersons?.length) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
-      if (snap.totalSeats) setTotalSeats(snap.totalSeats);
-      if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
-      if (snap.phoneScriptsArr?.length) { /* 电话话术已下线（2026-10-27），旧快照字段忽略 */ }
-      if (snap.reHistory?.length) setReHistory(snap.reHistory);
-      if (snap.altPreview) setAltPreview(snap.altPreview);
-      if (snap.altExhausted) setAltExhausted(true);
-      if (snap.altSelected?.length) setAltSelected(snap.altSelected);
-      if (snap.altNotified) setAltNotified(snap.altNotified);
-      // 开标时间/通知关键词（2026-10-29 补）：modal 重开此前不恢复——通知硬校验项随会话丢失，
-      // 且关键词无自动带出兜底时步骤4/6 报错死局（步骤6 候补确认实录）
-      if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
-      if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
-      if (snap.openTimeSource !== undefined) setOpenTimeSource(snap.openTimeSource);
-      if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
-    } catch { localStorage.removeItem(lskeyForPid); }
+    }
+    if (snap.done) setDone(snap.done);
+    if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
+    if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
+    if (snap.step) setStep(snap.step);
+    if (snap.needDemandRep || snap.demandRepPersons?.length) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+    if (snap.totalSeats) setTotalSeats(snap.totalSeats);
+    if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
+    if (snap.phoneScriptsArr?.length) { /* 电话话术已下线（2026-10-27），旧快照字段忽略 */ }
+    if (snap.reHistory?.length) setReHistory(snap.reHistory);
+    if (snap.altPreview) setAltPreview(snap.altPreview);
+    if (snap.altExhausted) setAltExhausted(true);
+    if (snap.altSelected?.length) setAltSelected(snap.altSelected);
+    if (snap.altNotified) setAltNotified(snap.altNotified);
+    // 开标时间/通知关键词（2026-10-29 补）：modal 重开此前不恢复——通知硬校验项随会话丢失，
+    // 且关键词无自动带出兜底时步骤4/6 报错死局（步骤6 候补确认实录）
+    if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
+    if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
+    if (snap.openTimeSource !== undefined) setOpenTimeSource(snap.openTimeSource);
+    if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
+    return true;
+  };
+  useEffect(() => {
+    if (defaultPid === undefined) return; // standalone 页面走自己的 localStorage
+    if (!pid || modalLocalRestoredRef.current) return;
+    // localStorage 读是同步的，直接读即恢复；服务端草稿（账号维度，跨设备续作）随后异步合并——
+    // 换设备打开同账号时抽取各步骤内容（配额/名单/通知关键词/步骤位）完整可见
+    let localRaw: string | null = null;
+    let localSnap: any = null;
+    try {
+      localRaw = localStorage.getItem(lskeyForPid);
+      if (localRaw) localSnap = JSON.parse(localRaw);
+    } catch { localStorage.removeItem(lskeyForPid); localSnap = null; localRaw = null; }
+    if (localSnap) applyModalSnapshot(localSnap, pid);
+    let alive = true;
+    void (async () => {
+      try {
+        const remote = await restoreSyncedDraft(draftKeyFor(pid), localRaw);
+        if (!alive || !remote) return;
+        const newer = Number(remote.savedAt ?? 0) > Number(localSnap?.savedAt ?? 0);
+        if (!newer) return; // 本机已是最新（restoreSyncedDraft 已把本机回写服务端）
+        try { localStorage.setItem(lskeyForPid, JSON.stringify(remote)); } catch {}
+        applyModalSnapshot(remote, pid);
+      } catch { /* 服务端不可达 → 本机缓存离线兜底 */ }
+    })();
+    return () => { alive = false; };
   }, [pid, lskeyForPid, defaultPid]);
 
   // ② modal 模式 invitationData 兜底（仅无 localStorage 时还原已分配专家）
@@ -702,18 +727,74 @@ export function ExpertExtractPage({
     const save = () => {
       const s = stateRef.current;
       if (!s.pid) return;
-      localStorage.setItem(`${storageKey}-${s.pid}`, JSON.stringify({ ...s, notifyMessagesArr: [...notifyMessages.entries()] }));
-      localStorage.setItem(LAST_PID_KEY, s.pid);
+      const payload = { ...s, notifyMessagesArr: [...notifyMessages.entries()], savedAt: Date.now() };
+      // 本机写失败（配额满/隐私模式）不拦服务端留档——服务端无此限，仍可跨设备恢复
+      try {
+        localStorage.setItem(`${storageKey}-${s.pid}`, JSON.stringify(payload));
+        localStorage.setItem(LAST_PID_KEY, s.pid);
+      } catch { /* 本机缓存尽力而为 */ }
+      // 双写服务端草稿（账号维度）：换设备打开同账号时各步骤内容完整可见；
+      // 卸载/通知变更时点即存，频率低无须防抖
+      void saveDraft(draftKeyFor(s.pid), payload).catch((e) => console.warn('[draft-sync] 抽取会话服务端留档失败', s.pid, e?.message ?? e));
     };
     window.addEventListener('beforeunload', save);
     return () => { save(); window.removeEventListener('beforeunload', save); };
   }, [storageKey, notifyMessages]);
 
   // 初始化时从 localStorage 恢复状态（按项目唯一性匹配）
+  /** standalone 会话快照应用（本机缓存与服务端草稿共用；含项目/技术上下文字段） */
+  const applyStandaloneSnapshot = (snap: any) => {
+    if (snap.pid) { restoredPidRef.current = snap.pid; setPid(snap.pid); }
+    if (snap.extractMode) setExtractMode(snap.extractMode);
+    if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
+    if (snap.selectedExperts?.length) {
+      // 迁移键含部门抽取（2026-11-13 修复：旧键只认「指定」，部门抽取代表 reason=
+      // 「部门抽取需求方代表」命中不上——重载后代表无法归位、确认只送部分人（生产实录））
+      const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表' || s.reason === '部门抽取需求方代表');
+      const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
+      if (drs.length > 0 && !snap.needDemandRep) {
+        setNeedDemandRep(true);
+        setDemandRepMode('designated');
+        setDemandRepCount(drs.length);
+        setDemandRepPersons(drs.map((s: ExtractionSelected) => ({ userId: s.userId, name: s.name, specialty: s.specialty !== '需求方代表' ? s.specialty : '', title: s.title, employer: s.employer })));
+      }
+      setSelectedExperts(nonDrs);
+    }
+    if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
+    if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
+    if (snap.preview) setPreview(snap.preview);
+    if (snap.done) setDone(snap.done);
+    if (snap.notifyResults) setNotifyResults(snap.notifyResults);
+    if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
+    if (snap.reHistory?.length) setReHistory(snap.reHistory);
+    if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
+    if (snap.candidateNotifiedIds?.length) setCandidateNotifiedIds(snap.candidateNotifiedIds);
+    if (snap.manualExperts?.length) setManualExperts(snap.manualExperts);
+    if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
+    if (snap.phoneScriptsArr?.length) { /* 电话话术已下线（2026-10-27），旧快照字段忽略 */ }
+    if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
+    if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
+    if (snap.openTimeSource !== undefined) setOpenTimeSource(snap.openTimeSource);
+    // 通知关键词（2026-10-29 补）：存档侧早已随 stateRef 落盘但恢复侧漏读——重进向导后
+    // 开标地点/采购方式只剩自动带出兜底，公司未维护默认开标地点即步骤4/6 报错
+    if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
+    if (snap.tn != null) setTn(snap.tn);
+    if (snap.alt != null) setAlt(snap.alt);
+    if (snap.error) setError(snap.error);
+    if (snap.pd) setPd(snap.pd);
+    if (snap.step) setStep(snap.step);
+    if (snap.altPreview) setAltPreview(snap.altPreview);
+    if (snap.altExhausted) setAltExhausted(true);
+    if (snap.altSelected?.length) setAltSelected(snap.altSelected);
+    if (snap.altNotified) setAltNotified(snap.altNotified);
+    if (snap.needDemandRep || snap.demandRepPersons?.length) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
+    if (snap.totalSeats) setTotalSeats(snap.totalSeats);
+  };
   // 仅 standalone 页面执行 —— modal 内嵌时 defaultPid 被显式传入（null 或 string），
   // 不应恢复 localStorage 中其他项目的旧会话（包括 pid/配额/专家/步骤等全部状态）。
   useEffect(() => {
     if (defaultPid !== undefined) return; // modal 模式（null 亦表示"正在解析"，不恢复）
+    let alive = true;
     try {
       // 确定要恢复的项目：URL 指定 > 上次会话
       const urlPid = q.get('projectId');
@@ -724,52 +805,21 @@ export function ExpertExtractPage({
       const raw = localStorage.getItem(`${storageKey}-${targetPid}`);
       if (!raw || autoAnalyzedRef.current) return;
       const snap = JSON.parse(raw);
-      if (snap.pid) { restoredPidRef.current = snap.pid; setPid(snap.pid); }
-      if (snap.extractMode) setExtractMode(snap.extractMode);
-      if (snap.quotas?.length) setQuotas(snap.quotas.map(coerceQuota));
-      if (snap.selectedExperts?.length) {
-        // 迁移键含部门抽取（2026-11-13 修复：旧键只认「指定」，部门抽取代表 reason=
-        // 「部门抽取需求方代表」命中不上——重载后代表无法归位、确认只送部分人（生产实录））
-        const drs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason === '指定需求方代表' || s.reason === '部门抽取需求方代表');
-        const nonDrs = snap.selectedExperts.filter((s: ExtractionSelected) => s.reason !== '指定需求方代表');
-        if (drs.length > 0 && !snap.needDemandRep) {
-          setNeedDemandRep(true);
-          setDemandRepMode('designated');
-          setDemandRepCount(drs.length);
-          setDemandRepPersons(drs.map((s: ExtractionSelected) => ({ userId: s.userId, name: s.name, specialty: s.specialty !== '需求方代表' ? s.specialty : '', title: s.title, employer: s.employer })));
-        }
-        setSelectedExperts(nonDrs);
-      }
-      if (snap.alternativeExperts?.length) setAlternativeExperts(snap.alternativeExperts);
-      if (snap.leadExpertId != null) setLeadExpertId(snap.leadExpertId);
-      if (snap.preview) setPreview(snap.preview);
-      if (snap.done) setDone(snap.done);
-      if (snap.notifyResults) setNotifyResults(snap.notifyResults);
-      if (snap.confirmedExpertIds?.length) { setConfirmedExpertIds(snap.confirmedExpertIds); originalConfirmedIdsRef.current = new Set(snap.confirmedExpertIds); setStep3Confirmed(true); }
-      if (snap.reHistory?.length) setReHistory(snap.reHistory);
-      if (snap.step3Confirmed) setStep3Confirmed(snap.step3Confirmed);
-      if (snap.candidateNotifiedIds?.length) setCandidateNotifiedIds(snap.candidateNotifiedIds);
-      if (snap.manualExperts?.length) setManualExperts(snap.manualExperts);
-      if (snap.notifyMessagesArr?.length) setNotifyMessages(new Map(snap.notifyMessagesArr));
-      if (snap.phoneScriptsArr?.length) { /* 电话话术已下线（2026-10-27），旧快照字段忽略 */ }
-      if (snap.openTimeDate) setOpenTimeDate(snap.openTimeDate);
-      if (snap.openTimeTime) setOpenTimeTime(snap.openTimeTime);
-      if (snap.openTimeSource !== undefined) setOpenTimeSource(snap.openTimeSource);
-      // 通知关键词（2026-10-29 补）：存档侧早已随 stateRef 落盘但恢复侧漏读——重进向导后
-      // 开标地点/采购方式只剩自动带出兜底，公司未维护默认开标地点即步骤4/6 报错
-      if (snap.expertNotifyKeywords) setExpertNotifyKeywords(snap.expertNotifyKeywords);
-      if (snap.tn != null) setTn(snap.tn);
-      if (snap.alt != null) setAlt(snap.alt);
-      if (snap.error) setError(snap.error);
-      if (snap.pd) setPd(snap.pd);
-      if (snap.step) setStep(snap.step);
-      if (snap.altPreview) setAltPreview(snap.altPreview);
-      if (snap.altExhausted) setAltExhausted(true);
-      if (snap.altSelected?.length) setAltSelected(snap.altSelected);
-      if (snap.altNotified) setAltNotified(snap.altNotified);
-      if (snap.needDemandRep || snap.demandRepPersons?.length) { setNeedDemandRep(true); if (snap.demandRepPersons?.length) setDemandRepPersons(snap.demandRepPersons); if (snap.demandRepCount) setDemandRepCount(snap.demandRepCount); if (snap.demandRepMode) setDemandRepMode(snap.demandRepMode); if (snap.demandRepCompany) setDemandRepCompany(snap.demandRepCompany); if (snap.demandRepDept) setDemandRepDept(snap.demandRepDept); if (snap.demandRepDeptSpecialty) setDemandRepDeptSpecialty(snap.demandRepDeptSpecialty); }
-      if (snap.totalSeats) setTotalSeats(snap.totalSeats);
+      applyStandaloneSnapshot(snap);
+      // 跨设备续作（账号维度服务端草稿）：服务端快照更新时采用并回写本机——换设备打开同账号
+      // 时各步骤内容完整恢复；本机更新由 save() 的服务端推送覆盖
+      const localAt = Number(snap.savedAt ?? 0);
+      void (async () => {
+        try {
+          const remote = await restoreSyncedDraft(draftKeyFor(targetPid), raw);
+          if (!alive || !remote) return;
+          if (Number(remote.savedAt ?? 0) <= localAt) return;
+          try { localStorage.setItem(`${storageKey}-${targetPid}`, JSON.stringify(remote)); } catch {}
+          applyStandaloneSnapshot(remote);
+        } catch { /* 服务端不可达 → 本机缓存离线兜底 */ }
+      })();
     } catch { localStorage.removeItem(LAST_PID_KEY); }
+    return () => { alive = false; };
   }, []);
   useEffect(() => {
     if (!autoExtractResult || autoAnalyzedRef.current) return;
@@ -2060,7 +2110,7 @@ export function ExpertExtractPage({
     }
   };
 
-  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); };
+  const reset = () => { setStep(1); setDone(false); setPreview(null); setSelectedExperts([]); setAlternativeExperts([]); setNotifyResults(null); setConfirmedExpertIds([]); setStep3Confirmed(false); notifySentRef.current = false; originalConfirmedIdsRef.current = new Set(); quotaCacheRef.current.clear(); setReHistory([]); setAltPreview(null); setAltSelected([]); setAltNotified(false); setAltExhausted(false); invitationRestoredRef.current = false; modalLocalRestoredRef.current = false; localStorage.removeItem(`${storageKey}-${pid}`); localStorage.removeItem(LAST_PID_KEY); void deleteDraft(draftKeyFor(pid)).catch(() => {}); };
 
   // 通知弹窗
   return (
@@ -2149,7 +2199,7 @@ export function ExpertExtractPage({
                     {projects.length === 0 ? (
                       <div className="neu-input text-sm w-full flex items-center justify-center py-3 text-[var(--muted-foreground)]">暂无采购项目，请先在开评标管理端创建，或切换到「自定义项目」</div>
                     ) : (
-                      <select value={pid} onChange={e => setPid(e.target.value)} className="neu-input text-sm max-w-[600px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</select>
+                      <NeuSelect value={pid} onChange={e => setPid(e.target.value)} className="max-w-[600px]"><option value="">请选择需要组建评审组的项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}（{p.projectCode}）</option>)}</NeuSelect>
                     )}
                   </div>
                 )}
@@ -3262,10 +3312,10 @@ export function ExpertExtractPage({
                           </td>
                           {/* A-132：评审分组（「不设置」= 本次不提交该项；「清除」= 置空已保存分组） */}
                           <td className="text-center">
-                            <select
+                            <NeuSelect
                               value={committeeDraft[e.userId]?.reviewGroup ?? ''}
                               onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: ev.target.value, dutyRole: prev[e.userId]?.dutyRole ?? '' } }))}
-                              className="neu-input !h-[30px] !w-[96px] !px-2 text-xs"
+                              className="!h-[30px] !w-[96px] !px-2"
                               title="评审分组（技术组/商务组/综合组）；「不设置」＝ 本次不提交该项（保留现值）；「清除」＝ 置空已保存分组"
                             >
                               <option value="">不设置</option>
@@ -3273,14 +3323,14 @@ export function ExpertExtractPage({
                               <option value="技术组">技术组</option>
                               <option value="商务组">商务组</option>
                               <option value="综合组">综合组</option>
-                            </select>
+                            </NeuSelect>
                           </td>
                           {/* A-132：组内职责（组长另由 isLead 表达，不在此列；「清除」= 置空已保存职责） */}
                           <td className="text-center">
-                            <select
+                            <NeuSelect
                               value={committeeDraft[e.userId]?.dutyRole ?? ''}
                               onChange={ev => setCommitteeDraft(prev => ({ ...prev, [e.userId]: { reviewGroup: prev[e.userId]?.reviewGroup ?? '', dutyRole: ev.target.value } }))}
-                              className="neu-input !h-[30px] !w-[80px] !px-2 text-xs"
+                              className="!h-[30px] !w-[80px] !px-2"
                               title="组内职责（主审/复核/成员）；「不设置」＝ 本次不提交该项（保留现值）；「清除」＝ 置空已保存职责"
                             >
                               <option value="">不设置</option>
@@ -3288,7 +3338,7 @@ export function ExpertExtractPage({
                               <option value="主审">主审</option>
                               <option value="复核">复核</option>
                               <option value="成员">成员</option>
-                            </select>
+                            </NeuSelect>
                           </td>
                           {selectingLeader && (
                             <td className="text-center">

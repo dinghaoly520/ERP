@@ -89,7 +89,7 @@ const PROJECT_OVERVIEW_AI_PROMPT =
 const PROCUREMENT_CONTENT_AI_PROMPT =
   "根据项目信息生成简明的采购内容：只罗列采购标的的名称、规格/型号、数量等必要要素，品目之间用顿号和逗号自然连接成句，不写背景、意义、要求等其他内容。篇幅从简：200字以内、一两句话即可，不逐项展开描述，不堆砌修饰词。不要使用#、*等符号，不要出现空行，不要在开头重复字段名称，必须以自然段落形式输出，绝对不能使用表格（Tab分隔符）形式。";
 
-export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
+const COMPETITIVE_NEGOTIATION_SECTIONS_BASE: TenderSectionConfig[] = [
   {
     key: "cover",
     title: "封面",
@@ -237,6 +237,8 @@ export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = [
 
 export function createEmptyCompetitiveNegotiationDraft(): CompetitiveNegotiationDraft {
   return {
+    // 综合评分法评分标准空表起步（2026-11-24 用户裁定：谈判评审办法固定综合评分法）
+    scoringItems: [],
     projectName: "",
     coverDate: currentYearMonth(),
     projectOverview: "",
@@ -515,6 +517,8 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
         label: "响应保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },
@@ -580,6 +584,8 @@ export const INQUIRY_PURCHASE_SECTIONS: TenderSectionConfig[] = [
         label: "履约保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },
@@ -890,6 +896,8 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         label: "响应保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },
@@ -957,6 +965,8 @@ export const INTERNAL_BIDDING_SECTIONS: TenderSectionConfig[] = [
         label: "履约保证金形式",
         placeholder: "",
         select: {
+          // 多选（2026-11-24 用户裁定）：保证金形式可组合——值存逗号串
+          multiSelect: true,
           options: [
             { value: "cash", label: "现金（电汇、银行转账、汇票、支票）" },
             { value: "bank_guarantee", label: "银行保函" },
@@ -1124,10 +1134,85 @@ export function createEmptyInternalBiddingDraft(): InternalBiddingDraft {
   };
 }
 
-export const INVITED_BIDDING_SECTIONS = INTERNAL_BIDDING_SECTIONS;
+// 谈判采购（2026-11-24 用户裁定）：评审办法固定综合评分法、必填评分标准——
+// 问卷在「采购需求」下方追加 evaluation 章节（模板 docx 第三章同步加评分标准表）。
+export const COMPETITIVE_NEGOTIATION_EVALUATION_SECTION: TenderSectionConfig = {
+  key: "evaluation",
+  title: "评审程序和评定成交的标准",
+  description: "评审方法固定为综合评分法，填写评审标准表。",
+  fields: [
+    {
+      key: "scoringItems",
+      label: "综合评分法评审标准",
+      placeholder: "",
+      scoring: true,
+      aiPrompt:
+        "生成竞争性谈判综合评分法评审标准表。要求：产出4-6行评分因素，覆盖价格、技术、商务或业绩维度，各行分值合计必须等于100。每行用制表符（Tab键）分隔四列，列序为：评分因素、分值、评分标准、说明。评分标准必须写明具体打分规则与计算公式（如：报价得分=（评审基准价/最后报价）×40，四舍五入保留两位小数；技术参数完全响应得满分，一般偏离一项扣2分），分值为阿拉伯数字，说明写评审依据或证明材料要求，无内容写「/」。不要表头行，不要序号列，不要使用#、*等符号，不要空行，只输出数据行。",
+    },
+  ],
+};
+
+export const COMPETITIVE_NEGOTIATION_SECTIONS: TenderSectionConfig[] = (() => {
+  const rest = COMPETITIVE_NEGOTIATION_SECTIONS_BASE.filter(
+    (s) => s.key !== "evaluation",
+  );
+  const reqIdx = rest.findIndex((s) => s.key === "requirements");
+  const at = reqIdx >= 0 ? reqIdx + 1 : rest.length;
+  return [
+    ...rest.slice(0, at),
+    COMPETITIVE_NEGOTIATION_EVALUATION_SECTION,
+    ...rest.slice(at),
+  ];
+})();
+
+// 邀请招标（2026-11-24 用户裁定）：评标方法固定综合评分法、必填评分标准——
+// 自竞价问卷分叉：evaluation 章节替换为评分标准编辑器（scoringItems），评标方法选择器移除；
+// 章节顺序与询比同构——评分标准置于「采购需求」下方（前置闸按数组序判定，采购需求自动入前置集）。
+// 竞价（INTERNAL_BIDDING）仍保留 综合评分法/最低评标价法 选择。
+export const INVITED_BIDDING_SECTIONS: TenderSectionConfig[] = (() => {
+  const evaluationSection: TenderSectionConfig = {
+    key: "evaluation",
+    title: "评标程序和评定成交的标准",
+    description: "评标方法固定为综合评分法，填写评标标准表。",
+    fields: [
+      {
+        key: "scoringItems",
+        label: "综合评分法评标标准",
+        placeholder: "",
+        scoring: true,
+        aiPrompt:
+          "生成综合评分法评标标准表。要求：产出4-6行评分因素，覆盖价格、技术、商务或业绩维度，各行分值合计必须等于100。每行用制表符（Tab键）分隔四列，列序为：评分因素、分值、评分标准、说明。评分标准必须写明具体打分规则与计算公式（如：报价得分=（评标基准价/评审报价）×30，四舍五入保留两位小数；技术参数完全响应得满分，一般偏离一项扣2分），分值为阿拉伯数字，说明写评审依据或证明材料要求，无内容写「/」。不要表头行，不要序号列，不要使用#、*等符号，不要空行，只输出数据行。",
+      },
+    ],
+  };
+  const rest = INTERNAL_BIDDING_SECTIONS.filter((s) => s.key !== "evaluation");
+  const reqIdx = rest.findIndex((s) => s.key === "requirements");
+  const at = reqIdx >= 0 ? reqIdx + 1 : rest.length;
+  return [...rest.slice(0, at), evaluationSection, ...rest.slice(at)];
+})();
+
+/** 评分标准必填的类型（2026-11-24 用户裁定）：评审/评标方法固定综合评分法的三方式——
+ *  导出闸门（前端三处 + 后端兜底）统一按本表判定 */
+export const SCORING_REQUIRED_TYPES = [
+  "INQUIRY_PURCHASE",
+  "INVITED_BIDDING",
+  "PUBLIC_BIDDING",
+  "COMPETITIVE_NEGOTIATION",
+] as const;
+
+export const isScoringRequiredType = (
+  type: string | null | undefined,
+): boolean =>
+  !!type &&
+  (SCORING_REQUIRED_TYPES as readonly string[]).includes(type);
 
 export function createEmptyInvitedBiddingDraft(): InvitedBiddingDraft {
-  return createEmptyInternalBiddingDraft();
+  // 评标方法固定综合评分法（2026-11-24 用户裁定）+ 评分标准空表起步
+  return {
+    ...createEmptyInternalBiddingDraft(),
+    evaluationMethod: "综合评分法",
+    scoringItems: [],
+  };
 }
 
 // 公开招标（2026-11-20）：问卷与邀请招标完全一致，仅模板 docx（招标人口吻）与

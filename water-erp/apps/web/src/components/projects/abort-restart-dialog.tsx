@@ -19,8 +19,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ban, CheckCircle2, FileUp, Loader2, RefreshCw, Sparkles, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Modal } from '@/components/workbench';
+import { Modal, NeuSelect } from '@/components/workbench';
 import { UploadProgressRow } from '../upload/upload-progress-row';
+import { cnToDatetimeLocal, isoToDatetimeLocal, localInputToIso } from './change-modal';
 import { getNonTenderDeal } from '@/lib/api/bid';
 import {
   aiIdentifyField,
@@ -117,7 +118,7 @@ export function AbortRestartDialog({
       procurementCategory: item.procurementCategory ?? '',
       projectReason: item.projectReason ?? '',
       supplierRequirements: item.supplierRequirements ?? '',
-      initiationDate: item.initiationDate ? new Date(item.initiationDate).toISOString().slice(0, 10) : '',
+      initiationDate: isoToDatetimeLocal(item.initiationDate).slice(0, 10),
     });
     setBudgetInput(item.budgetAmount != null ? String(item.budgetAmount) : '');
     setMethod(item.procurementMethod);
@@ -175,7 +176,12 @@ export function AbortRestartDialog({
       put('procurementCategory', f.procurementCategory, item.procurementCategory);
       put('projectReason', f.projectReason, item.projectReason);
       put('supplierRequirements', f.supplierRequirements, item.supplierRequirements);
-      if (f.initiationDate) put('initiationDate', f.initiationDate, item.initiationDate ? new Date(item.initiationDate).toISOString().slice(0, 10) : '');
+      // AI 提取值归一为纯日期（YYYY-MM-DD 直用；中文日期走 cn 转换后截日期）
+      if (f.initiationDate) {
+        const raw = String(f.initiationDate).trim();
+        const dtVal = raw.length === 10 ? raw : cnToDatetimeLocal(raw).slice(0, 10) || raw;
+        put('initiationDate', dtVal, isoToDatetimeLocal(item.initiationDate).slice(0, 10));
+      }
       if (f.budgetAmount != null && Number.isFinite(Number(f.budgetAmount))) {
         setBudgetInput(String(f.budgetAmount));
         if (Number(f.budgetAmount) !== item.budgetAmount) count++;
@@ -252,8 +258,10 @@ export function AbortRestartDialog({
       const budget = Number(budgetInput);
       if (budgetInput.trim() && Number.isFinite(budget) && budget !== item.budgetAmount) basicInfo.budgetAmount = budget;
       const dateStr = (form.initiationDate ?? '').trim();
-      if (dateStr && (!item.initiationDate || dateStr !== new Date(item.initiationDate).toISOString().slice(0, 10))) {
-        basicInfo.initiationDate = dateStr;
+      if (dateStr && (!item.initiationDate || dateStr !== isoToDatetimeLocal(item.initiationDate).slice(0, 10))) {
+        // 纯日期 → 完整 ISO（北京零点，+08 墙钟）：后端 parseInitiationDateInput 对裸日期串
+        // 按服务器时区解释（生产 UTC 容器偏 8h），带 Z 的 ISO 无歧义
+        basicInfo.initiationDate = localInputToIso(dateStr);
       }
 
       const res = await reprocProject(item.id, {
@@ -326,16 +334,16 @@ export function AbortRestartDialog({
           </button>
         </div>
       ) : def.options ? (
-        <select
+        <NeuSelect
           value={form[def.formKey] ?? ''}
           onChange={(e) => setForm((prev) => ({ ...prev, [def.formKey]: e.target.value }))}
-          className="workbench-input w-full text-sm"
+          className="w-full"
         >
           <option value="">{def.placeholder ?? '请选择'}</option>
           {def.options.map((o) => (
             <option key={o} value={o}>{o}</option>
           ))}
-        </select>
+        </NeuSelect>
       ) : (
         <input
           value={form[def.formKey] ?? ''}

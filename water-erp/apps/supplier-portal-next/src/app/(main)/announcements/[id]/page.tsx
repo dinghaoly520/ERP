@@ -30,8 +30,9 @@ interface MetaField { key: string; label: string; area?: boolean; date?: boolean
 const ANNO_TYPE_META: Record<string, MetaField[]> = {
   BID_NOTICE: [
     { key: "projectCode", label: "项目编号" }, { key: "method", label: "采购方式" }, { key: "budget", label: "预算金额" },
-    { key: "downloadDeadline", label: "采购文件下载时间" },
+    { key: "downloadDeadline", label: "采购文件下载截止", date: true },
     { key: "deadline", label: "报名/投标截止", date: true }, { key: "openTime", label: "开标时间", date: true }, { key: "contact", label: "联系方式" },
+    { key: "downloadMode", label: "采购文件下载方式" },
     // 采购内容/范围、投标人资格要求不在顶部平铺（正文已载同文，2026-11-23 用户裁定；与采购管理工作台一致）
   ],
   ADDENDUM: [
@@ -236,20 +237,51 @@ export default function AnnouncementDetailPage() {
           <h1 className="detail-title">{announcement.title}</h1>
           <hr className="ann-divider" />
 
-          {/* 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致 */}
+          {/* 结构化元数据（项目编号/招标方式/预算金额/时间等）—— 与采购管理工作台一致；
+              2026-11-24 用户裁定：应用项目机会详情同款「关键信息」设计——
+              基本信息/时间节点两组同排一行（组标签 + chips 横向连排，窄屏自动换行） */}
           {!offlined && (metaFields.short.length > 0 || metaFields.area.length > 0) && (
             <div className="meta-block">
-              {metaFields.short.length > 0 && (
-                <div className="meta-chips">
-                  {metaFields.short.map((f) => (
-                    <span key={f.key} className="meta-chip">
-                      <span className="meta-chip-label" style={{ color: metaLabelColor(f) }}>{f.label}</span>
-                      {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
-                      <span className="meta-chip-value">{fmtMeta(f, f.key === 'downloadDeadline' ? (metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline) : metaFields.meta[f.key])}</span>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <div className="meta-block-hd">关键信息</div>
+              {metaFields.short.length > 0 && (() => {
+                const Chip = ({ f }: { f: MetaField }) => (
+                  <span className="meta-chip">
+                    <span className="meta-chip-label" style={{ color: metaLabelColor(f) }}>{f.label}</span>
+                    {/* 采购文件下载时间：新公告存区间（downloadPeriod），旧公告止点（downloadDeadline）——区间优先 */}
+                    <span className="meta-chip-value">{(() => {
+                      if (f.key === 'downloadDeadline') {
+                        // 二次裁定（2026-11-24）：改回时间区间。值是已格式化中文串（区间/止点），
+                        // 直出原文——不走 fmtMeta 日期解析（date 标记会把它判 NaN 成「待定」）
+                        const raw = metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline;
+                        return raw == null ? "" : String(raw);
+                      }
+                      if (f.key === 'downloadMode') {
+                        const v = String(metaFields.meta.downloadMode ?? "");
+                        return v === "encrypted" ? "解密下载" : v === "paid" ? "付费下载" : "免费下载";
+                      }
+                      return fmtMeta(f, metaFields.meta[f.key]);
+                    })()}</span>
+                  </span>
+                );
+                const base = metaFields.short.filter((f) => !f.date);
+                const times = metaFields.short.filter((f) => f.date);
+                return (
+                  <div className="meta-groups-row">
+                    {base.length > 0 && (
+                      <div className="meta-group">
+                        <span className="meta-group-hd">基本信息</span>
+                        <div className="meta-chips">{base.map((f) => <Chip key={f.key} f={f} />)}</div>
+                      </div>
+                    )}
+                    {times.length > 0 && (
+                      <div className="meta-group">
+                        <span className="meta-group-hd">时间节点</span>
+                        <div className="meta-chips">{times.map((f) => <Chip key={f.key} f={f} />)}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {metaFields.area.map((f) => (
                 <div key={f.key} className="meta-area">
                   <span className="meta-area-label">{f.label}</span>

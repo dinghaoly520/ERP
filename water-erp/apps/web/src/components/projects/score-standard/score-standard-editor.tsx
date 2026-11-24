@@ -33,7 +33,7 @@ import {
   type ScoreCategory,
 } from '@/lib/api/bid';
 import type { ProjectManagementAttachment, ProjectManagementItem } from '@/lib/types/project-management';
-import { Modal, TableSkeleton } from '@/components/workbench';
+import { Modal, TableSkeleton, NeuSelect } from '@/components/workbench';
 import { ScorePointsEditor } from './score-points-editor';
 import { SaveTemplateDialog } from './save-template-dialog';
 import { TemplateLibraryDialog } from './template-library-dialog';
@@ -565,17 +565,17 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                       </td>
                       <td className="px-4 py-3">
                         {isEdit ? (
-                          <select
+                          <NeuSelect
                             value={editDraft.category}
                             onChange={(e) => setEditDraft((d) => ({ ...d, category: e.target.value as ScoreCategory }))}
-                            className={`${inputCls} w-full`}
+                            className="w-full"
                           >
                             {CATEGORY_OPTIONS.map((c) => (
                               <option key={c} value={c}>
                                 {CATEGORY_LABEL[c]}
                               </option>
                             ))}
-                          </select>
+                          </NeuSelect>
                         ) : (
                           <CategoryBadge category={it.category} />
                         )}
@@ -685,17 +685,17 @@ export function ScoreStandardEditor({ project, round, bidProject, onChanged, var
                 <tr className="border-t-2 border-[oklch(0.5_0.16_258_/_0.15)]">
                   <td className="px-2 py-3"></td>
                   <td className="px-4 py-3">
-                    <select
+                    <NeuSelect
                       value={draft.category}
                       onChange={(e) => setDraft((d) => ({ ...d, category: e.target.value as ScoreCategory }))}
-                      className={`${inputCls} w-full`}
+                      className="w-full"
                     >
                       {CATEGORY_OPTIONS.map((c) => (
                         <option key={c} value={c}>
                           {CATEGORY_LABEL[c]}
                         </option>
                       ))}
-                    </select>
+                    </NeuSelect>
                   </td>
                   <td className="px-4 py-3">
                     <input
