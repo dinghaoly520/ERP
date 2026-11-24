@@ -232,19 +232,20 @@ export default function NoticePage() {
                     <input type="checkbox" className="neu-checkbox" checked={isSel} onChange={() => toggleRow(a.id)} aria-label={`选择 ${a.title}`} />
                   </td>
                   <td>
-                    <div className="flex flex-col gap-1">
+                    {/* 列宽收窄（2026-11-24 用户裁定）：内容宽封顶促换行，摘要独立成行居左 */}
+                    <div className="flex max-w-[420px] flex-col items-start gap-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-[var(--foreground)]">{a.title}</span>
+                        <span className="text-left text-sm font-bold text-[var(--foreground)]">{a.title}</span>
                         {a.isTop && <StatusBadge tone="red" className="!text-[10px] !px-1.5 !py-0">置顶</StatusBadge>}
                         {noBidDoc && (
                           <span className="rounded-md bg-[color-mix(in_oklch,var(--danger)_20%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--danger)]">未上传采购文件</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--muted-foreground)]">
                         {a.publishDate && <span>{new Date(a.publishDate).toLocaleDateString('zh-CN')}</span>}
                         {a.relatedProjectCode && (<><span aria-hidden>·</span><span>{a.relatedProjectCode}</span></>)}
-                        {a.summary && (<><span aria-hidden>·</span><span className="min-w-0 break-all">{a.summary}</span></>)}
                       </div>
+                      {a.summary && <p className="w-full text-left text-[11px] leading-relaxed break-all text-[var(--muted-foreground)]">{a.summary}</p>}
                     </div>
                   </td>
                   <td>
