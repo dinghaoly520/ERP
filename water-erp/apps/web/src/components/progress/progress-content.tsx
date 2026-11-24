@@ -379,7 +379,8 @@ function ProjectCard({ project, index, reducedMotion }: { project: DerivedProjec
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
               <span style={{ color: "var(--accent)" }}>所属项目：{project.projectName}</span>
               <span style={{ color: "var(--success)" }}>经办人：{project.createdBy?.displayName || project.requesterName || "未登记"}</span>
-              <span style={{ color: "var(--gold)" }}>归属部门：{project.requesterDepartment || "未设置"}</span>
+              <span style={{ color: "var(--gold)" }}>立项人：{project.requesterName || "未登记"}</span>
+              <span style={{ color: "var(--gold)" }}>立项部门：{project.requesterDepartment || "未设置"}</span>
               <span style={{ color: "var(--accent-strong)" }}>采购方式：{project.procurementMethod || "未设置"}</span>
               <span className="font-medium" style={{ color: "var(--muted-foreground)" }}>项目预算：{formatWan(project.budgetAmount)}</span>
             </div>
@@ -741,7 +742,7 @@ export function ProgressContent({ currentUserRole }: { currentUserRole?: AuthRol
               <div className="grid grid-cols-2 gap-2">
                 <PieChartBlock icon={<User size={12} />} label="经办人" items={requesterDist} accent="oklch(0.64 0.14 262)" />
                 <PieChartBlock icon={<Gavel size={12} />} label="采购方式" items={methodDist} accent="oklch(0.68 0.11 162)" />
-                <PieChartBlock icon={<Building2 size={12} />} label="归属部门" items={deptDist} accent="oklch(0.78 0.12 84)" />
+                <PieChartBlock icon={<Building2 size={12} />} label="立项部门" items={deptDist} accent="oklch(0.78 0.12 84)" />
                 <PieChartBlock icon={<LayoutGrid size={12} />} label="归属项目" items={projectDist} accent="oklch(0.61 0.13 272)" />
                 <PieChartBlock icon={<BarChart3 size={12} />} label="阶段分布" items={stageChartData} accent="oklch(0.71 0.10 166)" />
                 <PieChartBlock icon={<TrendingUp size={12} />} label="项目规模" items={scaleDist} accent="oklch(0.67 0.14 32)" />
