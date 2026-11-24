@@ -219,7 +219,9 @@ export default function NoticeDetailPage() {
               <StatusBadge tone={typeTone[ann.type]}>{ann.type === 'BID_NOTICE' && typeof ann.metadata?.method === 'string' && ann.metadata.method.trim() ? ann.metadata.method.trim() : typeLabel[ann.type]}</StatusBadge>
               <StatusBadge tone={statusTone[ann.status]}>{statusLabel[ann.status]}</StatusBadge>
               {ann.isTop && <StatusBadge tone="red">置顶</StatusBadge>}
-              {ann.dataClass && (
+              {/* 数据公开范围徽章：「应公开」不展示（2026-11-24 用户裁定——公告默认即应公开，
+                  无信息量）；宜公开/可公开/应保密保留提示 */}
+              {ann.dataClass && ann.dataClass !== 'public_mandatory' && (
                 <StatusBadge tone={ann.dataClass === 'confidential' ? 'red' : 'gray'}>
                   {DATA_CLASS_LABELS[ann.dataClass as keyof typeof DATA_CLASS_LABELS] ?? ann.dataClass}
                 </StatusBadge>
