@@ -8,7 +8,7 @@ import type { BidDocumentManage } from '@/lib/api/announcement';
 import { UploadProgressRow } from '@/components/upload/upload-progress-row';
 import { getSupplierList } from '@/lib/api/supplier';
 import type { Supplier } from '@/lib/types';
-import { StatusBadge, NeuSelect } from '@/components/workbench';
+import { StatusBadge } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 
 /** 采购文件管理段（2026-11-06 自 notice/[id] 编辑页抽出共享）：
@@ -131,7 +131,7 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
             <button onClick={removeDoc} className="neu-btn-xs is-danger ml-2 shrink-0">删除</button>
           </div>
           <div className="space-y-1.5">
-            <NeuSelect value={scope} onChange={e => setScope(e.target.value as any)}><option value="OPEN">公开</option><option value="INVITED">邀请</option></NeuSelect>
+            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
             <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
           {scope === "INVITED" && (
@@ -167,7 +167,7 @@ export function BidDocEditSection({ annId, bidDoc, onChanged, ensureAnnId, headi
           </label>
 
           <div className="space-y-1.5">
-            <NeuSelect value={scope} onChange={e => setScope(e.target.value as any)}><option value="OPEN">公开</option><option value="INVITED">邀请</option></NeuSelect>
+            <select value={scope} onChange={e => setScope(e.target.value as any)} className="neu-input text-sm"><option value="OPEN">公开</option><option value="INVITED">邀请</option></select>
             <DownloadModePicker mode={dlMode} password={dlPassword} onMode={setDlMode} onPassword={setDlPassword} />
           </div>
 

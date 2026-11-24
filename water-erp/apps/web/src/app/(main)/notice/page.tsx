@@ -11,7 +11,7 @@ import {
 import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Participant, ParticipantsResult } from '@/lib/api/announcement';
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
-import { StatusBadge, TableSkeleton, Modal, NeuSelect } from '@/components/workbench';
+import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
 import { isOverdueScheduledDraft, scheduledPublishErrorOf } from '@/lib/notice/schedule';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER, STAGE_LABEL } from '@water-erp/shared';
@@ -459,16 +459,16 @@ export default function NoticePage() {
             </button>
           )}
         </div>
-        <NeuSelect
+        <select
           value={filterStatus}
           onChange={e => { setFilterStatus(e.target.value as AnnouncementStatus | 'OFFLINED' | ''); setPage(1); }}
-          className="min-w-[110px] shrink-0"
+          className="workbench-input !w-auto min-w-[110px] shrink-0"
         >
           <option value="">全部状态</option>
           <option value="PUBLISHED">已发布</option>
           <option value="OFFLINED">已下线</option>
           <option value="ARCHIVED">已公示</option>
-        </NeuSelect>
+        </select>
       </div>
 
       {/* 数据表格（admin 全部公司视图=按公司分组；单公司/非 admin=平铺）*/}

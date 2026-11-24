@@ -31,7 +31,6 @@ import {
 import { getCompanyInfoOnce } from '@/lib/api/company-info';
 import { SupplierNameInput } from './supplier-name-input';
 import { QUOTATION_TEXT_AI_PROMPT } from '@/lib/tender-write/templates';
-import { NeuSelect } from '@/components/workbench';
 import {
   serializeTableToText,
   tableHasDataRows,
@@ -868,10 +867,10 @@ export function TenderSectionEditor({
                   </div>
                   <div className="flex gap-2">
                     <div className="flex items-center">
-                      <NeuSelect
+                      <select
                         value={typeValue || ""}
                         onChange={(event) => onChange(field.composite!.typeKey, event.target.value)}
-                        className="w-32 shrink-0 rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
+                        className="w-32 shrink-0 rounded-[18px] border border-[oklch(0.6_0.04_258_/_0.25)] bg-[oklch(1_0_0_/_0.5)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-all duration-200 focus:border-[rgba(107,149,240,0.34)] focus:bg-[oklch(1_0_0_/_0.7)] hover:border-[oklch(0.6_0.04_258_/_0.35)]"
                       >
                         <option value="" disabled>
                           请选择
@@ -881,7 +880,7 @@ export function TenderSectionEditor({
                             {opt.label}
                           </option>
                         ))}
-                      </NeuSelect>
+                      </select>
                     </div>
                     {!typeValue ? (
                       <div className="flex-1 flex items-center">

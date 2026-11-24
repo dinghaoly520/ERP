@@ -23,6 +23,7 @@ export function NeuSelect({
   compact = false,
   className = "",
   title,
+  id,
   "aria-label": ariaLabel,
 }: {
   value: string | number | null | undefined;
@@ -32,6 +33,7 @@ export function NeuSelect({
   compact?: boolean;
   className?: string;
   title?: string;
+  id?: string;
   "aria-label"?: string;
 }) {
   const options = useMemo(() => collectOptions(children), [children]);
@@ -85,6 +87,7 @@ export function NeuSelect({
         aria-expanded={open}
         aria-label={ariaLabel}
         title={title}
+        id={id}
         className={`flex w-full items-center justify-between gap-1 rounded-[10px] px-2.5 text-left outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${compact ? "h-[28px] text-xs" : "h-[38px] text-[13px]"}`}
         style={open
           ? { background: "oklch(0.985 0.01 252)", boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.9)", border: "none" }

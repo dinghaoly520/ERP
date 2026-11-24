@@ -5,7 +5,6 @@ import { Clock, FileText, Loader2, Send, History, Pencil, Trash2, Archive, Undo2
 import { toast } from "sonner";
 import { Modal } from "@/components/workbench";
 import { downloadHistoryTxt } from "@/lib/history-export";
-import { NeuSelect } from '@/components/workbench';
 import {
   fetchAnnouncementHistory,
   fetchAllAnnouncementHistories,
@@ -304,16 +303,16 @@ export function AllAnnouncementHistoriesModal({ onClose }: { onClose: () => void
           {/* 筛选：操作类型 + 日期范围 + 关键词 */}
           <div className="wb-toolbar !px-3 !py-2 flex flex-wrap items-center gap-2">
             <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">操作类型</span>
-            <NeuSelect
+            <select
               value={actionFilter}
               onChange={e => { const v = e.target.value; setActionFilter(v); if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); doLoad(1, v, dateFrom, dateTo, search); }}
-              className="!h-7 !text-[11px] min-w-[110px]"
+              className="workbench-input !w-auto !h-7 !text-[11px] min-w-[110px]"
             >
               <option value="">全部</option>
               {Object.entries(ACTION_META).map(([key, meta]) => (
                 <option key={key} value={key}>{meta.label}</option>
               ))}
-            </NeuSelect>
+            </select>
 
             <span className="text-[11px] font-semibold text-[var(--muted-foreground)] flex items-center gap-1">
               <CalendarDays size={12} />日期
