@@ -49,6 +49,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { canViewAllUserActivity } from '../auth/auth-scope';
 import { Roles } from '../common/decorators/roles.decorator';
+import { assertReviewObjectKey } from './review-source-file.util';
 
 @ApiTags('Tender Review')
 @Controller('tender-review')
@@ -821,19 +822,25 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     return this.prisma.reviewTask.findUnique({ where: { id } });
   }
 
-  private backupKey(task: any): string {
-    return `${task.objectKey}.original`;
+  /** 任务的文件键：取出来之前先过审查命名空间守卫——存量任务或旧入口写进来的越界键在这里被拒 */
+  private reviewFileKey(task: { objectKey: string }): string {
+    return assertReviewObjectKey(task.objectKey);
+  }
+
+  private backupKey(task: { objectKey: string }): string {
+    return `${this.reviewFileKey(task)}.original`;
   }
 
   private async ensureOriginalBackup(task: any): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
     const bk = this.backupKey(task);
     try {
       await this.storage.download(bk);
       // backup already exists
     } catch {
       // backup doesn't exist yet — create it from current file
-      const current = await this.storage.download(task.objectKey);
+      const current = await this.storage.download(key);
       await this.storage.upload(
         bk,
         current,
@@ -847,8 +854,9 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     structured: any,
   ): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
     await this.ensureOriginalBackup(task);
-    const originalBuffer = await this.storage.download(task.objectKey);
+    const originalBuffer = await this.storage.download(key);
     const modified = await modifyDocxBuffer(
       originalBuffer,
       structured.originalText || '',
@@ -856,7 +864,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       structured.operation,
     );
     await this.storage.upload(
-      task.objectKey,
+      key,
       modified,
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
@@ -868,15 +876,16 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     commentText: string,
   ): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
     await this.ensureOriginalBackup(task);
-    const originalBuffer = await this.storage.download(task.objectKey);
+    const originalBuffer = await this.storage.download(key);
     const modified = await addDocxCommentBuffer(
       originalBuffer,
       commentText,
       anchorText,
     );
     await this.storage.upload(
-      task.objectKey,
+      key,
       modified,
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
@@ -887,6 +896,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     revertedIssueIndex: number,
   ): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
 
     const report = task.results;
     // Collect all accepted issues with modificationApplied, excluding the reverted one
@@ -958,7 +968,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
 
     // Upload the rebuilt file
     await this.storage.upload(
-      task.objectKey,
+      key,
       buffer,
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
@@ -987,11 +997,12 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       const task = await this.prisma.reviewTask.findUnique({ where: { id } });
       if (!task) throw new NotFoundException('任务不存在或已被删除');
       if (!task.objectKey) throw new BadRequestException('任务未关联文档文件');
+      const key = this.reviewFileKey(task);
       if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
         throw new ForbiddenException('无权下载此任务文档');
       }
 
-      const buffer = await this.storage.download(task.objectKey);
+      const buffer = await this.storage.download(key);
       const fileName = task.documentName || 'document.docx';
 
       res.setHeader(

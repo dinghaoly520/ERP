@@ -11,6 +11,18 @@ function buildController(prisma: any, pdfSvc: any = {} as any) {
   return controller;
 }
 
+/** 第 3 处用：需要真实的 storage / parser 桩（构造函数第 2、3 个参数） */
+function buildControllerWith(prisma: any, storage: any = {}, parser: any = {}) {
+  const controller = new TenderReviewController(
+    prisma, storage, parser, {} as any, {} as any, {} as any,
+    {} as any, {} as any, {} as any, {} as any, {} as any,
+  );
+  jest.spyOn(controller as any, 'runReview').mockResolvedValue(undefined);
+  jest.spyOn((controller as any).logger, 'error').mockImplementation(() => undefined);
+  jest.spyOn((controller as any).logger, 'warn').mockImplementation(() => undefined);
+  return controller;
+}
+
 const USER = { sub: 'u1', role: 'staff' } as any;
 const KB = { id: 'kb-1', ownerId: 'u1', isShared: true };
 
@@ -135,5 +147,86 @@ describe('TenderReviewController.downloadReportDocx', () => {
     await controller.downloadReportDocx('t-1', USER, res);
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     expect(res.send).toHaveBeenCalledWith(Buffer.from('pdf'));
+  });
+});
+
+describe('TenderReviewController — 审查任务的对象键守卫（审计第 3 处）', () => {
+  const BAD_KEYS = ['../.env', '/etc/passwd', 'knowledge/x.docx', 'sealed-backup/k', 'review/../x'];
+
+  const taskWith = (objectKey: string) => ({ id: 't1', objectKey, documentName: 'd.docx', userId: 'u1' });
+
+  it.each(BAD_KEYS)('任务键 %s：下载、改写、批注、重建、备份一律 400 INVALID_REVIEW_OBJECT_KEY，不触任何存储调用', async (badKey) => {
+    const storage = { upload: jest.fn(), download: jest.fn(), delete: jest.fn() };
+    const controller = buildControllerWith({ reviewTask: { findUnique: jest.fn().mockResolvedValue(taskWith(badKey)) } }, storage);
+    const task = taskWith(badKey);
+    const code = { response: { code: 'INVALID_REVIEW_OBJECT_KEY' } };
+
+    await expect((controller as any).downloadModifiedDocument('t1', USER, { setHeader: jest.fn(), send: jest.fn() })).rejects.toMatchObject(code);
+    await expect((controller as any).applyModificationToFile(task, { originalText: 'a', replacementText: 'b', operation: 'replace' })).rejects.toMatchObject(code);
+    await expect((controller as any).applyManualCommentToFile(task, '锚文本', '批注')).rejects.toMatchObject(code);
+    await expect((controller as any).rebuildDocxFromAccepted(task, 0)).rejects.toMatchObject(code);
+    await expect((controller as any).ensureOriginalBackup(task)).rejects.toMatchObject(code);
+
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(storage.download).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+  });
+
+  it('存量格式的键照常可用：下载读的就是任务键', async () => {
+    const legacyKey = 'review/1732452000000_采购文件（终版） #2.docx';
+    const bytes = Buffer.from('PK\u0003\u0004 旧任务文件');
+    const storage = { download: jest.fn().mockResolvedValue(bytes), upload: jest.fn(), delete: jest.fn() };
+    const controller = buildControllerWith({ reviewTask: { findUnique: jest.fn().mockResolvedValue(taskWith(legacyKey)) } }, storage);
+    const res = { setHeader: jest.fn(), send: jest.fn() };
+
+    await (controller as any).downloadModifiedDocument('t1', USER, res);
+
+    expect(storage.download).toHaveBeenCalledWith(legacyKey);
+    expect(res.send).toHaveBeenCalledWith(bytes);
+  });
+
+  it('没有关联文件的任务（纯文本审查）：接受建议只落状态，不碰存储', async () => {
+    const storage = { upload: jest.fn(), download: jest.fn(), delete: jest.fn() };
+    const prisma: any = {
+      reviewTask: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 't1', objectKey: '', userId: 'u1',
+          results: { criticalIssues: [{ ruleId: 'r1', suggestion: '把「甲方」改为「采购人」', status: 'pending', modificationApplied: false }], warnings: [], passedChecks: [] },
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const controller = buildControllerWith(prisma, storage);
+
+    await controller.resolveIssue('t1', { issueIndex: 0, action: 'accept' }, USER);
+
+    // 既有行为（不在本次修复范围）：没有文件时改写函数提前返回、不抛错，调用方照样把
+    // modificationApplied 置真。这里只保护两件事——状态照常落库、不碰任何存储。
+    const saved = prisma.reviewTask.update.mock.calls[0][0].data.results;
+    expect(saved.criticalIssues[0].status).toBe('accepted');
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(storage.download).not.toHaveBeenCalled();
+  });
+
+  it('任务键越界时接受建议：请求照常完成（不抛错），问题状态落库、modificationApplied 不置真', async () => {
+    const storage = { upload: jest.fn(), download: jest.fn().mockRejectedValue(new Error('不该走到这里')), delete: jest.fn() };
+    const prisma: any = {
+      reviewTask: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 't1', objectKey: '../.env', userId: 'u1',
+          results: { criticalIssues: [{ ruleId: 'r1', suggestion: '把「甲方」改为「采购人」', status: 'pending', modificationApplied: false }], warnings: [], passedChecks: [] },
+        }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+    };
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.resolveIssue('t1', { issueIndex: 0, action: 'accept' }, USER)).resolves.toBeDefined();
+
+    const saved = prisma.reviewTask.update.mock.calls[0][0].data.results;
+    expect(saved.criticalIssues[0].status).toBe('accepted');
+    expect(saved.criticalIssues[0].modificationApplied).toBe(false);
+    expect(storage.download).not.toHaveBeenCalled();
+    expect(storage.upload).not.toHaveBeenCalled();
   });
 });
