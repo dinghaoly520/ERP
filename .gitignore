@@ -54,3 +54,6 @@ patent-work/
 # 本地 AI 底座交付暂存区（模型权重/镜像 tar，勿入库）
 emd_llm/
 emd_llm.tar
+
+# DevEco/hvigor 构建缓存（鸿蒙壳应用，2026-11-25）
+/.hvigor/
