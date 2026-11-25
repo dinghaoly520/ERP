@@ -3756,10 +3756,15 @@ export class SupplierService {
     for (const log of auditLogs) {
       const labelMap: Record<string, string> = {
         SUPPLIER_APPROVED: '审核通过',
+        // 分级通过（2026-11-25 补录：此前无标签被整条跳过——三级审批的初审/复审里程碑
+        // 在生命周期时间线上缺失，与「近期动态」英文泄漏同一批枚举）
+        SUPPLIER_REVIEW_PASSED_STAFF: '初审通过',
+        SUPPLIER_REVIEW_PASSED_LEADER: '复审通过',
         SUPPLIER_REJECTED: '审核不通过',
         SUPPLIER_RETURNED: '退回补正',
         SUPPLIER_DISABLED: '停用',
         SUPPLIER_BLACKLIST: '拉黑',
+        SUPPLIER_UNBLACKLIST: '解除拉黑',
         SUPPLIER_RESTORED: '恢复',
         SUPPLIER_RESUBMITTED: '重新提交',
         SUPPLIER_REACTIVATED: '重新激活',
@@ -3767,6 +3772,8 @@ export class SupplierService {
         SUPPLIER_CHANGE_REJECTED: '资料变更驳回',
         SUPPLIER_CONVERTED_REGULAR: '转为正式供应商',
         SUPPLIER_TAGS_UPDATED: '业务标签更新',
+        SUPPLIER_TAGS_BACKFILL: '业务标签回填',
+        SUPPLIER_EVALUATION_UPDATED: '履约评价更新',
         // SUPPLIER_EVALUATION_CREATED 不在此展示：与评价表同事件双写（两次独立写入毫秒级时差），
         // 归 #3 按 ±5s 时间窗配对去重，防止同一次评价出两条
       };

@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution, getSupplierList } from '@/lib/api/supplier';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
+import { supplierActionLabel } from '@/lib/supplier-action-labels';
 import type { SupplierStats, QualificationAlerts, ActivityItem, SupplierFavoriteRecord, DimensionStats } from '@/lib/api/supplier';
 import type { Supplier, SupplierClassification } from '@/lib/types';
 import { Modal } from '@/components/workbench';
 import { CompanySelect, readInitialCompanyId } from '@/components/company/company-select';
+import { fetchCurrentUser } from '@/lib/api/auth';
 import Link from 'next/link';
 
 /* ─────────────── 供应结构分析（纯客户端规则推导，非 AI）─────────────── */
@@ -329,6 +331,10 @@ export default function SupplierDashboardPage() {
   const [loadError, setLoadError] = useState(false); // B13：任一面板加载失败即提示，避免静默空面板
   // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
   const [companyId, setCompanyId] = useState('all');
+  // admin 的退回件可见口径与审批中心退回补正 tab 同源（2026-11-23 裁定：仅终审级）——
+  // 列表查询带 reviewStage=ADMIN 才能绕开 2026-09-30「admin 无级次不见退回件」的恒空规则
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => { fetchCurrentUser().then((u) => setIsAdmin(u?.role === 'admin')).catch(() => {}); }, []);
   useEffect(() => { setCompanyId(readInitialCompanyId()); }, []);
 
   const loadDashboard = useCallback(() => {
@@ -368,30 +374,23 @@ export default function SupplierDashboardPage() {
     return () => { active = false; };
   }, [frozenOpen, companyId]);
 
-  // 待审核构成：打开窗口时拉在途审批件（PENDING+RETURNED，双谓词口径与 KPI 计数一致）
+  // 待审核构成：打开窗口时拉在途审批件（PENDING+RETURNED，双谓词口径与 KPI 计数一致）；
+  // admin 的退回件带 reviewStage=ADMIN（与审批中心退回补正 tab 同口径，2026-11-23 裁定）
   useEffect(() => {
     if (!approvalOpen) return;
     let active = true;
     const scope = companyId === 'all' ? undefined : companyId;
     Promise.all([
       getSupplierList({ status: 'PENDING', pageSize: 200, companyId: scope }),
-      getSupplierList({ status: 'RETURNED', pageSize: 200, companyId: scope }),
+      getSupplierList({ status: 'RETURNED', pageSize: 200, companyId: scope, ...(isAdmin ? { reviewStage: 'ADMIN' } : {}) }),
     ])
       .then(([p, r]) => { if (active) setApprovalList({ pending: p.items, returned: r.items }); })
       .catch(() => { if (active) setApprovalList({ pending: [], returned: [] }); })
       .finally(() => { if (active) setApprovalLoading(false); });
     return () => { active = false; };
-  }, [approvalOpen, companyId]);
+  }, [approvalOpen, companyId, isAdmin]);
 
   const insights = useMemo(() => deriveInsights(industries, stats, evalStats, alerts), [industries, stats, evalStats, alerts]);
-  const actionLabels: Record<string, string> = {
-    SUPPLIER_APPROVED: '审核通过', SUPPLIER_REJECTED: '审核不通过', SUPPLIER_RETURNED: '退回补正',
-    SUPPLIER_DISABLED: '停用', SUPPLIER_BLACKLIST: '拉黑',
-    SUPPLIER_RESTORED: '恢复正常', SUPPLIER_RESUBMITTED: '重新提交', SUPPLIER_REACTIVATED: '重新激活',
-    SUPPLIER_CHANGE_APPROVED: '变更审批通过', SUPPLIER_CHANGE_REJECTED: '变更驳回',
-    SUPPLIER_CONVERTED_REGULAR: '转正式供应商', SUPPLIER_EVALUATION_CREATED: '履约评价',
-    SUPPLIER_TAGS_UPDATED: '业务标签更新', SUPPLIER_TAGS_BACKFILL: '业务标签回填',
-  };
   const maxCatCount = Math.max(1, ...industries.map(c => c._count?.suppliers ?? 0));
   // 待审核构成：PENDING 按当前审批级分组（三级全列含 0，回答「数字怎么构成」）；异常级兜底「未分级」
   const approvalStageGroups = (() => {
@@ -552,18 +551,21 @@ export default function SupplierDashboardPage() {
           ) : (
             <>
               <div className="space-y-2 flex-1 min-h-0 overflow-y-auto">
-                {(activitiesExpanded ? activities : activities.slice(0, ACTIVITY_PREVIEW_COUNT)).map(a => (
+                {(activitiesExpanded ? activities : activities.slice(0, ACTIVITY_PREVIEW_COUNT)).map(a => {
+                  const actionLabel = supplierActionLabel(a.action);
+                  return (
                   <div key={a.id} className="flex items-start gap-3 neu-card-static !rounded-xl !p-3">
                     <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[10px] font-extrabold text-[var(--accent)]">
-                      {actionLabels[a.action]?.[0] || a.action[0]}
+                      {actionLabel[0]}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="text-xs font-semibold text-[var(--foreground)] truncate">{actionLabels[a.action] || a.action}</div>
+                      <div className="text-xs font-semibold text-[var(--foreground)] truncate">{actionLabel}</div>
                       <div className="text-[10px] text-[var(--muted-foreground)]/70 mt-0.5">{a.actorName} · {new Date(a.at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
                       {a.details?.name && <div className="text-[11px] text-[var(--muted-foreground)] italic mt-0.5">{a.details.name}</div>}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               {activities.length > ACTIVITY_PREVIEW_COUNT && (
                 <button type="button" onClick={() => setActivitiesExpanded(v => !v)} className="neu-btn-xs mx-auto mt-3 flex-shrink-0 gap-1">

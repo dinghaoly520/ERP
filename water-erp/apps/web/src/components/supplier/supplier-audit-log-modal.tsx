@@ -3,29 +3,11 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Modal, NeuSelect } from '@/components/workbench';
 import { getSupplierAuditLogs, type SupplierAuditLogItem } from '@/lib/api/supplier';
-import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2, Search } from 'lucide-react';
+import { History, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2, Search } from 'lucide-react';
 import { SUPPLIER_STATUS_LABEL, LEVEL_LABEL } from '@water-erp/shared';
 import { downloadHistoryTxt } from '@/lib/history-export';
 import { toast } from 'sonner';
-
-// 供应商操作类型 → 中文标签（对齐 dashboard 与 audit-log 既有映射，补齐全量）。
-const ACTION_LABELS: Record<string, string> = {
-  SUPPLIER_APPROVED: '审核通过（入库）',
-  SUPPLIER_REJECTED: '审核不通过',
-  SUPPLIER_RETURNED: '退回补正',
-  SUPPLIER_DISABLED: '停用',
-  SUPPLIER_BLACKLIST: '拉黑',
-  SUPPLIER_UNBLACKLIST: '解除拉黑',
-  SUPPLIER_RESTORED: '恢复正常',
-  SUPPLIER_RESUBMITTED: '重新提交',
-  SUPPLIER_REACTIVATED: '重新激活',
-  SUPPLIER_CHANGE_APPROVED: '变更审批通过',
-  SUPPLIER_CHANGE_REJECTED: '变更驳回',
-  SUPPLIER_CONVERTED_REGULAR: '转正式供应商',
-  SUPPLIER_EVALUATION_CREATED: '履约评价',
-  SUPPLIER_TAGS_UPDATED: '业务标签更新',
-  SUPPLIER_TAGS_BACKFILL: '业务标签回填',
-};
+import { SUPPLIER_ACTION_LABELS, supplierActionLabel } from '@/lib/supplier-action-labels';
 
 const ACTION_TONE: Record<string, string> = {
   SUPPLIER_APPROVED: 'var(--success)',
@@ -175,7 +157,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
         if (all.length >= r.total || r.items.length === 0) break;
       }
       const filterBits = [
-        actionFilter ? ACTION_LABELS[actionFilter] ?? actionFilter : null,
+        actionFilter ? supplierActionLabel(actionFilter) : null,
         dateFrom ? `${dateFrom} 起` : null,
         dateTo ? `${dateTo} 止` : null,
         search ? `关键词：${search}` : null,
@@ -186,7 +168,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
         all.map(it => ({
           at: it.createdAt,
           operator: it.actorName,
-          action: ACTION_LABELS[it.action] || it.action,
+          action: supplierActionLabel(it.action),
           subject: it.resourceName || undefined,
           detail: detailText(it),
         })),
@@ -245,7 +227,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
             className="!h-7 !text-[11px] min-w-[130px]"
           >
             <option value="">全部</option>
-            {Object.entries(ACTION_LABELS).map(([key, label]) => (
+            {Object.entries(SUPPLIER_ACTION_LABELS).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
             ))}
           </NeuSelect>
@@ -337,7 +319,7 @@ function GroupRows({ day, list }: { day: string; list: SupplierAuditLogItem[] })
             <td className="text-center">
               <span className="rounded px-2 py-0.5 text-[10px] font-bold whitespace-nowrap"
                 style={{ color: tone, backgroundColor: `color-mix(in_oklch,${tone}_12%,transparent)` }}>
-                {ACTION_LABELS[it.action] || it.action}
+                {supplierActionLabel(it.action)}
               </span>
             </td>
             <td className="text-center text-sm">{it.resourceName || '—'}</td>

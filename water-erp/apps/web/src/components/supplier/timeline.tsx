@@ -14,13 +14,16 @@ type TypeConfig = { color: string; bg: string; icon: React.ComponentType<{ size?
 const typeConfig: Record<string, TypeConfig> = {
   // 注册
   register:      { color: 'var(--accent)',       bg: 'var(--accent)',       icon: UserPlus },
-  // 审核
+  // 审核（分级通过 2026-11-25 补录：初审/复审里程碑此前被后端标签表跳过）
   SUPPLIER_APPROVED:          { color: 'var(--success)', bg: 'var(--success)', icon: CheckCircle2 },
+  SUPPLIER_REVIEW_PASSED_STAFF:  { color: 'var(--accent)',  bg: 'var(--accent)',  icon: CheckCircle2 },
+  SUPPLIER_REVIEW_PASSED_LEADER: { color: 'var(--accent)',  bg: 'var(--accent)',  icon: CheckCircle2 },
   SUPPLIER_REJECTED:          { color: 'var(--danger)',  bg: 'var(--danger)',  icon: XCircle },
   SUPPLIER_RETURNED:          { color: 'var(--warning)', bg: 'var(--warning)', icon: RotateCcw },
   // 状态变更
   SUPPLIER_DISABLED:          { color: 'oklch(0.55 0.05 70)',  bg: 'oklch(0.55 0.05 70)',  icon: Ban },
   SUPPLIER_BLACKLIST:         { color: 'var(--danger)',        bg: 'var(--danger)',        icon: ShieldOff },
+  SUPPLIER_UNBLACKLIST:       { color: 'var(--success)',       bg: 'var(--success)',       icon: RefreshCw },
   SUPPLIER_RESTORED:          { color: 'var(--success)',       bg: 'var(--success)',       icon: RefreshCw },
   SUPPLIER_RESUBMITTED:       { color: 'var(--accent)',        bg: 'var(--accent)',        icon: Send },
   SUPPLIER_REACTIVATED:       { color: 'var(--success)',       bg: 'var(--success)',       icon: Activity },
@@ -29,9 +32,11 @@ const typeConfig: Record<string, TypeConfig> = {
   SUPPLIER_CHANGE_REJECTED:   { color: 'var(--danger)',  bg: 'var(--danger)',  icon: FileEdit },
   SUPPLIER_CONVERTED_REGULAR: { color: 'var(--success)', bg: 'var(--success)', icon: ArrowRightLeft },
   SUPPLIER_TAGS_UPDATED:     { color: 'var(--accent)',  bg: 'var(--accent)',  icon: FileEdit },
+  SUPPLIER_TAGS_BACKFILL:    { color: 'var(--accent)',  bg: 'var(--accent)',  icon: FileEdit },
   // 业务
   evaluation:      { color: 'var(--accent)', bg: 'var(--accent)', icon: Award },
   SUPPLIER_EVALUATION_CREATED: { color: 'var(--accent)', bg: 'var(--accent)', icon: Award },
+  SUPPLIER_EVALUATION_UPDATED: { color: 'var(--accent)', bg: 'var(--accent)', icon: Award },
   bid:             { color: 'oklch(0.5 0.12 220)', bg: 'oklch(0.5 0.12 220)', icon: Briefcase },
 };
 
