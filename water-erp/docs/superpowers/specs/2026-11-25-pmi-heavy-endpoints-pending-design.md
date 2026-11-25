@@ -84,14 +84,14 @@ run(ownerId, label, compute) →
 - **异常不浮出**：`compute` 的 Promise 由登记表接管，成功和失败都落进记录；`main.ts` 的 `unhandledRejection` 处理器不应被这些任务触发。
 - **容量**：`PM_PENDING_MAX_RUNNING`，默认 16 个在途任务；超出时新请求直接 503 `PM_SYSTEM_BUSY`（文案「系统繁忙，请稍后重试」）。已结束的记录保留 `PM_PENDING_TTL_MS`（默认 10 分钟）后清理；在途任务不清理。
 - **进程关闭**：在途任务随进程丢失。关闭时对每个在途任务打一条 WARN 应用日志（任务标签、已运行时长），便于事后核对。
-- **错误格式**：`error` 记为 `{ statusCode, code, error }`，与 `common/filters/http-exception.filter.ts` 对外格式一致；非 HTTP 异常按过滤器的口径转成 500 通用文案，不外泄内部信息。
+- **错误保存**：任务失败时保存原始异常对象，不自行转成响应体；非 HTTP 异常的对外文案由全局异常过滤器负责，不外泄内部信息。
 - **单进程假设**：登记表在内存里。生产只有一个 API 容器；`nest --watch` 重启或部署会丢失在途任务，由 4.6 的「处理被中断」文案兜住。日后多副本时要换 Redis，本次不做。
 
 **重取端点** `GET /project-management/pending-jobs/:jobId`
 
 - 继承控制器类级的 `@Roles('leader','admin','staff')`；只有 `ownerId` 等于当前登录人的请求能读，其他人一律 404 `PM_JOB_NOT_FOUND`（不区分「不存在」和「不是你的」）。
-- 长轮询：任务未结束时最多等 `PM_PENDING_POLL_WAIT_MS`（默认 10000）再返回，减少往返次数。
-- 返回 `200 { status: 'running' }`、`200 { status: 'done', result }` 或 `200 { status: 'failed', error }`。
+- **长轮询**：任务未结束时最多等 `PM_PENDING_POLL_WAIT_MS`（默认 10000）再返回，减少往返次数。
+- 任务未结束返回 `200 { status: 'running' }`，结束返回 `200 { status: 'done', result }`。任务失败时直接抛出保存的原始异常，由全局异常过滤器按今天的格式返回：状态码和错误体与同步时一致。（2026-11-25 写实施计划时修订，取代原定另存错误体、返回 `200 { status: 'failed', error }` 的写法。）
 - 该端点加入 `operation-log.filter.ts` 的 `DEFAULT_EXCLUDE_PATHS`（轮询不进操作日志）。全局限流是每人每分钟 120 次，长轮询下每个在途任务每分钟约 6 次，实施时核对是否需要对该端点免限流。
 
 ### 4.2 结果型路由：整个处理函数转后台（14 条）
@@ -157,7 +157,7 @@ analyzeProject(...) { return this.projectManagementService.analyzeProject(id, st
 
 新增 `lib/api/pm-pending.ts`，在 `parseJsonResponse`、两个 `api.upload` 调用处（`extract-initiation`、`extract-demand`）以及 `tender-file-editor-modal.tsx` 的两处直接调用处接入：
 
-- 收到 `202 { pending: true, jobId }` → 调重取端点，直到拿到 `done`（返回 `result`）或 `failed`（按 `error` 抛出与今天同格式的错误，保留 `code`，例如 `ARCHIVE_GATE_MISSING`）。
+- 收到 `202 { pending: true, jobId }` → 调重取端点，直到拿到 `done`（返回 `result`）。任务失败时重取请求返回错误状态码和标准错误体，按今天的通道抛出同格式的错误，保留 `code`，例如 `ARCHIVE_GATE_MISSING`。
 - 长轮询每次最长 10 秒，两次之间停 1 秒。
 - 总时长上限 20 分钟，超过抛「处理时间过长，后台仍在执行，请稍后刷新查看结果」（`PM_PENDING_TIMEOUT`）。
 - 收到 `404 PM_JOB_NOT_FOUND`（服务刚重启，在途任务丢失）抛「处理被中断，请重试」（`PM_JOB_LOST`）。**不自动重发原请求**：`PATCH stages` 这类写操作可能在中断前已经生效，自动重发会误报。
