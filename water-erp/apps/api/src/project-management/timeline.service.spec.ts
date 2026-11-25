@@ -82,13 +82,15 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     // 时间轴 ISO 输出必须恒等。此前 toIsoFromBare 按「DB 裸值=本地时刻」假设 −8h 补偿，
     // 与写侧本地构造口径双重折算：立项 2026-10-08 显示成 10-07 16:00（2026-10-09 实录）
     expect(nodes.find(n => n.key === 'initiation')!.time).toBe('2026-07-01T00:00:00.000Z');
-    // 字符串开标时间按本地语义解析（10:00 本地）——本地渲染往返恒为 10 点，跨时区 runner 皆成立
-    const openingLocal = new Date(nodes.find(n => n.key === 'bidOpening')!.time!);
-    expect(`${openingLocal.getFullYear()}-${openingLocal.getMonth() + 1}-${openingLocal.getDate()}`).toBe('2026-8-2');
-    expect(openingLocal.getHours()).toBe(10);
+    // 字符串开标时间恒按北京时间解析（parseFlexibleDate，不随宿主时区）——按北京时间读回恒为 10 点，跨时区 runner 皆成立。
+    // 别用本地取值方法（getFullYear/getHours…）读回：那是宿主时区，UTC runner 必漂 8 小时
+    const openingTime = new Date(nodes.find(n => n.key === 'bidOpening')!.time!);
+    const openingBj = new Date(openingTime.getTime() + 8 * 3600_000);
+    expect(`${openingBj.getUTCFullYear()}-${openingBj.getUTCMonth() + 1}-${openingBj.getUTCDate()}`).toBe('2026-8-2');
+    expect(openingBj.getUTCHours()).toBe(10);
     const deadlineNode = nodes.find(n => n.key === 'bidDeadline')!;
     expect(deadlineNode.source).toBe(`按开标时间推算（前${formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS)}）`);
-    expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingLocal.getTime() - BID_DEADLINE_BEFORE_OPENING_MS).getTime());
+    expect(new Date(deadlineNode.time!).getTime()).toBe(new Date(openingTime.getTime() - BID_DEADLINE_BEFORE_OPENING_MS).getTime());
     expect(nodes.filter(n => !n.time).map(n => n.key)).toEqual(['bidNoticePublish', 'expertExtraction', 'evaluationEnd', 'winNoticePublish', 'awardLetter', 'failedNoticePublish', 'contractSign', 'archived']);
   });
 
@@ -245,8 +247,9 @@ describe('TimelineService（B3 A-204，按轮分组）', () => {
     );
     const nodes = await nodesOf(prisma);
     expect(nodes.some(n => n.key === 'documentAcquire')).toBe(false);
-    const initiationLocal = new Date(nodes.find(n => n.key === 'initiation')!.time!);
-    expect(`${initiationLocal.getFullYear()}-${initiationLocal.getMonth() + 1}-${initiationLocal.getDate()}`).toBe('2026-3-18');
+    // 立项时刻原样透传（Prisma DateTime 为时刻锚定，ISO 输出恒等）——按时刻比；
+    // 别用本地取值方法读回日期：那是宿主时区，负时区 runner 会落到前一天
+    expect(nodes.find(n => n.key === 'initiation')!.time).toBe('2026-03-18T00:00:00.000Z');
   });
 
   it('流标后第二轮（2026-11-03 用户裁定）：第一轮时间轴完整保留，第二轮独立成轴；currentRound 指向第二轮', async () => {

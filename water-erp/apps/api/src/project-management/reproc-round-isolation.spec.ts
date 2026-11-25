@@ -85,10 +85,12 @@ describe('流标再采第二轮隔离', () => {
     // （String?，中文格式「2026年10月20日14:00」），快照列是 DateTime?——直赋字符串在
     // 真实 Prisma 必炸 PrismaClientValidationError（此前 mock prisma + Date 形状测不出）。
     // parseFlexibleDate 尽力解析。「文件获取时间」快照停写（2026-11-20 字段退役）。
+    // parseFlexibleDate 恒按北京时间解析（不随宿主时区）：「2026年10月20日14:00」= 06:00Z——
+    // 期望值同样显式写成北京时间瞬间，别用 new Date(y,m,d,h)（那是宿主本地时刻，UTC runner 必漂 8 小时）
     expect(prisma.__tx.bidProject.updateMany).toHaveBeenCalledWith({
       where: { projectManagementItemId: 'pmi-1', round: 1 },
       data: {
-        roundOpeningTime: new Date(2026, 9, 20, 14, 0),
+        roundOpeningTime: new Date(Date.UTC(2026, 9, 20, 14, 0) - 8 * 3600_000),
       },
     });
     // 清空：PMI 更新包含两字段置 null（信息不含旧值，仅供合并进 infoData 的确认字段）
