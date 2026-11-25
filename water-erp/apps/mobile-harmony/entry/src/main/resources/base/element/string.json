@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "蜀水云采移动驾驶舱鸿蒙壳应用" },
+    { "name": "EntryAbility_desc", "value": "蜀水云采·专属驾驶舱" },
+    { "name": "EntryAbility_label", "value": "蜀水云采·驾驶舱" }
+  ]
+}

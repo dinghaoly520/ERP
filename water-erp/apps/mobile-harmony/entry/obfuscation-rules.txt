@@ -1,0 +1,3 @@
+# release 混淆规则（当前关闭 enable:false；启用时在此声明保留项——
+# 壳应用业务在 Web 侧，ArkTS 侧仅 Web 控制器，默认无需额外保留规则）
+-enable-property-obfuscation
