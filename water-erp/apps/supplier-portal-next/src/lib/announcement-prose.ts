@@ -53,6 +53,10 @@ function splitLeadingTitle(html: string, title?: string | null): string {
   let head = '';
   if (title.replace(/\s+/g, '') && text.startsWith(title.replace(/\s+/g, ''))) {
     head = title;
+  } else if (/^[^，。；！？：、]{7,59}(?:公告|公示)$/.test(text)) {
+    // 整段独立标题（2026-11-25 流标公示实录：首段只含标题、无粘连正文）——
+    // 整段命中「X…公告/公示」形态（8~60 字、无句读）即整段拆为居中标题
+    head = text;
   } else {
     // 边界词含「公示」（2026-11-24 流标公示/中标公示实录——文书标题同样以公示收尾）
     const m2 = text.match(/^(.{7,59}?(?:公告|公示))([\s\S]+)$/);

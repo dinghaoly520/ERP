@@ -110,3 +110,9 @@ test("公示类标题拆分（2026-11-24 流标公示实录）：首段以「X�
   const out = normalizeAnnouncementContentHtml(html, "流标公告 — 便携式全液压岩心钻机（800型）采购");
   assert.ok(out.includes('<p class="ann-prose-title">便携式全液压岩心钻机（800型）采购流标公示</p>'), out);
 });
+
+test("整段独立标题拆分（2026-11-25 流标公示实录）：首段只含标题、无粘连正文——整段命中「X…公告/公示」形态即拆居中", () => {
+  const html = "<p><strong>便携式全液压岩心钻机（800型）采购流标公示</strong></p><p><strong>一、项目名称：便携式全液压岩心钻机（800型）采购</strong></p><p>四、流标原因</p>";
+  const out = normalizeAnnouncementContentHtml(html, "流标公告 — 便携式全液压岩心钻机（800型）采购");
+  assert.ok(out.includes('<p class="ann-prose-title">便携式全液压岩心钻机（800型）采购流标公示</p>'), out);
+});
