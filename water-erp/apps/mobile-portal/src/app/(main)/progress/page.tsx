@@ -10,6 +10,7 @@ import { useAuth } from "@/components/m/auth-context";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt } from "@/lib/ratios";
+import { compactYuan } from "@/lib/amount-format";
 import {
   fetchBidStageStatus,
   BID_BUCKET_LABELS,
@@ -32,10 +33,9 @@ import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 type StageMeta = { label: string; color: string; softColor: string };
 
+/** 金额缩位（2026-11-25 用户裁定「大数 ··· 优化」）：过亿转亿、过万转万（削尾零），与首页/台账同口径 */
 function fmtBudget(v: number): string {
-  return v >= 10000
-    ? `${(v / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 1 })} 万`
-    : `${v.toLocaleString("zh-CN")} 元`;
+  return compactYuan(v);
 }
 
 const STAGE_META: Record<string, StageMeta> = {
