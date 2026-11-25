@@ -9,15 +9,17 @@ function trimTrailingZeros(s: string): string {
   return s.includes(".") ? s.replace(/\.?0+$/, "") : s;
 }
 
-/** 后端万元标签（「12345.6 万」/「12345.6万」）→ 过亿缩位「1.23亿」；万级去空格并削尾零
- *  （「250.0 万」→「250万」）；非「N 万」形态（如「—」、百分比、元值）原样返回 */
+/** 后端万元标签（「12345.6 万」/「12345.6万」）→ 过亿缩位「1.23亿」；万级一律归一位小数
+ *  并削尾零（2026-11-25 用户裁定「千万级保留一位小数、与首页一致」——台账标签生产者
+ *  procurements.service formatWan 是两位小数「2792.14万」，首页 dashboard.service 是一位
+ *  「2792.1万」，两轨在此归一）；非「N 万」形态（如「—」、百分比、元值）原样返回 */
 export function compactWanLabel(label: string): string {
   const m = /^\s*([\d,]+(?:\.\d+)?)\s*万\s*$/.exec(label ?? "");
   if (!m) return label;
   const wan = Number(m[1].replace(/,/g, ""));
   if (!Number.isFinite(wan)) return label;
   if (wan >= 10000) return `${trimTrailingZeros((wan / 10000).toFixed(2))}亿`;
-  return `${trimTrailingZeros(m[1])}万`;
+  return `${trimTrailingZeros(wan.toFixed(1))}万`;
 }
 
 /** 元数值 → 紧凑可读：≥1亿转亿（两位小数削零）、≥1万转万（一位削零）、其余元 */
