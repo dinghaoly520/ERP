@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Inject, Logger } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
-import { Prisma, ExpertLevel } from '@prisma/client';
+import { Prisma, ExpertLevel, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildSubjectCode, BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { encryptPasswordVault } from '../auth/password-vault.util';
@@ -3878,17 +3878,25 @@ export class SupplierService {
     return { total, pending, approved, disabled, blacklist, returned, temporaryApproved };
   }
 
-  /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径，与列表同筛选；台账/专家库 company-counts 同款） */
+  /** 按公司分组的库内计数（admin 公司选择器副标口径，2026-11-25 修正对不上实录）：
+   *  ①归属 = APPROVED link → 公司（与库可见性 supplierCompanyWhere 同源）——原按
+   *    Supplier.companyName 文本快照分组，与页面 scoping 是两套归属，改名/手改即漂移；
+   *  ②状态默认 = 库内四态（在库含临时/停用/黑名单，同 stats.total 2026-10-16 裁定）——
+   *    原不过滤状态，把 PENDING/RETURNED/REJECTED 审批流转件也计入（选择器 510 vs
+   *    页面 KPI 498/列表 497 的差值正是这批）；显式 status 参数仍可覆盖。 */
   async companyCounts(params: { status?: string; search?: string; enterpriseTypes?: string[]; isTemporary?: boolean }, actor?: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(actor);
-    const where: any = { ...supplierCompanyWhere(scope) };
+    const companyIds = scopeCompanyIds(scope);
+    const where: Prisma.SupplierWhereInput = {};
     if (params.status) {
       if (params.status.startsWith('exclude:')) {
-        const excl = params.status.slice('exclude:'.length).split(',').filter(Boolean);
+        const excl = params.status.slice('exclude:'.length).split(',').filter(Boolean) as Array<keyof typeof SupplierStatus>;
         where.status = excl.length === 1 ? { not: excl[0] } : { notIn: excl };
       } else {
-        where.status = params.status;
+        where.status = params.status as keyof typeof SupplierStatus;
       }
+    } else {
+      where.status = { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] };
     }
     if (params.enterpriseTypes?.length) where.enterpriseType = { in: params.enterpriseTypes };
     if (params.isTemporary === true) where.isTemporary = true;
@@ -3900,9 +3908,23 @@ export class SupplierService {
         { tags: { hasSome: [params.search] } },
       ];
     }
-    const groups = await this.prisma.supplier.groupBy({ by: ['companyName'], where, _count: { _all: true } });
-    return groups
-      .map(g => ({ name: g.companyName?.trim() || '未归属', count: g._count._all }))
+    // 按 APPROVED link 聚到公司行（多归属供应商在各自公司各计一次——与按公司筛选
+    // 列表时的可见性一致）；库内行数 ~500，内存 tally 开销可忽略（词表同款先例）
+    const links = await this.prisma.supplierCompanyLink.findMany({
+      where: {
+        status: 'APPROVED',
+        ...(companyIds !== null ? { companyId: { in: companyIds } } : {}),
+        supplier: where,
+      },
+      select: { company: { select: { name: true } } },
+    });
+    const tally = new Map<string, number>();
+    for (const l of links) {
+      const name = l.company?.name?.trim() || '未归属';
+      tally.set(name, (tally.get(name) ?? 0) + 1);
+    }
+    return [...tally.entries()]
+      .map(([name, count]) => ({ name, count }))
       .sort((a, b) => (a.name === '未归属' ? 1 : b.name === '未归属' ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh')));
   }
 
