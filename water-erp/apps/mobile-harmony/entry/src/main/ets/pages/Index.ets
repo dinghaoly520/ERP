@@ -14,7 +14,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
  *         已在 :3011 copy-to-clipboard 内建 execCommand 降级，可用）；
  *  生产 = 域名 https://mobile-ssyc.scsfjt.com（上架 AppGallery 必须 https——
  *         生产 cookie 恒 Secure，http 载入会丢登录态） */
-const APP_URL: string = 'http://192.168.1.108:3011';
+const APP_URL: string = 'http://192.168.1.104:3011';
 
 const TAG: string = 'SsycCockpit';
 
