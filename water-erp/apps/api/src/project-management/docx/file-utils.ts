@@ -123,12 +123,23 @@ import { basename, extname, join, resolve } from 'node:path';
     return `${stageKey}:${fileSignature}`;
   }
 
+  /**
+   * 落盘用的文件名：主体只留字母数字/中文/下划线/连字符，扩展名只取开头连续的 1–8 位字母数字。
+   *
+   * 扩展名必须收口（2026-11-25 审查）：落盘文件名会拼进对象键
+   * （project-management/<时间戳>-<前缀>-<落盘文件名>），而「引用采购文件」的源键闸只认
+   * `[A-Za-z0-9一-龥/_\-.%]`。此前扩展名是原样拼的，这个不变式只是靠上传入口先过了
+   * 扩展名白名单才碰巧成立——「用文本替换附件」这条无白名单的入口能造出
+   * `…采购文件.docx（终版）` 这样的键，之后被引用时会静默过不了闸（公告发出、没有招标文件）。
+   */
   export function sanitizeFileName(fileName: string) {
     const normalizedFileName = normalizeUploadedFileName(fileName);
     const base = basename(normalizedFileName, extname(normalizedFileName));
-    const extension = extname(normalizedFileName) || '.bin';
+    // 取扩展名开头的 1–8 位字母数字：`.docx（终版）`、`.docx `、`.doc(1)` 都回到真实扩展名；
+    // 连续字母数字超过 8 位的不算扩展名、一点字母数字都没有的也不算，一律落 .bin
+    const extension = extname(normalizedFileName).match(/^\.([A-Za-z0-9]{1,8})(?![A-Za-z0-9])/);
     const safeBase = base.replace(/[^a-zA-Z0-9一-龥_-]+/g, '-');
-    return `${safeBase}${extension}`;
+    return `${safeBase}${extension ? `.${extension[1]}` : '.bin'}`;
   }
 
   export function normalizeUploadedFileName(fileName: string) {

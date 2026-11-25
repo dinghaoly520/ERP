@@ -29,6 +29,7 @@ import { ProjectChangeService } from './change.service';
 import { SelectOfficialTenderDto } from './dto/select-official-tender.dto';
 import { UpdateProjectStageDto } from './dto/update-project-stage.dto';
 import { CreateTenderDraftVersionDto, SaveTenderDraftDto } from './dto/tender-draft.dto';
+import { ReplaceAttachmentTextDto } from './dto/replace-attachment-text.dto';
 import { TimelineService } from './timeline.service';
 import { TenderDraftService } from './tender-draft.service';
 import { ProjectManagementService } from './project-management.service';
@@ -554,7 +555,7 @@ export class ProjectManagementController {
   @Post(':id/replace-attachment-text')
   replaceAttachmentText(
     @Param('id') projectId: string,
-    @Body() dto: { attachmentId: string; text: string; fileName: string },
+    @Body() dto: ReplaceAttachmentTextDto,
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     return this.projectManagementService.replaceAttachmentWithText(
