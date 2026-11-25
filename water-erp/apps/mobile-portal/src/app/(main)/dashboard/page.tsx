@@ -1188,8 +1188,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   <div className="space-y-1.5">
                     {shown.map((x, i) => (
                       <div key={x.companyId || x.company} className="flex items-center gap-2">
-                        {/* 单位名列 9rem / 数值列 4.5rem（2026-11-23 用户裁定加宽，长公司名与「15699.5万」不挤） */}
-                        <span className="w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.company}</span>
+                        {/* 单位名列 9rem / 数值列 4.5rem（2026-11-23 用户裁定加宽，长公司名与「15699.5万」不挤）；
+                            折叠态外屏等 ≤419px 窄屏收窄到 7.5rem 保比例条可用宽度 */}
+                        <span className="w-[7.5rem] min-[420px]:w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.company}</span>
                         <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                           <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(rowColor(i)) }} />
                         </span>
@@ -1645,6 +1646,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               const deptRows = data?.departmentSavingsRanking ?? [];
               return (
                 <>
+            {/* 公司/部门双榜同形——折叠屏展开态并排瓷面（单公司仅部门榜时保持全宽；
+                items-start 防短榜被拉伸出大块空瓷面） */}
+            <div className={singleCo ? undefined : "sm:grid sm:grid-cols-2 sm:items-start sm:gap-3"}>
             {/* ── 公司排行（按节资额降序；仅全部/多选公司时展示）── */}
             {!singleCo ? (
               <AnalysisZone icon={Scale} title="公司排行" count={`Top ${Math.min(companyRows.length, 10)}`} color="var(--accent)">
@@ -1693,6 +1697,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 <EmptyState text="暂无节资数据" />
               )}
             </AnalysisZone>
+            </div>
 
             {/* ── 节资率项目排行 Top 10（部门处标公司名——多公司时；单公司不重复标）── */}
             <AnalysisZone icon={Trophy} title="节资率项目排行" count={`Top ${Math.min(savingsTop.length, 10)}`} color="var(--gold)">
@@ -2328,7 +2333,8 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       >
         {activeTrend ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+            {/* 折叠屏展开态：四格并排一行（2026-11-25 自适应裁定） */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MetricCard label="采购" value={`${activeTrend.count} 项`} tone="accent" />
               <MetricCard label="成交额" value={`${activeTrend.amount.toFixed(1)} 万`} tone="success" />
               {/* 预算=当月项目预算合计；节资率=成交且预算≥成交的节资/预算（2026-11-19 增补裁定） */}
@@ -2496,7 +2502,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
       <BottomSheet open={!!activeSaving} onClose={() => setActiveSaving(null)} title={<span className="line-clamp-2">{activeSaving?.project ?? ""}</span>}>
         {activeSaving ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MetricCard label="控制价" value={activeSaving.controlAmountLabel} />
               <MetricCard label="中标价" value={activeSaving.awardAmountLabel} tone="accent" />
               <MetricCard label="节资额" value={activeSaving.savingsLabel} tone="success" />
@@ -2598,7 +2604,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   if (panel) {
     return (
       <div>
-        <div className="mb-3 flex items-center justify-end gap-2">
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
           {scopeSelectors}
           {panel === "risk" ? (
             <InlineSelect
@@ -2619,7 +2625,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               onChange={(e) => setExpertSearch(e.target.value)}
               placeholder="搜索专家姓名/专业/单位"
               aria-label="搜索专家"
-              className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+              className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
             />
             {expertSearch ? (
               <button type="button" onClick={() => setExpertSearch("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">清除</button>
@@ -2634,7 +2640,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               onChange={(e) => setSupplierSearch(e.target.value)}
               placeholder="搜索供应商名称/信用代码"
               aria-label="搜索供应商名称"
-              className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+              className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
             />
             {supplierSearch ? (
               <button type="button" onClick={() => setSupplierSearch("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">
@@ -2729,9 +2735,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               </div>
             );
             return (
-              <div className="space-y-3">
+              /* 折叠屏展开态：盘点/金额两组并排（组内仍四列，卡片保持手机同尺寸密度） */
+              <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-x-4 sm:space-y-0">
                 {group(`项目盘点 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(0, 4))}
-                <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
+                <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)] sm:hidden" aria-hidden />
                 {group(`金额 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(4))}
               </div>
             );

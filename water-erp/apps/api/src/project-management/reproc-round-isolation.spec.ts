@@ -46,6 +46,8 @@ describe('流标再采第二轮隔离', () => {
       projectManagementItem: { update: jest.fn().mockResolvedValue({ id: 'pmi-1' }) },
     };
     return {
+      // 分析缓存共享层（2026-11-25）：默认 DB 无缓存
+      systemConfig: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn(), delete: jest.fn() },
       projectManagementItem: {
         findUnique: jest.fn().mockResolvedValue({
           id: 'pmi-1',
@@ -192,6 +194,7 @@ describe('流标再采第二轮隔离', () => {
   const mkGatePrisma = (opts: { round2Experts: number }) => {
     const bpByRound: Record<number, { id: string }> = { 1: { id: 'bp-r1' }, 2: { id: 'bp-r2' } };
     return {
+      systemConfig: { findUnique: jest.fn().mockResolvedValue(null), upsert: jest.fn(), delete: jest.fn() },
       projectManagementStage: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'st-exp', stageKey: 'EXPERT_SELECTION', stageOrder: 6, round: 2,

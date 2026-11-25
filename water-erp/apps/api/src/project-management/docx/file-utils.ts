@@ -89,6 +89,22 @@ import { basename, extname, join, resolve } from 'node:path';
     );
   }
 
+  /* ── 分析缓存共享键（2026-11-25 跨账号/跨设备一致性裁定）────────────────────
+   * 缓存权威从 API 本地文件迁到 SystemConfig 键值表（DB 共享——多机/多实例/多账号
+   * 同读同写一份）；键含轮次——旧文件缓存无轮次维度，多轮项目同 stageKey 两轮行
+   * 互踩、指纹永不稳定、每次打开都重生成。上方 *CachePath 仅作 round-1 存量回落读。 */
+  export function pmStageAnalysisCacheKey(projectId: string, stageKey: string, round?: number | null): string {
+    return `pm-stage-analysis:${projectId}:${stageKey.toLowerCase()}:r${round ?? 1}`;
+  }
+
+  export function pmStepAnalysisCacheKey(projectId: string, stageKey: string, round?: number | null): string {
+    return `pm-step-analysis:${projectId}:${stageKey.toLowerCase()}:r${round ?? 1}`;
+  }
+
+  export function pmSummaryCacheKey(projectId: string): string {
+    return `pm-summary:${projectId}`;
+  }
+
   export function buildStageAnalysisFingerprint(
     stageKey: string,
     attachments: Array<{

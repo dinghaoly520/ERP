@@ -1,0 +1,10 @@
+{
+  "name": "ssyc-cockpit-harmony",
+  "version": "1.0.0",
+  "description": "蜀水云采·移动驾驶舱鸿蒙壳应用（ArkWeb 网页转 App，载入 :3011）",
+  "main": "",
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {},
+  "devDependencies": {}
+}

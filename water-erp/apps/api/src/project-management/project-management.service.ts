@@ -15,7 +15,7 @@ import type { AuthenticatedUser } from '../auth/auth.types';
 import * as mammoth from 'mammoth';
 import { convertDocxToHtml as convertDocxToHtmlPatched } from './docx/docx-to-html.converter';
 import { htmlToDocxChildren } from './docx/html-to-docx.converter';
-import { getTenderTextCachePath, isLabelLine, isTenderMainFile, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff } from './docx/file-utils';
+import { getTenderTextCachePath, isLabelLine, isTenderMainFile, normalizeStageMatchText, getUploadDir, getProjectSummaryCachePath, getStageAnalysisCachePath, getStepAnalysisCachePath, buildStageAnalysisFingerprint, sanitizeFileName, normalizeUploadedFileName, summarizeHtmlDiff, pmStageAnalysisCacheKey, pmStepAnalysisCacheKey, pmSummaryCacheKey } from './docx/file-utils';
 import { parseArchiveTxt } from './docx/archive-txt-parser';
 import { decodeXmlText, extractPlainText, applyTextToParagraphXml } from './docx/paragraph-xml';
 import { extractBiddingUnitsFromText, extractAwardedSupplierFromText, extractContractAmountFromText, extractAwardedSupplierFromAwardTable, extractAwardedSupplierFromContract, extractContractNumberFromText, extractExpertInfoFromText, extractProjectOverviewFromText, capOverviewLength } from './docx/field-extractor';
@@ -233,6 +233,131 @@ function formatNoteTimestamp(d: Date): string {
 @Injectable()
 export class ProjectManagementService {
   private readonly logger = new Logger(ProjectManagementService.name);
+
+  /* ── 分析缓存共享层（2026-11-25 跨账号/跨设备一致性裁定）──────────────────────
+   * 文件分析/步骤分析/项目简报的缓存权威从 API 本地文件（uploads/project-management/*.json）
+   * 迁到 SystemConfig 键值表：DB 全局共享——任何账号、任何设备、任何 API 实例读写的都是
+   * 同一份，生成一次即全员可见（用户裁定「以原账号生成的内容为准并进入缓存」）。
+   * 读链 = DB → 旧本地文件回落（仅 round-1 存量，读中懒迁移上云）→ null；
+   * 写链 = 仅 DB（本地文件层退役为只读存量，不再新写）。 */
+  private async readPmiCacheJson<T>(key: string, legacyPath?: string): Promise<T | null> {
+    try {
+      const row = await this.prisma.systemConfig.findUnique({ where: { key } });
+      if (row) {
+        try {
+          return JSON.parse(row.value) as T;
+        } catch {
+          this.logger.warn(`[pmi-cache] DB 缓存载荷损坏，按未命中处理 ${key}`);
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`[pmi-cache] 读 DB 缓存失败 ${key}: ${(e as Error).message}`);
+    }
+    if (legacyPath) {
+      try {
+        const parsed = JSON.parse(await readFile(legacyPath, 'utf8')) as T;
+        // 懒迁移：旧文件命中即回写 DB，后续读全走共享层
+        void this.writePmiCacheJson(key, parsed);
+        return parsed;
+      } catch {
+        // 无旧缓存
+      }
+    }
+    return null;
+  }
+
+  private async writePmiCacheJson(key: string, payload: unknown): Promise<void> {
+    const value = JSON.stringify(payload);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.prisma.systemConfig.upsert({
+          where: { key },
+          create: { key, value },
+          update: { value },
+        });
+        return;
+      } catch (e) {
+        // 首败重试一次：并发 upsert 撞唯一键（P2002）是瞬时态，重跑即走 update 分支
+        if (attempt === 0) continue;
+        // 写失败不 500：本次响应照常返回生成内容，只是下次会再生成一次
+        this.logger.warn(`[pmi-cache] 写 DB 缓存失败 ${key}: ${(e as Error).message}`);
+        return;
+      }
+    }
+  }
+
+  private async deletePmiCache(key: string, legacyPath?: string): Promise<void> {
+    try {
+      await this.prisma.systemConfig.delete({ where: { key } });
+    } catch {
+      // 行不存在（P2025）视为已删
+    }
+    if (legacyPath) {
+      try {
+        await unlink(legacyPath);
+      } catch {
+        // 旧文件不存在
+      }
+    }
+  }
+
+  /** 生成去重（single-flight）：并发同键请求共享同一次生成——详情页预热/用户点击/他账号
+   *  同时打开不再各跑一份 LLM 各拿一份内容；完成即逐出（后续走缓存命中），失败也逐出。 */
+  private readonly pmiCacheFlights = new Map<string, Promise<unknown>>();
+  private async singleFlight<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const existing = this.pmiCacheFlights.get(key) as Promise<T> | undefined;
+    if (existing) return existing;
+    const p = (async () => fn())();
+    this.pmiCacheFlights.set(key, p);
+    try {
+      return await p;
+    } finally {
+      if (this.pmiCacheFlights.get(key) === p) this.pmiCacheFlights.delete(key);
+    }
+  }
+
+  /* ── 指纹缓存写入收敛（2026-11-25 稳健轮）──────────────────────────────────
+   * create 抢占替代直接 upsert：跨实例（双机各跑一API）/绕过 single-flight 的并发
+   * （显式刷新 vs 常规读）同键同指纹生成时，先写入者的内容为全局准——后到者采用既有
+   * 内容返回（响应也收敛到同一份），不再各写各的各返各的。指纹不同（生成期间数据已
+   * 变）则覆盖为新内容，后续读按指纹自然校正。 */
+  private async claimStageFilesCache<F>(
+    key: string,
+    fingerprint: string,
+    payload: { fingerprint: string; files: F[] },
+  ): Promise<{ fingerprint: string; files: F[] } | null> {
+    try {
+      await this.prisma.systemConfig.create({ data: { key, value: JSON.stringify(payload) } });
+      return null; // 抢占成功：本次内容即全局权威
+    } catch {
+      // 键已存在（并发抢占失败）或 DB 故障——读既有行判定
+    }
+    const existing = await this.readPmiCacheJson<{ fingerprint?: string; files?: F[] }>(key);
+    if (existing?.fingerprint === fingerprint && Array.isArray(existing.files)) {
+      return { fingerprint, files: existing.files }; // 同指纹：采用先写入者
+    }
+    await this.writePmiCacheJson(key, payload);
+    return null;
+  }
+
+  private async claimStepContentCache(
+    key: string,
+    fingerprint: string,
+    content: string,
+  ): Promise<string | null> {
+    try {
+      await this.prisma.systemConfig.create({ data: { key, value: JSON.stringify({ fingerprint, content }) } });
+      return null;
+    } catch {
+      // 同上：读既有行判定
+    }
+    const existing = await this.readPmiCacheJson<{ fingerprint?: string; content?: string }>(key);
+    if (existing?.fingerprint === fingerprint && typeof existing.content === 'string' && existing.content) {
+      return existing.content;
+    }
+    await this.writePmiCacheJson(key, { fingerprint, content });
+    return null;
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -4843,14 +4968,22 @@ ${JSON.stringify(algorithmResult, null, 2)}
     });
   }
 
-  /** 读取某阶段上传文件的内容上下文：优先 AI 分析缓存，回退附件原文（带截断保护）。 */
+  /** 读取某阶段上传文件的内容上下文：优先 AI 分析缓存（共享层，按最新轮取），回退附件原文（带截断保护）。 */
   private async getStageFileContext(itemId: string, stageKey: string): Promise<string> {
     try {
-      const cachePath = getStageAnalysisCachePath(itemId, stageKey);
-      const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
+      const stageRow = await this.prisma.projectManagementStage.findFirst({
+        where: { projectManagementItemId: itemId, stageKey },
+        orderBy: { round: 'desc' },
+        select: { round: true },
+      });
+      const round = stageRow?.round ?? 1;
+      const cached = await this.readPmiCacheJson<{
         files?: Array<{ fileName?: string; contentSummary?: string }>;
-      };
-      if (Array.isArray(cached.files) && cached.files.length > 0) {
+      }>(
+        pmStageAnalysisCacheKey(itemId, stageKey, round),
+        round <= 1 ? getStageAnalysisCachePath(itemId, stageKey) : undefined,
+      );
+      if (cached && Array.isArray(cached.files) && cached.files.length > 0) {
         const parts = cached.files
           .map((f) => `【${f.fileName || '文件'}】${(f.contentSummary || '').trim()}`)
           .filter((p) => p.replace(/【.*?】/, '').trim().length > 0);
@@ -4911,28 +5044,27 @@ ${JSON.stringify(algorithmResult, null, 2)}
       await mkdir(nasProjectDir, { recursive: true });
     }
 
-    // Load file analysis cache and project summary
-    const summaryCachePath = getProjectSummaryCachePath(project.id);
+    // Load file analysis cache and project summary（共享层读取，2026-11-25）
     let summary = '';
-    try {
-      const cachedSummary = JSON.parse(await readFile(summaryCachePath, 'utf8')) as { summary?: string };
-      summary = cachedSummary.summary || '';
-    } catch {
-      // No summary available
+    {
+      const cachedSummary = await this.readPmiCacheJson<{ summary?: string }>(
+        pmSummaryCacheKey(project.id),
+        getProjectSummaryCachePath(project.id),
+      );
+      summary = cachedSummary?.summary || '';
     }
 
     const stageAnalysisMap = new Map<string, Array<{ fileName: string; contentSummary: string }>>();
     for (const stage of stages) {
-      const cachePath = getStageAnalysisCachePath(project.id, stage.stageKey);
-      try {
-        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
-          files?: Array<{ fileName: string; contentSummary: string }>;
-        };
-        if (Array.isArray(cached.files)) {
-          stageAnalysisMap.set(stage.stageKey, cached.files);
-        }
-      } catch {
-        // No cache
+      const round = stage.round ?? 1;
+      const cached = await this.readPmiCacheJson<{
+        files?: Array<{ fileName: string; contentSummary: string }>;
+      }>(
+        pmStageAnalysisCacheKey(project.id, stage.stageKey, round),
+        round <= 1 ? getStageAnalysisCachePath(project.id, stage.stageKey) : undefined,
+      );
+      if (cached && Array.isArray(cached.files)) {
+        stageAnalysisMap.set(stage.stageKey, cached.files);
       }
     }
 
@@ -5106,7 +5238,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       throw new NotFoundException('未找到对应项目。');
     }
 
-    const summaryCachePath = getProjectSummaryCachePath(projectId);
+    const summaryCacheKey = pmSummaryCacheKey(projectId);
 
     // Collect all attachments
     const allAttachments = project.stages.flatMap((stage) =>
@@ -5118,114 +5250,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     if (allAttachments.length === 0) {
       const emptySummary = '当前项目尚未上传可供分析的材料，暂无法生成项目简报。';
-      await mkdir(getUploadDir(), { recursive: true });
-      await writeFile(
-        summaryCachePath,
-        JSON.stringify({ summary: emptySummary }, null, 2),
-        'utf8',
-      );
+      await this.writePmiCacheJson(summaryCacheKey, { summary: emptySummary });
       return;
     }
 
     // Read existing file analysis results from cache, or generate if not cached
+    // （2026-11-25 收敛为与 analyzeProject 同一增量助手：指纹未变的文件按 objectKey
+    //  复用共享缓存，不再整阶段重生成——刷新简报只刷新简报本身）
     const fileAnalysisResults: Array<{ fileName: string; stageKey: string; contentSummary: string }> = [];
     let anyDegraded = false;
     for (const stage of project.stages) {
       if (stage.attachments.length === 0) continue;
 
-      const stageAnalysisCachePath = getStageAnalysisCachePath(projectId, stage.stageKey);
-      const fingerprint = buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
-
-      let cachedFiles: Array<{
-        objectKey: string;
-        fileName: string;
-        stageMatch: string;
-        contentSummary: string;
-      }> | null = null;
-
-      // Try to read from cache
-      try {
-        const cached = JSON.parse(await readFile(stageAnalysisCachePath, 'utf8')) as {
-          fingerprint?: string;
-          files?: Array<{
-            objectKey: string;
-            fileName: string;
-            stageMatch: string;
-            contentSummary: string;
-          }>;
-        };
-        if (
-          cached.fingerprint === fingerprint &&
-          Array.isArray(cached.files) &&
-          // 占位条目（历史投毒/降级批次产物）视为缓存未命中——重新生成（2026-11-23 缓存投毒修复）
-          cached.files.every((f) => !isDegradedFileAnalysis(f))
-        ) {
-          cachedFiles = cached.files;
-        }
-      } catch {
-        // Cache doesn't exist or is invalid
-      }
-
-      // Generate analysis if no valid cache
-      if (!cachedFiles) {
-        const filesWithText = await Promise.all(
-          stage.attachments.map(async (attachment) => {
-            const extractedText = await this.attachmentExtractedText(attachment);
-            return {
-              objectKey: attachment.objectKey,
-              fileName: attachment.fileName,
-              mimeType: attachment.mimeType,
-              fileSize: attachment.fileSize,
-              createdAt: attachment.createdAt?.toISOString() ?? null,
-              extractedText,
-            };
-          }),
-        );
-
-        if (filesWithText.length > 0) {
-          const analysis = await this.aiService.analyzeProjectDetail({
-            project: {
-              id: project.id,
-              title: project.title,
-              requesterName: project.requesterName,
-              requesterDepartment: project.requesterDepartment,
-              procurementMethod: project.procurementMethod,
-              procurementCategory: project.procurementCategory,
-              currentStage: project.currentStage,
-              projectReason: project.projectReason,
-              supplierRequirements: project.supplierRequirements,
-            },
-            currentStage: {
-              stageKey: stage.stageKey,
-              stageName: stage.stageName,
-              status: stage.status,
-            },
-            files: filesWithText,
-          });
-
-          if (analysis.degraded) anyDegraded = true;
-          cachedFiles = analysis.fileAnalyses.map((file) => ({
-            objectKey: file.objectKey,
-            fileName: file.fileName,
-            stageMatch: normalizeStageMatchText(file.stageMatch),
-            contentSummary: file.contentSummary,
-          }));
-
-          // Cache the stage analysis——degraded 占位不落盘（落了会被 fingerprint 固化，
-          // 预热按 objectKey 判「已覆盖」后永不重试——2026-11-23 缓存投毒修复）
-          if (!analysis.degraded) {
-            await mkdir(getUploadDir(), { recursive: true });
-            await writeFile(
-              stageAnalysisCachePath,
-              JSON.stringify({ fingerprint, files: cachedFiles }, null, 2),
-              'utf8',
-            );
-          }
-        }
-      }
-
-      if (cachedFiles) {
-        for (const file of cachedFiles) {
+      const result = await this.singleFlight(
+        `stage:${pmStageAnalysisCacheKey(projectId, stage.stageKey, stage.round)}`,
+        () => this.analyzeStageFilesCached(project, stage, false),
+      );
+      if (result.degraded) anyDegraded = true;
+      if (result.files) {
+        for (const file of result.files) {
           fileAnalysisResults.push({
             fileName: file.fileName,
             stageKey: stage.stageKey,
@@ -5272,12 +5315,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return { summary: '项目简报生成中，请稍后点击刷新。' };
     }
 
-    await mkdir(getUploadDir(), { recursive: true });
-    await writeFile(
-      summaryCachePath,
-      JSON.stringify({ summary }, null, 2),
-      'utf8',
-    );
+    await this.writePmiCacheJson(summaryCacheKey, { summary });
 
     return { summary };
   }
@@ -5304,6 +5342,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
   };
 
   async analyzeStep(projectId: string, stageKey: string, forceRefresh = false, round?: number): Promise<{ content: string; empty: boolean }> {
+    // single-flight（2026-11-25 跨账号一致性）：并发同项目同阶段同轮的分析（详情页预热/
+    // 点击/他账号打开）共享同一次生成，全员同内容；forceRefresh 为显式刷新，直跑不并轨。
+    // 轮次先解析成实际值再定键——预热不传 round 与点击显式传 round 落同一班机。
+    let effRound = round ?? 1;
+    if (round == null) {
+      try {
+        const r = await this.prisma.projectManagementStage.findFirst({
+          where: { projectManagementItemId: projectId, stageKey },
+          orderBy: { round: 'desc' },
+          select: { round: true },
+        });
+        effRound = r?.round ?? 1;
+      } catch {
+        // 解析失败按第 1 轮（与 analyzeStepInner 缺省口径一致）
+      }
+    }
+    return forceRefresh
+      ? this.analyzeStepInner(projectId, stageKey, true, effRound)
+      : this.singleFlight(
+        `step:${pmStepAnalysisCacheKey(projectId, stageKey, effRound)}`,
+        () => this.analyzeStepInner(projectId, stageKey, false, effRound),
+      );
+  }
+
+  private async analyzeStepInner(projectId: string, stageKey: string, forceRefresh: boolean, round?: number): Promise<{ content: string; empty: boolean }> {
     const meta = ProjectManagementService.STAGE_ANALYSIS_META[stageKey];
     if (!meta) {
       throw new BadRequestException('未知的项目阶段。');
@@ -5496,19 +5559,22 @@ ${JSON.stringify(algorithmResult, null, 2)}
       if (project.budgetAmount && stageKey !== 'PROCUREMENT_DEMAND') parts.push(`预算金额：${Number(project.budgetAmount).toLocaleString('zh-CN')} 元`);
     }
 
-    /* ── 阶段材料内容摘要（审批充分性的证据面）：读文件分析缓存（上传时自动生成）；
-       未分析/缺缓存时降级为文件名并显式标注——绝不臆造文件内容 ── */
+    /* ── 阶段材料内容摘要（审批充分性的证据面）：读文件分析缓存（上传时自动生成，
+       共享层按轮取——多轮项目两轮各自一份）；未分析/缺缓存时降级为文件名并显式标注
+       ——绝不臆造文件内容 ── */
     const summaryByKey = new Map<string, { contentSummary?: string }>();
-    try {
-      const fileCache = JSON.parse(await readFile(getStageAnalysisCachePath(projectId, stageKey), 'utf8')) as {
+    {
+      const fileRound = stageRow.round ?? 1;
+      const fileCache = await this.readPmiCacheJson<{
         files?: Array<{ objectKey?: string; fileName?: string; contentSummary?: string }>;
-      };
-      for (const f of fileCache.files ?? []) {
+      }>(
+        pmStageAnalysisCacheKey(projectId, stageKey, fileRound),
+        fileRound <= 1 ? getStageAnalysisCachePath(projectId, stageKey) : undefined,
+      );
+      for (const f of fileCache?.files ?? []) {
         const key = f.objectKey ?? f.fileName;
         if (key) summaryByKey.set(key, f);
       }
-    } catch {
-      // 文件分析缓存不存在 → 走文件名降级
     }
     const filesBlock = attachments.length > 0
       ? attachments.map((a) => {
@@ -5541,16 +5607,13 @@ ${JSON.stringify(algorithmResult, null, 2)}
       .digest('hex')
       .slice(0, 16);
 
-    // 读缓存
-    const cachePath = getStepAnalysisCachePath(projectId, stageKey);
+    // 读缓存（共享层，键含轮次；round-1 读旧本地文件回落）
+    const stepCacheKey = pmStepAnalysisCacheKey(projectId, stageKey, stageRow.round ?? 1);
+    const stepLegacyPath = (stageRow.round ?? 1) <= 1 ? getStepAnalysisCachePath(projectId, stageKey) : undefined;
     if (!forceRefresh) {
-      try {
-        const cached = JSON.parse(await readFile(cachePath, 'utf8')) as { fingerprint?: string; content?: string };
-        if (cached.fingerprint === fingerprint && cached.content) {
-          return { content: cached.content, empty: false };
-        }
-      } catch {
-        // 缓存不存在，继续生成
+      const cached = await this.readPmiCacheJson<{ fingerprint?: string; content?: string }>(stepCacheKey, stepLegacyPath);
+      if (cached?.fingerprint === fingerprint && cached.content) {
+        return { content: cached.content, empty: false };
       }
     }
 
@@ -5610,9 +5673,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
       .replace(/(?:^|\n)\s*[、，,;；]\s*/g, (m) => (m.startsWith('\n') ? '\n' : ''))
       .trim();
 
-    // 写缓存
-    await mkdir(getUploadDir(), { recursive: true });
-    await writeFile(cachePath, JSON.stringify({ fingerprint, content }, null, 2), 'utf8');
+    // 写缓存（共享层：此后任何账号/设备/实例读到的都是这份内容）。显式刷新=强制覆盖；
+    // 常规生成走 create 抢占收敛——并发/跨实例同指纹先写入者为准，本次响应也采用其内容
+    if (forceRefresh) {
+      await this.writePmiCacheJson(stepCacheKey, { fingerprint, content });
+    } else {
+      const adopted = await this.claimStepContentCache(stepCacheKey, fingerprint, content);
+      if (adopted != null) content = adopted;
+    }
 
     return { content, empty: false };
   }
@@ -5633,21 +5701,17 @@ ${JSON.stringify(algorithmResult, null, 2)}
     }
 
     // Load the project summary from cache, or generate if missing (but only when there are files to analyze)
-    const summaryCachePath = getProjectSummaryCachePath(project.id);
     let summary = '';
     let summaryFromCache = false;
 
     if (!forceRefresh) {
-      try {
-        const cachedSummary = JSON.parse(
-          await readFile(summaryCachePath, 'utf8'),
-        ) as { summary?: string };
-        if (cachedSummary.summary?.trim()) {
-          summary = cachedSummary.summary;
-          summaryFromCache = true;
-        }
-      } catch {
-        // will generate below if file analyses are available
+      const cachedSummary = await this.readPmiCacheJson<{ summary?: string }>(
+        pmSummaryCacheKey(project.id),
+        getProjectSummaryCachePath(project.id),
+      );
+      if (cachedSummary?.summary?.trim()) {
+        summary = cachedSummary.summary;
+        summaryFromCache = true;
       }
     }
 
@@ -5667,131 +5731,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
     for (const stage of stagesToAnalyze) {
       if (stage.attachments.length === 0) continue;
 
-      const cachePath = getStageAnalysisCachePath(project.id, stage.stageKey);
-      const fingerprint = buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
-
-      let stageFiles: Array<{
-        objectKey: string;
-        fileName: string;
-        stageMatch: string;
-        contentSummary: string;
-      }> | null = null;
-
-      // Try cache first (exact fingerprint match)
-      const cachedByKey = new Map<string, { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>();
-      if (!forceRefresh) {
-        try {
-          const cached = JSON.parse(await readFile(cachePath, 'utf8')) as {
-            fingerprint?: string;
-            files?: Array<{
-              objectKey: string;
-              fileName: string;
-              stageMatch: string;
-              contentSummary: string;
-            }>;
-          };
-          if (Array.isArray(cached.files)) {
-            // 占位条目（历史投毒/降级批次产物）视为未覆盖：健康条目按 objectKey 复用、占位者重生成
-            // （2026-11-23 缓存投毒修复——否则「AI 服务暂不可用」被 fingerprint 命中直出、永不自愈）
-            const healthy = cached.files.filter((f) => !isDegradedFileAnalysis(f));
-            if (cached.fingerprint === fingerprint && healthy.length === cached.files.length) {
-              stageFiles = cached.files;
-            } else {
-              // Fingerprint mismatch (or poisoned entries) but cache exists — record existing analyses by objectKey
-              for (const f of healthy) {
-                cachedByKey.set(f.objectKey, f);
-              }
-            }
-          }
-        } catch {
-          // No cache or invalid cache
-        }
-      }
-
-      // Generate if no valid cache
-      if (!stageFiles) {
-        let stageDegraded = false;
-        // Only analyze files that aren't already in the cache (incremental)
-        const newAttachments = stage.attachments.filter((a) => !cachedByKey.has(a.objectKey));
-
-        let newFileAnalyses: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }> = [];
-        if (newAttachments.length > 0) {
-          const newFilesWithText = await Promise.all(
-            newAttachments.map(async (attachment) => {
-              const extractedText = await this.attachmentExtractedText(attachment);
-              return {
-                objectKey: attachment.objectKey,
-                fileName: attachment.fileName,
-                mimeType: attachment.mimeType,
-                fileSize: attachment.fileSize,
-                createdAt: attachment.createdAt?.toISOString() ?? null,
-                extractedText,
-              };
-            }),
-          );
-
-          if (newFilesWithText.length > 0) {
-            const analysis = await this.aiService.analyzeProjectDetail({
-              project: {
-                id: project.id,
-                title: project.title,
-                requesterName: project.requesterName,
-                requesterDepartment: project.requesterDepartment,
-                procurementMethod: project.procurementMethod,
-                procurementCategory: project.procurementCategory,
-                currentStage: project.currentStage,
-                projectReason: project.projectReason,
-                supplierRequirements: project.supplierRequirements,
-              },
-              currentStage: {
-                stageKey: stage.stageKey,
-                stageName: stage.stageName,
-                status: stage.status,
-              },
-              files: newFilesWithText,
-            });
-
-            if (analysis.degraded) {
-              stageDegraded = true;
-              anyDegraded = true;
-            }
-
-            newFileAnalyses = analysis.fileAnalyses.map((file) => ({
-              ...file,
-              stageMatch: normalizeStageMatchText(file.stageMatch),
-            }));
-          }
-        }
-
-        // Merge cached (still-existing) + new analyses, preserving attachment order
-        const newAnalysisByKey = new Map<string, typeof newFileAnalyses[number]>();
-        for (const f of newFileAnalyses) {
-          newAnalysisByKey.set(f.objectKey, f);
-        }
-
-        stageFiles = [];
-        for (const attachment of stage.attachments) {
-          const cached = cachedByKey.get(attachment.objectKey);
-          if (cached) {
-            stageFiles.push(cached);
-          } else {
-            const newAnalysis = newAnalysisByKey.get(attachment.objectKey);
-            if (newAnalysis) {
-              stageFiles.push(newAnalysis);
-            }
-          }
-        }
-
-        // degraded 占位不落缓存（fingerprint 固化后预热判「已覆盖」永不重试——2026-11-23 缓存投毒修复）
-        if ((stageFiles.length > 0 || stage.attachments.length === 0) && !stageDegraded) {
-          // Cache the stage analysis
-          await mkdir(getUploadDir(), { recursive: true });
-          await writeFile(cachePath, JSON.stringify({ fingerprint, files: stageFiles }, null, 2), 'utf8');
-        }
-      }
-
-      if (stageFiles) {
-        allFileAnalyses.push(...stageFiles.map((f) => ({
+      // single-flight：并发请求（预热/点击/他账号）共享同一次生成，内容全员一致
+      const result = forceRefresh
+        ? await this.analyzeStageFilesCached(project, stage, true)
+        : await this.singleFlight(
+          `stage:${pmStageAnalysisCacheKey(project.id, stage.stageKey, stage.round)}`,
+          () => this.analyzeStageFilesCached(project, stage, false),
+        );
+      if (result.degraded) anyDegraded = true;
+      if (result.files) {
+        allFileAnalyses.push(...result.files.map((f) => ({
           ...f,
           stageMatch: normalizeStageMatchText(f.stageMatch),
         })));
@@ -5800,42 +5749,52 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // If summary was NOT loaded from cache AND we have file analyses, auto-generate summary.
     // degraded 批次（占位摘要）不生成简报——先等文件摘要重生成成功，避免把「AI 服务暂不可用」固化进简报缓存
+    // single-flight + 双检（2026-11-25 稳健轮）：详情页预热（按阶段 analyze）与本调用并发时
+    // 不再各生成一份简报各返各的——排队期间已有生成落缓存即直取，全员同内容。
     if (!summaryFromCache && anyDegraded) {
       summary = '项目简报生成中，请稍后点击刷新。';
     } else if (!summaryFromCache && allFileAnalyses.length > 0) {
-      try {
-        const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
-        const isCompleted = contractStage?.status === 'COMPLETED';
-        const generated = await this.aiService.generateProjectSummary({
-          project: {
-            title: project.title,
-            requesterName: project.requesterName,
-            requesterDepartment: project.requesterDepartment,
-            procurementMethod: project.procurementMethod,
-            procurementCategory: project.procurementCategory,
-            currentStage: project.currentStage,
-            projectReason: project.projectReason,
-            supplierRequirements: project.supplierRequirements,
-            awardedSupplier: project.awardedSupplier || undefined,
-            budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
-            contractAmount: project.contractAmount ? Number(project.contractAmount) : undefined,
-            expertInfo: project.expertInfo || undefined,
-            biddingUnits: project.biddingUnits || undefined,
-          },
-          fileAnalysisResults: allFileAnalyses.map(f => ({
-            fileName: f.fileName,
-            stageKey: f.stageMatch,
-            contentSummary: f.contentSummary,
-          })),
-          isCompleted,
-        });
-        summary = generated;
-        // Cache the generated summary
-        await mkdir(getUploadDir(), { recursive: true });
-        await writeFile(summaryCachePath, JSON.stringify({ summary: generated }, null, 2), 'utf8');
-      } catch {
-        summary = '项目简报生成中，请稍后点击刷新。';
-      }
+      const summaryKey = pmSummaryCacheKey(project.id);
+      summary = await this.singleFlight(`summary:${project.id}`, async () => {
+        // 双检：等班机期间他请求已生成并落缓存 → 直取
+        const again = await this.readPmiCacheJson<{ summary?: string }>(
+          summaryKey,
+          getProjectSummaryCachePath(project.id),
+        );
+        if (again?.summary?.trim()) return again.summary;
+        try {
+          const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
+          const isCompleted = contractStage?.status === 'COMPLETED';
+          const generated = await this.aiService.generateProjectSummary({
+            project: {
+              title: project.title,
+              requesterName: project.requesterName,
+              requesterDepartment: project.requesterDepartment,
+              procurementMethod: project.procurementMethod,
+              procurementCategory: project.procurementCategory,
+              currentStage: project.currentStage,
+              projectReason: project.projectReason,
+              supplierRequirements: project.supplierRequirements,
+              awardedSupplier: project.awardedSupplier || undefined,
+              budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
+              contractAmount: project.contractAmount ? Number(project.contractAmount) : undefined,
+              expertInfo: project.expertInfo || undefined,
+              biddingUnits: project.biddingUnits || undefined,
+            },
+            fileAnalysisResults: allFileAnalyses.map(f => ({
+              fileName: f.fileName,
+              stageKey: f.stageMatch,
+              contentSummary: f.contentSummary,
+            })),
+            isCompleted,
+          });
+          // Cache the generated summary（共享层：全员此后同读这份）
+          await this.writePmiCacheJson(summaryKey, { summary: generated });
+          return generated;
+        } catch {
+          return '项目简报生成中，请稍后点击刷新。';
+        }
+      });
     }
 
     if (!summary) {
@@ -5851,6 +5810,170 @@ ${JSON.stringify(algorithmResult, null, 2)}
     };
   }
 
+  /**
+   * 单阶段行文件分析（含缓存，2026-11-25 抽取共享）：指纹命中直出；未命中按 objectKey
+   * 增量生成缺失件。缓存 = SystemConfig 共享层（跨账号/设备/实例同读同写），键含轮次
+   * （旧文件缓存无轮次维度——多轮项目两轮行互踩、指纹永不稳定、每次打开都重生成）；
+   * round-1 读旧本地文件回落（懒迁移）。
+   */
+  private async analyzeStageFilesCached(
+    project: {
+      id: string;
+      title: string;
+      requesterName: string | null;
+      requesterDepartment: string | null;
+      procurementMethod: string | null;
+      procurementCategory: string | null;
+      currentStage: string | null;
+      projectReason: string | null;
+      supplierRequirements: string | null;
+    },
+    stage: {
+      stageKey: string;
+      stageName: string;
+      status: string;
+      round: number | null;
+      attachments: Array<{
+        objectKey: string;
+        fileName: string;
+        mimeType: string;
+        fileSize: number;
+        createdAt: Date;
+      }>;
+    },
+    forceRefresh: boolean,
+  ): Promise<{
+    files: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }> | null;
+    degraded: boolean;
+  }> {
+    const round = stage.round ?? 1;
+    const cacheKey = pmStageAnalysisCacheKey(project.id, stage.stageKey, round);
+    const legacyPath = round <= 1 ? getStageAnalysisCachePath(project.id, stage.stageKey) : undefined;
+    const fingerprint = buildStageAnalysisFingerprint(stage.stageKey, stage.attachments);
+
+    let stageFiles: Array<{
+      objectKey: string;
+      fileName: string;
+      stageMatch: string;
+      contentSummary: string;
+    }> | null = null;
+
+    // Try cache first (exact fingerprint match)
+    const cachedByKey = new Map<string, { objectKey: string; fileName: string; stageMatch: string; contentSummary: string }>();
+    if (!forceRefresh) {
+      const cached = await this.readPmiCacheJson<{
+        fingerprint?: string;
+        files?: Array<{
+          objectKey: string;
+          fileName: string;
+          stageMatch: string;
+          contentSummary: string;
+        }>;
+      }>(cacheKey, legacyPath);
+      if (cached && Array.isArray(cached.files)) {
+        // 占位条目（历史投毒/降级批次产物）视为未覆盖：健康条目按 objectKey 复用、占位者重生成
+        // （2026-11-23 缓存投毒修复——否则「AI 服务暂不可用」被 fingerprint 命中直出、永不自愈）
+        const healthy = cached.files.filter((f) => !isDegradedFileAnalysis(f));
+        if (cached.fingerprint === fingerprint && healthy.length === cached.files.length) {
+          stageFiles = cached.files;
+        } else {
+          // Fingerprint mismatch (or poisoned entries) but cache exists — record existing analyses by objectKey
+          for (const f of healthy) {
+            cachedByKey.set(f.objectKey, f);
+          }
+        }
+      }
+    }
+
+    if (stageFiles) return { files: stageFiles, degraded: false };
+
+    // Generate if no valid cache
+    let stageDegraded = false;
+    // Only analyze files that aren't already in the cache (incremental)
+    const newAttachments = stage.attachments.filter((a) => !cachedByKey.has(a.objectKey));
+
+    let newFileAnalyses: Array<{ objectKey: string; fileName: string; stageMatch: string; contentSummary: string }> = [];
+    if (newAttachments.length > 0) {
+      const newFilesWithText = await Promise.all(
+        newAttachments.map(async (attachment) => {
+          const extractedText = await this.attachmentExtractedText(attachment);
+          return {
+            objectKey: attachment.objectKey,
+            fileName: attachment.fileName,
+            mimeType: attachment.mimeType,
+            fileSize: attachment.fileSize,
+            createdAt: attachment.createdAt?.toISOString() ?? null,
+            extractedText,
+          };
+        }),
+      );
+
+      if (newFilesWithText.length > 0) {
+        const analysis = await this.aiService.analyzeProjectDetail({
+          project: {
+            id: project.id,
+            title: project.title,
+            requesterName: project.requesterName,
+            requesterDepartment: project.requesterDepartment,
+            procurementMethod: project.procurementMethod,
+            procurementCategory: project.procurementCategory,
+            currentStage: project.currentStage,
+            projectReason: project.projectReason,
+            supplierRequirements: project.supplierRequirements,
+          },
+          currentStage: {
+            stageKey: stage.stageKey,
+            stageName: stage.stageName,
+            status: stage.status,
+          },
+          files: newFilesWithText,
+        });
+
+        if (analysis.degraded) {
+          stageDegraded = true;
+        }
+
+        newFileAnalyses = analysis.fileAnalyses.map((file) => ({
+          ...file,
+          stageMatch: normalizeStageMatchText(file.stageMatch),
+        }));
+      }
+    }
+
+    // Merge cached (still-existing) + new analyses, preserving attachment order
+    const newAnalysisByKey = new Map<string, typeof newFileAnalyses[number]>();
+    for (const f of newFileAnalyses) {
+      newAnalysisByKey.set(f.objectKey, f);
+    }
+
+    stageFiles = [];
+    for (const attachment of stage.attachments) {
+      const cached = cachedByKey.get(attachment.objectKey);
+      if (cached) {
+        stageFiles.push(cached);
+      } else {
+        const newAnalysis = newAnalysisByKey.get(attachment.objectKey);
+        if (newAnalysis) {
+          stageFiles.push(newAnalysis);
+        }
+      }
+    }
+
+    // degraded 占位不落缓存（fingerprint 固化后预热判「已覆盖」永不重试——2026-11-23 缓存投毒修复）
+    if (stageFiles.length > 0 && !stageDegraded) {
+      if (forceRefresh) {
+        // 显式刷新=强制覆盖（用户裁定重取新内容），不走收敛
+        await this.writePmiCacheJson(cacheKey, { fingerprint, files: stageFiles });
+      } else {
+        // create 抢占收敛：并发/跨实例同指纹先写入者为准，本次响应也采用其内容
+        const adopted = await this.claimStageFilesCache(cacheKey, fingerprint, { fingerprint, files: stageFiles });
+        if (adopted) stageFiles = adopted.files;
+      }
+    }
+
+    return { files: stageFiles, degraded: stageDegraded };
+  }
+
   async getProjectSummary(projectId: string) {
     const project = await this.prisma.projectManagementItem.findUnique({
       where: { id: projectId },
@@ -5863,10 +5986,11 @@ ${JSON.stringify(algorithmResult, null, 2)}
     const summaryCachePath = getProjectSummaryCachePath(projectId);
 
     try {
-      const cachedSummary = JSON.parse(
-        await readFile(summaryCachePath, 'utf8'),
-      ) as { summary?: string };
-      return { summary: cachedSummary.summary || '暂无项目简报信息。' };
+      const cachedSummary = await this.readPmiCacheJson<{ summary?: string }>(
+        pmSummaryCacheKey(projectId),
+        summaryCachePath,
+      );
+      return { summary: cachedSummary?.summary || '暂无项目简报信息。' };
     } catch {
       return { summary: '暂无项目简报信息。' };
     }
@@ -5882,13 +6006,12 @@ ${JSON.stringify(algorithmResult, null, 2)}
     // （同项目管理详情「项目简报」源）；排序为 AI 简报在前、终止说明换行写在末尾，
     // 无缓存回落终止一句话简报，预热补齐后下次打开直出。
     let aiBrief = '';
-    try {
-      const s = JSON.parse(
-        await readFile(getProjectSummaryCachePath(pmItem.id), 'utf8'),
-      ) as { summary?: string };
-      aiBrief = typeof s.summary === 'string' ? s.summary.trim() : '';
-    } catch {
-      // 无简报缓存
+    {
+      const s = await this.readPmiCacheJson<{ summary?: string }>(
+        pmSummaryCacheKey(pmItem.id),
+        getProjectSummaryCachePath(pmItem.id),
+      );
+      aiBrief = typeof s?.summary === 'string' ? s.summary.trim() : '';
     }
     const terminatedLine = `项目于 ${pmItem.terminatedStage ? `「${pmItem.terminatedStage}」阶段` : ''}终止${
       terminatedAt ? `（${terminatedAt.toISOString().split('T')[0]}）` : ''
@@ -5924,17 +6047,21 @@ ${JSON.stringify(algorithmResult, null, 2)}
         '合同金额': '',
         '经办人': pmItem.createdBy?.displayName ?? '',
       },
-      // 三类分析缓存直出（2026-11-20 对齐项目管理详情）：逐文件「文件分析」读
-      // analysis-*.json（上传/查看时生成的逐文件内容摘要，按 objectKey 匹配——文件本体
-      // 不可变、摘要不过期）；阶段级「步骤分析」读 step-*.json；均为纯文件读不跑 LLM，
-      // 缺缓存的由 warmTerminatedStepAnalysis 后台预热、下次打开直出。
+      // 三类分析缓存直出（2026-11-20 对齐项目管理详情，2026-11-25 转共享层）：逐文件
+      // 「文件分析」（上传/查看时生成的逐文件内容摘要，按 objectKey 匹配——文件本体
+      // 不可变、摘要不过期）；阶段级「步骤分析」；均为纯缓存读不跑 LLM，缺缓存的由
+      // warmTerminatedStepAnalysis 后台预热、下次打开直出。
       stages: await Promise.all(pmItem.stages.map(async (stage: any, idx: number) => {
         const fileSummaryByObjectKey = new Map<string, string>();
-        try {
-          const cached = JSON.parse(
-            await readFile(getStageAnalysisCachePath(pmItem.id, stage.stageKey), 'utf8'),
-          ) as { files?: Array<{ objectKey: string; contentSummary?: string }> };
-          for (const f of cached.files ?? []) {
+        {
+          const round = stage.round ?? 1;
+          const cached = await this.readPmiCacheJson<{
+            files?: Array<{ objectKey: string; contentSummary?: string }>;
+          }>(
+            pmStageAnalysisCacheKey(pmItem.id, stage.stageKey, round),
+            round <= 1 ? getStageAnalysisCachePath(pmItem.id, stage.stageKey) : undefined,
+          );
+          for (const f of cached?.files ?? []) {
             if (
               typeof f.contentSummary === 'string' &&
               f.contentSummary.trim() &&
@@ -5943,8 +6070,6 @@ ${JSON.stringify(algorithmResult, null, 2)}
               fileSummaryByObjectKey.set(f.objectKey, f.contentSummary.trim());
             }
           }
-        } catch {
-          // 无逐文件摘要缓存：预热后下次直出
         }
         return {
           stageKey: stage.stageKey,
@@ -5952,7 +6077,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
           stageDirName: `${idx + 1}.${stage.stageName}`,
           round: stage.round ?? 1, // 轮次透出（流标再采适配，与 TXT 路径同构）
           status: stageStatusLabel(stage.status),
-          stageAnalysis: await this.readStepAnalysisCache(pmItem.id, stage.stageKey),
+          stageAnalysis: await this.readStepAnalysisCache(pmItem.id, stage.stageKey, stage.round ?? 1),
           attachments: stage.attachments.map((att: any) => ({
             id: att.id,
             fileName: att.fileName,
@@ -6066,18 +6191,16 @@ ${JSON.stringify(algorithmResult, null, 2)}
   }
 
   /**
-   * 读 analyze-step 落盘的步骤分析缓存（指纹键控、命中免 LLM）；未生成/损坏返回空串。
-   * 终止详情载荷直出用（见 buildTerminatedDetail）。
+   * 读 analyze-step 落库的步骤分析缓存（指纹键控、命中免 LLM，共享层按轮取）；
+   * 未生成/损坏返回空串。终止详情载荷直出用（见 buildTerminatedDetail）。
    */
-  private async readStepAnalysisCache(projectId: string, stageKey: string): Promise<string> {
-    try {
-      const cached = JSON.parse(
-        await readFile(getStepAnalysisCachePath(projectId, stageKey), 'utf8'),
-      ) as { content?: string };
-      return typeof cached.content === 'string' ? cached.content.trim() : '';
-    } catch {
-      return '';
-    }
+  private async readStepAnalysisCache(projectId: string, stageKey: string, round?: number): Promise<string> {
+    const r = round ?? 1;
+    const cached = await this.readPmiCacheJson<{ content?: string }>(
+      pmStepAnalysisCacheKey(projectId, stageKey, r),
+      r <= 1 ? getStepAnalysisCachePath(projectId, stageKey) : undefined,
+    );
+    return typeof cached?.content === 'string' ? cached.content.trim() : '';
   }
 
   /**
@@ -6100,36 +6223,31 @@ ${JSON.stringify(algorithmResult, null, 2)}
   ): void {
     void (async () => {
       try {
-        // ①逐文件摘要覆盖检查 + 简报缓存检查 → 全项目 analyzeProject 一次补齐
+        // ①逐文件摘要覆盖检查 + 简报缓存检查 → 全项目 analyzeProject 一次补齐（共享层按轮查）
         let fileSummaryMissing = false;
         for (const st of stages) {
           if (st.status !== 'COMPLETED' || st.attachments.length === 0) continue;
-          try {
-            const cached = JSON.parse(
-              await readFile(getStageAnalysisCachePath(projectId, st.stageKey), 'utf8'),
-            ) as { files?: Array<{ objectKey: string; contentSummary?: string }> };
-            // 占位条目不算覆盖（历史投毒自愈：预热仍会触发重生成）
-            const covered = new Set(
-              (cached.files ?? []).filter((f) => !isDegradedFileAnalysis(f)).map((f) => f.objectKey),
-            );
-            if (st.attachments.some((a) => !covered.has(a.objectKey))) {
-              fileSummaryMissing = true;
-              break;
-            }
-          } catch {
+          const r = st.round ?? 1;
+          const cached = await this.readPmiCacheJson<{
+            files?: Array<{ objectKey: string; contentSummary?: string }>;
+          }>(
+            pmStageAnalysisCacheKey(projectId, st.stageKey, r),
+            r <= 1 ? getStageAnalysisCachePath(projectId, st.stageKey) : undefined,
+          );
+          // 占位条目不算覆盖（历史投毒自愈：预热仍会触发重生成）
+          const covered = new Set(
+            (cached?.files ?? []).filter((f) => !isDegradedFileAnalysis(f)).map((f) => f.objectKey),
+          );
+          if (st.attachments.some((a) => !covered.has(a.objectKey))) {
             fileSummaryMissing = true;
             break;
           }
         }
-        let summaryMissing = false;
-        try {
-          const s = JSON.parse(
-            await readFile(getProjectSummaryCachePath(projectId), 'utf8'),
-          ) as { summary?: string };
-          summaryMissing = !s.summary?.trim();
-        } catch {
-          summaryMissing = true;
-        }
+        const s = await this.readPmiCacheJson<{ summary?: string }>(
+          pmSummaryCacheKey(projectId),
+          getProjectSummaryCachePath(projectId),
+        );
+        const summaryMissing = !s?.summary?.trim();
         const fullKey = `${projectId}:full`;
         if ((fileSummaryMissing || summaryMissing) && !this.stepAnalysisWarming.has(fullKey)) {
           this.stepAnalysisWarming.add(fullKey);
@@ -6152,7 +6270,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         this.stepAnalysisWarming.add(warmKey);
         void (async () => {
           try {
-            const cached = await this.readStepAnalysisCache(projectId, st.stageKey);
+            const cached = await this.readStepAnalysisCache(projectId, st.stageKey, st.round ?? 1);
             if (!cached) {
               await this.analyzeStep(projectId, st.stageKey, false, st.round ?? undefined);
             }
@@ -6549,16 +6667,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
       return u?.displayName || u?.username || null;
     };
 
-    // 项目简报快照源与详情页「项目简报」同源（getProjectSummary 的文件缓存——项目实际
+    // 项目简报快照源与详情页「项目简报」同源（getProjectSummary 的共享缓存——项目实际
     // 展示什么就存什么，2026-11-12 用户裁定：勿依赖 DB 列碰巧有值）；缓存缺失回退 DB 列
     let briefForTombstone: string | null = project.analysisSummary ?? null;
-    try {
-      const cached = JSON.parse(
-        await readFile(getProjectSummaryCachePath(projectId), 'utf8'),
-      ) as { summary?: string };
-      if (cached.summary?.trim()) briefForTombstone = cached.summary.trim();
-    } catch {
-      // 无缓存文件（从未生成过简报）——回退 DB 列
+    {
+      const cached = await this.readPmiCacheJson<{ summary?: string }>(
+        pmSummaryCacheKey(projectId),
+        getProjectSummaryCachePath(projectId),
+      );
+      if (cached?.summary?.trim()) briefForTombstone = cached.summary.trim();
     }
 
     // 连带删除的台账轮次（裁定 #2：CANCELLED 轮次随项目删除，痕迹由墓碑承载）
@@ -6678,59 +6795,52 @@ ${JSON.stringify(algorithmResult, null, 2)}
       where: { id: attachmentId },
     });
 
-    // Rebuild stage analysis cache — remove only the deleted file's entry
+    // Rebuild stage analysis cache — remove only the deleted file's entry（共享层，按轮）
     if (attachment.projectManagementStageId) {
       const stage = await this.prisma.projectManagementStage.findUnique({
         where: { id: attachment.projectManagementStageId },
-        select: { stageKey: true, id: true },
+        select: { stageKey: true, id: true, round: true },
       });
       if (stage) {
         // 删除的是采购文件主文件——/tmp 文本缓存一并失效（防止提取继续读已删内容）
         if (stage.stageKey === 'TENDER_DOCUMENT' && isTenderMainFile(attachment.fileName)) {
           await this.invalidateTenderTextCache(projectId);
         }
-        const cachePath = getStageAnalysisCachePath(projectId, stage.stageKey);
-        try {
-          const cachedRaw = await readFile(cachePath, 'utf8');
-          const cached = JSON.parse(cachedRaw) as {
-            fingerprint?: string;
-            files?: Array<{
-              objectKey: string;
-              fileName: string;
-              stageMatch: string;
-              contentSummary: string;
-            }>;
-          };
-          if (Array.isArray(cached.files)) {
-            // Remove the deleted file's entry
-            const remainingFiles = cached.files.filter(
-              (f) => f.objectKey !== attachment.objectKey,
+        const round = stage.round ?? 1;
+        const cacheKey = pmStageAnalysisCacheKey(projectId, stage.stageKey, round);
+        const legacyPath = round <= 1 ? getStageAnalysisCachePath(projectId, stage.stageKey) : undefined;
+        const cached = await this.readPmiCacheJson<{
+          fingerprint?: string;
+          files?: Array<{
+            objectKey: string;
+            fileName: string;
+            stageMatch: string;
+            contentSummary: string;
+          }>;
+        }>(cacheKey, legacyPath);
+        if (cached && Array.isArray(cached.files)) {
+          // Remove the deleted file's entry
+          const remainingFiles = cached.files.filter(
+            (f) => f.objectKey !== attachment.objectKey,
+          );
+          if (remainingFiles.length > 0) {
+            // Rebuild fingerprint from remaining stage attachments
+            const remainingAttachments = await this.prisma.attachment.findMany({
+              where: {
+                projectManagementStageId: stage.id,
+                id: { not: attachmentId },
+              },
+              select: { objectKey: true, fileSize: true, createdAt: true },
+            });
+            const newFingerprint = buildStageAnalysisFingerprint(
+              stage.stageKey,
+              remainingAttachments,
             );
-            if (remainingFiles.length > 0) {
-              // Rebuild fingerprint from remaining stage attachments
-              const remainingAttachments = await this.prisma.attachment.findMany({
-                where: {
-                  projectManagementStageId: stage.id,
-                  id: { not: attachmentId },
-                },
-                select: { objectKey: true, fileSize: true, createdAt: true },
-              });
-              const newFingerprint = buildStageAnalysisFingerprint(
-                stage.stageKey,
-                remainingAttachments,
-              );
-              await writeFile(
-                cachePath,
-                JSON.stringify({ fingerprint: newFingerprint, files: remainingFiles }, null, 2),
-                'utf8',
-              );
-            } else {
-              // No files left — delete the cache entirely
-              await unlink(cachePath);
-            }
+            await this.writePmiCacheJson(cacheKey, { fingerprint: newFingerprint, files: remainingFiles });
+          } else {
+            // No files left — delete the cache entirely
+            await this.deletePmiCache(cacheKey, legacyPath);
           }
-        } catch {
-          // Cache doesn't exist or is invalid — nothing to rebuild
         }
 
         // Clear extracted info fields based on stage

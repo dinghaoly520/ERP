@@ -99,7 +99,9 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
       <main
         id="m-app-scroll"
-        className="relative z-10 mx-auto w-full max-w-lg flex-1 overflow-y-auto overscroll-contain px-[max(0.875rem,env(safe-area-inset-left))] pb-24 pr-[max(0.875rem,env(safe-area-inset-right))] pt-3.5"
+        /* 折叠屏展开态/平板/横屏（≥640px）：壳放宽到 46rem 居中——内容栏加宽，
+         * 页内 sm: 断点把 KPI 组并排加密（2026-11-25 用户裁定「屏幕大小自适应」） */
+        className="relative z-10 mx-auto w-full max-w-lg flex-1 overflow-y-auto overscroll-contain px-[max(0.875rem,env(safe-area-inset-left))] pb-24 pr-[max(0.875rem,env(safe-area-inset-right))] pt-3.5 sm:max-w-[46rem]"
       >
         {/* 欢迎卡——仅 Tab 根页（驾驶舱/水叮当）显示；跳转页（台账/进展/分析板块）不占位
             *  （2026-11-19 用户裁定：跳转的页面中删除欢迎语区） */}

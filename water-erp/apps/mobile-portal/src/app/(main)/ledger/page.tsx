@@ -506,14 +506,15 @@ export default function LedgerPage() {
             const rateOf = (v?: LedgerSummary | null) => (v && v.awardedBudget > 0 ? v.totalSavings / v.awardedBudget : undefined);
             const rateNow = stats.awardedBudget > 0 ? stats.totalSavings / stats.awardedBudget : undefined;
             return (
-              <div className="space-y-3">
+              /* 折叠屏展开态：盘点/金额两组并排（组内仍四列，同手机密度） */
+              <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-x-4 sm:space-y-0">
                 {group(`项目盘点 · ${scopeText}`, [
                   tile(String(stats.awardedCount + stats.pendingCount), "项目总数", { yoy: deltaOf(totalOf(stats), totalOf(statsYoy), null), hb: deltaOf(totalOf(stats), totalOf(statsPrev), null) }),
                   tile(String(stats.awardedCount), "归档项目", { yoy: deltaOf(stats.awardedCount, statsYoy?.awardedCount, null), hb: deltaOf(stats.awardedCount, statsPrev?.awardedCount, null) }),
                   tile(String(stats.pendingCount), "进行中项目", { yoy: deltaOf(stats.pendingCount, statsYoy?.pendingCount, null), hb: deltaOf(stats.pendingCount, statsPrev?.pendingCount, null) }),
                   tile(String(stats.abnormalCount), "异常项目", { danger: stats.abnormalCount > 0, yoy: deltaOf(stats.abnormalCount, statsYoy?.abnormalCount, false), hb: deltaOf(stats.abnormalCount, statsPrev?.abnormalCount, false) }),
                 ])}
-                <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)]" aria-hidden />
+                <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)] sm:hidden" aria-hidden />
                 {group(`金额 · ${scopeText}`, [
                   tile(stats.awardedBudgetLabel, "成交预算", { yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
                   tile(stats.totalAwardLabel, "成交额", { yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
@@ -793,8 +794,8 @@ export default function LedgerPage() {
               ) : null}
             </div>
 
-            {/* ── 金额（2×2 指标卡）── */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* ── 金额（2×2 指标卡；折叠屏展开态并排一行）── */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <MetricCard label="预算金额" value={fmtAmount(activeItem.budgetAmount)} />
               <MetricCard label="中标金额" value={activeItem.awardAmount != null && activeItem.awardAmount !== "" ? fmtAmount(activeItem.awardAmount) : "—"} tone="success" />
               {activeItem.controlAmount != null ? <MetricCard label="控制价" value={fmtAmount(activeItem.controlAmount)} /> : null}

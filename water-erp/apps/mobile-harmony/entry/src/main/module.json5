@@ -1,0 +1,37 @@
+{
+  "module": {
+    "name": "entry",
+    "type": "entry",
+    "description": "$string:module_desc",
+    "mainElement": "EntryAbility",
+    "deviceTypes": ["phone", "tablet"],
+    "deliveryWithInstall": true,
+    "installationFree": false,
+    "pages": "$profile:main_pages",
+    /* 壳应用唯一权限：网络（system_grant 免弹窗）。登录短信/推送等系统能力
+       均由 :3011 Web 侧经服务端完成，无需额外权限 */
+    "requestPermissions": [
+      { "name": "ohos.permission.INTERNET" }
+    ],
+    "abilities": [
+      {
+        "name": "EntryAbility",
+        "srcEntry": "./ets/entryability/EntryAbility.ets",
+        "description": "$string:EntryAbility_desc",
+        "icon": "$media:icon",
+        "label": "$string:EntryAbility_label",
+        "startWindowIcon": "$media:startIcon",
+        "startWindowBackground": "$color:start_window_background",
+        "exported": true,
+        /* 折叠屏展开/收起与旋转跟随系统（锁屏方向时锁定）——页面 sm: 断点自适应 */
+        "orientation": "auto_rotation_restricted",
+        "skills": [
+          {
+            "entities": ["entity.system.home"],
+            "actions": ["action.system.home"]
+          }
+        ]
+      }
+    ]
+  }
+}
