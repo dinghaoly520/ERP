@@ -795,3 +795,73 @@ describe('BidGateway 配对在线跟踪（TAB-SYNC-02 P2-3）', () => {
     expect(emitted.filter(p => p.online === false)).toHaveLength(1);
   });
 });
+
+describe('握手鉴权与入会的时序（2026-11-25 入会竞态修复）', () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const makeSocket = (cookie: string, portal: string) =>
+    ({
+      id: 'sock-race', data: {}, connected: true,
+      handshake: { headers: { cookie, 'x-portal': portal }, query: {} },
+      disconnect: jest.fn(), join: jest.fn(),
+    }) as any;
+
+  it('握手鉴权未完成时就到达的 join:project：等鉴权完成后再入会，不得判 UNAUTHORIZED', async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockImplementation(async () => { await sleep(30); return { webSessionId: 'sid-1' }; }) },
+      supplier: { findFirst: jest.fn().mockResolvedValue({ id: 'sup-1' }) },
+      bidSupplier: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'bs-1', supplierName: '甲公司' }),
+        findMany: jest.fn().mockResolvedValue([]), // 入会后的在场广播会查
+        update: jest.fn().mockResolvedValue({}),
+      },
+    } as any;
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue({ sub: 'u-sup', role: 'supplier', sid: 'sid-1' }) } as any;
+    const gw = new BidGateway(jwt, prisma);
+    const socket = makeSocket('token_supplier=sup-jwt', 'supplier');
+    const authing = gw.handleConnection(socket);
+    await new Promise((r) => setImmediate(r)); // 让出事件循环：真实客户端的入会消息总在之后一轮到达，此时查库对账还没结束
+    const ack = gw.handleJoinProject(socket, 'p1');
+    await authing;
+    expect(await ack).toEqual({ ok: true, supplierId: 'sup-1', supplierName: '甲公司' });
+    expect(socket.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('握手鉴权失败（会话对账不匹配）：入会仍返回 UNAUTHORIZED，且连接被断开', async () => {
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue({ webSessionId: 'sid-other' }) },
+      supplier: { findFirst: jest.fn() },
+      bidSupplier: { findFirst: jest.fn(), update: jest.fn() },
+    } as any;
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue({ sub: 'u-sup', role: 'supplier', sid: 'sid-1' }) } as any;
+    const gw = new BidGateway(jwt, prisma);
+    const socket = makeSocket('token_supplier=sup-jwt', 'supplier');
+    const authing = gw.handleConnection(socket);
+    await new Promise((r) => setImmediate(r));
+    const ack = gw.handleJoinProject(socket, 'p1');
+    await authing;
+    expect(await ack).toEqual({ error: 'UNAUTHORIZED' });
+    expect(socket.disconnect).toHaveBeenCalledWith(true);
+    expect(prisma.supplier.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('不带会话编号的主持人令牌：连上立即入会成功（行为不变）', async () => {
+    const prisma = { user: { findUnique: jest.fn() }, bidProject: { findUnique: jest.fn().mockResolvedValue(null) } } as any;
+    const jwt = { verifyAsync: jest.fn().mockResolvedValue({ sub: 'u-host', role: 'bid_host' }) } as any;
+    const gw = new BidGateway(jwt, prisma);
+    const socket = makeSocket('token_bid=host-jwt', 'bid');
+    const authing = gw.handleConnection(socket);
+    await new Promise((r) => setImmediate(r)); // 验签只占一个微任务：让出事件循环后身份已就位（主持人本就不受这个竞态影响）
+    const ack = gw.handleJoinProject(socket, 'p1');
+    await authing;
+    expect(await ack).toEqual({ ok: true });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('握手鉴权以异常结束时：入会按身份缺失处理，不向外抛', async () => {
+    const gw = new BidGateway({} as any, {} as any);
+    const rejected = Promise.reject(new Error('boom'));
+    rejected.catch(() => undefined); // 修复前不会被等待，先挂个处理函数避免未处理的拒绝干扰判定
+    const client = { id: 'sock-x', data: { authReady: rejected }, join: jest.fn() } as any;
+    await expect(gw.handleJoinProject(client, 'p1')).resolves.toEqual({ error: 'UNAUTHORIZED' });
+  });
+});

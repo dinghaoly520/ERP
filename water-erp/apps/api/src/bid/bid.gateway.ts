@@ -193,6 +193,26 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // ── Connection lifecycle: JWT auth + role flag ──
 
   async handleConnection(socket: Socket) {
+    // 入会可能在握手鉴权完成前到达（2026-11-25 竞态修复）：鉴权 promise 必须在本方法的
+    // 第一个 await 之前挂到连接上——Nest 在 connection 事件里同步调用本方法，而 CONNECT 包
+    // 刚写入、客户端的任何消息都要晚一轮事件循环才到，所以入会处理执行时它一定在。
+    const authReady = this.authenticateHandshake(socket);
+    (socket.data as any).authReady = authReady;
+    await authReady;
+  }
+
+  /** 入会前等待握手鉴权落地（2026-11-25 竞态修复）。 */
+  private async awaitHandshakeAuth(client: Socket): Promise<void> {
+    const ready = (client.data as any).authReady as Promise<void> | undefined;
+    if (!ready) return; // 没有凭证（单测直构的连接对象）：维持原行为，由 join 层 C1 兜底判未授权
+    try { await ready; } catch { /* 鉴权以异常结束时身份缺失，同样落到未授权分支 */ }
+  }
+
+  /**
+   * 握手鉴权主体（原 handleConnection 的全部内容，2026-11-25 原样搬入）。
+   * 新增「连接后立刻可能到达」的消息处理必须先 await this.awaitHandshakeAuth(client)。
+   */
+  private async authenticateHandshake(socket: Socket): Promise<void> {
     const token = tokenFromHandshake(socket);
     // 严格握手鉴权（2026-08 加固）：无 token 或校验失败一律拒绝连接。
     // 历史「软鉴权」依赖 join:project 的 join 层兜底（C1）——但连接本身保持匿名可挂，
@@ -376,6 +396,9 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage('join:project')
   async handleJoinProject(client: Socket, projectId: string) {
+    // 握手鉴权是异步的（验签 + 带会话编号的令牌查库对账），入会申请可能先到：
+    // 先等它落地再读身份，否则会被下面的兜底误判 UNAUTHORIZED（2026-11-25 竞态修复）。
+    await this.awaitHandshakeAuth(client);
     const role: string | undefined = (client.data as any).role;
     const userId: string | undefined = (client.data as any).userId;
     // 认证兜底（C1）：handleConnection 保持软鉴权，但 join 层强制认证——

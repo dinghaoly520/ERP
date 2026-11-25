@@ -275,6 +275,18 @@ describe('Opening Hall (e2e)', () => {
     extraProjectIds.splice(extraProjectIds.indexOf(other.id), 1);
   });
 
+  it('握手鉴权慢时，连上立即入会仍须成功（2026-11-25 入会等握手鉴权完成）', async () => {
+    const original = prisma.user.findUnique.bind(prisma.user);
+    const spy = jest.spyOn(prisma.user as any, 'findUnique')
+      .mockImplementation(async (args: any) => { await new Promise((r) => setTimeout(r, 300)); return original(args); });
+    try {
+      const s = track(connectBid(base, sup1Cookie)); await connected(s);
+      expect(await joinAck(s, projectId)).toEqual(expect.objectContaining({ ok: true, supplierId: sup1Id }));
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('签到 → 主持端与供应商端都收到 hall:checkin', async () => {
     const host = track(connectBid(base, hostCookie)); await connected(host); await joinAck(host, projectId);
     const sup = track(connectBid(base, sup1Cookie)); await connected(sup); await joinAck(sup, projectId);
