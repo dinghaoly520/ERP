@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { bidWsUrl } from "@water-erp/config";
+import { joinProjectOnConnect } from "../lib/ws-join";
 import {
   BID_EVENT,
   type ConnectionState,
@@ -59,6 +60,7 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
     let manualClose = false;
     let disposed = false;
     let hasConnectedOnce = false; // X-P2-09：首次连接 vs 重连鉴别
+    let joinFailStreak = 0; // 连续几次连接都没能入会（reconnectNow 重跑 effect，自然归零）
 
     function clearTimers() {
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
@@ -81,7 +83,7 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
     window.addEventListener("supplier:session-invalid", onSessionInvalid);
 
     function connect() {
-      if (disposed || sessionStopped || socket?.connected) return;
+      if (!projectId || disposed || sessionStopped || socket?.connected) return;
       manualClose = false;
       setConnection((c) => (c === "connected" ? c : "reconnecting"));
 
@@ -94,7 +96,14 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
         hasConnectedOnce = true;
         attempt = 0;
         setConnection("connected");
-        s.emit("join:project", projectId);
+        // 入会带应答：握手鉴权比入会申请先完成的偶发时序下服务端回 UNAUTHORIZED，稍后重发即可
+        // 成功（2026-11-25）；重试耗尽则断开走既有重连，连续 3 次入会失败停止自动重连。
+        void joinProjectOnConnect(s, projectId, {
+          isCurrent: () => socket === s && !manualClose && !disposed,
+          getFailStreak: () => joinFailStreak,
+          setFailStreak: (n) => { joinFailStreak = n; },
+          stopReconnect: () => { manualClose = true; },
+        });
         if (isReconnect) {
           setLastEventAt(Date.now());
           handlersRef.current().onReconnected?.();
