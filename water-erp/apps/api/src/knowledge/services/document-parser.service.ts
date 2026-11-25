@@ -5,6 +5,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { OFFICE_CONVERT_LIMITS_DEFAULT } from '../../common/office-to-pdf.util';
 import { OcrService, OCR_UNLIMITED_PAGES } from '../../local-ai/ocr.service';
 
 
@@ -265,6 +266,8 @@ export class DocumentParserService {
     const txtPath = path.join(tmpDir, 'input.txt');
     try {
       await fs.promises.writeFile(docPath, buffer);
+      // 超时与输出上限（2026-11-25 审查）：此前不设超时，LibreOffice 一旦卡死，这次解析（以及它所在的
+      // 请求或 worker 任务）就永久挂住。时限与共享的 Word→PDF 转换同源（60 秒），到点被杀即报错。
       await execFileAsync('libreoffice', [
         '--headless',
         '--convert-to',
@@ -272,7 +275,10 @@ export class DocumentParserService {
         '--outdir',
         tmpDir,
         docPath,
-      ]);
+      ], {
+        timeout: OFFICE_CONVERT_LIMITS_DEFAULT.convertTimeoutMs,
+        maxBuffer: 4 * 1024 * 1024,
+      });
       const text = await fs.promises.readFile(txtPath, 'utf-8');
       return text;
     } finally {

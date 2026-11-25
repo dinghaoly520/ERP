@@ -1,10 +1,7 @@
 import { Injectable, Optional, NotFoundException, ForbiddenException, BadRequestException, ConflictException, ServiceUnavailableException, Logger, Inject } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { execFileSync } from 'child_process';
-import * as fs from 'fs';
 import { readAttachmentBuffer } from '../common/attachment-object-store';
-import * as path from 'path';
-import * as os from 'os';
+import { convertOfficeToPdf } from '../common/office-to-pdf.util';
 import type Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -1286,13 +1283,13 @@ export class ExpertService {
    *  专家仍能拿到原文，且响应不再说谎；此前 docx 字节贴 application/pdf 标签回发，Chrome 原生
    *  查看器只能报「未能加载PDF文档。」无从排障（生产缺 LibreOffice 时必现）。
    *  非 Word 文件 → 原名 + fallbackMime（公告轨 application/pdf；谈判轨存量 mimeType||octet-stream——均维持原行为）。 */
-  private finalizeTenderDocPreview(
+  private async finalizeTenderDocPreview(
     plaintext: Buffer,
     originalName: string,
     fallbackMime: string,
-  ): { buffer: Buffer; fileName: string; mimeType: string } {
+  ): Promise<{ buffer: Buffer; fileName: string; mimeType: string }> {
     const isWord = this.pdfFileName(originalName) !== originalName;
-    const converted = this.maybeConvertDocxToPdf(plaintext, originalName);
+    const converted = await this.maybeConvertDocxToPdf(plaintext, originalName);
     return {
       buffer: converted ?? plaintext,
       fileName: converted ? this.pdfFileName(originalName) : originalName,
@@ -1300,36 +1297,21 @@ export class ExpertService {
     };
   }
 
-  /** 如果 plaintext 是 .docx/.doc，则用 LibreOffice 转换为 PDF，返回转换产物字节；
-   *  未转换（非 Word 文件 / LibreOffice 失败 / 未产出 pdf）返回 null——调用方（finalizeTenderDocPreview）
+  /** 如果 plaintext 是 .docx/.doc，则转成 PDF，返回转换产物字节；
+   *  未转换（非 Word 文件 / LibreOffice 失败 / 未产出 pdf / 并发已满）返回 null——调用方（finalizeTenderDocPreview）
    *  据此诚实降级为原名+真实 Word mime，勿再以 PDF 标签回发 Word 字节（bug#169）。
-   *  安全要点：临时文件使用固定安全名（mkdtemp 目录本身唯一），用户可控的 originalName
-   *  绝不进入文件路径或命令行；用 execFileSync 数组参数，杜绝 shell 注入与路径穿越。 */
-  private maybeConvertDocxToPdf(plaintext: Buffer, originalName: string): Buffer | null {
-    const ext = /\.docx$/i.test(originalName) ? '.docx' : /\.doc$/i.test(originalName) ? '.doc' : null;
-    if (!ext) return null;
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tender-docx-'));
-    const safeBase = 'input';
-    const docxPath = path.join(tmpDir, `${safeBase}${ext}`);
-    try {
-      fs.writeFileSync(docxPath, plaintext);
-      execFileSync(
-        'libreoffice',
-        ['--headless', '--convert-to', 'pdf', '--outdir', tmpDir, docxPath],
-        { timeout: 60_000, stdio: 'pipe' },
-      );
-      const pdfPath = path.join(tmpDir, `${safeBase}.pdf`);
-      if (fs.existsSync(pdfPath)) {
-        return fs.readFileSync(pdfPath);
-      }
-      this.logger.warn(`LibreOffice docx→pdf produced no output for ${originalName}`);
-      return null;
-    } catch (err: any) {
-      this.logger.warn(`LibreOffice docx→pdf failed for ${originalName}: ${err?.message ?? err}`);
-      return null;
-    } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-    }
+   *  2026-11-25 审查：改为复用共享的异步转换（common/office-to-pdf.util）。此前这里是一份同步的
+   *  execFileSync 副本——专家打开一个大 Word，整个 API（各门户的心跳、WS、上传）跟着卡住最长 60 秒；
+   *  且不在并发闸与独立配置目录的覆盖内。文件名不进命令行与落盘路径的保证由共享转换提供。 */
+  private async maybeConvertDocxToPdf(plaintext: Buffer, originalName: string): Promise<Buffer | null> {
+    const mime = /\.docx$/i.test(originalName)
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : /\.doc$/i.test(originalName)
+        ? 'application/msword'
+        : null;
+    if (!mime) return null;
+    const converted = await convertOfficeToPdf(plaintext, mime, originalName);
+    return converted?.buffer ?? null;
   }
 
   /** 把 .docx/.doc 文件名的扩展名替换为 .pdf；非 Word 文件保留原名。 */
