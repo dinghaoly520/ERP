@@ -487,7 +487,8 @@ export default function LedgerPage() {
             const showRatio = Boolean(queryRange.startDate);
             const tile = (value: string, label: string, opts?: { danger?: boolean; success?: boolean; yoy?: DeltaR; hb?: DeltaR }) => (
               <div key={label} className="rounded-[12px] m-tile px-1 py-2.5 text-center">
-                <div className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${opts?.danger ? "text-[var(--danger)]" : opts?.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>{value}</div>
+                {/* 值自适应字号（同首页总览）：≥7 字位降 14px，千万级完整可读 */}
+                <div className={`max-w-full truncate text-center font-black leading-none tabular-nums ${value.length >= 7 ? "text-[14px] min-[480px]:text-[16px]" : "text-[16px]"} ${opts?.danger ? "text-[var(--danger)]" : opts?.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>{value}</div>
                 <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{label}</div>
                 {showRatio ? (
                   <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">

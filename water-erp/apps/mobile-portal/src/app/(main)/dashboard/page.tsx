@@ -2706,8 +2706,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
             const tile = (m: (typeof overviewTiles)[number]) => {
               const inner = (
                 <>
+                  {/* 值自适应字号：≥7 字位（如「2797.1万」）降 14px——千万级在四列瓷片内完整可读，
+                      短值维持 16px 主视觉（2026-11-25 用户裁定「千万级也放不下」） */}
                   <div
-                    className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                    className={`max-w-full truncate text-center font-black leading-none tabular-nums ${m.value.length >= 7 ? "text-[14px] min-[480px]:text-[16px]" : "text-[16px]"} ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
                   >
                     {m.value}
                   </div>
