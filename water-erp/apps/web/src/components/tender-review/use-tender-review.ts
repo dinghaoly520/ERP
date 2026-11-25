@@ -125,7 +125,7 @@ export function useReviewOps() {
     reviewMode: 'strict' | 'general';
     documentContent: string;
     documentName: string;
-    objectKey: string;
+    fileId?: string;
   }) => {
     try {
       const result = await executeReview(params);

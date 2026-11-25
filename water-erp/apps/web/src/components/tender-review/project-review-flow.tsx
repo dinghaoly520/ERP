@@ -145,7 +145,7 @@ export default function ProjectReviewFlow({ projectId, documentType, answers, pr
         reviewMode: mode,
         documentContent: uploaded.content,
         documentName: uploaded.documentName,
-        objectKey: uploaded.objectKey,
+        fileId: uploaded.fileId,
         projectId,
         fingerprint,
       });
