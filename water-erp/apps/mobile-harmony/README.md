@@ -5,11 +5,21 @@ ArkWeb WebView 壳载入 `:3011` 移动驾驶舱——**零后端改动、零 We
 
 ## 构建运行
 
-1. **DevEco Studio 5.x**（API 12+）打开本目录（独立工程，不在 pnpm workspace 内）
-2. 首次打开提示同步 hvigor/SDK → 允许（modelVersion 老版本会自动升级）
+1. **DevEco Studio 26.x**（自带 SDK HarmonyOS 26.0.1 / API 26，hvigor 6.26+）打开本目录
+   （独立工程，不在 pnpm workspace 内）
+2. 首次打开提示同步 hvigor/SDK → 允许
 3. `File > Project Structure > Signing Configs` 勾选 **Automatically generate signature**
    （需登录华为账号；真机调试签名免费）
 4. 连接鸿蒙真机（或模拟器）→ Run
+
+> **工程结构要点（2026-11-25 DevEco 26 实测）**：新结构要求 `hvigor/hvigor-config.json5`
+> 与根 `oh-package.json5` **双处 `modelVersion` 相等**（本工程=26.0.1，合法区间
+> [5.0.0, 26.0.1]）；API 26 时代 `compatibleSdkVersion` 不带 `(N)` 后缀。
+> 命令行复现：`DEVECO_SDK_HOME=/Applications/DevEco-Studio.app/Contents/sdk
+> /Applications/DevEco-Studio.app/Contents/tools/hvigor/bin/hvigorw --sync`。
+> **真机注意**：手机若为 HarmonyOS NEXT 5.x（API 12–14 时代），需在
+> `Settings > HarmonyOS SDK` 补装 5.0.0(12) 并把 `compatibleSdkVersion` 改回
+> `"5.0.0(12)"`（模拟器 26.0.1 不受影响）。
 
 ## 上线前必改一处
 

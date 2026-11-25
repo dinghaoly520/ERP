@@ -6,7 +6,11 @@
     "products": [
       {
         "name": "default",
-        "compatibleSdkVersion": "5.0.0(12)",
+        /* API 26 时代格式：不带 (N) 后缀（version-const getHosCompileVersion：API≥26 纯平台版本号）；
+           对齐 DevEco 26.0.1 自带 SDK（HarmonyOS 26.0.1/API 26）。真机若为 HarmonyOS 5.x 老 NEXT
+           需在 SDK Manager 补装 5.0.0(12) 并改回带后缀格式 */
+        "compatibleSdkVersion": "26.0.1",
+        "targetSdkVersion": "26.0.1",
         "runtimeOS": "HarmonyOS",
         "buildOption": {
           "strictMode": {

@@ -52,12 +52,13 @@ struct Index {
         .zoomAccess(false) // 页面已做三档屏幕自适应，禁捏合缩放
         .overviewModeAccess(false)
         .onControllerAttached(() => {
-          // UA 追加壳标记：服务端/前端可识别 App 流量（观测用，无鉴权语义）
+          // UA 追加壳标记：服务端/前端可识别 App 流量（观测用，无鉴权语义）。
+          // API 26 无 controller.setUserAgent——走静态 setAppCustomUserAgent 设 App 级默认
           try {
             const ua: string = this.controller.getUserAgent();
-            this.controller.setUserAgent(`${ua} SsycCockpitHarmony/1.0`);
+            webview.WebviewController.setAppCustomUserAgent(`${ua} SsycCockpitHarmony/1.0`);
           } catch (e) {
-            hilog.warn(0x0000, TAG, 'setUserAgent failed');
+            hilog.warn(0x0000, TAG, 'setAppCustomUserAgent failed');
           }
         })
         .onProgressChange((data) => {

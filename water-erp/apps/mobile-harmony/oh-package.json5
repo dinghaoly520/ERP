@@ -5,6 +5,8 @@
   "main": "",
   "author": "",
   "license": "UNLICENSED",
+  /* 新工程结构要求：根 oh-package 与 hvigor-config 双处 modelVersion 相等（2026-11-25 DevEco 26 实测） */
+  "modelVersion": "26.0.1",
   "dependencies": {},
   "devDependencies": {}
 }
