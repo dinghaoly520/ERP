@@ -116,3 +116,21 @@ test("整段独立标题拆分（2026-11-25 流标公示实录）：首段只含
   const out = normalizeAnnouncementContentHtml(html, "流标公告 — 便携式全液压岩心钻机（800型）采购");
   assert.ok(out.includes('<p class="ann-prose-title">便携式全液压岩心钻机（800型）采购流标公示</p>'), out);
 });
+
+test("轮次后缀标题拆分（2026-11-25 变更/补遗实录）：标题带「（第N轮）」——独立段与粘连正文两形态都拆居中", () => {
+  // 独立段形态（补遗公告模板 p0 = {{项目名称}}补遗公告（第{{变更轮次}}轮））
+  const standalone = normalizeAnnouncementContentHtml(
+    "<p><strong>便携式全液压岩心钻机（800型）采购补遗公告（第1轮）</strong></p><p>一、项目名称：便携式全液压岩心钻机（800型）采购</p>",
+    "补遗公告 — 便携式全液压岩心钻机（800型）采购");
+  assert.ok(standalone.includes('<p class="ann-prose-title">便携式全液压岩心钻机（800型）采购补遗公告（第1轮）</p>'), standalone);
+  // 粘连形态：标题（含轮次后缀）与正文同段
+  const glued = normalizeAnnouncementContentHtml(
+    "<p><strong>便携式全液压岩心钻机（800型）采购变更公告（第2轮）</strong>一、项目名称：X</p>",
+    "变更公告 — 便携式全液压岩心钻机（800型）采购");
+  assert.ok(glued.includes('<p class="ann-prose-title">便携式全液压岩心钻机（800型）采购变更公告（第2轮）</p>'), glued);
+});
+test("轮次后缀防误伤：正文引用句「详见第二章采购公告（附录一）」不拆", () => {
+  const out = normalizeAnnouncementContentHtml(
+    "<p>评审依据详见第二章采购公告（附录一）执行。</p><p>正文</p>", "某公告标题");
+  assert.ok(!out.includes("ann-prose-title"), out);
+});
