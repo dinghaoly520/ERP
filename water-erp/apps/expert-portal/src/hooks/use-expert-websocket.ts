@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { joinProjectOnConnect } from '../lib/ws-join';
 import type { ConnectionState, ExpertPresenceAggregatePayload, ExpertPresencePayload, DecryptStatusPayload, StageChangePayload, ClarificationCreatedPayload, ClarificationRepliedPayload, BidValidityChangePayload, HallMessagePayload, ScoresSubmittedPayload, DraftSavedPayload, EvaluationExtendedPayload, RoomCodeRotatedPayload, ScoringReopenedPayload, LeadReviewSuggestedPayload, MotionCreatedPayload } from '@water-erp/shared';
 import { BID_EVENT } from '@water-erp/shared';
 import { bidWsUrl } from '@water-erp/config';
@@ -51,6 +52,7 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
   const pongTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptRef = useRef(0);
   const manualClose = useRef(false);
+  const joinFailStreak = useRef(0); // 连续几次连接都没能入会（重连会重置 attempt，须单独计数）
   // G1: 首次连接 vs 重连鉴别
   const hasConnectedOnce = useRef(false);
   handlersRef.current = handlers;
@@ -108,7 +110,14 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
       hasConnectedOnce.current = true;
       attemptRef.current = 0;
       setConnection('connected');
-      socket.emit('join:project', projectId);
+      // 入会带应答：握手鉴权比入会申请先完成的偶发时序下服务端回 UNAUTHORIZED，稍后重发即可
+      // 成功（2026-11-25）；重试耗尽则断开走既有重连，连续 3 次入会失败停止自动重连。
+      void joinProjectOnConnect(socket, projectId, {
+        isCurrent: () => socketRef.current === socket && !manualClose.current,
+        getFailStreak: () => joinFailStreak.current,
+        setFailStreak: (n) => { joinFailStreak.current = n; },
+        stopReconnect: () => { manualClose.current = true; },
+      });
       if (isReconnect) handlersRef.current.onReconnected?.();
 
       // Heartbeat: ping every 20s, expect pong within 10s
@@ -158,6 +167,7 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
     if (socketRef.current) { socketRef.current.disconnect(); socketRef.current = null; }
     clearHeartbeatTimers();
     attemptRef.current = 0;
+    joinFailStreak.current = 0;
     connect();
   }, [connect, clearHeartbeatTimers]);
 
