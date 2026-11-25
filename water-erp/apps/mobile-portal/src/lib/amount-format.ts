@@ -26,3 +26,19 @@ export function compactYuan(v: number): string {
   if (v >= 1e4) return `${trimTrailingZeros((v / 1e4).toFixed(1))}万`;
   return `${Math.round(v)}元`;
 }
+
+/** 金额（元）精确显示（2026-11-23 用户裁定「公告顶部预算保持原始数字」同口径；2026-11-25
+ *  扩展到进展页预算——用户裁定「预算不四舍五入保留原数字」）：千分位分组 + 小数位原样 +
+ *  「元」，按字符串处理不经 Number 往返，任何位数不丢精度。含单位/文字的自由文本原样返回，
+ *  空值返回空串。与 :3005 lib/format formatYuanExact 同款算法 */
+export function formatYuanExact(raw: unknown): string {
+  if (raw === null || raw === undefined) return "";
+  const s = String(raw).trim();
+  const m = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(s);
+  if (!m) return s;
+  const sign = m[1] === "-" ? "-" : "";
+  // 去无意义前导零——千分位分组按规范整数位算（「007000」→「7,000」而非「00,7000」）
+  const intPart = m[2].replace(/^0+(?=\d)/, "");
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${sign}${grouped}${m[3] !== undefined ? `.${m[3]}` : ""} 元`;
+}
