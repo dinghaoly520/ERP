@@ -1389,7 +1389,8 @@ export function ProjectDetailPanel({
               <button
                 type="button"
                 className="neu-btn-xs"
-                disabled={summaryRefreshing}
+                disabled={summaryRefreshing || actionsDisabled}
+                title={actionsDisabled ? '仅项目经办人可刷新简报' : undefined}
                 onClick={() => {
                   setSummaryRefreshing(true);
                   refreshProjectSummary(item.id)

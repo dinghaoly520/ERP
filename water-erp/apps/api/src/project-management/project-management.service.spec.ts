@@ -428,6 +428,12 @@ describe('ProjectManagementService', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue({ id: 'dept-1', name: 'x' }),
       },
+      // 分析缓存共享层（2026-11-25）：默认 DB 无缓存（走生成路径或旧文件回落）
+      systemConfig: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        upsert: jest.fn(),
+        delete: jest.fn(),
+      },
       projectManagementItem: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -1182,7 +1188,8 @@ describe('ProjectManagementService', () => {
 
       expect(result).toEqual({ content: '抽取过程段落。\n\n最终名单段落。', empty: false });
       expect((aiService as any).chat).toHaveBeenCalledTimes(1);
-      expect((await import('node:fs/promises')).writeFile).toHaveBeenCalled();
+      // 2026-11-25 缓存落 SystemConfig 共享层（原本地文件 writeFile 改 upsert）
+      expect(prisma.systemConfig.upsert).toHaveBeenCalled();
     });
 
     it('injects compliance checkpoints into prompt and cache fingerprint（要点并入步骤分析）', async () => {
@@ -1227,7 +1234,10 @@ describe('ProjectManagementService', () => {
         .update([stageFacts, '', '（本阶段未上传任何材料）', `rules:${JSON.stringify(checkpoints)}`].filter(Boolean).join('\n|--|\n'))
         .digest('hex')
         .slice(0, 16);
-      const cached = JSON.parse(writeFileMock.mock.calls[0][1] as string);
+      // 步骤分析缓存写共享层（SystemConfig upsert，键 pm-step-analysis:*:r1）
+      const stepUpsert = (prisma.systemConfig.upsert.mock.calls as Array<[any]>)
+        .find(([a]) => a?.where?.key === 'pm-step-analysis:pm-01:expert_selection:r1');
+      const cached = JSON.parse(stepUpsert![0].create.value as string);
       expect(cached.fingerprint).toBe(expectedFp);
     });
 
@@ -1271,7 +1281,9 @@ describe('ProjectManagementService', () => {
       // fingerprint 含材料摘要与备注 → 材料/留痕变更即失效
       const filesBlock = '- 立项审批表.docx：载明经分管领导批准，预算金额 380,000 元，签章齐全';
       const traceRaw = '阶段备注（含豁免理由）：立项审批表已归档，豁免预算批复（流标重招）；本阶段完成时间：2026-10-01 08:00';
-      const cached = JSON.parse(writeFileMock.mock.calls[0][1] as string);
+      const stepUpsert = (prisma.systemConfig.upsert.mock.calls as Array<[any]>)
+        .find(([a]) => a?.where?.key === 'pm-step-analysis:pm-01:initiation:r1');
+      const cached = JSON.parse(stepUpsert![0].create.value as string);
       const expectedFp = createHash('sha256')
         .update(['立项事由：某工程勘察', traceRaw, filesBlock, `rules:${JSON.stringify(checkpoints)}`].join('\n|--|\n'))
         .digest('hex')
