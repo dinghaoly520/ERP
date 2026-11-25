@@ -615,6 +615,20 @@ select.m-input { appearance: auto; }
   animation: m-sheet-up 0.28s var(--ease-out-quint);
 }
 
+/* 折叠屏展开态/平板/横屏（≥640px）自适应（2026-11-25 用户裁定）：
+ * 弹层不再整屏拉通——居中限宽与内容壳同口径（46rem），保留底部贴边形态 */
+@media (min-width: 640px) {
+  .m-sheet-panel {
+    max-width: 46rem;
+    margin-inline: auto;
+  }
+
+  /* 水叮当悬浮钮跟随壳缘：屏幕够宽时贴内容栏右缘，不再孤悬屏幕角落 */
+  .m-fab {
+    right: max(1rem, env(safe-area-inset-right), calc(50% - 23rem + 1rem));
+  }
+}
+
 /* ══ 体验打磨一轮（2026-10-14 spec）：入场/退场动效 + 减弱动效尊重 ══ */
 @keyframes m-rise {
   from { opacity: 0; transform: translateY(14px); }
