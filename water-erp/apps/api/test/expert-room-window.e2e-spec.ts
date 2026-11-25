@@ -4,6 +4,7 @@ import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { ROOM_CODE_LENGTH } from '../src/expert/expert-room.util';
 import { hashSync } from 'bcryptjs';
 
 /**
@@ -197,7 +198,10 @@ describe('Expert room code & window isolation (e2e)', () => {
       .set('Cookie', adminCookie).set('X-Portal', 'web').send({});
     expect(rot.status).toBe(201);
     const code = rot.body.roomCode as string;
-    expect(code).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
+    // 口令格式（2026-11-18 用户裁定 8→4 位）：去混淆字符集（无 0/O/1/I），且必含字母与数字。长度取常量，勿写死
+    expect(code).toMatch(new RegExp(`^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{${ROOM_CODE_LENGTH}}$`));
+    expect(code).toMatch(/[A-Z]/);
+    expect(code).toMatch(/[2-9]/);
 
     // 未验 → 执行点拦截
     const blocked = await request(app.getHttpServer())

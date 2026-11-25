@@ -88,6 +88,9 @@ describe('评标签字包全流程 (e2e)', () => {
           projectId, userId: expertUsers[i].id, expertName: expertUsers[i].username, major: '综合',
           isLead: i === 0, expertRole: '正选', signedIn: true, reportConfirmed: true,
           reportConfirmedAt: new Date(),
+          // 邀请确认状态须显式置 confirmed：列默认 pending；P2-4（2026-11-20）起，从未确认邀请/已婉拒的
+          // 正选不属实际评委，登记签字与上传扫描件都会 400 SIGN_EXPERT_NOT_CONFIRMED
+          invitationStatus: 'confirmed',
         },
       });
       expertIds.push(expert.id);

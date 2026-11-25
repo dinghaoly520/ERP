@@ -5,6 +5,7 @@ import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { BidIntentOversightService } from '../src/supplier/bid-intent-oversight.service';
+import { hashSync } from 'bcryptjs';
 
 /** 登录并返回 cookie；带 X-Portal 以匹配按门户命名的 cookie */
 async function loginAs(
@@ -304,18 +305,32 @@ describe('Supplier (e2e)', () => {
     const contactIdCard = `5101041991${seq}`;
     const supplierName = 'E2E补正链公司';
 
-    /** 归属公司：专建一家无 staff/leader 的公司——assertStageApprover 在「公司完全无办公账号」时
-     *  回退平台 admin 代审（2026-10-09 方案 A），种子公司均有 staff/leader（admin 审 STAFF 级会被
-     *  403 REVIEW_STAGE_MISMATCH），故退回/驳回两步走 admin 真实审批端点须挂在本测试自建公司下 */
+    /** 归属公司：专建一家测试自有公司，并在其下建一名同公司 staff——退回/驳回两步走真实审批端点。
+     *  三级审批的级权限（2026-11-20 用户裁定「admin 禁代审」，推翻 2026-10-09 方案 A 的「公司无
+     *  办公账号时回退平台 admin 代审」）：STAFF 级须由同公司 staff 操作（公司无 staff 时同公司
+     *  leader 代初审），平台 admin 仅审 ADMIN 级、或兜底未归属公司（companyId=null）的孤儿件。 */
     let chainCompanyId = '';
+    const reviewerUsername = `e2e-chain-staff-${t}`;
+    const reviewerPassword = 'Chain@2026';
     let adminCookie: string[] = [];
+    let reviewerCookie: string[] = []; // 同公司 staff（STAFF 级初审人）
+    let reviewerId = '';
     let supplierId = '';
     let chainUserId = '';
 
     beforeAll(async () => {
       const company = await prisma.company.create({ data: { name: `E2E补正链链路归属公司${t}` } });
       chainCompanyId = company.id;
+      const reviewer = await prisma.user.create({
+        data: {
+          username: reviewerUsername, displayName: 'e2e 补正链初审员', passwordHash: hashSync(reviewerPassword, 10),
+          role: 'staff', isActive: true, companyId: chainCompanyId,
+        },
+      });
+      reviewerId = reviewer.id;
       adminCookie = await loginAs(app, 'Swhi-CGZX-admin', 'Swhi-CGZX-admin@2026', 'web');
+      reviewerCookie = await loginAs(app, reviewerUsername, reviewerPassword, 'web');
+      expect(reviewerCookie.join()).toContain('token_web=');
     });
 
     afterAll(async () => {
@@ -324,6 +339,10 @@ describe('Supplier (e2e)', () => {
       if (s) {
         await prisma.supplierApprovalRecord.deleteMany({ where: { supplierId: s.id } }).catch(() => {});
         await prisma.user.deleteMany({ where: { id: s.userId } }).catch(() => {});
+      }
+      if (reviewerId) {
+        // 自建的初审员（通知/个人设置随用户级联删除；审批留痕已随上面的供应商清理）
+        await prisma.user.deleteMany({ where: { id: reviewerId } }).catch(() => {});
       }
       if (chainCompanyId) {
         await prisma.company.deleteMany({ where: { id: chainCompanyId } }).catch(() => {});
@@ -381,10 +400,20 @@ describe('Supplier (e2e)', () => {
         reviewStage: 'STAFF',
       });
 
-      // 2. 退回（真实审批端点：admin 审 STAFF 级，PENDING→RETURNED；退回不重置 reviewStage）
-      const returned = await request(app.getHttpServer())
+      // 2. 退回（真实审批端点，PENDING→RETURNED；退回不重置 reviewStage）。STAFF 级须由同公司 staff 操作：
+      //    先钉住「admin 对已归属公司的 STAFF 级件禁代审」（2026-11-20 裁定），再由同公司 staff 退回
+      const adminDenied = await request(app.getHttpServer())
         .post(`/api/supplier/${supplierId}/return`)
         .set('Cookie', adminCookie)
+        .set('X-Portal', 'web')
+        .send({ reason: '资质材料不清晰' })
+        .expect(403);
+      expect(adminDenied.body.code).toBe('REVIEW_STAGE_MISMATCH');
+      expect((await prisma.supplier.findUnique({ where: { id: supplierId } }))?.status).toBe('PENDING'); // 未被改动
+
+      const returned = await request(app.getHttpServer())
+        .post(`/api/supplier/${supplierId}/return`)
+        .set('Cookie', reviewerCookie)
         .set('X-Portal', 'web')
         .send({ reason: '资质材料不清晰' })
         .expect(201);
@@ -445,10 +474,10 @@ describe('Supplier (e2e)', () => {
         companyProfile: '已补正',
       });
 
-      // 7. 驳回（真实 reject 端点触发 purgeRejectedSupplier 数据最小化清洗）
+      // 7. 驳回（真实 reject 端点触发 purgeRejectedSupplier 数据最小化清洗）——同样由 STAFF 级的同公司 staff 操作
       const rejected = await request(app.getHttpServer())
         .post(`/api/supplier/${supplierId}/reject`)
-        .set('Cookie', adminCookie)
+        .set('Cookie', reviewerCookie)
         .set('X-Portal', 'web')
         .send({ reason: '材料不实' })
         .expect(201);

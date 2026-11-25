@@ -175,8 +175,13 @@ describe('专家管理 ExpertAdmin (e2e)', () => {
   });
 
   it('越权拦截：对非专家（leader 自身）停用应 404', async () => {
-    const res = await authPatch(`/api/expert-admin/${adminId}/availability`).send({ available: false });
+    // 请求本身须合法：2026-11-16 起理由必填，缺理由会先被参数校验以 400 挡下，到不了「非专家」这道闸
+    const res = await authPatch(`/api/expert-admin/${adminId}/availability`).send({ available: false, reason: 'e2e 越权拦截探针（不应生效）' });
     expect(res.status).toBe(404);
+    // 该闸的目的：防止经此接口停用任意非专家账户——目标账号必须原样可用
+    const target = await prisma.user.findUnique({ where: { id: adminId }, select: { role: true, isActive: true } });
+    expect(target?.role).not.toBe('bid_expert');
+    expect(target?.isActive).toBe(true);
   });
 
   it('录入三字段（民族/学历/证书）应真实持久化并回读一致（静默丢弃回归）', async () => {

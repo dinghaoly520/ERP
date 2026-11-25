@@ -4,6 +4,7 @@ import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { ATTACHMENT_MAX_BYTES } from '../src/upload/attachment-rules';
 
 async function loginAs(
   app: INestApplication,
@@ -32,6 +33,7 @@ describe('Upload (e2e)', () => {
   let adminCookie: string[];
   const fileBuffer = Buffer.from('%PDF-1.4 e2e upload sample content');
   let uploadedId: string;
+  const extraUploadedIds: string[] = []; // 大文件用例新建的 FileAsset 行（afterAll 清理，避免污染后续套件）
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -54,6 +56,7 @@ describe('Upload (e2e)', () => {
     if (uploadedId) {
       await prisma.fileAsset.deleteMany({ where: { id: uploadedId } }).catch(() => {});
     }
+    await prisma.fileAsset.deleteMany({ where: { id: { in: extraUploadedIds } } }).catch(() => {});
     await app.close();
   });
 
@@ -118,8 +121,23 @@ describe('Upload (e2e)', () => {
       .expect(400);
   });
 
-  it('超过 50MB 的文件应被拒绝', async () => {
-    const big = Buffer.alloc(51 * 1024 * 1024, 0x61); // 51MB
+  it('单文件上限 500MB（2026-11-05 裁定）：旧 50MB 上限的 51MB 文件可正常上传', async () => {
+    // 800 页扫描标书 ~200-400MB，旧 50/100MB 分档曾截断大件——
+    // 原用例断言「51MB 应被拒绝」，随该裁定反转为「应被接受」
+    const big = Buffer.alloc(51 * 1024 * 1024, 0x61);
+    const res = await request(app.getHttpServer())
+      .post('/api/upload?category=general')
+      .set('Cookie', adminCookie)
+      .set('X-Portal', 'web')
+      .attach('file', big, { filename: 'big-51mb.txt', contentType: 'text/plain' })
+      .expect(201);
+    extraUploadedIds.push(res.body.id);
+  });
+
+  it('超过上限（500MB）的文件应被拒绝', async () => {
+    // 上限 +1 字节（取规则常量，不写死数字）；零填充，不逐字节填充。
+    // 传输层由 multer limits.fileSize 把守（控制器里是独立字面量，须与规则常量同口径——本用例即防二者脱节）
+    const big = Buffer.alloc(ATTACHMENT_MAX_BYTES + 1);
     let rejected = false;
     try {
       const res = await request(app.getHttpServer())
@@ -127,7 +145,7 @@ describe('Upload (e2e)', () => {
         .set('Cookie', adminCookie)
         .set('X-Portal', 'web')
         .ok(() => true)
-        .attach('file', big, { filename: 'big.txt', contentType: 'text/plain' });
+        .attach('file', big, { filename: 'over-limit.txt', contentType: 'text/plain' });
       rejected = res.status >= 400;
     } catch {
       // Multer 达到大小上限可能中断连接，视为已拒绝

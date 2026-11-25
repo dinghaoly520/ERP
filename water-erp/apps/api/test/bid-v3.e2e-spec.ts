@@ -335,6 +335,9 @@ describe('dual-v3 全链 (e2e)', () => {
     const p1 = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/prepare`)
       .set('Cookie', cookie).set('X-Portal', 'supplier').send({ action: 'submit' }).expect(200);
     const env1 = await mkEnvFor(up1.body.fileAssetId, 1);
+    // 首投同样过暂存资产哈希闸（N13-A：2026-11-20 接入首投路径；F8：11-23 起严格比对）——信封声明的
+    // outerSha256 须等于暂存实算值。此前首投不校验，mkEnvFor 里的占位值 'f'×64 也能过；写法与下方补传的 env2 一致
+    (env1.files.technical as any).outerSha256 = up1.body.outerSha256; // staged 实算对齐
     await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/operations/${p1.body.operationId}/signing-payload`)
       .set('Cookie', cookie).set('X-Portal', 'supplier').send({ envelope: env1 }).expect(200);
     const s1 = await request(app.getHttpServer()).post(`/api/supplier-portal/bid-submissions/${proj.id}/submit`)
