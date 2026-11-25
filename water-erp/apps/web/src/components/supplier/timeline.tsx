@@ -6,7 +6,7 @@ import type { SupplierTimeline, TimelineEvent } from '@/lib/api/supplier';
 import {
   Loader2, UserPlus, CheckCircle2, XCircle, RotateCcw, Ban, ShieldOff,
   RefreshCw, Send, Activity, FileEdit, Award, Briefcase, Package, FileText,
-  ArrowRightLeft,
+  ArrowRightLeft, Undo2,
 } from 'lucide-react';
 
 type TypeConfig = { color: string; bg: string; icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }> };
@@ -20,6 +20,7 @@ const typeConfig: Record<string, TypeConfig> = {
   SUPPLIER_REVIEW_PASSED_LEADER: { color: 'var(--accent)',  bg: 'var(--accent)',  icon: CheckCircle2 },
   SUPPLIER_REJECTED:          { color: 'var(--danger)',  bg: 'var(--danger)',  icon: XCircle },
   SUPPLIER_RETURNED:          { color: 'var(--warning)', bg: 'var(--warning)', icon: RotateCcw },
+  SUPPLIER_WITHDRAWN:         { color: 'var(--muted-foreground)', bg: 'var(--muted-foreground)', icon: Undo2 },
   // 状态变更
   SUPPLIER_DISABLED:          { color: 'oklch(0.55 0.05 70)',  bg: 'oklch(0.55 0.05 70)',  icon: Ban },
   SUPPLIER_BLACKLIST:         { color: 'var(--danger)',        bg: 'var(--danger)',        icon: ShieldOff },

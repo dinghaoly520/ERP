@@ -18,6 +18,7 @@ export const SUPPLIER_ACTION_LABELS: Record<string, string> = {
   SUPPLIER_REVIEW_PASSED_LEADER: '复审通过',
   SUPPLIER_REJECTED: '审核不通过',
   SUPPLIER_RETURNED: '退回补正',
+  SUPPLIER_WITHDRAWN: '供应商撤回申请',
   SUPPLIER_DISABLED: '停用',
   SUPPLIER_BLACKLIST: '拉黑',
   SUPPLIER_UNBLACKLIST: '解除拉黑',

@@ -26,7 +26,7 @@ const STAGE_LABEL: Record<string, string> = {
 
 type Filter = 'ALL' | 'APPROVED' | 'RETURNED' | 'REJECTED';
 
-/** 一次完整审批（一轮）：同一供应商的一段连续记录，终审通过/驳回闭环 */
+/** 一次完整审批（一轮）：同一供应商的一段连续记录，终审通过/驳回/撤回闭环 */
 interface ApprovalRound {
   key: string;
   supplier: AllApprovalRecord['supplier'];
@@ -35,7 +35,7 @@ interface ApprovalRound {
   outcome: { label: string; tone: 'green' | 'red' | 'orange' | 'neutral' };
 }
 
-/** 按供应商拆轮次：时间正序走，终审通过（APPROVED·ADMIN）或驳回（REJECTED）闭环一轮；
+/** 按供应商拆轮次：时间正序走，终审通过（APPROVED·ADMIN）或驳回（REJECTED）或撤回（WITHDRAWN）闭环一轮；
  *  退回补正不闭环（补正后回到原级继续，算同一轮）。返回各轮均倒序。 */
 function splitRounds(records: AllApprovalRecord[], supplier: AllApprovalRecord['supplier']): ApprovalRound[] {
   const asc = [...records].reverse();
@@ -43,7 +43,7 @@ function splitRounds(records: AllApprovalRecord[], supplier: AllApprovalRecord['
   let cur: AllApprovalRecord[] = [];
   for (const r of asc) {
     cur.push(r);
-    if ((r.action === 'APPROVED' && r.stage === 'ADMIN') || r.action === 'REJECTED') {
+    if ((r.action === 'APPROVED' && r.stage === 'ADMIN') || r.action === 'REJECTED' || r.action === 'WITHDRAWN') {
       chunks.push(cur);
       cur = [];
     }
@@ -60,6 +60,7 @@ function splitRounds(records: AllApprovalRecord[], supplier: AllApprovalRecord['
 function roundOutcome(ascRecords: AllApprovalRecord[]): ApprovalRound['outcome'] {
   if (ascRecords.some(r => r.action === 'APPROVED' && r.stage === 'ADMIN')) return { label: '终审通过 · 已入库', tone: 'green' };
   if (ascRecords.some(r => r.action === 'REJECTED')) return { label: '已驳回', tone: 'red' };
+  if (ascRecords.some(r => r.action === 'WITHDRAWN')) return { label: '已撤回', tone: 'neutral' };
   const last = ascRecords[ascRecords.length - 1];
   if (last?.action === 'RETURNED') return { label: '退回待补正', tone: 'orange' };
   return { label: '审核中', tone: 'neutral' };
@@ -69,10 +70,12 @@ function actionLabel(r: AllApprovalRecord): string {
   const st = r.stage && STAGE_LABEL[r.stage] ? STAGE_LABEL[r.stage] : null;
   if (r.action === 'APPROVED') return st ? `${st}通过` : '通过';
   if (r.action === 'REJECTED') return st ? `${st}驳回` : '驳回';
+  if (r.action === 'WITHDRAWN') return '供应商撤回申请';
   return st ? `${st}退回补正` : '退回补正';
 }
 
-function actionTone(r: AllApprovalRecord): 'green' | 'orange' | 'red' {
+function actionTone(r: AllApprovalRecord): 'green' | 'orange' | 'red' | 'neutral' {
+  if (r.action === 'WITHDRAWN') return 'neutral';
   return r.action === 'APPROVED' ? 'green' : r.action === 'RETURNED' ? 'orange' : 'red';
 }
 
