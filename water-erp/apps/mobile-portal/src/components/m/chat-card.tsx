@@ -35,8 +35,9 @@ export function ChatCardView({ card }: { card: ChatCard }) {
   if (card.type === "metric") {
     const items = (card.metrics ?? []) as Array<{ label: string; value: string }>;
     if (items.length) {
+      // 折叠屏展开态：指标瓷片 4 列（列宽≈手机同密度）
       return (
-        <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+        <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
           {items.map((m, i) => (
             <div key={i} className="rounded-[12px] m-tile px-3 py-2">
               <div className="text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
