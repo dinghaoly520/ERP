@@ -38,3 +38,10 @@ export const SUPPLIER_ACTION_LABELS: Record<string, string> = {
 export function supplierActionLabel(action: string): string {
   return SUPPLIER_ACTION_LABELS[action] ?? '供应商动态';
 }
+
+/** 审批级枚举 → 中文（审计详情 stage/nextStage 值域，与后端 REVIEW_STAGE_LABELS 同口径） */
+export const REVIEW_STAGE_LABELS: Record<string, string> = {
+  STAFF: '初审',
+  LEADER: '复审',
+  ADMIN: '终审',
+};
