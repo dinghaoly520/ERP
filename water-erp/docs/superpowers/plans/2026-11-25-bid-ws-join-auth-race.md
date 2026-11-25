@@ -18,6 +18,7 @@
 - **重试参数**：含首次最多 3 次，间隔 150ms → 300ms → 600ms，每次等应答最多 5000ms；重试耗尽（未授权或等不到应答）断开连接走既有重连；**连续 3 次连接**都入会失败则停止自动重连，状态停在 `disconnected`。
 - **四份 `ws-join.ts` 逐字一致**（只有所在门户不同）；各 hook 入参、返回值、事件回调不变，页面调用方不改。`bid-portal` 今天不受影响，改它只为四份一致。
 - **测试先行**：每个任务先写失败的测试、看到它失败，再写实现。
+- **预期里的用例数是写计划时的实测基线**；动手时若别的会话已经改过测试，以「新增的用例全过、没有其他失败」为准。
 - **命令一律绝对路径 `cd`**；跑测试直接用 `node_modules/.bin/jest` / `.bin/tsx` / `node --test`，**不经 pnpm**（`pnpm test` 会触发自动安装并失败）。
 - **e2e 只能在隔离环境里跑**（附录 A）。直接在 `apps/api` 下跑 e2e 会连到 `.env` 指向的实时库。
 - **单测与 e2e 都要在本机时区和 `TZ=UTC`（CI 的时区）下各跑一遍。**
@@ -94,7 +95,8 @@ describe('握手鉴权与入会的时序（2026-11-25 入会竞态修复）', ()
     const jwt = { verifyAsync: jest.fn().mockResolvedValue({ sub: 'u-sup', role: 'supplier', sid: 'sid-1' }) } as any;
     const gw = new BidGateway(jwt, prisma);
     const socket = makeSocket('token_supplier=sup-jwt', 'supplier');
-    const authing = gw.handleConnection(socket); // 不 await：客户端在鉴权完成前就发入会
+    const authing = gw.handleConnection(socket);
+    await new Promise((r) => setImmediate(r)); // 让出事件循环：真实客户端的入会消息总在之后一轮到达，此时查库对账还没结束
     const ack = gw.handleJoinProject(socket, 'p1');
     await authing;
     expect(await ack).toEqual({ ok: true, supplierId: 'sup-1', supplierName: '甲公司' });
@@ -111,6 +113,7 @@ describe('握手鉴权与入会的时序（2026-11-25 入会竞态修复）', ()
     const gw = new BidGateway(jwt, prisma);
     const socket = makeSocket('token_supplier=sup-jwt', 'supplier');
     const authing = gw.handleConnection(socket);
+    await new Promise((r) => setImmediate(r));
     const ack = gw.handleJoinProject(socket, 'p1');
     await authing;
     expect(await ack).toEqual({ error: 'UNAUTHORIZED' });
@@ -124,6 +127,7 @@ describe('握手鉴权与入会的时序（2026-11-25 入会竞态修复）', ()
     const gw = new BidGateway(jwt, prisma);
     const socket = makeSocket('token_bid=host-jwt', 'bid');
     const authing = gw.handleConnection(socket);
+    await new Promise((r) => setImmediate(r)); // 验签只占一个微任务：让出事件循环后身份已就位（主持人本就不受这个竞态影响）
     const ack = gw.handleJoinProject(socket, 'p1');
     await authing;
     expect(await ack).toEqual({ ok: true });
@@ -527,8 +531,9 @@ Expected: 两次都是 `tests 11 / pass 11 / fail 0`。
 `apps/supplier-portal-next/src/hooks/use-bid-websocket.ts`：
 
 1. 引入 `joinProjectOnConnect`（路径 `../lib/ws-join`）。
-2. `let hasConnectedOnce = false; // X-P2-09…`（约 L61）的下一行加 `let joinFailStreak = 0; // 连续几次连接都没能入会`（`reconnectNow` 会重跑整个 effect，该变量自然归零）。
-3. `connect()` 里 `s.emit("join:project", projectId);`（约 L97）那一行换成下面这段；其余各行顺序不变：
+2. `connect()` 开头的 `if (disposed || sessionStopped || socket?.connected) return;` 改成 `if (!projectId || disposed || sessionStopped || socket?.connected) return;`——让 `projectId` 在函数内收窄为字符串，否则第 4 点的调用编译不过；行为不变（外层 effect 在 `projectId` 为空时本就不会走到这里）。
+3. `let hasConnectedOnce = false; // X-P2-09…`（约 L61）的下一行加 `let joinFailStreak = 0; // 连续几次连接都没能入会`（`reconnectNow` 会重跑整个 effect，该变量自然归零）。
+4. `connect()` 里 `s.emit("join:project", projectId);`（约 L97）那一行换成下面这段；其余各行顺序不变：
 
 ```ts
         void joinProjectOnConnect(s, projectId, {
@@ -658,7 +663,7 @@ git commit -m "fix(bid): 开标实时 hook 入会带应答并对未授权重试�
 Run: `cd /home/asus/桌面/ERP/water-erp/apps/api && node_modules/.bin/jest --forceExit`，再跑一遍前面加 `TZ=UTC` 的同样命令。
 Run: `cd /home/asus/桌面/ERP/water-erp && pnpm --filter api exec eslint "src/**/*.ts" "test/**/*.ts"`
 Run: `cd /home/asus/桌面/ERP/water-erp && bash scripts/check-cgzxui-redcards.sh --ci && bash scripts/copy-lint.sh --ci`
-Expected: API 单测两个时区都全过（`353` 套件，用例 `4920 = 4916 + 4`）；lint 0 错误；两道闸通过。
+Expected: API 单测两个时区都全过，且用例数比动手前多 4 条（写计划时的基线是 `355` 套件 / `4958` 条，即应为 `4962` 条）；lint 0 错误；两道闸通过。
 
 - [ ] **Step 2: 全量 e2e（空库重建，两个时区各两轮）**
 
@@ -691,6 +696,16 @@ git commit -m "docs(claude): 实时通道握手鉴权与入会时序约定（新
 不主动 push。汇报各任务提交号、两个时区的全量 e2e 轮次结果、本地领先远端的提交数。用户说 push 后盯 CI 到终态——`validate` 与 `e2e` 两个作业都应 success（本机查法：先 `export HTTPS_PROXY=socks5://127.0.0.1:7897`，`gh run list --repo dinghaoly520/ERP --limit 3 --json databaseId,headSha,status,conclusion`，轮询到 `completed`）。
 
 ---
+
+## 审查记录（2026-11-25，对照当前代码）
+
+把计划里的代码块原样抽出来对当前代码实跑，发现并已在上面改正三处：
+
+1. 网关单测原先在同一个同步调用栈里紧接着连接触理就调入会，连「主持人令牌」那条也会失败，与计划声称的「修复前已绿」不符。真实客户端的入会消息至少晚一轮事件循环，三条用例都改成先让出事件循环再入会；改后实测 1 条失败、3 条通过。
+2. 供应商门户 hook 的 `connect()` 没有对 `projectId` 判空，原样接入编译不过（`string | undefined`）。Task 3 增加了把判空并入开头守卫的一步。
+3. API 全量单测的基线已被别的会话改过（`353` / `4916` → `355` / `4958`），预期改为相对表述。
+
+其余实测无问题：前端基准文件与 11 条单测在 tsx 与纯 Node 下都通过；e2e 新用例按原样插进 `opening-hall` 套件副本，连续 3 次稳定失败于未授权；四个 hook 的改动点都精确命中，web、expert-portal、bid-portal 三处接入编译通过，supplier-portal-next 在第 2 点修正后编译通过。
 
 ## 附录 A：隔离 e2e 环境
 
