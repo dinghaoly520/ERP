@@ -20,7 +20,7 @@ test('pickNewerDraft: 按 savedAt/_ts 取新者（两键同权）', () => {
   assert.equal(pickNewerDraft({ savedAt: 100 }, { _ts: 200 }), 'local');
 });
 
-test('pickNewerDraft: 时间戳相等本机胜出（幂等重开不扰动）', () => {
+test('pickNewerDraft: 时间戳相等本机胜出（反复重开不扰动）', () => {
   assert.equal(pickNewerDraft({ savedAt: 100 }, { savedAt: 100 }), 'local');
 });
 

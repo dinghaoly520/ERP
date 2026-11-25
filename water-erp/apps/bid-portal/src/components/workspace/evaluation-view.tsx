@@ -647,7 +647,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
   const formulaCfg = (project.priceFormulaConfig ?? null) as { formulaType?: string } | null;
   const ceilingRequired = formulaCfg?.formulaType === 'benchmark_deviation' || formulaCfg?.formulaType === 'ratio';
   const ceilingMissing = ceilingRequired && !(project.ceilingPrice != null && Number(project.ceilingPrice) > 0);
-  if (ceilingMissing) startBlockers.push('价格分公式为基准价偏离法/比例法，须先在采购管理工作台（:3005）设置最高限价');
+  if (ceilingMissing) startBlockers.push('价格分公式为基准价偏离法/比例法，须先在采购管理工作台设置最高限价');
 
   // F9：生成向导第 0 步清单补全——镜像 generateEvaluationResults 其余前置闸门（旧清单只有专家报告确认）
   const openDisputeCount = (project.expertDisputes ?? []).filter(d => d.status === 'open').length;
@@ -1390,7 +1390,7 @@ export default function EvaluationView({ projectId, project, onChanged, refreshS
               {/* U9（2026-11-23）：caption 限定语义——本端是主持人视图（专家实名可见），
                   匿名编号是专家端的呈现规则，原文案与同屏真名自相矛盾。 */}
               专家端评分明细按匿名编号呈现；本端为主持人视图，显示真实名称
-              <HelpTip text={`专家端（:3006）评分明细按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；全部专家确认评审报告后恢复实名。本端为主持人/管理员特权视图，专家实名可见。${alternateExperts.length > 0 ? `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。` : ''}`} />
+              <HelpTip text={`专家端评分明细按「专家 1/2/…」稳定编号呈现（互不可见他人分数）；全部专家确认评审报告后恢复实名。本端为主持人/管理员特权视图，专家实名可见。${alternateExperts.length > 0 ? `另有 ${alternateExperts.length} 名候补专家不参与评分，未列入矩阵。` : ''}`} />
             </p>
             <div className="overflow-x-auto rounded-[14px] border border-[oklch(0.6_0.04_258/0.14)]">
             <table className="neu-table is-dense w-full min-w-[560px]">
