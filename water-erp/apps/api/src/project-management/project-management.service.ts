@@ -268,15 +268,21 @@ export class ProjectManagementService {
 
   private async writePmiCacheJson(key: string, payload: unknown): Promise<void> {
     const value = JSON.stringify(payload);
-    try {
-      await this.prisma.systemConfig.upsert({
-        where: { key },
-        create: { key, value },
-        update: { value },
-      });
-    } catch (e) {
-      // 写失败不 500：本次响应照常返回生成内容，只是下次会再生成一次
-      this.logger.warn(`[pmi-cache] 写 DB 缓存失败 ${key}: ${(e as Error).message}`);
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.prisma.systemConfig.upsert({
+          where: { key },
+          create: { key, value },
+          update: { value },
+        });
+        return;
+      } catch (e) {
+        // 首败重试一次：并发 upsert 撞唯一键（P2002）是瞬时态，重跑即走 update 分支
+        if (attempt === 0) continue;
+        // 写失败不 500：本次响应照常返回生成内容，只是下次会再生成一次
+        this.logger.warn(`[pmi-cache] 写 DB 缓存失败 ${key}: ${(e as Error).message}`);
+        return;
+      }
     }
   }
 
@@ -308,6 +314,49 @@ export class ProjectManagementService {
     } finally {
       if (this.pmiCacheFlights.get(key) === p) this.pmiCacheFlights.delete(key);
     }
+  }
+
+  /* ── 指纹缓存写入收敛（2026-11-25 稳健轮）──────────────────────────────────
+   * create 抢占替代直接 upsert：跨实例（双机各跑一API）/绕过 single-flight 的并发
+   * （显式刷新 vs 常规读）同键同指纹生成时，先写入者的内容为全局准——后到者采用既有
+   * 内容返回（响应也收敛到同一份），不再各写各的各返各的。指纹不同（生成期间数据已
+   * 变）则覆盖为新内容，后续读按指纹自然校正。 */
+  private async claimStageFilesCache<F>(
+    key: string,
+    fingerprint: string,
+    payload: { fingerprint: string; files: F[] },
+  ): Promise<{ fingerprint: string; files: F[] } | null> {
+    try {
+      await this.prisma.systemConfig.create({ data: { key, value: JSON.stringify(payload) } });
+      return null; // 抢占成功：本次内容即全局权威
+    } catch {
+      // 键已存在（并发抢占失败）或 DB 故障——读既有行判定
+    }
+    const existing = await this.readPmiCacheJson<{ fingerprint?: string; files?: F[] }>(key);
+    if (existing?.fingerprint === fingerprint && Array.isArray(existing.files)) {
+      return { fingerprint, files: existing.files }; // 同指纹：采用先写入者
+    }
+    await this.writePmiCacheJson(key, payload);
+    return null;
+  }
+
+  private async claimStepContentCache(
+    key: string,
+    fingerprint: string,
+    content: string,
+  ): Promise<string | null> {
+    try {
+      await this.prisma.systemConfig.create({ data: { key, value: JSON.stringify({ fingerprint, content }) } });
+      return null;
+    } catch {
+      // 同上：读既有行判定
+    }
+    const existing = await this.readPmiCacheJson<{ fingerprint?: string; content?: string }>(key);
+    if (existing?.fingerprint === fingerprint && typeof existing.content === 'string' && existing.content) {
+      return existing.content;
+    }
+    await this.writePmiCacheJson(key, { fingerprint, content });
+    return null;
   }
 
   constructor(
@@ -5624,8 +5673,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
       .replace(/(?:^|\n)\s*[、，,;；]\s*/g, (m) => (m.startsWith('\n') ? '\n' : ''))
       .trim();
 
-    // 写缓存（共享层：此后任何账号/设备/实例读到的都是这份内容）
-    await this.writePmiCacheJson(stepCacheKey, { fingerprint, content });
+    // 写缓存（共享层：此后任何账号/设备/实例读到的都是这份内容）。显式刷新=强制覆盖；
+    // 常规生成走 create 抢占收敛——并发/跨实例同指纹先写入者为准，本次响应也采用其内容
+    if (forceRefresh) {
+      await this.writePmiCacheJson(stepCacheKey, { fingerprint, content });
+    } else {
+      const adopted = await this.claimStepContentCache(stepCacheKey, fingerprint, content);
+      if (adopted != null) content = adopted;
+    }
 
     return { content, empty: false };
   }
@@ -5694,41 +5749,52 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // If summary was NOT loaded from cache AND we have file analyses, auto-generate summary.
     // degraded 批次（占位摘要）不生成简报——先等文件摘要重生成成功，避免把「AI 服务暂不可用」固化进简报缓存
+    // single-flight + 双检（2026-11-25 稳健轮）：详情页预热（按阶段 analyze）与本调用并发时
+    // 不再各生成一份简报各返各的——排队期间已有生成落缓存即直取，全员同内容。
     if (!summaryFromCache && anyDegraded) {
       summary = '项目简报生成中，请稍后点击刷新。';
     } else if (!summaryFromCache && allFileAnalyses.length > 0) {
-      try {
-        const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
-        const isCompleted = contractStage?.status === 'COMPLETED';
-        const generated = await this.aiService.generateProjectSummary({
-          project: {
-            title: project.title,
-            requesterName: project.requesterName,
-            requesterDepartment: project.requesterDepartment,
-            procurementMethod: project.procurementMethod,
-            procurementCategory: project.procurementCategory,
-            currentStage: project.currentStage,
-            projectReason: project.projectReason,
-            supplierRequirements: project.supplierRequirements,
-            awardedSupplier: project.awardedSupplier || undefined,
-            budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
-            contractAmount: project.contractAmount ? Number(project.contractAmount) : undefined,
-            expertInfo: project.expertInfo || undefined,
-            biddingUnits: project.biddingUnits || undefined,
-          },
-          fileAnalysisResults: allFileAnalyses.map(f => ({
-            fileName: f.fileName,
-            stageKey: f.stageMatch,
-            contentSummary: f.contentSummary,
-          })),
-          isCompleted,
-        });
-        summary = generated;
-        // Cache the generated summary（共享层：全员此后同读这份）
-        await this.writePmiCacheJson(pmSummaryCacheKey(project.id), { summary: generated });
-      } catch {
-        summary = '项目简报生成中，请稍后点击刷新。';
-      }
+      const summaryKey = pmSummaryCacheKey(project.id);
+      summary = await this.singleFlight(`summary:${project.id}`, async () => {
+        // 双检：等班机期间他请求已生成并落缓存 → 直取
+        const again = await this.readPmiCacheJson<{ summary?: string }>(
+          summaryKey,
+          getProjectSummaryCachePath(project.id),
+        );
+        if (again?.summary?.trim()) return again.summary;
+        try {
+          const contractStage = project.stages.find((s) => s.stageKey === 'CONTRACT');
+          const isCompleted = contractStage?.status === 'COMPLETED';
+          const generated = await this.aiService.generateProjectSummary({
+            project: {
+              title: project.title,
+              requesterName: project.requesterName,
+              requesterDepartment: project.requesterDepartment,
+              procurementMethod: project.procurementMethod,
+              procurementCategory: project.procurementCategory,
+              currentStage: project.currentStage,
+              projectReason: project.projectReason,
+              supplierRequirements: project.supplierRequirements,
+              awardedSupplier: project.awardedSupplier || undefined,
+              budgetAmount: project.budgetAmount ? Number(project.budgetAmount) : undefined,
+              contractAmount: project.contractAmount ? Number(project.contractAmount) : undefined,
+              expertInfo: project.expertInfo || undefined,
+              biddingUnits: project.biddingUnits || undefined,
+            },
+            fileAnalysisResults: allFileAnalyses.map(f => ({
+              fileName: f.fileName,
+              stageKey: f.stageMatch,
+              contentSummary: f.contentSummary,
+            })),
+            isCompleted,
+          });
+          // Cache the generated summary（共享层：全员此后同读这份）
+          await this.writePmiCacheJson(summaryKey, { summary: generated });
+          return generated;
+        } catch {
+          return '项目简报生成中，请稍后点击刷新。';
+        }
+      });
     }
 
     if (!summary) {
@@ -5895,7 +5961,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
 
     // degraded 占位不落缓存（fingerprint 固化后预热判「已覆盖」永不重试——2026-11-23 缓存投毒修复）
     if (stageFiles.length > 0 && !stageDegraded) {
-      await this.writePmiCacheJson(cacheKey, { fingerprint, files: stageFiles });
+      if (forceRefresh) {
+        // 显式刷新=强制覆盖（用户裁定重取新内容），不走收敛
+        await this.writePmiCacheJson(cacheKey, { fingerprint, files: stageFiles });
+      } else {
+        // create 抢占收敛：并发/跨实例同指纹先写入者为准，本次响应也采用其内容
+        const adopted = await this.claimStageFilesCache(cacheKey, fingerprint, { fingerprint, files: stageFiles });
+        if (adopted) stageFiles = adopted.files;
+      }
     }
 
     return { files: stageFiles, degraded: stageDegraded };

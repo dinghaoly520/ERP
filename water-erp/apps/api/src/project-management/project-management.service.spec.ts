@@ -431,6 +431,7 @@ describe('ProjectManagementService', () => {
       // 分析缓存共享层（2026-11-25）：默认 DB 无缓存（走生成路径或旧文件回落）
       systemConfig: {
         findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn(),
         upsert: jest.fn(),
         delete: jest.fn(),
       },
@@ -1189,11 +1190,11 @@ describe('ProjectManagementService', () => {
       expect(result).toEqual({ content: '抽取过程段落。\n\n最终名单段落。', empty: false });
       expect((aiService as any).chat).toHaveBeenCalledTimes(1);
       // 2026-11-25 缓存落 SystemConfig 共享层（原本地文件 writeFile 改 upsert）
-      expect(prisma.systemConfig.upsert).toHaveBeenCalled();
+      expect(prisma.systemConfig.create).toHaveBeenCalled();
     });
 
     it('injects compliance checkpoints into prompt and cache fingerprint（要点并入步骤分析）', async () => {
-      const { service, prisma, aiService, stageCompliance, readFileMock, writeFileMock } = makeService();
+      const { service, prisma, aiService, stageCompliance, readFileMock } = makeService();
       const checkpoints = [
         {
           name: '回避原则',
@@ -1235,14 +1236,14 @@ describe('ProjectManagementService', () => {
         .digest('hex')
         .slice(0, 16);
       // 步骤分析缓存写共享层（SystemConfig upsert，键 pm-step-analysis:*:r1）
-      const stepUpsert = (prisma.systemConfig.upsert.mock.calls as Array<[any]>)
-        .find(([a]) => a?.where?.key === 'pm-step-analysis:pm-01:expert_selection:r1');
-      const cached = JSON.parse(stepUpsert![0].create.value as string);
+      const stepUpsert = (prisma.systemConfig.create.mock.calls as Array<[any]>)
+        .find(([a]) => a?.data?.key === 'pm-step-analysis:pm-01:expert_selection:r1');
+      const cached = JSON.parse(stepUpsert![0].data.value as string);
       expect(cached.fingerprint).toBe(expectedFp);
     });
 
     it('feeds stage file-analysis summaries into prompt and fingerprint（审批文件内容作证据）', async () => {
-      const { service, prisma, aiService, stageCompliance, readFileMock, writeFileMock } = makeService();
+      const { service, prisma, aiService, stageCompliance, readFileMock } = makeService();
       const checkpoints = [{ name: '立项审批', dimension: '审批合规', criteria: '立项须经相应权限审批并留痕', regulationRef: '《采购管理办法》第三章' }];
       (aiService as any).chat = jest.fn().mockResolvedValue('过程段。\n\n事实段。\n\n合规核对段。');
       (stageCompliance as any).getRules = async () => ({ checkpoints, source: 'db' });
@@ -1281,14 +1282,131 @@ describe('ProjectManagementService', () => {
       // fingerprint 含材料摘要与备注 → 材料/留痕变更即失效
       const filesBlock = '- 立项审批表.docx：载明经分管领导批准，预算金额 380,000 元，签章齐全';
       const traceRaw = '阶段备注（含豁免理由）：立项审批表已归档，豁免预算批复（流标重招）；本阶段完成时间：2026-10-01 08:00';
-      const stepUpsert = (prisma.systemConfig.upsert.mock.calls as Array<[any]>)
-        .find(([a]) => a?.where?.key === 'pm-step-analysis:pm-01:initiation:r1');
-      const cached = JSON.parse(stepUpsert![0].create.value as string);
+      const stepUpsert = (prisma.systemConfig.create.mock.calls as Array<[any]>)
+        .find(([a]) => a?.data?.key === 'pm-step-analysis:pm-01:initiation:r1');
+      const cached = JSON.parse(stepUpsert![0].data.value as string);
       const expectedFp = createHash('sha256')
         .update(['立项事由：某工程勘察', traceRaw, filesBlock, `rules:${JSON.stringify(checkpoints)}`].join('\n|--|\n'))
         .digest('hex')
         .slice(0, 16);
       expect(cached.fingerprint).toBe(expectedFp);
+    });
+
+    // ── 共享层稳健语义（2026-11-25 稳健轮）──────────────────────────────
+    const mkExpertProject = () => ({
+      id: 'pm-01',
+      title: '岩土勘察项目',
+      procurementMethod: '公开招标',
+      procurementCategory: '工程',
+      projectReason: '',
+      supplierRequirements: '',
+      currentStage: 'EXPERT_SELECTION',
+      invitedSuppliers: null,
+      expertInfo: '张三|地质部|岩土工程|高级工程师|组长',
+      projectOverview: '岩土工程勘察',
+      stages: [{ status: 'COMPLETED', attachments: [], round: 1 }],
+    });
+    const expertFp = () => createHash('sha256')
+      .update(['张三|地质部|岩土工程|高级工程师|组长', '（本阶段未上传任何材料）', `rules:${JSON.stringify([])}`].join('\n|--|\n'))
+      .digest('hex')
+      .slice(0, 16);
+
+    it('DB 缓存命中（同指纹）直接返回既有内容，不再跑 LLM', async () => {
+      const { service, prisma, aiService } = makeService();
+      (aiService as any).chat = jest.fn().mockResolvedValue('不应生成的输出');
+      prisma.projectManagementItem.findUnique.mockResolvedValue(mkExpertProject());
+      prisma.systemConfig.findUnique.mockResolvedValue({
+        key: 'pm-step-analysis:pm-01:expert_selection:r1',
+        value: JSON.stringify({ fingerprint: expertFp(), content: '既有步骤分析内容' }),
+      });
+
+      const result = await service.analyzeStep('pm-01', 'EXPERT_SELECTION');
+
+      expect(result).toEqual({ content: '既有步骤分析内容', empty: false });
+      expect((aiService as any).chat).not.toHaveBeenCalled();
+    });
+
+    it('跨实例并发收敛：create 抢占失败且既有行同指纹 → 响应采用先写入者的内容', async () => {
+      const { service, prisma, aiService } = makeService();
+      (aiService as any).chat = jest.fn().mockResolvedValue('本次新生成的内容');
+      prisma.projectManagementItem.findUnique.mockResolvedValue(mkExpertProject());
+      prisma.systemConfig.create.mockRejectedValueOnce(new Error('P2002 unique'));
+      prisma.systemConfig.findUnique
+        .mockResolvedValueOnce(null) // filesBlock 阶段文件缓存读（miss → 文件名降级）
+        .mockResolvedValueOnce(null) // 步骤缓存初始读（miss → 生成）
+        .mockResolvedValueOnce({    // claim 时既有行（他实例同指纹先写入）
+          key: 'pm-step-analysis:pm-01:expert_selection:r1',
+          value: JSON.stringify({ fingerprint: expertFp(), content: '他实例先写入的内容' }),
+        });
+
+      const result = await service.analyzeStep('pm-01', 'EXPERT_SELECTION');
+
+      // 收敛语义：本次确实生成过，但同指纹先写入者为准——响应与缓存同为既有内容
+      expect((aiService as any).chat).toHaveBeenCalledTimes(1);
+      expect(result.content).toBe('他实例先写入的内容');
+    });
+
+    it('analyzeProject：简报 single-flight 双检——排队窗口内已有缓存即直取，不重复生成', async () => {
+      const { service, prisma, aiService, readFileMock } = makeService();
+      const attachment = {
+        id: 'att-01',
+        fileName: '采购公告.pdf',
+        objectKey: 'project-management/file-01.pdf',
+        mimeType: 'application/pdf',
+        fileSize: 2048,
+        createdAt: new Date('2026-05-11T10:00:00.000Z'),
+      };
+      prisma.projectManagementItem.findUnique.mockResolvedValue({
+        id: 'pm-01',
+        title: '测试项目',
+        requesterName: '采购中心',
+        requesterDepartment: '采购中心',
+        procurementMethod: '竞价',
+        procurementCategory: '工程物资',
+        currentStage: 'PUBLIC_ANNOUNCEMENT',
+        status: 'ACTIVE',
+        projectReason: '测试事由',
+        supplierRequirements: '不限',
+        awardedSupplier: null,
+        budgetAmount: null,
+        contractAmount: null,
+        expertInfo: null,
+        biddingUnits: null,
+        stages: [{
+          id: 'stage-ann',
+          stageKey: 'PUBLIC_ANNOUNCEMENT',
+          stageName: '采购公告公示',
+          stageOrder: 4,
+          status: 'IN_PROGRESS',
+          round: 1,
+          attachments: [attachment],
+        }],
+      });
+      // readFile 序：①简报 legacy（miss）②阶段文件 legacy（同指纹命中，免生成）
+      readFileMock
+        .mockRejectedValueOnce(Object.assign(new Error('enoent'), { code: 'ENOENT' }))
+        .mockResolvedValueOnce(JSON.stringify({
+          fingerprint: `PUBLIC_ANNOUNCEMENT:${attachment.objectKey}@${attachment.fileSize}@${attachment.createdAt.toISOString()}`,
+          files: [{
+            objectKey: attachment.objectKey,
+            fileName: attachment.fileName,
+            stageMatch: '与采购公告公示步骤匹配。',
+            contentSummary: '公告文件摘要。',
+          }],
+        }));
+      // findUnique 序：①简报初始读（miss）②阶段缓存读（miss→走 legacy）③班机双检（命中他请求刚落的缓存）
+      prisma.systemConfig.findUnique
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          key: 'pm-summary:pm-01',
+          value: JSON.stringify({ summary: '他请求刚生成的简报' }),
+        });
+
+      const res = await service.analyzeProject('pm-01', 'PUBLIC_ANNOUNCEMENT');
+
+      expect(res.summary.contentSummary).toBe('他请求刚生成的简报');
+      expect(aiService.generateProjectSummary).not.toHaveBeenCalled();
     });
   });
 
