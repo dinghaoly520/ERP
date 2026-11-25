@@ -536,6 +536,7 @@ const SUPPLIER_SPECS: NotificationTypeSpec[] = [
   { code: 'SUPPLIER_APPROVED', label: '供应商入库', domain: 'supplier', icon: 'CheckCircle2', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_REJECTED', label: '供应商驳回', domain: 'supplier', icon: 'XCircle', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_RETURNED', label: '退回补正', domain: 'supplier', icon: 'RotateCcw', tone: 'orange', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
+  { code: 'SUPPLIER_WITHDRAWN', label: '供应商撤回申请', domain: 'supplier', icon: 'Undo2', tone: 'gray', actionable: false, audiences: [{ kind: 'COMPANY_LEADER_STAFF' }], channels: IN_APP }, // 供应商在注册页自撤（2026-11-25）：投递按撤回时点级 notifyStageApprovers，audience 为类型快照
   { code: 'SUPPLIER_BLACKLISTED', label: '供应商拉黑', domain: 'supplier', icon: 'Ban', tone: 'red', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   { code: 'SUPPLIER_UNBLACKLISTED', label: '供应商解除拉黑', domain: 'supplier', icon: 'CircleCheck', tone: 'green', actionable: false, audiences: [{ kind: 'SUBJECT_USER' }], channels: IN_APP },
   // SUPPLIER_ELIMINATE_CANDIDATE（供应商淘汰预警）已删——2026-11-16 两态裁定：处置只余停用/黑名单，淘汰候选扫描/复核页/确认端点同日整体下线

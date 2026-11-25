@@ -73,6 +73,7 @@ const ACTION_LABEL: Record<string, string> = {
   SUPPLIER_APPROVED: '供应商审批 · 通过',
   SUPPLIER_REJECTED: '供应商审批 · 拒绝',
   SUPPLIER_RETURNED: '供应商审批 · 退回补正',
+  SUPPLIER_WITHDRAWN: '供应商撤回申请',
   SUPPLIER_BLACKLIST: '供应商列入黑名单',
   SUPPLIER_DISABLE: '供应商停用',
   SUPPLIER_ENABLE: '供应商恢复',
