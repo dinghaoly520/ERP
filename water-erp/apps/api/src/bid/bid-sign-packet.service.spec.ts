@@ -216,6 +216,33 @@ describe('BidSignPacketService.generate', () => {
     );
   });
 
+  it('生成签字包时转换等槽 30 秒（普通上传是 5 秒）：现场打印签字包不被并行的 Word 上传挤成 DOCX', async () => {
+    (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING', name: 'p', projectCode: 'c' });
+    (prisma.bidEvaluationResult.count as jest.Mock).mockResolvedValue(2);
+    (prisma.bidSignPacket.findUnique as jest.Mock).mockResolvedValue(null);
+    const svc = makeService();
+    (svc as any).docxService.generateDocument.mockResolvedValue(Buffer.from('fake-docx'));
+    (svc as any).storage.upload.mockResolvedValue(undefined);
+    (prisma.bidExpert.findMany as jest.Mock).mockResolvedValue([]);
+    (prisma.fileAsset.upsert as jest.Mock).mockResolvedValue({ id: fileAssetId });
+    (prisma.bidSignPacket.upsert as jest.Mock).mockResolvedValue({ id: 'sp1', projectId, fileAssetId });
+    (prisma.bidExpert.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+    const util = require('../common/office-to-pdf.util');
+    const convertSpy = jest.spyOn(util, 'convertOfficeToPdf').mockResolvedValue({
+      buffer: Buffer.from('%PDF-1.4'), fileName: '评标签字包.pdf', mimeType: 'application/pdf',
+    });
+    try {
+      await svc.generate(projectId, 'u1');
+      expect(convertSpy).toHaveBeenCalledWith(
+        expect.anything(), expect.anything(), expect.anything(), { slotWaitMs: 30_000 },
+      );
+      // 拿到的是 PDF：存的是 .pdf，不是降级的 DOCX
+      expect((svc as any).storage.upload).toHaveBeenCalledWith(
+        `bid-sign-packet/${projectId}.pdf`, expect.any(Buffer), 'application/pdf',
+      );
+    } finally { convertSpy.mockRestore(); }
+  });
+
   it('N15/N16/N17：快照补三列——动议 type+逐票 reason、异议 resolvedBy/At、专家替换监督日志入 verifyEvents', async () => {
     (prisma.bidProject.findUnique as jest.Mock).mockResolvedValue({ id: projectId, stage: 'EVALUATING', name: 'p', projectCode: 'c' });
     (prisma.bidEvaluationResult.count as jest.Mock).mockResolvedValue(2);

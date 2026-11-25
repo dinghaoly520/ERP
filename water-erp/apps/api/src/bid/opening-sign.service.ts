@@ -3,7 +3,7 @@ import { Document, HeadingLevel, Packer, Paragraph, Table, TableCell, TableRow, 
 import * as crypto from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
-import { convertOfficeToPdf } from '../common/office-to-pdf.util';
+import { convertOfficeToPdf, ONSITE_CONVERT_OVERRIDES } from '../common/office-to-pdf.util';
 import { buildStandardFileName } from '@water-erp/shared';
 import { formatAmountWithUnit, resolveOpeningAmountUnitMap } from './opening-amount-unit.util';
 
@@ -91,7 +91,13 @@ export class OpeningSignService {
     const snap = await this.buildSnapshot(projectId);
     const doc = this.buildDocx(snap);
     const docxBuffer = await Packer.toBuffer(doc);
-    const pdf = await convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buildStandardFileName({ code: snap.project.projectCode, docType: '开标记录签字页' }));
+    const pdf = await convertOfficeToPdf(
+      docxBuffer,
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      buildStandardFileName({ code: snap.project.projectCode, docType: '开标记录签字页' }),
+      // 现场用：等槽 30 秒而不是普通上传的 5 秒（见 ONSITE_CONVERT_OVERRIDES 的说明）
+      ONSITE_CONVERT_OVERRIDES,
+    );
     // 转换拿不到结果有两种原因：LibreOffice 不可用，或并发已满等槽超时（见 convertOfficeToPdf）——文案不能把原因说死
     if (!pdf) throw new BadRequestException({ error: '签字页 PDF 转换失败（LibreOffice 不可用或转换繁忙），请稍后重试', code: 'PDF_CONVERT_FAILED' });
 

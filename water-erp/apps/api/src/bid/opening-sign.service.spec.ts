@@ -93,6 +93,25 @@ describe('OpeningSignService — P1-3①A 开标记录纸面签字', () => {
     });
   });
 
+  describe('generateSignPage — 等槽时间', () => {
+    it('现场生成签字页时转换等槽 30 秒（普通上传是 5 秒）：并行的 Word 上传占满槽时不至于当场报「转换繁忙」', async () => {
+      // 这里只验「转换拿到结果之后用的是更长的等槽时间」：组卷两步打桩跳过
+      jest.spyOn(svc, 'buildSnapshot').mockResolvedValue({ project: { projectCode: 'GK-1' } });
+      jest.spyOn(svc, 'buildDocx').mockReturnValue(new Document({ sections: [{ children: [] }] }));
+      const util = require('../common/office-to-pdf.util');
+      const convertSpy = jest.spyOn(util, 'convertOfficeToPdf').mockResolvedValue({
+        buffer: Buffer.from('%PDF-1.4'), fileName: '开标记录签字页.pdf', mimeType: 'application/pdf',
+      });
+      try {
+        const res = await svc.generateSignPage('p1', 'u1');
+        expect(res.assetId).toBe('fa-page');
+        expect(convertSpy).toHaveBeenCalledWith(
+          expect.anything(), expect.anything(), expect.anything(), { slotWaitMs: 30_000 },
+        );
+      } finally { convertSpy.mockRestore(); }
+    });
+  });
+
   describe('uploadSignScan', () => {
     it('host 扫描上传 → FileAsset upsert（category=opening_sign_scan）+ 会话 hostSignScanFileId 更新', async () => {
       prisma.fileAsset.upsert.mockResolvedValue({ id: 'fa-scan-host' });

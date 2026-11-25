@@ -10,7 +10,7 @@ import { closeSignLoopIfDone, signLoopExpertScope } from './sign-loop.util';
 import { stripExpertEsignature } from '../expert/expert-esign.util';
 import type { RegisterSignDto, ReopenSignPacketDto } from './dto/bid-sign-packet.dto';
 import { createIntegrityStamp } from '../common/crypto/integrity-stamp';
-import { convertOfficeToPdf } from '../common/office-to-pdf.util';
+import { convertOfficeToPdf, ONSITE_CONVERT_OVERRIDES } from '../common/office-to-pdf.util';
 import { BidEvaluationResultsService } from './bid-evaluation-results.service'; // 值导入：emitDecoratorMetadata 需运行时引用，import type 会退化为 Object 致 DI 失败
 import { buildStandardFileName } from '@water-erp/shared';
 import { isNoneEvaluation } from './none-evaluation.util';
@@ -634,7 +634,13 @@ export class BidSignPacketService {
 
     // 打印降级（spec §10）：libreoffice 失败时直接提供 DOCX 下载
     const docxName = buildStandardFileName({ code: project.projectCode, docType: '评标签字包' });
-    const pdf = await convertOfficeToPdf(docxBuffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', docxName);
+    const pdf = await convertOfficeToPdf(
+      docxBuffer,
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      docxName,
+      // 现场用：等槽 30 秒而不是普通上传的 5 秒——降级成的 DOCX 是永久落盘的，不会被重试（见 ONSITE_CONVERT_OVERRIDES 的说明）
+      ONSITE_CONVERT_OVERRIDES,
+    );
     const buffer = pdf ? pdf.buffer : docxBuffer;
     const mimeType = pdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const fileName = pdf ? docxName.replace(/\.docx$/, '.pdf') : docxName;

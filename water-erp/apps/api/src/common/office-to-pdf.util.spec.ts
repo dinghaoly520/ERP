@@ -143,6 +143,13 @@ describe('convertOfficeToPdf — 不经 shell', () => {
 });
 
 describe('convertOfficeToPdf — 降级与清理', () => {
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => {
+    // 失败路径会打真实警告：接住它，不让输出变脏；日志内容的断言在「失败留痕」里
+    warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => { warnSpy.mockRestore(); });
+
   it('LibreOffice 失败 → 返回 null，临时目录已删', async () => {
     let outdir = '';
     mockExecFile.mockImplementation((_c: string, args: string[], _o: unknown, cb: (e: Error) => void) => {
@@ -167,6 +174,51 @@ describe('convertOfficeToPdf — 降级与清理', () => {
   });
 });
 
+describe('convertOfficeToPdf — 失败留痕', () => {
+  let warnSpy: jest.SpyInstance;
+  beforeEach(() => { warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined); });
+  afterEach(() => { warnSpy.mockRestore(); });
+  const warnLines = () => warnSpy.mock.calls.map((c) => String(c[0]));
+  const convert = (name: string) => convertOfficeToPdf(Buffer.from('x'), DOC_MIME, name);
+
+  // 每一种返回 null 的失败都要有迹可循：生产镜像没装 LibreOffice 时，Word 上传会被静默存成
+  // 未转换的原件，事后在日志里一条线索都没有（2026-11-25 审查）
+  it('LibreOffice 没装（ENOENT，stderr 为空）→ 警告写明错误码与文件名', async () => {
+    mockExecFile.mockImplementation((_c: string, _a: string[], _o: unknown, cb: ExecCallback) => {
+      cb(Object.assign(new Error('spawn libreoffice ENOENT'), { code: 'ENOENT' }), '', '');
+    });
+    await expect(convert('采购文件.docx')).resolves.toBeNull();
+    expect(warnLines().some((l) => l.includes('ENOENT') && l.includes('采购文件.docx'))).toBe(true);
+  });
+
+  it('转换超时被杀 → 警告写明是被信号终止，而不是只剩一句无关的启动告警', async () => {
+    mockExecFile.mockImplementation((_c: string, _a: string[], _o: unknown, cb: ExecCallback) => {
+      cb(
+        Object.assign(new Error('Command was killed'), { killed: true, signal: 'SIGTERM' }),
+        '',
+        'Warning: failed to launch javaldx - 首次启动的无关告警',
+      );
+    });
+    await expect(convert('采购文件.docx')).resolves.toBeNull();
+    expect(warnLines().some((l) => l.includes('SIGTERM'))).toBe(true);
+  });
+
+  it('LibreOffice 正常退出却没有产出 PDF → 警告写明没有产物', async () => {
+    mockExecFile.mockImplementation((_c: string, _a: string[], _o: unknown, cb: ExecCallback) => cb(null, '', ''));
+    await expect(convert('采购文件.docx')).resolves.toBeNull();
+    expect(warnLines().some((l) => l.includes('没有产出'))).toBe(true);
+  });
+
+  it('警告里的文件名经过转义：含换行的文件名伪造不出第二条日志', async () => {
+    mockExecFile.mockImplementation((_c: string, _a: string[], _o: unknown, cb: ExecCallback) => {
+      cb(Object.assign(new Error('spawn libreoffice ENOENT'), { code: 'ENOENT' }), '', '');
+    });
+    await convert('a\nFORGED log line.doc');
+    expect(warnLines()).toHaveLength(1);
+    expect(warnLines()[0]).not.toContain('\n');
+  });
+});
+
 describe('convertOfficeToPdf — 并发闸', () => {
   let warnSpy: jest.SpyInstance;
   beforeEach(() => {
@@ -179,16 +231,48 @@ describe('convertOfficeToPdf — 并发闸', () => {
     convertOfficeToPdf(Buffer.from('x'), DOC_MIME, name, limits);
 
   /**
-   * 跑一个并发用例并保证收尾：无论断言是否通过，都放行停泊的调用。
-   * 槽位是模块级状态，一个失败的用例若把占着的槽漏出去，后面的用例会连锁误报。
+   * 跑一个并发用例并保证收尾：无论断言是否通过，都把停泊与排队中的转换全部放行到结束。
+   * 槽位是模块级状态。只放行已停泊的调用不够——它们结束时会把槽交给排队者，排队者随后又停泊进来；
+   * 一个在「还有排队者」时失败的用例因此会把槽漏给后面的用例，造成连锁误报并留下临时目录
+   * （2026-11-25 审查）。
    */
   const withParking = async (
     opts: { failFirst?: number },
     body: (lib: ReturnType<typeof parkingLibreOffice>) => Promise<void>,
   ): Promise<void> => {
     const lib = parkingLibreOffice(opts);
-    try { await body(lib); } finally { lib.releaseAll(); }
+    try { await body(lib); } finally { await drain(lib); }
   };
+
+  /** 反复放行，直到连续约 200 毫秒没有新的转换进到 LibreOffice。只依赖真实时钟与 setImmediate，假计时器下同样成立。 */
+  const drain = async (lib: ReturnType<typeof parkingLibreOffice>): Promise<void> => {
+    const deadline = Date.now() + 5000;
+    let quietSince = Date.now();
+    while (Date.now() < deadline) {
+      lib.releaseAll();
+      const before = lib.total();
+      for (let i = 0; i < 5; i += 1) await new Promise<void>((r) => setImmediate(r));
+      const quiet = lib.running() === 0 && lib.total() === before;
+      if (quiet && Date.now() - quietSince >= 200) return;
+      if (!quiet) quietSince = Date.now();
+    }
+    lib.releaseAll();
+  };
+
+  it('收尾会排空还在排队的转换：清理之后两个槽都是空的', async () => {
+    // 模拟「用例在还有排队者时失败」：起 5 个转换，只等前 2 个进到 LibreOffice 就中止，不做任何后续放行
+    await withParking({}, async (lib) => {
+      void Promise.all(['f0', 'f1', 'f2', 'f3', 'f4'].map((n) => convert(`${n}.doc`)));
+      await lib.waitStarted(2);
+      throw new Error('模拟断言失败');
+    }).catch(() => undefined);
+    // 排队中的 3 个已被排空：换一个新夹具，两个槽都能立即交出去
+    const fresh = parkingLibreOffice();
+    const probe = [convert('p.doc'), convert('q.doc')];
+    await fresh.waitStarted(2);
+    fresh.releaseAll();
+    expect((await Promise.all(probe)).every((r) => r !== null)).toBe(true);
+  });
 
   it('同时 5 个转换：在跑的恰为 2 个、其余排队；放行后依次补位，全部完成', () => withParking({}, async (lib) => {
     const all = Promise.all(['f0', 'f1', 'f2', 'f3', 'f4'].map((n) => convert(`${n}.doc`)));
@@ -276,4 +360,14 @@ describe('convertOfficeToPdf — 并发闸', () => {
     lib.releaseAll();
     await Promise.all(busy);
   }));
+
+  it('并发上限不按调用方覆盖：槽位池是进程级的，各设上限没有一致的含义', () => {
+    // 这条断言在类型层面：给 limits 传 maxConcurrent 必须是编译错误。
+    // 函数只定义、不调用——真调一次会占着槽挂住后面的用例
+    const attempt = () => {
+      // @ts-expect-error maxConcurrent 不在可覆盖项里
+      convertOfficeToPdf(Buffer.from('x'), DOC_MIME, 'x.doc', { maxConcurrent: 1 });
+    };
+    void attempt;
+  });
 });
