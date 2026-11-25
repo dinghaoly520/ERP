@@ -45,3 +45,9 @@ export class CorrectionSubmitDto {
   @IsArray() @IsOptional() @ValidateNested({ each: true }) @Type(() => RegisterPerformanceDto) performances?: RegisterPerformanceDto[];
   @IsArray() @ArrayMinSize(2) @ArrayMaxSize(8) @IsString({ each: true }) @MaxLength(20, { each: true }) tags: string[];
 }
+
+export class WithdrawSubmitDto {
+  @IsString() @IsNotEmpty() @MaxLength(128) token: string;
+  @IsString() @IsNotEmpty() @MaxLength(100) name: string;
+  @IsString() @IsNotEmpty() @Matches(/^[0-9A-Z]{18}$/) creditCode: string; // 锁定不可改
+}

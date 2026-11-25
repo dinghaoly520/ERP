@@ -10,6 +10,7 @@ import { VerificationService } from '../verification/verification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CorrectionSubmitDto } from './dto/correction-request.dto';
 import { buildCorrectionDiff } from './correction-diff.util';
+import { SUPPLIER_WITHDRAW_LIMIT } from '@water-erp/shared';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
@@ -1508,7 +1509,7 @@ export class SupplierService {
   async getRegisterStatusByCreditCode(creditCode: string) {
     const supplier = await this.prisma.supplier.findFirst({
       where: { creditCode },
-      select: { id: true, name: true, status: true, rejectReason: true, returnReason: true, urgedAt: true, reviewStage: true },
+      select: { id: true, name: true, status: true, rejectReason: true, returnReason: true, urgedAt: true, reviewStage: true, withdrawCount: true },
     });
     if (!supplier) {
       // 不区分「不存在」与「无记录」，避免被用于枚举信用代码是否注册。
@@ -1525,7 +1526,7 @@ export class SupplierService {
     const suppliers = await this.prisma.supplier.findMany({
       where: { name },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, creditCode: true, status: true, returnReason: true, urgedAt: true, reviewStage: true },
+      select: { id: true, name: true, creditCode: true, status: true, returnReason: true, urgedAt: true, reviewStage: true, withdrawCount: true },
     });
     if (suppliers.length === 0) {
       return { found: false as const, name: null, status: null, reason: null, reviewedAt: null, urgedAt: null };
@@ -1547,7 +1548,7 @@ export class SupplierService {
 
   /** 公开进度查询的单供应商投影（信用代码/名称两条入口共用）。 */
   private async buildPublicRegisterStatus(supplier: {
-    id: string; name: string; status: string; returnReason: string | null; urgedAt: Date | null; reviewStage: string | null;
+    id: string; name: string; status: string; returnReason: string | null; urgedAt: Date | null; reviewStage: string | null; withdrawCount: number;
   }) {
     // 审核时间 = 最近一次审核动作（approve/reject/return）的留痕时间；无留痕则回退 updatedAt（如退回补正）。
     const latest = await this.prisma.supplierApprovalRecord.findFirst({
@@ -1603,6 +1604,7 @@ export class SupplierService {
       reviewedAt: reviewed?.at ?? null,
       reviewedAction: reviewed?.action ?? null,
       urgedAt: supplier.urgedAt ?? null,
+      withdrawCount: supplier.withdrawCount ?? 0,
     };
   }
 
@@ -1990,6 +1992,99 @@ export class SupplierService {
     if (stale.length) await this.prisma.fileAsset.deleteMany({ where: { id: { in: stale.map((a) => a.id) } } });
   }
 
+  // ── 供应商撤销申请（2026-11-25 spec）：审核中/补正中可自撤（限 3 次），撤回壳保留
+  //    完整业务数据供信用代码回填；仅清账号密码断登录。镜像补正流三段式。──
+
+  /** 撤回会话候选定位（名称+信用代码双因子；request/verify 对 PENDING/RETURNED/WITHDRAWN
+   *  均可用——撤回确认与前撤回壳回填共用同一短信会话链路；submit/draft 各自再收窄状态） */
+  private async findWithdrawSessionSupplier(name: string, creditCode: string) {
+    return this.prisma.supplier.findFirst({
+      where: { creditCode: creditCode.trim(), name: name.trim(), status: { in: ['PENDING', 'RETURNED', 'WITHDRAWN'] } },
+      include: { contacts: { where: { isPrimary: true }, take: 1 } },
+    });
+  }
+
+  async requestWithdraw(name: string, creditCode: string, clientIp: string) {
+    const supplier = await this.findWithdrawSessionSupplier(name, creditCode);
+    if (!supplier || supplier.contacts.length === 0) {
+      return { maskedPhone: null as string | null }; // 同形响应防枚举
+    }
+    const phone = openPii(supplier.contacts[0].phone) as string;
+    await this.verificationService.sendRegistrationCode(phone, clientIp, 'supplier_registration');
+    return { maskedPhone: maskPhone(phone) };
+  }
+
+  async verifyWithdraw(name: string, creditCode: string, code: string) {
+    const supplier = await this.findWithdrawSessionSupplier(name, creditCode);
+    if (!supplier || supplier.contacts.length === 0) {
+      throw new BadRequestException({ error: '未找到对应的注册申请', code: 'WITHDRAW_NOT_FOUND' });
+    }
+    const phone = openPii(supplier.contacts[0].phone) as string;
+    const { token, expiresIn } = await this.verificationService.verifyAndStartRegistrationSession(phone, code);
+    return { withdrawToken: token, expiresIn };
+  }
+
+  async withdrawSubmit(token: string, name: string, creditCode: string) {
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供撤回 token、公司名称与统一社会信用代码', code: 'MISSING_WITHDRAW_PARAMS' });
+    }
+    const { phone } = await this.verificationService.assertRegistrationSession(token);
+    const supplier = await this.findWithdrawSessionSupplier(name, creditCode);
+    if (!supplier || supplier.contacts.length === 0 || !['PENDING', 'RETURNED'].includes(supplier.status)) {
+      throw new BadRequestException({ error: '未找到可撤销的注册申请', code: 'WITHDRAW_NOT_FOUND' });
+    }
+    if (openPii(supplier.contacts[0].phone) !== phone) {
+      throw new BadRequestException({ error: '验证手机号与申请主联系人手机号不一致', code: 'WITHDRAW_PHONE_MISMATCH' });
+    }
+    if ((supplier.withdrawCount ?? 0) >= SUPPLIER_WITHDRAW_LIMIT) {
+      throw new BadRequestException({ error: '撤回次数已达上限，如有疑问请联系采购中心', code: 'WITHDRAW_LIMIT_REACHED' });
+    }
+    const stage = supplier.reviewStage ?? 'STAFF';
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id: supplier.id, status: { in: ['PENDING', 'RETURNED'] } },
+      data: { status: 'WITHDRAWN', returnReason: null, withdrawCount: { increment: 1 } },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    await this.clearSupplierPendingTodos(supplier.id);
+    await this.notifyStageApprovers(stage, supplier.companyId, {
+      type: 'SUPPLIER_WITHDRAWN',
+      title: '供应商撤回注册申请',
+      content: `${supplier.name} 已主动撤回注册申请，本次审批终止；该企业重新注册时将从初审重新走审。`,
+      link: '/supplier/approval',
+    });
+    await this.audit(supplier.userId, 'SUPPLIER_WITHDRAWN', supplier.id, {
+      name: supplier.name, withdrawCount: (supplier.withdrawCount ?? 0) + 1,
+    });
+    await this.recordApproval(supplier.id, 'WITHDRAWN', supplier.userId, '供应商自行撤回申请', stage, []);
+    // 账号清理（轻量，非 purge）：业务数据与子表保留（撤回后可凭信用代码回填），仅断登录
+    await this.prisma.user.update({
+      where: { id: supplier.userId },
+      data: { passwordHash: null, passwordVault: null, isActive: false },
+    }).catch((err: any) => console.error(`[withdraw] 账号清理失败 supplier=${supplier.id}`, err?.message ?? err));
+    await this.verificationService.consumeRegistrationSession(token);
+    return { success: true };
+  }
+
+  async getWithdrawDraft(token: string, name: string, creditCode: string) {
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供撤回 token、公司名称与统一社会信用代码', code: 'MISSING_WITHDRAW_PARAMS' });
+    }
+    const { phone } = await this.verificationService.assertRegistrationSession(token);
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { creditCode: creditCode.trim(), name: name.trim(), status: 'WITHDRAWN' },
+      include: { contacts: { where: { isPrimary: true }, take: 1 } },
+    });
+    if (!supplier || supplier.contacts.length === 0) {
+      throw new BadRequestException({ error: '未找到已撤回的申请', code: 'WITHDRAW_NOT_FOUND' });
+    }
+    if (openPii(supplier.contacts[0].phone) !== phone) {
+      throw new BadRequestException({ error: '验证手机号与申请主联系人手机号不一致', code: 'WITHDRAW_PHONE_MISMATCH' });
+    }
+    return this.buildCorrectionDraft(supplier.id);
+  }
+
   /** 查询供应商审核历史（不可变留痕，按时间倒序）。 */
   async getApprovalHistory(supplierId: string) {
     const records = await this.prisma.supplierApprovalRecord.findMany({
@@ -2300,7 +2395,7 @@ export class SupplierService {
   }
 
   /** 写入不可变审核历史（approve/reject/return 调用）。失败不阻断审核流程但记录告警。 */
-  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED', reviewerUserId: string | undefined, reason?: string, stage?: string, rawAttachmentIds: string[] = []) {
+  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED' | 'WITHDRAWN', reviewerUserId: string | undefined, reason?: string, stage?: string, rawAttachmentIds: string[] = []) {
     const snapshot = await this.buildApprovalSnapshot(supplierId);
     if (!snapshot) return;
     // 附件加固（2026-09-30）：去重 + 上限 10 + 校验 FileAsset 真实存在（防伪造 id 入留痕）
