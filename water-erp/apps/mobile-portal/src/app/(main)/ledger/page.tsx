@@ -9,7 +9,7 @@ import { RANGES, priorWindowIso, shiftYearIso, todayIso, type PresetKey, type Ra
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
 import { FolderKanban, Loader2, NotebookText, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
-import { compactWanLabel, compactYuan } from "@/lib/amount-format";
+import { compactWanLabel, compactYuan, formatYuanExact } from "@/lib/amount-format";
 import { fetchProcurements, fetchProcurementDimensions, fetchLedgerStats, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
@@ -31,12 +31,12 @@ type LedgerSavedFilters = {
 };
 
 const RETENTION_LABELS: Record<string, string> = { PERMANENT: "永久", Y30: "30 年", Y10: "10 年" };
-/** 金额展示（2026-11-25 用户裁定「与首页金额设计保持一致——千万级万为单位一位小数、
- *  过亿转亿」）：数字与纯数字串走 compactYuan（万一位小数削尾零）；自由文本原样；空=— */
+/** 金额展示（2026-11-25 用户裁定「预算/成交额等主金额保持原本数字——不四舍五入、不用
+ *  万/亿」）：数字/纯数字串走 formatYuanExact（千分位+小数位原样+「元」）；自由文本原样；
+ *  空=—。注意：节资卡不走本函数，单独走 compactYuan 首页紧凑口径 */
 function fmtAmount(v: number | string | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "number") return compactYuan(v);
-  return /^-?\d+(\.\d+)?$/.test(String(v).trim()) ? compactYuan(Number(v)) : v;
+  return formatYuanExact(v);
 }
 
 function DetailRow({ label, value, tone }: { label: string; value: string; tone?: "danger" | "accent" }) {
@@ -695,7 +695,7 @@ export default function LedgerPage() {
               <MetricCard label="中标单位" value={archiveDetail.extractedInfo["中标单位"] || activeItem.awardedSupplierName || "-"} />
               <MetricCard label="预算金额" value={fmtAmount(activeItem.budgetAmount)} />
               <MetricCard label="合同金额" value={archiveDetail.extractedInfo["合同金额"] && archiveDetail.extractedInfo["合同金额"] !== "-" ? fmtAmount(archiveDetail.extractedInfo["合同金额"]) : fmtAmount(activeItem.contractAmount)} tone="accent" />
-              <MetricCard label="节资" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? fmtAmount(b - a) : "-"; })()} tone="success" />
+              <MetricCard label="节资" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? compactYuan(b - a) : "-"; })()} tone="success" />
               <MetricCard label="节资率" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? `${(((b - a) / b) * 100).toFixed(1)}%` : "-"; })()} tone="success" />
             </div>
 

@@ -27,6 +27,21 @@ export function compactYuan(v: number): string {
   return `${Math.round(v)}元`;
 }
 
-/* 注：:3011 金额展示口径=首页 compactYuan 系（万一位小数/亿两位削尾零）——2026-11-25
- * 用户裁定「进展/台账明细与首页设计保持一致」。公告顶部金额芯片的精确口径
- * （:3005 formatYuanExact，元+千分位不换算）不外推到 :3011。 */
+/* :3011 金额两轨（2026-11-25 用户裁定）——预算/成交额等主金额=精确原数字
+ * （formatYuanExact：千分位+小数位原样+「元」，不四舍五入、不用万/亿）；节资=首页
+ * 紧凑口径（compactYuan：万一位小数/亿）。公告顶部金额芯片同精确轨（2026-11-23）。 */
+
+/** 金额（元）精确显示：千分位分组 + 小数位原样 + 「元」。按字符串处理、不经 Number 往返，
+ *  任何位数不丢精度；含单位/文字的自由文本（「约120万元」）原样返回；空值返回空串。
+ *  与 :3005 lib/format formatYuanExact 同款算法 */
+export function formatYuanExact(raw: unknown): string {
+  if (raw === null || raw === undefined) return "";
+  const s = String(raw).trim();
+  const m = /^([+-]?)(\d+)(?:\.(\d+))?$/.exec(s);
+  if (!m) return s;
+  const sign = m[1] === "-" ? "-" : "";
+  // 去无意义前导零——千分位分组按规范整数位算（「007000」→「7,000」而非「00,7000」）
+  const intPart = m[2].replace(/^0+(?=\d)/, "");
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${sign}${grouped}${m[3] !== undefined ? `.${m[3]}` : ""} 元`;
+}

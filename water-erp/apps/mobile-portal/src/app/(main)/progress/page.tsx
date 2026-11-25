@@ -10,7 +10,7 @@ import { useAuth } from "@/components/m/auth-context";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt } from "@/lib/ratios";
-import { compactYuan } from "@/lib/amount-format";
+import { formatYuanExact } from "@/lib/amount-format";
 import {
   fetchBidStageStatus,
   BID_BUCKET_LABELS,
@@ -33,10 +33,10 @@ import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 type StageMeta = { label: string; color: string; softColor: string };
 
-/** 预算展示（2026-11-25 用户裁定「与首页金额设计保持一致——千万级万为单位一位小数、
- *  过亿转亿」）：走 compactYuan 同首页 fmtWan 口径 */
+/** 预算精确显示（2026-11-25 用户裁定「预算保持原本数字——不四舍五入、不用万/亿」）：
+ *  千分位分组 + 小数位原样 + 「元」，与 :3005 formatYuanExact 同款 */
 function fmtBudget(v: number): string {
-  return compactYuan(v);
+  return formatYuanExact(v);
 }
 
 const STAGE_META: Record<string, StageMeta> = {
