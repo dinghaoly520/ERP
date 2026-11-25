@@ -4005,18 +4005,27 @@ export class SupplierService {
       ];
     }
     // 按 APPROVED link 聚到公司行（多归属供应商在各自公司各计一次——与按公司筛选
-    // 列表时的可见性一致）；库内行数 ~500，内存 tally 开销可忽略（词表同款先例）
+    // 列表时的可见性一致）；库内行数 ~500，内存 tally 开销可忽略（词表同款先例）。
+    // 只取 companyId、公司名另查——company 是必填关联，存量断链行（companyId 指向
+    // 已删公司行，2026-11-25 admin 全视野实录 3 行）select 关联会让 Prisma 抛
+    // Inconsistent query result 直接 500；断链行归「未归属」桶（无可选公司，不入下拉展示）
     const links = await this.prisma.supplierCompanyLink.findMany({
       where: {
         status: 'APPROVED',
         ...(companyIds !== null ? { companyId: { in: companyIds } } : {}),
         supplier: where,
       },
-      select: { company: { select: { name: true } } },
+      select: { companyId: true },
     });
+    const nameById = new Map(
+      (await this.prisma.company.findMany({
+        where: { id: { in: [...new Set(links.map((l) => l.companyId))] } },
+        select: { id: true, name: true },
+      })).map((c) => [c.id, c.name.trim()]),
+    );
     const tally = new Map<string, number>();
     for (const l of links) {
-      const name = l.company?.name?.trim() || '未归属';
+      const name = nameById.get(l.companyId) ?? '未归属';
       tally.set(name, (tally.get(name) ?? 0) + 1);
     }
     return [...tally.entries()]
