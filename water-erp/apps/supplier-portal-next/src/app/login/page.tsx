@@ -20,7 +20,7 @@ import { CaLoginCard } from '@/components/ca-login-card';
  */
 const STATUS_TEXT: Record<string, string> = {
   PENDING: "待审核：您的注册申请正在审核中，请耐心等待。",
-  RETURNED: "退回补正：申请被退回，请按原因补充材料后重新提交。",
+  RETURNED: "退回补正：申请被退回，请按原因补充材料后重新提交；如需放弃本次申请，可到注册页撤销后重新提交。",
   APPROVED: "已通过：账号已激活，请使用注册账号登录。",
   DISABLED: "已停用：账号已被停用，如有疑问请联系采购中心。",
   BLACKLIST: "账号已列入不良供应商名单，如有异议请联系采购中心申诉。",

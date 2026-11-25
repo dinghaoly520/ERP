@@ -22,6 +22,7 @@ import { replaceObjectUrlPreview, revokeObjectUrlPreview } from "@/lib/object-ur
 import { RegisterAgreement } from "@/components/register-agreement";
 import { BusinessTagField } from "@/components/registration/business-tag-field";
 import { RegSearchSelect, UnitSearchSelect } from "@/components/registration/unit-search-select";
+import { SUPPLIER_WITHDRAW_LIMIT } from "@water-erp/shared";
 import { PasswordField } from "@/components/registration/password-field";
 import { RegistrationField, RegistrationSection, RegistrationShell, type RegistrationStep } from "@/components/registration/registration-shell";
 import { SpSwitch } from "@/components/ui";
@@ -226,20 +227,32 @@ export default function RegisterPage() {
   const [creditCodeHitStatus, setCreditCodeHitStatus] = useState<string | null>(null);
   const [legalIdCardDuplicate, setLegalIdCardDuplicate] = useState(false);
   const [phoneDuplicate, setPhoneDuplicate] = useState(false); // 注册手机号失焦查重（2026-10-16）
-  // 退回补正 / 驳回重注册 检测（2026-10-14）：公司名失焦查公开状态——
-  // RETURNED→横幅引导进入补正（主联系人短信验证→回填→原位重提）；REJECTED→提示可正常重注册（后端壳重开）
+  // 退回补正 / 驳回重注册 / 撤销申请 检测（2026-10-14 / 2026-11-25）：公司名失焦查公开状态——
+  // RETURNED→横幅引导进入补正（主联系人短信验证→回填→原位重提）；REJECTED→提示可正常重注册（后端壳重开）；
+  // PENDING→审核中（可撤销申请）；WITHDRAWN→已撤回（可加载撤回前数据重报）
   const [correction, setCorrection] = useState<{
-    status: "RETURNED" | "REJECTED" | null;
+    status: "RETURNED" | "REJECTED" | "PENDING" | "WITHDRAWN" | null;
     reason?: string;
     name?: string;
     creditCode?: string;
     maskedPhone?: string;
     token?: string;
+    withdrawCount?: number;
+    withdrawToken?: string;
+    withdrawMaskedPhone?: string;
   }>({ status: null });
   const [correctionCode, setCorrectionCode] = useState("");
   const [correctionSending, setCorrectionSending] = useState(false);
   const [correctionCooldown, setCorrectionCooldown] = useState(0);
   const [correctionLoading, setCorrectionLoading] = useState(false);
+  // 撤销申请小流（2026-11-25）：发码→输码→确认撤回；WITHDRAWN 态复用同一验证链路回填撤回前数据
+  const [withdrawCode, setWithdrawCode] = useState("");
+  const [withdrawSending, setWithdrawSending] = useState(false);
+  const [withdrawCooldown, setWithdrawCooldown] = useState(0);
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [withdrawConfirming, setWithdrawConfirming] = useState(false);
+  // 撤回壳回填会话激活（回填后查重必命中自身撤回壳行，豁免同补正）
+  const inWithdrawReload = correction.status === "WITHDRAWN" && !!correction.withdrawToken;
 
   /* 本机注册草稿暂存与恢复（localStorage） */
   const draftData = useMemo(() => ({
@@ -408,8 +421,8 @@ export default function RegisterPage() {
 
   /* 查重 */
   async function checkCreditCode() {
-    // 补正会话激活：查重必命中自身 RETURNED 行，不做检测/置标志（2026-10-14 review）
-    if (correction.status === "RETURNED" && correction.token) return;
+    // 补正/回填会话激活：查重必命中自身 RETURNED/撤回壳行，不做检测/置标志（2026-10-14 review）
+    if ((correction.status === "RETURNED" && correction.token) || inWithdrawReload) return;
     setCreditCodeDuplicate(false);
     setCreditCodeHitStatus(null);
     const code = basic.creditCode.trim();
@@ -457,8 +470,8 @@ export default function RegisterPage() {
     } catch { /* 查重失败不阻塞 */ }
   }
   async function checkLegalIdCard() {
-    // 补正会话激活：法人证号查重必命中自身 RETURNED 行（非他人占用），不做检测/置标志（2026-10-14 review）
-    if (correction.status === "RETURNED" && correction.token) return;
+    // 补正/回填会话激活：法人证号查重必命中自身 RETURNED/撤回壳行（非他人占用），不做检测/置标志
+    if ((correction.status === "RETURNED" && correction.token) || inWithdrawReload) return;
     setLegalIdCardDuplicate(false);
     const id = basic.legalPersonIdCard.trim();
     if (!/^\d{17}[\dXx]$/.test(id)) return;
@@ -469,19 +482,22 @@ export default function RegisterPage() {
     } catch { /* 不阻塞 */ }
   }
 
-  /* 退回补正 / 驳回重注册（2026-10-14）：公司名失焦检测 → 横幅 → 发码 → 验证回填 */
+  /* 退回补正 / 驳回重注册 / 撤销申请（2026-10-14 / 2026-11-25）：公司名失焦检测 → 横幅 → 发码 → 验证 */
   async function checkNameForCorrection() {
-    // 补正会话激活时不检测/不清空（2026-10-14 review）：后端 submit 仅按信用代码匹配 RETURNED，
-    // 补正中改名合法；name+creditCode 双因子仅 request/verify/draft 需要，token 已在手即免检。
-    // 否则改完名失焦 → 新名查不到 RETURNED → 整态清空（含 token），横幅/补正模式静默失效。
-    if (correction.token) return;
+    // 补正/回填会话激活时不检测/不清空：后端按信用代码匹配对应状态，改名合法；
+    // token 已在手即免检——否则改完名失焦 → 整态清空（含 token），横幅/模式静默失效。
+    if (correction.token || correction.withdrawToken) return;
     const name = basic.name.trim();
     if (!name) return;
     try {
       const res = await authApi.getRegisterStatusPublic(undefined, name);
       if (res.found && res.status === "RETURNED") {
         // 补正中重复失焦：保留已验证的 token/maskedPhone（补正允许改名，不能因失焦刷新而丢 token）
-        setCorrection((c) => ({ ...c, status: "RETURNED", reason: res.reason ?? undefined, name: res.name, creditCode: res.creditCode ?? undefined }));
+        setCorrection((c) => ({ ...c, status: "RETURNED", reason: res.reason ?? undefined, name: res.name, creditCode: res.creditCode ?? undefined, withdrawCount: res.withdrawCount }));
+      } else if (res.found && res.status === "PENDING") {
+        setCorrection((c) => ({ ...c, status: "PENDING", reason: undefined, name: res.name, creditCode: res.creditCode ?? undefined, withdrawCount: res.withdrawCount }));
+      } else if (res.found && res.status === "WITHDRAWN") {
+        setCorrection({ status: "WITHDRAWN", name: res.name, creditCode: res.creditCode ?? undefined, withdrawCount: res.withdrawCount });
       } else if (res.found && res.status === "REJECTED") {
         setCorrection({ status: "REJECTED", name: res.name, creditCode: res.creditCode ?? undefined });
       } else {
@@ -525,6 +541,63 @@ export default function RegisterPage() {
       toast.error(getErrorMessage(e, "验证失败，请核对验证码"));
     } finally {
       setCorrectionLoading(false);
+    }
+  }
+
+  /* 供应商撤销申请（2026-11-25 spec）：审核中/补正中可自撤（限 3 次，跨轮累计）；已撤回壳凭信用代码回填重报 */
+  async function startWithdrawCode() {
+    if (!correction.name || !correction.creditCode) { toast.warning("请先填写完整的公司名称与统一社会信用代码"); return; }
+    setWithdrawSending(true);
+    try {
+      const res = await authApi.requestWithdraw(correction.name, correction.creditCode);
+      if (!res.maskedPhone) { toast.error("未找到对应的注册申请，请核对公司名称与信用代码"); return; }
+      setCorrection((c) => ({ ...c, withdrawMaskedPhone: res.maskedPhone }));
+      toast.success("验证码已发送至主联系人手机号");
+      setWithdrawCooldown(60);
+      const timer = setInterval(() => {
+        setWithdrawCooldown((n) => { if (n <= 1) { clearInterval(timer); return 0; } return n - 1; });
+      }, 1000);
+    } catch (e) {
+      toast.error(getErrorMessage(e, "验证码发送失败"));
+    } finally {
+      setWithdrawSending(false);
+    }
+  }
+
+  async function confirmWithdraw() {
+    if (!correction.name || !correction.creditCode) return;
+    setWithdrawLoading(true);
+    try {
+      const v = await authApi.verifyWithdraw(correction.name, correction.creditCode, withdrawCode.trim());
+      await authApi.submitWithdraw(v.withdrawToken, correction.name, correction.creditCode);
+      toast.success("申请已撤回，本次申请作废；可重新填报提交");
+      setCorrection({ status: null });
+      setWithdrawConfirming(false);
+      setWithdrawCode("");
+      // 重新检测 → 横幅转「已撤回」态（展示重新申请/回填引导）
+      setTimeout(() => { void checkNameForCorrection(); }, 0);
+    } catch (e) {
+      toast.error(getErrorMessage(e, "撤回失败，请核对验证码"));
+    } finally {
+      setWithdrawLoading(false);
+    }
+  }
+
+  async function loadWithdrawDraft() {
+    if (!correction.name || !correction.creditCode) return;
+    setWithdrawLoading(true);
+    try {
+      const v = await authApi.verifyWithdraw(correction.name, correction.creditCode, withdrawCode.trim());
+      setCorrection((c) => ({ ...c, withdrawToken: v.withdrawToken }));
+      const draftRes = await authApi.getWithdrawDraft(v.withdrawToken, correction.name, correction.creditCode);
+      applyCorrectionDraft(draftRes);
+      setCreditCodeDuplicate(false);
+      setLegalIdCardDuplicate(false);
+      toast.success("已填入撤回前填写的资料，请核对修改后提交");
+    } catch (e) {
+      toast.error(getErrorMessage(e, "验证失败，请核对验证码"));
+    } finally {
+      setWithdrawLoading(false);
     }
   }
 
@@ -663,8 +736,8 @@ export default function RegisterPage() {
 
   async function nextStep() {
     if (step === 1) {
-      // 补正模式：信用代码/法人证号命中自身 RETURNED 行，不作重复拦截（2026-10-14）
-      const inCorrection = correction.status === "RETURNED" && !!correction.token;
+      // 补正/回填模式：信用代码/法人证号/手机号命中自身 RETURNED/撤回壳行，不作重复拦截（2026-10-14 / 2026-11-25）
+      const inCorrection = (correction.status === "RETURNED" && !!correction.token) || inWithdrawReload;
       if (creditCodeDuplicate && !inCorrection) { toast.error("统一社会信用代码重复，无法进入下一步"); return; }
       if (legalIdCardDuplicate && !inCorrection) { toast.warning("法定代表人身份证号已存在，请核对"); return; }
       // 补正豁免：补正中手机号本就绑在自身账号（回填草稿必自命中），不阻断步进
@@ -1052,6 +1125,62 @@ export default function RegisterPage() {
             <div className="reg-correction-banner" role="status">
               <strong>贵司曾有一笔被驳回的注册申请（资料已按数据最小化清除）</strong>
               <p>可继续正常注册，提交时将重新建档。</p>
+            </div>
+          )}
+          {/* 撤销申请（2026-11-25）：审核中/补正中可自撤（限 3 次，跨轮累计） */}
+          {(correction.status === "PENDING" || correction.status === "RETURNED") && (
+            <div className="reg-correction-banner" role="status">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {correction.status === "PENDING" ? "您的申请正在审核中。" : "您的申请处于退回补正中。"}
+                  不想继续本次申请？可撤销后重新填报。
+                  {typeof correction.withdrawCount === "number" && <span className="opacity-70">（已撤回 {correction.withdrawCount}/{SUPPLIER_WITHDRAW_LIMIT}）</span>}
+                </span>
+                {(correction.withdrawCount ?? 0) < SUPPLIER_WITHDRAW_LIMIT && (
+                  <button type="button" className="neu-btn-xs" onClick={() => setWithdrawConfirming((v) => !v)}>撤销申请</button>
+                )}
+              </div>
+              {withdrawConfirming && (correction.withdrawCount ?? 0) < SUPPLIER_WITHDRAW_LIMIT && (
+                <div className="reg-correction-verify">
+                  {correction.withdrawMaskedPhone
+                    ? <span className="text-xs opacity-80">验证码已发送至 {correction.withdrawMaskedPhone}</span>
+                    : <button type="button" className="neu-btn-xs" disabled={withdrawSending || withdrawCooldown > 0} onClick={() => void startWithdrawCode()}>
+                        {withdrawSending ? "发送中…" : withdrawCooldown > 0 ? `重新发送（${withdrawCooldown}s）` : "发送验证码"}
+                      </button>}
+                  <input value={withdrawCode} onChange={(e) => setWithdrawCode(e.target.value)} maxLength={6}
+                    placeholder="6 位验证码" inputMode="numeric" aria-label="撤销申请验证码"
+                    className="reg-inp rounded-[10px] border border-[color-mix(in_oklch,var(--foreground)_10%,transparent)] bg-[var(--surface)] px-2 py-1 text-[13px] outline-none focus:border-[var(--accent)]" />
+                  <button type="button" disabled={withdrawLoading || withdrawCode.trim().length !== 6}
+                    className="neu-btn-xs is-danger" onClick={() => void confirmWithdraw()}>确认撤回</button>
+                  <span className="text-[11px] opacity-70">撤回后本次申请作废，可重新填报提交（累计限 {SUPPLIER_WITHDRAW_LIMIT} 次）</span>
+                </div>
+              )}
+            </div>
+          )}
+          {/* 已撤回：重新申请引导 + 凭信用代码回填撤回前数据 */}
+          {correction.status === "WITHDRAWN" && (
+            <div className="reg-correction-banner" role="status">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  本次申请已撤回（已撤回 {correction.withdrawCount ?? 0}/{SUPPLIER_WITHDRAW_LIMIT}）。可在下方重新填报提交；
+                  {!correction.withdrawToken && "也可加载撤回前填写的数据，修改后提交。"}
+                </span>
+                {!correction.withdrawToken && (
+                  <button type="button" className="neu-btn-xs" disabled={withdrawSending || withdrawCooldown > 0} onClick={() => void startWithdrawCode()}>
+                    {withdrawSending ? "发送中…" : withdrawCooldown > 0 ? `重新发送（${withdrawCooldown}s）` : "加载之前填写的数据"}
+                  </button>
+                )}
+              </div>
+              {!correction.withdrawToken && correction.withdrawMaskedPhone && (
+                <div className="reg-correction-verify">
+                  <span className="text-xs opacity-80">验证码已发送至 {correction.withdrawMaskedPhone}</span>
+                  <input value={withdrawCode} onChange={(e) => setWithdrawCode(e.target.value)} maxLength={6}
+                    placeholder="6 位验证码" inputMode="numeric" aria-label="回填验证码"
+                    className="reg-inp rounded-[10px] border border-[color-mix(in_oklch,var(--foreground)_10%,transparent)] bg-[var(--surface)] px-2 py-1 text-[13px] outline-none focus:border-[var(--accent)]" />
+                  <button type="button" disabled={withdrawLoading || withdrawCode.trim().length !== 6}
+                    className="neu-btn-xs" onClick={() => void loadWithdrawDraft()}>验证并回填</button>
+                </div>
+              )}
             </div>
           )}
           <RegistrationSection icon={Building2} title="企业信息" hint="请按营业执照如实填写">
