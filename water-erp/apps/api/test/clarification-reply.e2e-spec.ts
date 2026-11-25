@@ -43,10 +43,13 @@ describe('A-143 澄清在线答复 (e2e)', () => {
   let targetRow: BidderRow | undefined;
   let otherSupplierName: string | undefined;
   let originalSm2Pk: string | null = null;
-  // 裁定2（2026-11-19）配套：A 档澄清端点挂 AssignedHostGuard 后，staff 须为被指派主持人
-  // （staff 本就是合法主持人候选，2026-10-15 口径）——fixture 指派 + afterAll 还原
-  let originalAssignedHostId: string | null = null;
-  let hostRestoreProjectId: string | undefined;
+  /** 夹具项目名前缀：beforeAll 自建、afterAll 删除；按前缀识别并清理上次 --forceExit 的遗留 */
+  const FIXTURE_NAME_PREFIX = 'E2E-A143-澄清答复夹具项目';
+  /** 其他套件在用的演示供应商账号——不选作投标人，防绑证副作用外溢 */
+  const EXCLUDED_SUPPLIERS = new Set([
+    '重庆蜀通岩土工程有限公司', '四川水发建设有限公司', '中科院成都信息技术股份有限公司',
+    '四川省通信产业服务有限公司', '成都华西物资供应有限公司',
+  ]);
 
   // 清理账本（失败中途也按已产生物回收）
   const createdClarificationIds: string[] = [];
@@ -69,80 +72,65 @@ describe('A-143 澄清在线答复 (e2e)', () => {
     // :3006 登录分流：非 bid_expert 角色写 token_bid（staff 在 expert 门户允许集内）——:3007 现场会话
     staffBidCookie = await loginAs(app, 'Swhi-CGZX-05', 'Swhi-CGZX-05@2026', 'expert');
 
-    // 定位：seed EVALUATING 项目（hero/引大济岷演示项目 BID-1786934256839 等）中，
-    // bidder 满足 Supplier.userId 关联可登录账号；目标行还须无 ACTIVE 证书。
-    // 候选限定 staff 公司域：库里可能有演示快照恢复的无公司 EVALUATING 项目（companyId=null，
-    // web 公司隔离下不可见）——若不限，updatedAt 最新的它会被选中导致步骤 1 的列表断言假红。
+    // 自建夹具（2026-11-16 起种子只留账号/供应商/专家，库内不再有评标中的演示项目可挑；原先是在
+    // 共享演示项目里挑一个、事后还原主持人指派）：评标中项目——归属 staff 公司（web 公司隔离内
+    // 可见）、直接指派给该 staff（澄清 A 档端点的 AssignedHostGuard 须被指派人/admin 放行，
+    // 2026-11-19 裁定2）+ 两名可登录的种子供应商作投标人（公司名 / supplier@2026）；
+    // 目标投标人须无 ACTIVE 证书（绑证走全新行，撤销不到既有证书）。
     const staffUser = await prisma.user.findFirst({
       where: { username: 'Swhi-CGZX-05' },
       select: { id: true, companyId: true },
     });
-    const evaluating = await prisma.bidProject.findMany({
-      where: { stage: 'EVALUATING', companyId: staffUser?.companyId ?? null },
-      select: { id: true },
-      orderBy: { updatedAt: 'desc' },
+    expect(staffUser?.companyId).toBeTruthy();
+
+    // 幂等清理上次 --forceExit 可能遗留的夹具：遗留证书 → 项目（澄清与投标人随项目级联删除）
+    await prisma.supplierCert.deleteMany({ where: { certSn: { startsWith: 'E2E-A143-' } } });
+    await prisma.bidProject.deleteMany({ where: { name: { startsWith: FIXTURE_NAME_PREFIX } } });
+
+    // 「可登录」以实际试登录为准（公司名 / supplier@2026 登进供应商门户），不能只看有无关联账号：
+    // 全量顺序下前面套件会在库里留下有关联账号、但口令并非种子口令的供应商行（如 bid-v3 套件的
+    // 「e2e-v3供应商」），只按关联挑会让「他司」那一步登录失败（2026-11-25 全量复跑实录）。
+    const candidates = await prisma.supplier.findMany({
+      where: { user: { role: 'supplier', isActive: true, isFrozen: false } },
+      select: { id: true, name: true, sm2PublicKey: true, certs: { where: { bindingStatus: 'ACTIVE' }, select: { id: true } } },
+      orderBy: { name: 'asc' },
     });
-    outer:
-    for (const proj of evaluating) {
-      const bidders = await prisma.bidSupplier.findMany({
-        where: { projectId: proj.id, supplierId: { not: null } },
-        select: { id: true, supplierName: true, supplierId: true },
-      });
-      const loginable: BidderRow[] = [];
-      for (const b of bidders) {
-        const supplier = await prisma.supplier.findUnique({
-          where: { id: b.supplierId! },
-          select: { userId: true },
-        });
-        if (!supplier?.userId) continue;
-        const user = await prisma.user.findFirst({
-          where: { id: supplier.userId, role: 'supplier', isActive: true },
-          select: { id: true },
-        });
-        if (user) loginable.push({ id: b.id, supplierName: b.supplierName, supplierId: b.supplierId! });
-      }
-      if (loginable.length < 2) continue; // 需目标 + 另一家（隔离断言）
-      for (const b of loginable) {
-        const activeCert = await prisma.supplierCert.findFirst({
-          where: { supplierId: b.supplierId, bindingStatus: 'ACTIVE' },
-          select: { id: true },
-        });
-        if (activeCert) continue; // 不动既有 ACTIVE 证书（如 U盾全流程演示 SHD-B14EF038）
-        const s = await prisma.supplier.findUnique({
-          where: { id: b.supplierId },
-          select: { sm2PublicKey: true },
-        });
-        projectId = proj.id;
-        targetRow = b;
-        originalSm2Pk = s?.sm2PublicKey ?? null;
-        otherSupplierName = loginable.find((o) => o.id !== b.id)!.supplierName;
-        break outer;
-      }
+    const loginable: Array<{ id: string; name: string; sm2PublicKey: string | null; hasActiveCert: boolean }> = [];
+    for (const s of candidates) {
+      // 他套件的演示账号与自建账号（e2e 前缀）不入夹具
+      if (!s.name || EXCLUDED_SUPPLIERS.has(s.name) || /^e2e/i.test(s.name)) continue;
+      const tried = await loginAs(app, s.name, 'supplier@2026', 'supplier');
+      if (!tried.join().includes('token_supplier=')) continue;
+      loginable.push({ id: s.id, name: s.name, sm2PublicKey: s.sm2PublicKey, hasActiveCert: s.certs.length > 0 });
+      if (loginable.length >= 2 && loginable.some((x) => !x.hasActiveCert)) break;
     }
-    // 裁定2 配套：选中项目指派给本 staff（澄清 A 档端点 AssignedHostGuard 须被指派人/admin 放行）
-    if (projectId && staffUser?.id) {
-      originalAssignedHostId = (await prisma.bidProject.findUnique({
-        where: { id: projectId },
-        select: { assignedHostUserId: true },
-      }))?.assignedHostUserId ?? null;
-      await prisma.bidProject.update({
-        where: { id: projectId },
-        data: { assignedHostUserId: staffUser.id },
+    const target = loginable.find((x) => !x.hasActiveCert); // 目标：无 ACTIVE 证书
+    const other = loginable.find((x) => x.id !== target?.id);
+    expect(target).toBeTruthy();
+    expect(other).toBeTruthy();
+
+    const stamp = Date.now();
+    const project = await prisma.bidProject.create({
+      data: {
+        projectCode: `E2E-A143-${stamp}`, name: `${FIXTURE_NAME_PREFIX}-${stamp}`, procurementMethod: '公开招标',
+        openTime: new Date(stamp - 3600_000), deadline: new Date(stamp - 7200_000), stage: 'EVALUATING',
+        companyId: staffUser!.companyId!, assignedHostUserId: staffUser!.id,
+      },
+    });
+    projectId = project.id;
+    const fixtureProjectId = project.id;
+    const mkBidder = (s: { id: string; name: string }) =>
+      prisma.bidSupplier.create({
+        data: { projectId: fixtureProjectId, supplierId: s.id, supplierName: s.name, submitStatus: '已提交', decryptStatus: 'SUCCESS', confirmStatus: 'CONFIRMED' },
       });
-      hostRestoreProjectId = projectId;
-    }
+    const targetBidder = await mkBidder(target!);
+    await mkBidder(other!);
+    targetRow = { id: targetBidder.id, supplierName: target!.name, supplierId: target!.id };
+    originalSm2Pk = target!.sm2PublicKey ?? null;
+    otherSupplierName = other!.name;
   });
 
   afterAll(async () => {
-    if (hostRestoreProjectId) {
-      // 复审加固（审查发现 13）：还原失败不再吞错——共享演示项目的主持人指派被静默篡改
-      // 比 e2e 红更难排查，失败须炸出（forceExit 下 beforeAll 与 afterAll 之间的崩溃除外，那由
-      // 仓库 fixture 自建惯例的长线改造解决）
-      await prisma.bidProject.update({
-        where: { id: hostRestoreProjectId },
-        data: { assignedHostUserId: originalAssignedHostId },
-      });
-    }
     if (createdClarificationIds.length > 0) {
       await prisma.bidClarification.deleteMany({ where: { id: { in: createdClarificationIds } } }).catch(() => {});
     }
@@ -155,6 +143,11 @@ describe('A-143 澄清在线答复 (e2e)', () => {
         where: { id: certSupplierId },
         data: { sm2PublicKey: originalSm2Pk },
       }).catch(() => {});
+    }
+    // 自建夹具项目整个删除（澄清记录、投标人随项目级联）。项目归本套件所有，不再有「还原共享演示
+    // 项目主持人指派」一步；删除失败不吞错——残留虽由下次运行的幂等清理接手，但必须可见
+    if (projectId) {
+      await prisma.bidProject.deleteMany({ where: { id: projectId } });
     }
     await app.close();
   });

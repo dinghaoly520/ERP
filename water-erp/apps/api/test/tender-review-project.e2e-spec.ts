@@ -23,6 +23,7 @@ describe('项目管理采购文件审查流 (e2e)', () => {
   let kbId: string;
   const answers = { chapter1: '正文内容甲', budget: '100' };
   const fingerprint = computeDraftFingerprint('OPEN', answers);
+  const FIXTURE_TITLE = 'e2e-审查流夹具项目'; // beforeAll 自建、afterAll 删除；按前缀识别遗留
   let originalKbPref: string | null | undefined;
   let staffUserId: string;
   let createdTaskIds: string[] = [];
@@ -38,11 +39,38 @@ describe('项目管理采购文件审查流 (e2e)', () => {
 
     cookie = await loginAs(app, 'Swhi-CGZX-05', 'Swhi-CGZX-05@2026');
     // username 为 [username, role] 复合唯一（不再单列唯一），须 findFirst
-    staffUserId = (await prisma.user.findFirst({ where: { username: 'Swhi-CGZX-05' } }))!.id;
+    const staff = await prisma.user.findFirst({ where: { username: 'Swhi-CGZX-05' } });
+    expect(staff).toBeTruthy();
+    staffUserId = staff!.id;
 
-    const project = await prisma.projectManagementItem.findFirst();
-    expect(project).toBeTruthy();
-    projectId = project!.id;
+    // 自建项目夹具：本套件原先取库里第一个项目（依赖 dev 库现成的业务演示数据）；
+    // 2026-11-16 起种子只留账号/供应商/专家，空库上没有项目可取。审查流对项目只有「记录存在」
+    // 一项要求（execute 时按 id 查存在性、project-status 按 projectId 查任务，均为软关联），
+    // 故一行最小化记录即可。先清上次 --forceExit 可能遗留的同名夹具（先删其软关联的审查任务）。
+    const leftovers = await prisma.projectManagementItem.findMany({ where: { title: { startsWith: FIXTURE_TITLE } }, select: { id: true } });
+    if (leftovers.length > 0) {
+      const leftoverIds = leftovers.map((p) => p.id);
+      await prisma.reviewTask.deleteMany({ where: { projectId: { in: leftoverIds } } });
+      await prisma.projectManagementItem.deleteMany({ where: { id: { in: leftoverIds } } });
+    }
+    const project = await prisma.projectManagementItem.create({
+      data: {
+        title: `${FIXTURE_TITLE}-${Date.now()}`,
+        requesterName: staff!.displayName ?? 'e2e',
+        requesterDepartment: 'e2e',
+        procurementMethod: '询比采购',
+        procurementCategory: '服务',
+        procurementOrganizationForm: '自行采购',
+        budgetAmount: 100,
+        isAnnualBudget: false,
+        projectReason: 'e2e 采购文件审查流夹具',
+        supplierRequirements: '无',
+        currentStage: 'TENDER_DOCUMENT',
+        createdById: staff!.id,
+        ...(staff!.companyId && { companyId: staff!.companyId }),
+      },
+    });
+    projectId = project.id;
     // 清理该项目历史任务，保证 none 态可测（dev 库可能有残留）
     await prisma.reviewTask.deleteMany({ where: { projectId } });
 
@@ -56,6 +84,11 @@ describe('项目管理采购文件审查流 (e2e)', () => {
 
   afterAll(async () => {
     await prisma.reviewTask.deleteMany({ where: { id: { in: createdTaskIds } } });
+    if (projectId) {
+      // 先删软关联的审查任务（含 running 钉子等未入 createdTaskIds 的），再删自建的项目夹具
+      await prisma.reviewTask.deleteMany({ where: { projectId } });
+      await prisma.projectManagementItem.deleteMany({ where: { id: projectId } });
+    }
     if (staffUserId) {
       await prisma.userSettings.upsert({
         where: { userId: staffUserId },
