@@ -79,7 +79,9 @@ describe('submitBidV3（评审修复轮）', () => {
       bidDocument: { findFirst: jest.fn().mockResolvedValue(null) },
       fileAsset: {
         findMany: jest.fn().mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-1', category: 'bid_document' }]), // P3-4：category 闸用例化
-        findUnique: jest.fn().mockResolvedValue({ id: 'fa-mine', key: 'v3-staging/x.outer' }),
+        // 暂存行须带实算 sha256 且与信封 files[].outerSha256 严格一致（首投暂存闸 N13-A / F8：
+        // 缺省或不符即 400 OUTER_HASH_MISMATCH，到不了本套件各用例真正要测的场景）
+        findUnique: jest.fn().mockResolvedValue({ id: 'fa-mine', key: 'v3-staging/x.outer', sha256: 'o'.repeat(64) }),
       },
       tx: t,
       $transaction: async (fn: (x: any) => Promise<any>) => fn(t),
@@ -161,6 +163,14 @@ describe('submitBidV3（评审修复轮）', () => {
   test('I6：信封 assetId 非本人上传 → 400 FILE_NOT_OWNED', async () => {
     prisma.fileAsset.findMany.mockResolvedValue([{ id: 'fa-mine', uploaderId: 'user-OTHER' }]);
     await expect(call()).rejects.toThrow(BadRequestException);
+  });
+
+  test('N13-A：暂存资产实算哈希与信封声明不符 → 400 OUTER_HASH_MISMATCH（首投即拦，不进入备份固化）', async () => {
+    // 首投暂存闸（2026-11-20 补交叉校验）：不符的投递原要到开标 pass1 哈希闸才炸，供应商已失去现场补救窗口
+    mockBidBackup.stageBackup.mockClear(); // 文件级共用 mock 不自动清空：只数本次投递的调用
+    prisma.fileAsset.findUnique.mockResolvedValue({ id: 'fa-mine', key: 'v3-staging/x.outer', sha256: 'x'.repeat(64) });
+    await expect(call()).rejects.toMatchObject({ response: { code: 'OUTER_HASH_MISMATCH' } });
+    expect(mockBidBackup.stageBackup).not.toHaveBeenCalled();
   });
 
   test('I7：context.supplierId 与本人不符 → 400 ENVELOPE_CONTEXT_MISMATCH', async () => {
