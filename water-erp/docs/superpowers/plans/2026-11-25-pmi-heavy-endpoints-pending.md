@@ -14,14 +14,14 @@
 
 - 等待上限：`PM_PENDING_WAIT_MS` 默认 `8000`；总预算 `PM_PENDING_TOTAL_BUDGET_MS` 默认 `13000`（自请求头到达 API 算起）；下限 `PM_PENDING_MIN_WAIT_MS` 默认 `2000`。实际等待 = `min(max(总预算 − 已耗时, 下限), 等待上限)`。
 - 重取长轮询 `PM_PENDING_POLL_WAIT_MS` 默认 `10000`；在途任务上限 `PM_PENDING_MAX_RUNNING` 默认 `16`；已结束任务保留 `PM_PENDING_TTL_MS` 默认 `600000`。环境变量非正整数时回落默认并告警一次。
-- 响应契约：转后台的首次响应 `202 { pending: true, jobId }`；上传转后台 `200 { ...附件记录, extractedInfo: null, extractedPending: true, pendingJobId }`；重取端点 `GET /api/project-management/pending-jobs/:jobId` 返回 `{ status: 'running' }` 或 `{ status: 'done', result }`；任务失败时重取端点直接抛出保存的原始异常，由全局异常过滤器格式化。
+- 响应契约：转后台的首次响应 `202 { pending: true, jobId }`；上传的状态码与今天一致（201）：等待上限内提取完成时 `{ ...附件记录, extractedInfo }`，没完成时 `{ ...附件记录, extractedInfo: null, extractedPending: true, pendingJobId }`，等待期内提取意外失败时 `{ ...附件记录, extractedInfo: null, extractedFailed: true }`；重取端点 `GET /api/project-management/pending-jobs/:jobId` 返回 `{ status: 'running' }` 或 `{ status: 'done', result }`；任务失败时重取端点直接抛出保存的原始异常，由全局异常过滤器格式化。
 - 错误码与文案：`PM_SYSTEM_BUSY`（503「系统繁忙，请稍后重试」）、`PM_JOB_NOT_FOUND`（404「处理任务不存在或已结束，请重新发起」）；前端 `PM_PENDING_TIMEOUT`（「处理时间过长，后台仍在执行，请稍后刷新查看结果」）、`PM_JOB_LOST`（「处理被中断，请重试」）。前端总时长上限 `20 * 60_000` 毫秒，两次重取间隔 `1000` 毫秒。
-- 字段写入规则（转后台任务）：任务开始执行时拍基线；只写当前值仍等于基线的字段；依赖步（`syncBidProjectOpeningFromPmi`）只在前一步真的写了才做；上传提取每次写入前确认自己的附件仍在。
-- 提取失败不算上传失败：附件记录建成后，提取无论成败都不影响「上传成功」。
+- 字段写入规则（转后台任务）：任务开始执行时拍基线；只写当前值仍等于基线的字段；依赖步（`syncBidProjectOpeningFromPmi`）只在前一步真的写了才做；上传提取每次写入前确认自己的附件仍在。上传采购文件主文件时立即清掉项目的 `tender-text` 文本缓存；提取任务只在自己是该步骤最新的主文件时才回写缓存。
+- 提取失败不算上传失败：附件记录建成后，提取无论成败都不影响「上传成功」。上传的提取任务不计入在途任务上限，只持有文件元信息——计入的话一次批量上传就会占满名额，让别人的操作报「系统繁忙」。
 - 面向用户的文案不说 OCR、代理、大模型。提交前对改动文件跑 `bash scripts/copy-lint.sh <路径>`（在 `water-erp/` 下）。
 - `apps/web/src/proxy.ts` 只补注释，不新增档位。
 - 不改 `ProjectManagementService` 的构造函数（12 个按位参数，三个 spec 按位同步）。`ProjectManagementController` 只在末位追加依赖。
-- 操作日志：上传照旧在响应时记 200；14 条结果型路由的首次 202 不记，任务结束时记最终状态。
+- 操作日志：上传照旧在响应时记（状态码随响应，今天是 201）；14 条结果型路由的首次 202 不记，任务结束时记最终状态。
 - 命令的工作目录：后端在 `water-erp/apps/api`，前端在 `water-erp/apps/web`（隔离工作区里换成对应路径）。单测与类型检查不经 pnpm：后端用 `./node_modules/.bin/jest <pattern>` 与 `./node_modules/.bin/tsc --noEmit -p tsconfig.json`（必须是该目录自己的 tsc）；前端用 `./node_modules/.bin/tsx --test "<glob>"` 与 `./node_modules/.bin/tsc --noEmit -p tsconfig.json`。
 - 提交：只 `git add` 本任务列出的文件，禁 `git add -A` / `.`；不 push；提交前 `git branch --show-current` 与 `git status --short` 确认分支与暂存区。
 - 执行环境：仓库多会话共用。开工先 `git status` 并跑一遍后端全量单测记下既有红；对方有未提交改动时在 `.worktrees/pmi-pending` 隔离工作区开发（`git worktree add .worktrees/pmi-pending -b feat/pmi-pending main`，`node_modules` 与 `apps/api/.env` 用符号链接接主工作区，不跑任何安装命令）。合回前 `git rebase main` 并在新基点上重跑全部验证。
@@ -35,6 +35,7 @@
 3. 别人的单号，或已被清理的单号——404，不泄露结果。（Task 3、Task 6）
 4. 识别期间附件被删除或被同名文件替换——旧任务不再写库，也不回写文本缓存。（Task 2、Task 7）
 5. 服务重启丢了在途任务——前端明确提示「处理被中断，请重试」，不自动重发，不无限重取。（Task 3、Task 10）
+6. 一次批量上传二十份扫描件——不能占满在途名额，让同一时间别人的「标记完成」报「系统繁忙」。（Task 3、Task 9）
 
 ---
 
@@ -219,17 +220,17 @@ git commit -m "feat(pmi): 转后台任务的字段条件写入——只写自任
 - Produces:
   - `type PmiPendingOutcome<T> = { pending: false; result: T } | { pending: true; jobId: string }`
   - `interface PmiPendingSettlement { ok: boolean; status: number; error: unknown; durationMs: number }`
-  - `interface PmiPendingRunOptions { arrivedAt?: number; onSettled?: (s: PmiPendingSettlement) => void }`
+  - `interface PmiPendingRunOptions { arrivedAt?: number; onSettled?: (s: PmiPendingSettlement) => void; exemptFromLimit?: boolean }`
   - `class PmiPendingJobService implements OnModuleDestroy`
     - `run<T>(ownerId: string | undefined, label: string, compute: () => Promise<T>, opts?: PmiPendingRunOptions): Promise<PmiPendingOutcome<T>>`
     - `waitJob<T>(jobId: string, ownerId: string | undefined, maxWaitMs?: number): Promise<{ settled: true; result: T } | { settled: false }>`
-    - `get runningCount(): number`
+    - `get runningCount(): number`（只计没有豁免上限的任务）
     - `onModuleDestroy(): void`
 
 - [ ] **Step 1: 写失败的测试**
 
 ```ts
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import * as pendingUtil from './pmi-pending.util';
 import { PmiPendingJobService } from './pmi-pending-job.service';
 
@@ -304,6 +305,16 @@ describe('PmiPendingJobService', () => {
     await expect(service.run('u1', 'c', never)).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
+  it('豁免上限的任务不占名额，也不会被拒', async () => {
+    const service = new PmiPendingJobService();
+    for (const label of ['x1', 'x2', 'x3']) {
+      await expect(service.run('u1', label, never, { exemptFromLimit: true })).resolves.toMatchObject({ pending: true });
+    }
+    await expect(service.run('u1', 'result-1', never)).resolves.toMatchObject({ pending: true });
+    await expect(service.run('u1', 'result-2', never)).resolves.toMatchObject({ pending: true });
+    await expect(service.run('u1', 'result-3', never)).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
   it('已结束任务超过保留时长后被清理', async () => {
     const service = new PmiPendingJobService();
     const outcome = await service.run('u1', 'fast', async () => 1);
@@ -320,6 +331,13 @@ describe('PmiPendingJobService', () => {
     expect(onSettled).toHaveBeenCalledTimes(2);
     expect(onSettled.mock.calls[0][0]).toMatchObject({ ok: true, status: 200 });
     expect(onSettled.mock.calls[1][0]).toMatchObject({ ok: false, status: 500, error: expect.any(Error) });
+  });
+
+  it('业务异常按自己的状态码记（400、409）', async () => {
+    const service = new PmiPendingJobService();
+    const onSettled = jest.fn();
+    await service.run('u1', 'biz', () => Promise.reject(new BadRequestException({ error: '缺件', code: 'ARCHIVE_GATE_MISSING' })), { onSettled }).catch(() => undefined);
+    expect(onSettled.mock.calls[0][0]).toMatchObject({ ok: false, status: 400 });
   });
 
   it('进程关闭时对在途任务打 WARN', async () => {
@@ -341,8 +359,8 @@ Expected: FAIL，找不到模块。
 - [ ] **Step 3: 实现 `pmi-pending-job.service.ts`**
 
 - `@Injectable()`。构造时读一次配置：`readPmiPendingConfig(process.env, (m) => this.logger.warn(m))`。
-- `run`：在途数达到上限抛 `ServiceUnavailableException({ error: '系统繁忙，请稍后重试', code: 'PM_SYSTEM_BUSY' })`。建记录（`randomUUID`、`ownerId`、`label`、`startedAt`、一个在结束时 resolve 的内部 Promise）。`compute` 经 `Promise.resolve().then(compute)` 启动（同步抛错也接住），成败都只落进记录，绝不产生未处理的 rejection。按 `pendingWaitBudgetMs(opts?.arrivedAt, Date.now(), cfg)` 等待：期限内结束就返回结果或抛出原错误；否则返回单号。
-- 结束时：调一次 `onSettled`（状态码：成功 200，失败按 `getStatus()` 否则 500）；起一个 `unref` 的定时器，到 `ttlMs` 删记录。
+- `run`：在途数达到上限抛 `ServiceUnavailableException({ error: '系统繁忙，请稍后重试', code: 'PM_SYSTEM_BUSY' })`。`exemptFromLimit` 为真的任务不计入在途数，也不受这条拒绝。建记录（`randomUUID`、`ownerId`、`label`、`startedAt`、一个在结束时 resolve 的内部 Promise）。`compute` 经 `Promise.resolve().then(compute)` 启动（同步抛错也接住），成败都只落进记录，绝不产生未处理的 rejection。按 `pendingWaitBudgetMs(opts?.arrivedAt, Date.now(), cfg)` 等待：期限内结束就返回结果或抛出原错误；否则返回单号。
+- 结束时：调一次 `onSettled`（状态码：成功 200，失败取 `getStatus()`，没有就 500）；起一个 `unref` 的定时器，到 `ttlMs` 删记录。
 - `waitJob`：记录不存在或 `ownerId` 不符 → `NotFoundException({ error: '处理任务不存在或已结束，请重新发起', code: 'PM_JOB_NOT_FOUND' })`。未结束则最多等 `maxWaitMs`（默认 `pollWaitMs`），仍未结束返回 `{ settled: false }`；成功返回结果，失败抛原错误。
 - `onModuleDestroy`：对每个在途任务打一条 WARN，含 `label` 与已运行毫秒数。
 - 所有 `setTimeout` 都 `unref()`。
@@ -350,7 +368,7 @@ Expected: FAIL，找不到模块。
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `./node_modules/.bin/jest pmi-pending-job.service`
-Expected: PASS，10 个用例。
+Expected: PASS，12 个用例。
 
 - [ ] **Step 5: 提交**
 
@@ -360,6 +378,7 @@ git commit -m "feat(pmi): 进程内任务登记表——限时等待、转后台
 ```
 
 ---
+
 
 ### Task 4: 操作日志记最终结果
 
@@ -511,6 +530,13 @@ git commit -m "feat(oplog): 转后台的请求在任务结束时记最终结果�
   - `PmiPending(label: string)`：组合 `SetMetadata(PMI_PENDING_LABEL, label)` 与 `UseInterceptors(PmiPendingInterceptor)`
   - `class PmiPendingInterceptor implements NestInterceptor`（`@Injectable()`，构造注入 `Reflector` 与 `PmiPendingJobService`）
 
+**已对着 Nest 11.1.24 源码核实的四个行为**（实现时不必再查，改动前提时要知道）：
+
+- 拦截器里 `res.status(202)` 能生效：默认状态码在拦截器执行**之前**设置（`router-execution-context.js` 的 `create` 里先 `setStatus`），响应时不再带状态码（`createHandleResponseFn` 的调用处只传三个参数，`express-adapter.js:44` 的 `reply` 收到空状态码就不设置）。
+- 类拦截器不必写进 `providers`：按类型从所在模块的 `injectables` 取实例（`interceptors-context-creator.js`）。它依赖的 `PmiPendingJobService` 必须在同一个模块里，所以本任务要把它加进 `ProjectManagementModule`。
+- `@PmiPending` 写在装饰器栈最上面时排在最后、最内层执行：`extend-metadata.util.js` 把后应用的装饰器追加在数组后面。于是 `FileInterceptor` 在外层，先解析请求体。
+- `next.handle()` 可以在拦截器返回之后再订阅：下游链是 `defer` 惰性创建（`interceptors-consumer.js`），订阅时才执行，只执行一次。
+
 - [ ] **Step 1: 写失败的测试**
 
 ```ts
@@ -521,10 +547,11 @@ import * as request from 'supertest';
 import { OperationLogInterceptor } from '../operation-log/operation-log.interceptor';
 import { OperationLogService } from '../operation-log/operation-log.service';
 import { PmiPendingJobService } from './pmi-pending-job.service';
-import { PMI_PENDING_LABEL, PmiPending, PmiPendingInterceptor } from './pmi-pending.interceptor';
+import { PMI_PENDING_LABEL, PmiPending } from './pmi-pending.interceptor';
 import { ProjectManagementController } from './project-management.controller';
 
-@Controller('t')
+// 路径必须以 /api 开头：操作日志拦截器对非 /api 前缀的请求直接放行，否则下面关于操作日志的断言永远不成立
+@Controller('api/t')
 class DummyController {
   @PmiPending('slow')
   @Post('slow')
@@ -575,26 +602,26 @@ describe('PmiPending over HTTP', () => {
   });
 
   it('没标装饰器的路由照常', async () => {
-    await request(app.getHttpServer()).post('/t/plain').send({}).expect(201, { plain: true });
+    await request(app.getHttpServer()).post('/api/t/plain').send({}).expect(201, { plain: true });
   });
 
   it('期限内完成：照常 201 与原响应体', async () => {
-    await request(app.getHttpServer()).post('/t/slow').send({ ms: 5 }).expect(201, { ok: true });
+    await request(app.getHttpServer()).post('/api/t/slow').send({ ms: 5 }).expect(201, { ok: true });
   });
 
   it('超时转后台：202 带单号；任务结束后操作日志记最终状态', async () => {
     oplog.create.mockClear();
-    const res = await request(app.getHttpServer()).post('/t/slow').send({ ms: 400 }).expect(202);
+    const res = await request(app.getHttpServer()).post('/api/t/slow').send({ ms: 400 }).expect(202);
     expect(res.body).toEqual({ pending: true, jobId: expect.any(String) });
     expect(oplog.create).not.toHaveBeenCalled();
     await new Promise((resolve) => setTimeout(resolve, 700));
     expect(oplog.create).toHaveBeenCalledTimes(1);
-    expect(oplog.create.mock.calls[0][0]).toMatchObject({ statusCode: 200, path: '/t/slow' });
+    expect(oplog.create.mock.calls[0][0]).toMatchObject({ statusCode: 200, path: '/api/t/slow' });
   });
 
   it('后台失败：仍是 202；任务结束后操作日志记 500', async () => {
     oplog.create.mockClear();
-    await request(app.getHttpServer()).post('/t/slow').send({ ms: 400, fail: true }).expect(202);
+    await request(app.getHttpServer()).post('/api/t/slow').send({ ms: 400, fail: true }).expect(202);
     await new Promise((resolve) => setTimeout(resolve, 700));
     expect(oplog.create).toHaveBeenCalledTimes(1);
     expect(oplog.create.mock.calls[0][0]).toMatchObject({ statusCode: 500 });
@@ -622,7 +649,7 @@ Expected: FAIL，找不到模块。
 
 - `intercept`：取不到标签就 `return next.handle()`。否则把整条下游链包进任务，包在 `from(async () => …)` 里返回：
   `this.jobs.run(req.user?.sub, label, () => firstValueFrom(next.handle()), { arrivedAt, onSettled })`。`onSettled` 调 `settleDeferredOplog(req, { status: s.status, error: s.ok ? null : s.error })`。没转后台就原样返回 `outcome.result`；转后台则先 `markOplogDeferred(req)`，再 `res.status(202)`，返回 `{ pending: true, jobId }`。`arrivedAt` 取 `(req as Request & { arrivedAt?: number }).arrivedAt`（Task 9 的中间件会打这个点，现在为 `undefined`，等于取整段等待上限）。
-- `project-management.controller.ts`：给 `LABELS` 表里的 14 个方法加 `@PmiPending(<label>)`。装饰器写在各自装饰器栈的最上面（`@UseInterceptors(FileInterceptor(...))` 与 `@Post` 之上），使文件拦截器在外层、先解析请求体。
+- `project-management.controller.ts`：给 `LABELS` 表里的 14 个方法加 `@PmiPending(<label>)`。装饰器写在各自装饰器栈的最上面（`@UseInterceptors(FileInterceptor(...))` 与 `@Post` 之上）。
 - `project-management.module.ts`：`providers` 追加 `PmiPendingJobService`。
 
 - [ ] **Step 4: 跑测试确认通过，并跑相关存量用例**
@@ -641,6 +668,7 @@ git commit -m "feat(pmi): @PmiPending——14 条结果型路由限时等不到�
 ```
 
 ---
+
 
 ### Task 6: 重取端点
 
@@ -710,6 +738,7 @@ git commit -m "feat(pmi): 处理中任务的重取端点（长轮询，仅发起
 **Files:**
 - Create: `water-erp/apps/api/src/project-management/stage-extraction.types.ts`
 - Modify: `water-erp/apps/api/src/project-management/project-management.service.ts`（`addStageAttachment`，`:1655`–`:2011`）
+- Modify: `water-erp/apps/api/src/project-management/docx/file-utils.ts`（`getTenderTextCachePath` 旁加纯函数 `tenderTextCachePathFor`）
 - Create: `water-erp/apps/api/src/project-management/stage-attachment-extraction.spec.ts`
 
 **Interfaces:**
@@ -717,17 +746,21 @@ git commit -m "feat(pmi): 处理中任务的重取端点（长轮询，仅发起
 - Produces:
   - `type StageExtractedInfo = { initiationDate: string | null; evaluationMethod: string | null; expertInfo: string | null; biddingUnits: string | null; awardedSupplier: string | null; contractAmount: number | null; contractNumber: string | null; projectOverview: string | null; bidOpeningTime: string | null }`
   - `interface StageExtractionContext { absolutePath: string; attachmentId: string }`
+  - `type StageExtractionFile = Pick<Express.Multer.File, 'originalname' | 'mimetype' | 'size'>`（提取段只需要文件元信息，不需要上传缓冲区）
   - `ProjectManagementService.addStageAttachment(projectId, stageKey, file, uploadedById?, round?): Promise<{ record: Attachment; absolutePath: string }>`（`Attachment` 是 `@prisma/client` 的模型类型）
-  - `ProjectManagementService.extractStageAttachmentFields(projectId, stageKey, file, ctx: StageExtractionContext): Promise<{ extractedInfo: StageExtractedInfo | null }>`
+  - `ProjectManagementService.extractStageAttachmentFields(projectId, stageKey, file: StageExtractionFile, ctx: StageExtractionContext): Promise<{ extractedInfo: StageExtractedInfo | null }>`
+  - `tenderTextCachePathFor(projectId: string): string`（`docx/file-utils.ts`，只算路径、不建目录）
 
 - [ ] **Step 1: 写失败的测试**
 
-新 spec 自带最小工厂 `makeService()`：照 `project-management.service.spec.ts` 的做法 `jest.mock('node:fs/promises')` 与 `jest.mock('../common/attachment-object-store')`，`new ProjectManagementService(...)` 仍按 12 个位置参数传（用不到的传 `{}`），返回这些替身：
+新 spec 自带最小工厂 `makeService()`：照 `project-management.service.spec.ts` 的做法 `jest.mock('node:fs/promises')` 与 `jest.mock('../common/attachment-object-store')`，`new ProjectManagementService(...)` 仍按 12 个位置参数传（用不到的传 `{}`）。**不要像存量 spec 那样对 fs 替身调 `mockReset()`**——那会清掉用例给 fs 设的实现，`getTenderTextCachePath` 里 `mkdir(...).catch` 就会抛 TypeError。需要清理就只重置 prisma 与 parser 替身。工厂返回这些替身：
 
 ```ts
-// prisma：projectManagementItem.{findUnique, update}、projectManagementStage.findFirst（默认 { id: 'stage-1', attachments: [] }）、
+// prisma：projectManagementItem.{findUnique, update}、
+//         projectManagementStage.findFirst（默认 { id: 'stage-1', attachments: [] }）、
 //         attachment.{ create（默认 { id: 'att-1' }）, findUnique（默认 { id: 'att-1' }）}
-// documentParser：parse / parseWithOcr（jest.fn）；writeFileMock / mkdirMock（fs 替身）
+// documentParser：parse / parseWithOcr（jest.fn）
+// fs 替身：readFileMock、writeFileMock、mkdirMock、unlinkMock
 ```
 
 ```ts
@@ -760,6 +793,8 @@ function inMemoryRow(prisma: { projectManagementItem: { findUnique: jest.Mock; u
   return row;
 }
 
+const TENDER_TEXT = expect.stringContaining('tender-text-pm-01');
+
 describe('addStageAttachment 同步段', () => {
   it('建完附件记录即返回，不碰文档解析', async () => {
     const { service, prisma, documentParser } = makeService();
@@ -769,6 +804,20 @@ describe('addStageAttachment 同步段', () => {
     expect(r.absolutePath).toEqual(expect.any(String));
     expect(prisma.attachment.create).toHaveBeenCalledTimes(1);
     expect(documentParser.parse).not.toHaveBeenCalled();
+  });
+
+  it('上传采购文件主文件 → 立即清掉项目的文本缓存', async () => {
+    const { service, prisma, unlinkMock } = makeService();
+    inMemoryRow(prisma, { status: 'ACTIVE', currentRound: 1 });
+    await service.addStageAttachment('pm-01', 'TENDER_DOCUMENT', FILE('谈判文件.pdf'), 'u1');
+    expect(unlinkMock).toHaveBeenCalledWith(TENDER_TEXT);
+  });
+
+  it('上传其他文件不清文本缓存', async () => {
+    const { service, prisma, unlinkMock } = makeService();
+    inMemoryRow(prisma, { status: 'ACTIVE', currentRound: 1 });
+    await service.addStageAttachment('pm-01', 'EXPERT_SELECTION', FILE('专家抽取结果单.pdf'), 'u1');
+    expect(unlinkMock).not.toHaveBeenCalled();
   });
 });
 
@@ -815,12 +864,36 @@ describe('extractStageAttachmentFields', () => {
     expect(prisma.projectManagementItem.update).not.toHaveBeenCalled();
     expect(row).toEqual({ projectOverview: null, bidOpeningTime: null });
     expect(sync).not.toHaveBeenCalled();
-    expect(writeFileMock).not.toHaveBeenCalledWith(expect.stringContaining('tender-text-pm-01'), expect.anything(), expect.anything());
+    expect(writeFileMock).not.toHaveBeenCalledWith(TENDER_TEXT, expect.anything(), expect.anything());
+  });
+
+  it('自己是本步骤最新的采购文件主文件 → 回写文本缓存', async () => {
+    const { service, prisma, documentParser, writeFileMock } = makeService();
+    documentParser.parse.mockResolvedValue(TEXT);
+    inMemoryRow(prisma, { projectOverview: null, bidOpeningTime: null });
+    prisma.attachment.findUnique.mockResolvedValue({ projectManagementStage: { attachments: [{ id: 'att-1', fileName: '谈判文件.pdf', createdAt: new Date('2026-11-01T00:00:00Z') }] } });
+    armTenderExtract(service);
+    await service.extractStageAttachmentFields('pm-01', 'TENDER_DOCUMENT', FILE('谈判文件.pdf'), { absolutePath: '/tmp/x.pdf', attachmentId: 'att-1' });
+    expect(writeFileMock).toHaveBeenCalledWith(TENDER_TEXT, expect.any(String), 'utf8');
+  });
+
+  it('自己已不是最新的采购文件主文件 → 字段照写，但不回写文本缓存', async () => {
+    const { service, prisma, documentParser, writeFileMock } = makeService();
+    documentParser.parse.mockResolvedValue(TEXT);
+    const row = inMemoryRow(prisma, { projectOverview: null, bidOpeningTime: null });
+    prisma.attachment.findUnique.mockResolvedValue({ projectManagementStage: { attachments: [
+      { id: 'att-9', fileName: '采购文件（新版）.pdf', createdAt: new Date('2026-11-02T00:00:00Z') },
+      { id: 'att-1', fileName: '谈判文件.pdf', createdAt: new Date('2026-11-01T00:00:00Z') },
+    ] } });
+    armTenderExtract(service);
+    await service.extractStageAttachmentFields('pm-01', 'TENDER_DOCUMENT', FILE('谈判文件.pdf'), { absolutePath: '/tmp/x.pdf', attachmentId: 'att-1' });
+    expect(row).toMatchObject({ bidOpeningTime: '2027-01-01 09:00' });
+    expect(writeFileMock).not.toHaveBeenCalledWith(TENDER_TEXT, expect.anything(), expect.anything());
   });
 });
 ```
 
-写测试前先确认 `isTenderMainFile('谈判文件.pdf')` 为真（在 spec 里加一条断言）；不为真就换一个该函数认定的主文件名。
+写测试前先确认 `isTenderMainFile` 对 `'谈判文件.pdf'` 和 `'采购文件（新版）.pdf'` 都为真（在 spec 里各加一条断言）；不为真就换成该函数认定的主文件名。
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -829,9 +902,10 @@ Expected: FAIL——`addStageAttachment` 的返回里没有 `record`，`extractS
 
 - [ ] **Step 3: 拆 `addStageAttachment`**
 
-- **同步段**（留在 `addStageAttachment`）：`:1662`–`:1709` 原样（规则校验、可变性、轮次、历史轮只读闸、同名覆盖、`persistUploadedFile`），紧接着建附件记录（把 `:1961`–`:1972` 的 `attachment.create` 挪上来），再执行 `:1975`–`:1977` 的归档联动，返回 `{ record, absolutePath }`。
-- **提取段**（新方法 `extractStageAttachmentFields`）：把 `:1710`–`:1959` 整体搬进来（含 `decodedFileName` 的计算），末尾搬 `:1979`–`:2010` 组装 `extractedInfo` 的代码，返回 `{ extractedInfo }`。
+- **同步段**（留在 `addStageAttachment`）：`:1662`–`:1709` 原样（规则校验、可变性、轮次、历史轮只读闸、同名覆盖、`persistUploadedFile`），紧接着建附件记录（把 `:1961`–`:1972` 的 `attachment.create` 挪上来）。然后：若 `stageKey === 'TENDER_DOCUMENT'` 且规范化后的文件名满足 `isTenderMainFile`，就删掉项目的文本缓存——新文件一上传，旧的文本缓存就不能再被「AI 提取」读到。路径用新增的纯函数 `tenderTextCachePathFor(projectId)` 取；现有的 `getTenderTextCachePath` 会顺手建目录，在替身环境下 `mkdir()` 不回 Promise 会抛错，让它改调这个纯函数。删除放在 `try { await unlink(path) } catch {}` 里，文件本来就不存在不算错。最后执行 `:1975`–`:1977` 的归档联动，返回 `{ record, absolutePath }`。
+- **提取段**（新方法 `extractStageAttachmentFields`）：把 `:1710`–`:1959` 整体搬进来（含 `decodedFileName` 的计算），末尾搬 `:1979`–`:2010` 组装 `extractedInfo` 的代码，返回 `{ extractedInfo }`。参数 `file` 只用到 `originalname` / `mimetype` / `size` 三个字段。
 - 提取段开头：`const writer = await ExtractedFieldWriter.start(this.prisma, projectId, { attachmentId: ctx.attachmentId })`。
+- 新增私有方法 `isLatestTenderMainFile(attachmentId: string): Promise<boolean>`：由这个附件找到它所在的步骤（提取段不知道轮次和步骤，反查最稳），取该步骤的附件（只取 `id`、`fileName`、`createdAt`，按 `createdAt` 倒序），第一个满足 `isTenderMainFile(fileName)` 的与 `attachmentId` 相等才返回 `true`；一个主文件都没找到返回 `false`。
 - 九处写入改走 writer（行号为改动前的位置）：
 
 | 位置 | 现在 | 改成 |
@@ -842,7 +916,7 @@ Expected: FAIL——`addStageAttachment` 的返回里没有 `record`，`extractS
 | `:1799` | `update({ data: { expertInfo } })` | `await writer.update({ expertInfo })` |
 | `:1832` | `update({ data: { projectOverview } })` | `await writer.update({ projectOverview })` |
 | `:1841`–`:1846` | `update({ data: { bidOpeningTime } })` 后无条件联动 | `const applied = await writer.update({ bidOpeningTime })`；`applied.includes('bidOpeningTime')` 才调 `syncBidProjectOpeningFromPmi` |
-| `:1853`–`:1858` | 无条件回写 `tender-text` 缓存 | 先 `await writer.isAlive()`，为真才写 |
+| `:1853`–`:1858` | 无条件回写 `tender-text` 缓存 | `await writer.isAlive()` 且 `await this.isLatestTenderMainFile(ctx.attachmentId)` 都为真才写 |
 | `:1950` | `update({ data: updateData })` | `await writer.update(updateData)` |
 
 - 五段提取各自的 `try/catch` 与警告日志保持不变（提取失败不算上传失败）。
@@ -859,10 +933,11 @@ Expected: 无输出。
 
 ```bash
 git add water-erp/apps/api/src/project-management/stage-extraction.types.ts water-erp/apps/api/src/project-management/project-management.service.ts water-erp/apps/api/src/project-management/stage-attachment-extraction.spec.ts
-git commit -m "feat(pmi): 上传拆段——同步落盘即建附件记录，正文提取独立成可转后台的方法并走条件写入"
+git commit -m "feat(pmi): 上传拆段——同步落盘即建附件记录，正文提取独立成可转后台的方法并走条件写入；上传主文件即清文本缓存"
 ```
 
 ---
+
 
 ### Task 8: 「AI 提取」落库改条件写入
 
@@ -939,20 +1014,22 @@ git commit -m "fix(pmi): AI 提取转后台后只写自任务启动以来未改�
 - Modify: `water-erp/apps/api/src/project-management/project-management.module.ts`（`providers` 追加）
 
 **Interfaces:**
-- Consumes: Task 3 的 `PmiPendingJobService.run`；Task 7 的 `addStageAttachment`、`extractStageAttachmentFields`、`StageExtractedInfo`。
+- Consumes: Task 3 的 `PmiPendingJobService.run`；Task 7 的 `addStageAttachment`、`extractStageAttachmentFields`、`StageExtractedInfo`、`StageExtractionFile`。
 - Produces:
-  - `type StageUploadResponse = Attachment & { extractedInfo: StageExtractedInfo | null; extractedPending?: boolean; pendingJobId?: string }`
+  - `type StageUploadResponse = Attachment & { extractedInfo: StageExtractedInfo | null; extractedPending?: boolean; extractedFailed?: boolean; pendingJobId?: string }`
   - `class PmiStageUploadService`，方法 `upload(projectId: string, stageKey: string, file: Express.Multer.File, uploadedById: string | undefined, round: number | undefined, opts: { ownerId: string | undefined; arrivedAt?: number }): Promise<StageUploadResponse>`
   - `markRequestArrival(req, res, next): void`（`common/request-arrival.middleware.ts`）
 
 - [ ] **Step 1: 写失败的测试**
 
 ```ts
+import { ServiceUnavailableException } from '@nestjs/common';
 import { PmiPendingJobService } from './pmi-pending-job.service';
 import { PmiStageUploadService } from './pmi-stage-upload.service';
 
 const FILE = { originalname: 'a.pdf', mimetype: 'application/pdf', size: 1, buffer: Buffer.from('x') } as never;
-const KEYS = ['PM_PENDING_WAIT_MS', 'PM_PENDING_MIN_WAIT_MS'];
+const KEYS = ['PM_PENDING_WAIT_MS', 'PM_PENDING_MIN_WAIT_MS', 'PM_PENDING_MAX_RUNNING'];
+const never = () => new Promise<never>(() => {});
 const saved = { ...process.env };
 beforeEach(() => { process.env.PM_PENDING_WAIT_MS = '30'; process.env.PM_PENDING_MIN_WAIT_MS = '10'; });
 afterEach(() => { for (const k of KEYS) delete process.env[k]; Object.assign(process.env, saved); });
@@ -980,11 +1057,27 @@ describe('PmiStageUploadService.upload', () => {
     expect(r).toMatchObject({ id: 'att-1', extractedInfo: null, extractedPending: true, pendingJobId: expect.any(String) });
   });
 
-  it('提取意外失败 → 上传仍成功，只是不带提取信息', async () => {
+  it('提取意外失败 → 上传仍成功，带 extractedFailed 标记', async () => {
     const { pmi, coord } = makeCoord();
     pmi.extractStageAttachmentFields.mockRejectedValue(new Error('提取炸了'));
     await expect(coord.upload('pm-1', 'EXPERT_SELECTION', FILE, 'u1', 1, { ownerId: 'u1' }))
-      .resolves.toEqual({ id: 'att-1', fileName: 'a.pdf', extractedInfo: null });
+      .resolves.toEqual({ id: 'att-1', fileName: 'a.pdf', extractedInfo: null, extractedFailed: true });
+  });
+
+  it('登记表已被别人的任务占满时，上传的提取照常排队并转后台', async () => {
+    process.env.PM_PENDING_MAX_RUNNING = '1';
+    const { pmi, jobs, coord } = makeCoord();
+    await jobs.run('someone-else', 'analyze', never);
+    await expect(jobs.run('another', 'analyze', never)).rejects.toBeInstanceOf(ServiceUnavailableException); // 对照：普通任务此时确实被拒
+    pmi.extractStageAttachmentFields.mockImplementation(() => new Promise(() => {}));
+    const r = await coord.upload('pm-1', 'EXPERT_SELECTION', FILE, 'u1', 1, { ownerId: 'u1' });
+    expect(r).toMatchObject({ id: 'att-1', extractedPending: true });
+  });
+
+  it('传给提取的只有文件元信息，不带上传缓冲区', async () => {
+    const { pmi, coord } = makeCoord();
+    await coord.upload('pm-1', 'EXPERT_SELECTION', FILE, 'u1', 1, { ownerId: 'u1' });
+    expect(pmi.extractStageAttachmentFields.mock.calls[0][2]).toEqual({ originalname: 'a.pdf', mimetype: 'application/pdf', size: 1 });
   });
 
   it('同一项目的两次提取按先后执行', async () => {
@@ -1035,7 +1128,8 @@ Expected: FAIL，找不到模块。
 
 - [ ] **Step 3: 实现**
 
-- `upload`：先 `addStageAttachment`（同步段），再调 `jobs.run(opts.ownerId, 'stage-attachment-extract', () => this.enqueue(projectId, () => this.pmi.extractStageAttachmentFields(projectId, stageKey, file, { absolutePath, attachmentId: record.id })), { arrivedAt: opts.arrivedAt })`。期限内完成返回 `{ ...record, extractedInfo }`；转后台返回 `{ ...record, extractedInfo: null, extractedPending: true, pendingJobId }`。`jobs.run` 在等待期内抛错（提取意外失败）时记一条 WARN，返回 `{ ...record, extractedInfo: null }`——附件已经建好，上传必须算成功。
+- `upload`：先 `addStageAttachment`（同步段）。然后把文件缩成元信息 `meta = { originalname, mimetype, size }`——排队中的任务会一直被闭包持有，带上缓冲区的话一次批量上传就会在内存里压住十几份文件。再调 `jobs.run(opts.ownerId, 'stage-attachment-extract', () => this.enqueue(projectId, () => this.pmi.extractStageAttachmentFields(projectId, stageKey, meta, { absolutePath, attachmentId: record.id })), { arrivedAt: opts.arrivedAt, exemptFromLimit: true })`。
+- 三种结局：期限内完成返回 `{ ...record, extractedInfo }`；转后台返回 `{ ...record, extractedInfo: null, extractedPending: true, pendingJobId }`；`jobs.run` 在等待期内抛错（提取意外失败）时记一条 WARN，返回 `{ ...record, extractedInfo: null, extractedFailed: true }`——附件已经建好，上传必须算成功，但要让前端知道提取没成。
 - `enqueue(projectId, task)`：每个项目一条 Promise 链（`Map<string, Promise<void>>`），新任务挂在前一个的后面，前一个成败都不影响后一个（用 `.then(task, task)`）；链尾结算后，若 Map 里仍是自己则删掉。
 - `markRequestArrival`：`(req as Request & { arrivedAt?: number }).arrivedAt = Date.now(); next();`。在 `main.ts` 的 `app.use(json({ limit: bodyLimit }))` 之前 `app.use(markRequestArrival)`。
 - `uploadStageAttachment`：加参数 `@Req() req: Request`，改调 `this.stageUpload.upload(id, stageKey, file, user?.sub, round, { ownerId: user?.sub, arrivedAt: (req as Request & { arrivedAt?: number }).arrivedAt })`。构造函数末位追加 `private readonly stageUpload: PmiStageUploadService`。
@@ -1044,7 +1138,7 @@ Expected: FAIL，找不到模块。
 - [ ] **Step 4: 跑测试确认通过**
 
 Run: `./node_modules/.bin/jest "project-management/(pmi-stage-upload|project-management.controller)" && ./node_modules/.bin/tsc --noEmit -p tsconfig.json`
-Expected: PASS，7 个用例；tsc 无输出。
+Expected: PASS，9 个用例；tsc 无输出。
 
 - [ ] **Step 5: 后端全量回归**
 
@@ -1055,21 +1149,23 @@ Expected: 与开工前记录的基线一致，没有新增失败。
 
 ```bash
 git add water-erp/apps/api/src/project-management/pmi-stage-upload.service.ts water-erp/apps/api/src/project-management/pmi-stage-upload.service.spec.ts water-erp/apps/api/src/common/request-arrival.middleware.ts water-erp/apps/api/src/main.ts water-erp/apps/api/src/project-management/project-management.controller.ts water-erp/apps/api/src/project-management/project-management.module.ts
-git commit -m "feat(pmi): 上传落盘即返回——提取按项目串行转后台；请求到达打点供等待预算"
+git commit -m "feat(pmi): 上传落盘即返回——提取按项目串行转后台、不占在途名额、只留文件元信息；请求到达打点供等待预算"
 ```
 
 ---
 
-### Task 10: 前端——识别「处理中」并自动重取（核心逻辑）
+
+### Task 10: 前端——识别「处理中」并自动重取（核心逻辑与封装）
 
 **Files:**
 - Create: `water-erp/apps/web/src/lib/api/pm-pending-core.ts`
 - Create: `water-erp/apps/web/src/lib/api/pm-pending-core.test.ts`
 - Create: `water-erp/apps/web/src/lib/api/pm-pending.ts`
+- Create: `water-erp/apps/web/src/lib/api/pm-pending.test.ts`
 
 **Interfaces:**
 - Consumes: `@water-erp/client` 的 `ApiError`、`toApiError`；`./api-fetch` 的 `apiFetch`。
-- Produces（Task 11、12 使用）:
+- Produces（Task 12 使用）:
   - `const PM_PENDING_TIMEOUT_CODE = 'PM_PENDING_TIMEOUT'`、`const PM_JOB_LOST_CODE = 'PM_JOB_LOST'`、`const PM_PENDING_MAX_WAIT_MS = 20 * 60_000`、`const PM_PENDING_GAP_MS = 1000`
   - `interface PendingPollOptions { signal?: AbortSignal; maxWaitMs?: number; gapMs?: number }`
   - `isPendingBody(body: unknown): body is { pending: true; jobId: string }`
@@ -1077,6 +1173,8 @@ git commit -m "feat(pmi): 上传落盘即返回——提取按项目串行转后
   - `pm-pending.ts`：`parseJsonWithPending<T>(response: Response, opts?: PendingPollOptions): Promise<T>`、`resolvePending<T>(body: T, opts?: PendingPollOptions): Promise<T>`、`pollPendingJob<T>(jobId: string, opts?: PendingPollOptions): Promise<T>`、`postJsonWithPending<T>(url: string, init: RequestInit, opts?: PendingPollOptions): Promise<T>`
 
 - [ ] **Step 1: 写失败的测试**
+
+核心逻辑（依赖全部注入）`pm-pending-core.test.ts`:
 
 ```ts
 import test from "node:test";
@@ -1153,10 +1251,68 @@ test("调用方取消：停止重取，保持 AbortError", async () => {
 });
 ```
 
+封装层（替换全局 `fetch`，做法同 `lib/api/project-management.test.ts`）`pm-pending.test.ts`——钉住 202 的判定、重取地址与取消信号，这三样只有源码正则是查不出来的：
+
+```ts
+import test from "node:test";
+import assert from "node:assert/strict";
+import { ApiError } from "@water-erp/client";
+import { parseJsonWithPending, resolvePending } from "./pm-pending";
+
+/** 替换全局 fetch：handler 收到 URL 与 init，给出下一次响应；run 结束后还原 */
+function withFetch(handler: (url: string, init?: RequestInit) => Response, run: () => Promise<void>) {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => handler(String(input), init)) as typeof fetch;
+  return run().finally(() => { globalThis.fetch = original; });
+}
+
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+test("普通响应原样解析，不发起重取", async () => {
+  await withFetch(() => { throw new Error("不应发起重取"); }, async () => {
+    assert.deepEqual(await parseJsonWithPending(json(200, { ok: 1 })), { ok: 1 });
+  });
+});
+
+test("202 处理中：按单号重取，直到拿到结果", async () => {
+  const urls: string[] = [];
+  await withFetch((url) => {
+    urls.push(url);
+    return urls.length === 1 ? json(200, { status: "running" }) : json(200, { status: "done", result: { ok: 2 } });
+  }, async () => {
+    assert.deepEqual(await parseJsonWithPending(json(202, { pending: true, jobId: "j1" }), { gapMs: 1 }), { ok: 2 });
+  });
+  assert.deepEqual(urls, ["/api/project-management/pending-jobs/j1", "/api/project-management/pending-jobs/j1"]);
+});
+
+test("重取时任务失败：抛出后端的状态码与 code", async () => {
+  await withFetch(() => json(400, { statusCode: 400, code: "ARCHIVE_GATE_MISSING", error: "缺归档材料" }), async () => {
+    await assert.rejects(
+      () => parseJsonWithPending(json(202, { pending: true, jobId: "j1" }), { gapMs: 1 }),
+      (err: unknown) => err instanceof ApiError && err.status === 400 && err.code === "ARCHIVE_GATE_MISSING" && err.message === "缺归档材料",
+    );
+  });
+});
+
+test("取消信号随重取请求发出", async () => {
+  const controller = new AbortController();
+  let seen: AbortSignal | null | undefined;
+  await withFetch((_url, init) => { seen = init?.signal; return json(200, { status: "done", result: { ok: 3 } }); }, async () => {
+    assert.deepEqual(await parseJsonWithPending(json(202, { pending: true, jobId: "j1" }), { signal: controller.signal }), { ok: 3 });
+  });
+  assert.equal(seen, controller.signal);
+});
+
+test("resolvePending：不是处理中的响应体原样返回", async () => {
+  const body = { fields: { a: "1" } };
+  assert.equal(await resolvePending(body), body);
+});
+```
+
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `./node_modules/.bin/tsx --test "src/lib/api/pm-pending-core.test.ts"`
-Expected: FAIL，找不到 `./pm-pending-core.ts`。
+Run: `./node_modules/.bin/tsx --test "src/lib/api/pm-pending*.test.ts"`
+Expected: FAIL，找不到 `./pm-pending-core.ts` 与 `./pm-pending`。
 
 - [ ] **Step 3: 实现**
 
@@ -1165,17 +1321,18 @@ Expected: FAIL，找不到 `./pm-pending-core.ts`。
 
 - [ ] **Step 4: 跑测试确认通过**
 
-Run: `./node_modules/.bin/tsx --test "src/lib/api/pm-pending-core.test.ts"`
-Expected: PASS，6 个用例。
+Run: `./node_modules/.bin/tsx --test "src/lib/api/pm-pending*.test.ts"`
+Expected: PASS，核心 6 个用例、封装 5 个用例。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add water-erp/apps/web/src/lib/api/pm-pending-core.ts water-erp/apps/web/src/lib/api/pm-pending-core.test.ts water-erp/apps/web/src/lib/api/pm-pending.ts
+git add water-erp/apps/web/src/lib/api/pm-pending-core.ts water-erp/apps/web/src/lib/api/pm-pending-core.test.ts water-erp/apps/web/src/lib/api/pm-pending.ts water-erp/apps/web/src/lib/api/pm-pending.test.ts
 git commit -m "feat(web): 处理中响应的自动重取——识别 202、凭单号长轮询、超时与中断提示"
 ```
 
 ---
+
 
 ### Task 11: 前端——封装层接入，调用方不改
 
@@ -1187,7 +1344,7 @@ git commit -m "feat(web): 处理中响应的自动重取——识别 202、凭�
 
 **Interfaces:**
 - Consumes: Task 10 的 `parseJsonWithPending`、`resolvePending`、`postJsonWithPending`。
-- Produces: `UploadStageAttachmentResult` 多出 `extractedPending?: boolean; pendingJobId?: string`（Task 12 使用）。
+- Produces: `UploadStageAttachmentResult` 多出 `extractedPending?: boolean; extractedFailed?: boolean; pendingJobId?: string`（Task 12 使用）。
 
 - [ ] **Step 1: 写失败的测试**（沿用本仓库前端的做法：对源码做文本断言）
 
@@ -1216,8 +1373,8 @@ test("两个带文件上传的提取封装都经 resolvePending", () => {
   assert.match(decl(pm, "export async function extractInitiationFields"), /resolvePending\(/);
   assert.match(decl(pm, "export async function extractDemandFields"), /resolvePending\(/);
 });
-test("上传结果类型带处理中字段", () => {
-  assert.match(pm, /extractedPending\?: boolean;\s*pendingJobId\?: string;/);
+test("上传结果类型带处理中与失败字段", () => {
+  assert.match(pm, /extractedPending\?: boolean;\s*extractedFailed\?: boolean;\s*pendingJobId\?: string;/);
 });
 test("公告字段解析经 resolvePending", () => {
   assert.match(decl(announcement, "export function parseAnnouncementFields"), /resolvePending\(/);
@@ -1228,6 +1385,8 @@ test("附件 AI 润色的两处直接调用都经 postJsonWithPending", () => {
 });
 ```
 
+说明：202 的判定、重取地址、取消信号这些行为由 Task 10 的 `pm-pending.test.ts` 钉住；这里只确认各调用点确实接上了那套封装。
+
 - [ ] **Step 2: 跑测试确认失败**
 
 Run: `./node_modules/.bin/tsx --test "src/lib/api/pm-pending-wiring.test.ts"`
@@ -1235,7 +1394,7 @@ Expected: FAIL。
 
 - [ ] **Step 3: 改封装层**
 
-- `project-management.ts`：`parseJsonResponse` 的函数体改成 `return parseJsonWithPending<T>(response);`（10 个走 `apiFetch` 的封装和 `updateProjectStage` 末尾都自动获得重取，不用逐个改）。`extractInitiationFields`、`extractDemandFields` 把 `api.upload<...>(...)` 的结果交给 `resolvePending(..., { signal: opts?.signal })`。类型 `UploadStageAttachmentResult` 追加两个字段。
+- `project-management.ts`：`parseJsonResponse` 的函数体改成 `return parseJsonWithPending<T>(response);`（10 个走 `apiFetch` 的封装和 `updateProjectStage` 末尾都自动获得重取，不用逐个改）。`extractInitiationFields`、`extractDemandFields` 把 `api.upload<...>(...)` 的结果交给 `resolvePending(..., { signal: opts?.signal })`。类型 `UploadStageAttachmentResult` 追加三个字段。
 - `announcement.ts`：`parseAnnouncementFields` 把 `api.post` 的结果交给 `resolvePending`。
 - `tender-file-editor-modal.tsx`：`:739` 那条 `.then(r => r.ok ? r.json() : Promise.reject())` 链和 `:746` 的 `try` 块都改成 `postJsonWithPending<{ polished: string }>(url, init)`，失败仍是 reject。
 - `extractTenderFields`、`analyzeDirectProcurement` 自带的 150 秒、180 秒 `AbortController` 超时不用动：重取请求不挂在那个 controller 上，定时器触发时没有请求可掐，`finally` 会在重取结束后清掉它。加一行注释说明。
@@ -1260,19 +1419,101 @@ git commit -m "feat(web): 项目管理封装层统一识别处理中并自动重
 
 ---
 
-### Task 12: 前端——上传行显示「文字识别中」，结果晚到自动更新，核对调用点
+
+### Task 12: 前端——跟踪转后台的提取，上传行显示「文字识别中」，结果晚到自动更新
+
+上传有两类调用方：详情面板的上传队列，以及直接调用 `uploadProjectStageAttachment` 的向导和弹窗（`tender-write-modal.tsx`、`official-tender-wizard.tsx`、`abort-restart-dialog.tsx` 等共 8 处）。后一类上传的采购文件主文件同样会转后台（那段提取含两次大模型调用，数字件也常常超等待上限），所以跟踪不能只做在上传队列里。本任务在封装层统一登记，详情面板统一订阅。
 
 **Files:**
+- Create: `water-erp/apps/web/src/lib/api/pmi-extraction-tracker.ts`
+- Create: `water-erp/apps/web/src/lib/api/pmi-extraction-tracker.test.ts`
+- Modify: `water-erp/apps/web/src/lib/api/project-management.ts`（`uploadProjectStageAttachment`）
 - Modify: `water-erp/apps/web/src/components/upload/upload-progress-list.tsx`
-- Modify: `water-erp/apps/web/src/components/projects/project-detail-panel.tsx`（`useFileUploads` 的 `onEachDone`，`:210`–`:234`；`UploadProgressList` 调用处，`:2203`；`openDirectConfirm`，`:840`–`:868`）
+- Modify: `water-erp/apps/web/src/components/projects/project-detail-panel.tsx`（`useFileUploads` 的 `onEachDone`，`:215`–`:239`；`openDirectConfirm`，`:840`–`:868`；`UploadProgressList` 调用处，`:2203`）
 - Modify: `water-erp/apps/web/src/lib/api/pm-pending-wiring.test.ts`（追加）
-- Modify（仅在核对后需要加守卫时）: Step 4 列出的调用方文件
+- Modify（仅在核对后需要加守卫时）: Step 5 列出的调用方文件
 
 **Interfaces:**
-- Consumes: Task 10 的 `pollPendingJob`；Task 11 的 `UploadStageAttachmentResult`。
-- Produces: `UploadProgressList` 新增可选属性 `recognizingIds?: ReadonlySet<string>`。
+- Consumes: Task 10 的 `pollPendingJob`、`PendingPollOptions`；Task 11 的 `UploadStageAttachmentResult`。提取任务的结果是包了一层的 `{ extractedInfo }`（见 Task 7、Task 9），取值要再点一层。
+- Produces:
+  - `interface StageExtractionEvent { type: 'started' | 'settled' | 'failed'; projectId: string; jobId: string; extractedInfo?: ExtractedInfo | null }`
+  - `trackStageExtraction(projectId: string, jobId: string, opts?: PendingPollOptions): void`（同一单号只登记一次）
+  - `subscribeStageExtraction(listener: (e: StageExtractionEvent) => void): () => void`（返回退订函数）
+  - `pendingStageExtractions(projectId: string): number`
+  - `UploadProgressList` 新增可选属性 `recognizingIds?: ReadonlySet<string>`
 
-- [ ] **Step 1: 写失败的测试**（追加到 `pm-pending-wiring.test.ts`）
+- [ ] **Step 1: 写失败的测试**
+
+跟踪器 `pmi-extraction-tracker.test.ts`（替换全局 `fetch`，做法同 `pm-pending.test.ts`；模块状态跨用例保留，每个用例用不同的单号）:
+
+```ts
+import test from "node:test";
+import assert from "node:assert/strict";
+
+// @ts-expect-error Node 原生 --test 的 ESM 解析需要显式 .ts 扩展；tsc（bundler 分辨）不接受——压此行（须单行）
+import { pendingStageExtractions, subscribeStageExtraction, trackStageExtraction } from "./pmi-extraction-tracker.ts";
+
+type Event = { type: string; projectId: string; jobId: string; extractedInfo?: unknown };
+
+function withFetch(handler: (url: string, init?: RequestInit) => Response, run: () => Promise<void>) {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => handler(String(input), init)) as typeof fetch;
+  return run().finally(() => { globalThis.fetch = original; });
+}
+const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
+
+test("登记后先发 started；任务结束后发 settled 并带上提取信息", async () => {
+  const events: Event[] = [];
+  const unsubscribe = subscribeStageExtraction((e) => events.push(e));
+  await withFetch(() => json(200, { status: "done", result: { extractedInfo: { expertInfo: "张三" } } }), async () => {
+    trackStageExtraction("pm-1", "job-a", { gapMs: 1 });
+    assert.equal(pendingStageExtractions("pm-1"), 1);
+    await settle();
+  });
+  unsubscribe();
+  assert.deepEqual(events.map((e) => e.type), ["started", "settled"]);
+  assert.deepEqual(events[1].extractedInfo, { expertInfo: "张三" });
+  assert.equal(pendingStageExtractions("pm-1"), 0);
+});
+
+test("同一单号只登记一次", async () => {
+  const events: Event[] = [];
+  const unsubscribe = subscribeStageExtraction((e) => events.push(e));
+  await withFetch(() => json(200, { status: "done", result: { extractedInfo: null } }), async () => {
+    trackStageExtraction("pm-2", "job-b", { gapMs: 1 });
+    trackStageExtraction("pm-2", "job-b", { gapMs: 1 });
+    await settle();
+  });
+  unsubscribe();
+  assert.deepEqual(events.map((e) => e.type), ["started", "settled"]);
+});
+
+test("任务失败发 failed，待处理数归零", async () => {
+  const events: Event[] = [];
+  const unsubscribe = subscribeStageExtraction((e) => events.push(e));
+  await withFetch(() => json(404, { statusCode: 404, code: "PM_JOB_NOT_FOUND", error: "处理任务不存在或已结束，请重新发起" }), async () => {
+    trackStageExtraction("pm-3", "job-c", { gapMs: 1 });
+    await settle();
+  });
+  unsubscribe();
+  assert.deepEqual(events.map((e) => e.type), ["started", "failed"]);
+  assert.equal(pendingStageExtractions("pm-3"), 0);
+});
+
+test("退订后不再收到事件", async () => {
+  const events: Event[] = [];
+  const unsubscribe = subscribeStageExtraction((e) => events.push(e));
+  unsubscribe();
+  await withFetch(() => json(200, { status: "done", result: { extractedInfo: null } }), async () => {
+    trackStageExtraction("pm-4", "job-d", { gapMs: 1 });
+    await settle();
+  });
+  assert.deepEqual(events, []);
+});
+```
+
+追加到 `pm-pending-wiring.test.ts`:
 
 ```ts
 const list = readFileSync(resolve("src/components/upload/upload-progress-list.tsx"), "utf8");
@@ -1282,9 +1523,13 @@ test("上传行：识别中的条目显示文字识别中而不是已完成", ()
   assert.match(list, /recognizingIds\?: ReadonlySet<string>/);
   assert.match(list, /文字识别中/);
 });
-test("详情面板：上传转后台后登记识别中并凭单号等结果", () => {
+test("上传封装：转后台的提取统一登记跟踪（不经过上传队列的调用方也覆盖）", () => {
+  assert.match(decl(pm, "export async function uploadProjectStageAttachment"), /trackStageExtraction\(/);
+});
+test("详情面板：订阅提取任务事件，结束后合入提取信息；上传行标记识别中", () => {
+  assert.match(panel, /subscribeStageExtraction\(/);
+  assert.match(panel, /applyExtractedInfo\(/);
   assert.match(panel, /recognizingIds=\{recognizingIds\}/);
-  assert.match(panel, /pollPendingJob<ExtractedInfo>\(/);
   assert.match(panel, /文字识别失败，可重新上传或使用 AI 提取/);
 });
 test("完成确认弹窗：识别未完成时给出提示", () => {
@@ -1294,26 +1539,34 @@ test("完成确认弹窗：识别未完成时给出提示", () => {
 
 - [ ] **Step 2: 跑测试确认失败**
 
-Run: `./node_modules/.bin/tsx --test "src/lib/api/pm-pending-wiring.test.ts"`
-Expected: FAIL，新增 3 个用例失败。
+Run: `./node_modules/.bin/tsx --test "src/lib/api/pmi-extraction-tracker.test.ts" "src/lib/api/pm-pending-wiring.test.ts"`
+Expected: FAIL（跟踪器模块找不到；追加的 4 个用例失败）。
 
 - [ ] **Step 3: 实现**
 
-- `upload-progress-list.tsx`：属性里加 `recognizingIds?: ReadonlySet<string>`。`it.status === 'done'` 且 `recognizingIds?.has(it.id)` 时，原来显示「已完成」的位置显示「文字识别中…」（颜色 `text-[var(--accent)]`，不加图标、不用 emoji）。
+- `pmi-extraction-tracker.ts`：模块内一张表（已登记的单号 → 项目）和一个监听者集合。`trackStageExtraction`：单号已登记就直接返回；否则登记、发 `started`，然后调 `pollPendingJob<{ extractedInfo: ExtractedInfo | null }>(jobId, opts)`，成功发 `settled`（带 `extractedInfo`），失败发 `failed`；两种情况都注销该单号。`ExtractedInfo` 是 `lib/api/project-management.ts` 导出的类型，这里只做类型引用。
+- `project-management.ts` 的 `uploadProjectStageAttachment`：拿到结果后，若 `result.extractedPending && result.pendingJobId`，调 `trackStageExtraction(projectId, result.pendingJobId, { signal: opts?.signal })`；结果原样返回。
 - `project-detail-panel.tsx`：
-  - 把 `onEachDone` 里「合入 `extractedInfo`」的那段（`:222`–`:233`）抽成局部函数 `applyExtractedInfo(info: ExtractedInfo)`。
-  - 新增状态 `recognizingIds`（`useState<Set<string>>`）。
-  - `onEachDone` 收到的对象带上传条目的 `id`。若 `result.extractedPending && result.pendingJobId`：把 `id` 加进 `recognizingIds`，调 `pollPendingJob<ExtractedInfo>(result.pendingJobId)`；成功则 `applyExtractedInfo(info)` 后 `handleUpdated()`，失败 `toast.warning('文字识别失败，可重新上传或使用 AI 提取')`；两种情况最后都把 `id` 从集合里移除。
+  - 把 `onEachDone` 里「合入 `extractedInfo`」的那段（`:227`–`:239`）抽成局部函数 `applyExtractedInfo(info: ExtractedInfo)`。
+  - 新增状态 `recognizingIds`（`useState<Set<string>>`）和一个 `useRef<Map<string, string>>`（单号 → 上传条目 id）。
+  - `onEachDone` 收到的对象带上传条目的 `id`。若 `result.extractedPending && result.pendingJobId`：记下单号与条目 id 的对应，把 `id` 加进 `recognizingIds`。轮询不在这里做，封装层已经统一登记。
+  - 用 `useEffect` 订阅 `subscribeStageExtraction`（依赖 `[item.id]`，清理函数里退订）：事件的项目不是当前项目就忽略；`settled` 时 `extractedInfo` 非空就 `applyExtractedInfo(e.extractedInfo)`，然后 `handleUpdated()`；`failed` 时 `toast.warning('文字识别失败，可重新上传或使用 AI 提取')`；除 `started` 外都按单号找出条目 id，从 `recognizingIds` 移除。依赖里要用到的 `handleUpdated` 等绑定，按面板现有写法放进依赖数组；面板有「react-compiler 前向引用」的注释，新钩子放在被引用的绑定之后。
   - `:2203` 的 `<UploadProgressList …>` 加 `recognizingIds={recognizingIds}`。
-  - `openDirectConfirm`：组装完 `directFilesNote` 后，若 `recognizingIds.size > 0`，在后面接一句「文件文字识别仍在后台进行，不会覆盖本弹窗确认的内容」。
+  - `openDirectConfirm`：组装完 `directFilesNote` 后，若 `recognizingIds.size > 0 || pendingStageExtractions(item.id) > 0`，在后面接一句「文件文字识别仍在后台进行，不会覆盖本弹窗确认的内容」。
+- `upload-progress-list.tsx`：属性里加 `recognizingIds?: ReadonlySet<string>`。`it.status === 'done'` 且 `recognizingIds?.has(it.id)` 时，原来显示「已完成」的位置显示「文字识别中…」（颜色 `text-[var(--accent)]`，不加图标、不用 emoji）。
 
-- [ ] **Step 4: 逐个核对调用点对「晚到的成功」是否安全**
+- [ ] **Step 4: 跑测试确认通过**
+
+Run: `./node_modules/.bin/tsx --test "src/lib/api/pmi-extraction-tracker.test.ts" "src/lib/api/pm-pending-wiring.test.ts"`
+Expected: PASS。
+
+- [ ] **Step 5: 逐个核对调用点对「晚到的成功」是否安全**
 
 今天这些请求超过代理档会报错，改造后会晚一些成功返回。逐个看下列文件里对 12 个封装函数的每一次调用：`components/projects/abort-restart-dialog.tsx`、`create-project-dialog.tsx`、`notification-letter-dialog.tsx`、`supplier-select-modal.tsx`、`announcement-dialog.tsx`、`change-modal.tsx`、`projects/page.tsx`、`project-detail-panel.tsx`、`announcement-publish-wizard.tsx`、`tender-file-editor-modal.tsx`。
 
 每一处回答两个问题：结果回来时页面是否还在等它（组件已卸载、弹窗已关、用户已切到别的项目或步骤）；不在等时把结果写进状态，会不会覆盖更新的内容或触发后续动作。有风险就加守卫：发请求时取一个序号（或记下当时的项目、步骤标识），回来时不一致就丢弃——`project-detail-panel.tsx` 的 `analysisSeqRef` 是现成例子；组件卸载时置失效标记也可。把结论写进提交说明，每个调用点一行（安全 / 已加守卫 / 为什么无风险）。
 
-- [ ] **Step 5: 跑测试与检查**
+- [ ] **Step 6: 跑测试与检查**
 
 Run: `./node_modules/.bin/tsx --test "src/**/*.test.ts"`
 Expected: PASS。
@@ -1324,15 +1577,16 @@ Expected: 无输出。
 Run（在 `water-erp/` 下）: `bash scripts/copy-lint.sh apps/web/src/components/upload apps/web/src/components/projects/project-detail-panel.tsx apps/web/src/lib/api`
 Expected: 退出码 0。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 7: 提交**
 
-`git add` 列出本任务改动的全部文件（含 Step 4 加了守卫的文件）。
+`git add` 列出本任务改动的全部文件（含 Step 5 加了守卫的文件）。
 
 ```bash
-git commit -m "feat(web): 上传落盘即显示成功；识别中的文件标记提示，结果晚到自动更新；逐个核对晚到结果的调用点"
+git commit -m "feat(web): 转后台的提取统一跟踪；上传行标记文字识别中，结果晚到自动更新；逐个核对晚到结果的调用点"
 ```
 
 ---
+
 
 ### Task 13: 代理注释与口径文档
 
@@ -1368,7 +1622,7 @@ git commit -m "docs(web): 代理注释——项目管理慢接口已转后台，
 ## 项目管理慢接口「处理中」契约（2026-11-25）
 
 - 项目管理下同步跑 OCR / 大模型的路由用 `@PmiPending(label)`（`project-management/pmi-pending.interceptor.ts`）：请求最多等到「到达后第 13 秒」（上限 8 秒），等不到回 `202 { pending: true, jobId }`，处理函数转后台继续；前端封装层（`apps/web/src/lib/api/pm-pending.ts`）凭单号长轮询 `GET /api/project-management/pending-jobs/:jobId` 自动重取，调用方不改。**新增同类慢接口时照此接入**，不要靠放宽 `proxy.ts` 超时档。
-- 附件上传（`PmiStageUploadService`）：落盘并建附件记录即返回；正文提取按项目串行转后台，未完成时响应带 `extractedPending: true` 与 `pendingJobId`，详情面板显示「文字识别中…」并在完成后自动更新。
+- 附件上传（`PmiStageUploadService`）：落盘并建附件记录即返回；正文提取按项目串行转后台，未完成时响应带 `extractedPending: true` 与 `pendingJobId`。前端在封装层统一跟踪这些任务（`apps/web/src/lib/api/pmi-extraction-tracker.ts`），详情面板显示「文字识别中…」并在完成后自动更新。
 - 转后台任务的字段写入走 `ExtractedFieldWriter`：只写自任务启动以来没人改过的字段；上传提取在附件被删后不再写入。操作日志记任务结束时的最终状态（`operation-log/deferred-oplog.ts`），上传照旧在响应时记。
 - 任务登记表在进程内存里（单副本假设）；api 与 web 门户镜像须同批部署。spec：`docs/superpowers/specs/2026-11-25-pmi-heavy-endpoints-pending-design.md`
 ```
@@ -1382,7 +1636,7 @@ git commit -m "docs(web): 代理注释——项目管理慢接口已转后台，
 隔离工作区里不能另起 API 实例，所以下列检查在 `git merge --ff-only feat/pmi-pending` 之后、dev 链重启完成后做。
 
 1. **API 起得来**：`:4001` 监听、`/api/docs` 返回 200，日志里没有 `UnknownDependenciesException` 一类注入错误。
-2. **上传扫描件**：用一个 staff 账号的登录态（或按记忆里「离线签发无 sid 令牌」的办法签一个只读探测用的令牌）向某测试项目的「专家抽取」步骤上传一份多页扫描件。预期：13 秒内返回 200，体里有 `extractedPending: true` 与 `pendingJobId`；随后 `GET /api/project-management/pending-jobs/<jobId>` 先回 `{ status: 'running' }`，识别完成后回 `{ status: 'done', result: { extractedInfo: … } }`。
+2. **上传扫描件**：用 staff 账号在浏览器里真实登录（记忆里「离线签发无 sid 令牌」的办法只用于只读探测，不要拿来做上传），向某测试项目的「专家抽取」步骤上传一份多页扫描件。预期：13 秒内返回 201，体里有 `extractedPending: true` 与 `pendingJobId`；随后 `GET /api/project-management/pending-jobs/<jobId>` 先回 `{ status: 'running' }`，识别完成后回 `{ status: 'done', result: { extractedInfo: … } }`。
 3. **标记完成**：对同一项目点「标记完成」。预期：界面保持等待不报超时；操作日志里这一条的状态码是最终码，不是 202。
 4. **操作日志**：查最近的操作日志，确认没有 `GET /api/project-management/pending-jobs/…` 的记录。
 5. **浏览器走一遍**（:3005 项目详情面板）：上传数字版文件照旧立即带出提取信息；上传扫描件显示「文字识别中…」，完成后提取信息自动出现；识别未完成时打开直接采购「谈判文件」的完成确认弹窗，能看到提示句。
