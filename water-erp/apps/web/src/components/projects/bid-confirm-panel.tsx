@@ -946,8 +946,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         <div className="space-y-3">
                           {/* 替换方向卡（2026-11-18 重设计）：换出 ⇄ 换入 双瓷片 + 中缝换向图标井 */}
                           <div className="flex items-stretch gap-2.5">
-                            <div className="min-w-0 flex-1 rounded-[14px] px-3.5 py-3"
-                              style={{ background: 'oklch(1 0 0 / 0.5)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)' }}>
+                            <div className="bc-swap-card min-w-0 flex-1 rounded-[14px] px-3.5 py-3">
                               <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--muted-foreground)]">换出（正选）</div>
                               <div className="mt-1 text-sm font-bold text-[var(--foreground)]">{out.name}{replaceModalExpert.isLead ? '（组长）' : ''}</div>
                               <div className="mt-0.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
@@ -960,8 +959,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                                 <ArrowLeftRight size={14} className="text-[var(--accent)]" />
                               </div>
                             </div>
-                            <div className="min-w-0 flex-1 rounded-[14px] px-3.5 py-3"
-                              style={{ background: 'color-mix(in oklch, var(--accent) 6%, oklch(1 0 0 / 0.5))', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.65), 2px 2px 4px oklch(0.55 0.03 258 / 0.08), -1px -1px 3px oklch(1 0 0 / 0.7)' }}>
+                            <div className="bc-swap-card bc-swap-card--in min-w-0 flex-1 rounded-[14px] px-3.5 py-3">
                               <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--accent-strong)]">换入（候补）</div>
                               <div className="mt-1 text-sm font-bold text-[var(--foreground)]">{inc.name}</div>
                               <div className="mt-0.5 text-[11px] leading-4 text-[var(--muted-foreground)]">
@@ -1024,8 +1022,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                     ) : (
                       <>
                         {/* 被替换正选信息（carved 内凹盒） */}
-                        <div className="flex items-center gap-3 rounded-[12px] px-3.5 py-2.5"
-                          style={{ background: 'oklch(0.965 0.004 258 / 0.6)', boxShadow: 'inset 1px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -1px -1px 2px oklch(1 0 0 / 0.55)' }}>
+                        <div className="bc-swap-current flex items-center gap-3 rounded-[12px] px-3.5 py-2.5">
                           <UserRound size={16} className="shrink-0 text-[var(--muted-foreground)]" />
                           <div className="min-w-0 flex-1">
                             <span className="text-sm font-bold text-[var(--foreground)]">{replaceModalExpert.name}{replaceModalExpert.isLead ? '（组长）' : ''}</span>
@@ -1043,8 +1040,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                                 key={alt.id}
                                 onClick={() => setReplaceModalAlt(alt)}
                                 disabled={busy || cannotLeadSwap}
-                                className={`flex w-full items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left transition-colors ${cannotLeadSwap ? 'cursor-not-allowed opacity-55' : 'hover:bg-[color-mix(in_oklch,var(--accent)_7%,transparent)]'}`}
-                                style={{ background: 'oklch(1 0 0 / 0.42)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.5)' }}
+                                className={`bc-swap-alt-row flex w-full items-center gap-3 rounded-[12px] px-3.5 py-2.5 text-left transition-colors ${cannotLeadSwap ? 'cursor-not-allowed opacity-55' : 'hover:bg-[color-mix(in_oklch,var(--accent)_7%,transparent)]'}`}
                               >
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">

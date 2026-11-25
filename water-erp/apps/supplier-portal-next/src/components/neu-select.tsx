@@ -78,7 +78,8 @@ export function NeuSelect({
 
   return (
     <div ref={anchorRef} className={`relative ${className}`}>
-      {/* 触发器：内凹瓷片 + chevron（打开旋转 180°） */}
+      {/* 触发器：内凹瓷片 + chevron（打开旋转 180°）。外观走 globals.css 的 .neu-select-trigger
+          （开合态由 aria-expanded 驱动）——cgzxui 单一 CSS 源，阴影与底色勿写回内联 style */}
       <button
         type="button"
         onClick={toggle}
@@ -88,10 +89,7 @@ export function NeuSelect({
         aria-label={ariaLabel}
         title={title}
         id={id}
-        className={`flex w-full items-center justify-between gap-1 rounded-[10px] px-2.5 text-left outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${compact ? "h-[28px] text-xs" : "h-[38px] text-[13px]"}`}
-        style={open
-          ? { background: "oklch(0.985 0.01 252)", boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.9)", border: "none" }
-          : { background: "var(--surface)", boxShadow: "inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85)", border: "none" }}
+        className={`neu-select-trigger flex w-full items-center justify-between gap-1 rounded-[10px] px-2.5 text-left outline-none transition-all focus-visible:outline-2 focus-visible:outline-[var(--accent)] focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${compact ? "h-[28px] text-xs" : "h-[38px] text-[13px]"}`}
       >
         <span className={`truncate ${current ? "text-[color:var(--foreground)]" : "text-[color:var(--muted-foreground)]"}`}>{current?.label || ""}</span>
         <ChevronDown size={compact ? 12 : 13} strokeWidth={2} className={`shrink-0 text-[color:var(--muted-foreground)] transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -100,7 +98,8 @@ export function NeuSelect({
         <div
           ref={popRef}
           role="listbox"
-          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width, zIndex: 700, maxHeight: 260, overflowY: "auto", borderRadius: 16, padding: "6px", background: "linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%)", boxShadow: "6px 6px 18px oklch(0.55 0.03 258 / 0.16), -3px -3px 10px oklch(1 0 0 / 0.9), inset 0 1px 0 oklch(1 0 0 / 0.9)" }}
+          className="neu-select-popover"
+          style={{ top: rect.top, left: rect.left, width: rect.width }}
         >
           {options.map((o) => {
             const isCurrent = o.value === (value == null ? "" : String(value));
@@ -111,8 +110,7 @@ export function NeuSelect({
                 role="option"
                 aria-selected
                 onClick={() => { setOpen(false); onChange?.({ target: { value: o.value } }); }}
-                className="mb-0.5 flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-[7px] text-left text-xs font-bold text-[var(--accent)]"
-                style={{ background: "oklch(1 0 0)", boxShadow: "inset 0 1px 0 oklch(1 0 0 / 0.95), 2px 2px 6px oklch(0.55 0.03 258 / 0.16), -1px -1px 2px oklch(1 0 0 / 0.9)" }}
+                className="neu-select-option mb-0.5 flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-[7px] text-left text-xs font-bold text-[var(--accent)]"
               >
                 <span className="truncate">{o.label}</span>
                 <Check size={12} strokeWidth={2.6} className="shrink-0" />

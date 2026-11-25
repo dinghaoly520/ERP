@@ -290,7 +290,9 @@ export class AnnouncementController {
   @ApiOperation({ summary: '创建公告' })
   async create(@Body() dto: CreateAnnouncementDto, @Request() req: any) {
     const companyStamp = await this.companyScope.stampFor(req.user);
-    const result = await this.announcementService.create(dto, req.user.sub, companyStamp);
+    // 待发定时草稿互斥闸的公司范围（2026-11-24 审查）：经办人只能替换、在提示中看到本公司的草稿
+    const scope = await this.companyScope.resolveScope(req.user);
+    const result = await this.announcementService.create(dto, req.user.sub, companyStamp, scope, this.recycleOperator(req));
     // 操作历史（append-only）：新建 + 直接发布各记一条
     await this.history.write({
       announcementId: result.id,
@@ -327,7 +329,8 @@ export class AnnouncementController {
     await this.assertAnnouncementScope(id, req.user);
     // 编辑前快照：判定状态流转与变更字段
     const before = await this.announcementService.get(id);
-    const result = await this.announcementService.update(id, dto);
+    const scope = await this.companyScope.resolveScope(req.user);
+    const result = await this.announcementService.update(id, dto, scope, req.user?.sub);
     const changedFields = Object.keys(dto).filter(
       (k) => (dto as any)[k] !== undefined && (dto as any)[k] !== (before as any)[k],
     );
@@ -406,9 +409,9 @@ export class AnnouncementController {
 
   @Post('check-duplicate')
   @Roles('admin', 'bid_host', 'leader', 'staff')
-  @ApiOperation({ summary: '发布前查重：同标题或同项目同类型的已发布公告（命中不阻断，前端提示确认）' })
+  @ApiOperation({ summary: '发布前查重：同标题或同项目同类型的已发布公告（命中不阻断，前端提示确认）＋同键待发定时草稿（pending）' })
   async checkDuplicate(
-    @Body() dto: { title?: string; relatedProjectCode?: string; type?: string },
+    @Body() dto: { title?: string; relatedProjectCode?: string; type?: string; changeRound?: string | number },
     @Request() req: any,
   ) {
     const scope = await this.companyScope.resolveScope(req.user);

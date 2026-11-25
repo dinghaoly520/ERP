@@ -88,10 +88,14 @@ export class UploadService implements OnModuleInit {
 
   /**
    * 生成文件存储 key: uploads/{yyyy-mm-dd}/{random}.{ext}
+   * 扩展名取自上传文件名并进入对象存储键，只放行 [a-z0-9]{1,8}（2026-11-24 审计第 1 处）——
+   * 载荷片段、路径分隔符、空扩展名、超长片段一律落 bin。
    */
   generateKey(originalName: string, namespace = 'uploads'): string {
     const date = new Date().toISOString().slice(0, 10);
-    const ext = originalName.includes('.') ? originalName.split('.').pop() : 'bin';
+    // 大小写不敏感、保留原大小写：合法的大写扩展名（.PDF/.JPG）与旧行为一致，不借机改行为
+    const rawExt = originalName.includes('.') ? originalName.split('.').pop() ?? '' : '';
+    const ext = /^[a-z0-9]{1,8}$/i.test(rawExt) ? rawExt : 'bin';
     const hash = crypto.randomBytes(8).toString('hex');
     return `${namespace}/${date}/${hash}.${ext}`;
   }
@@ -169,7 +173,7 @@ export class UploadService implements OnModuleInit {
     let mimeType = file.mimetype;
     let displayName = originalName;
     if (!clientEncrypted) {
-      const converted = convertOfficeToPdf(file.buffer, file.mimetype, originalName);
+      const converted = await convertOfficeToPdf(file.buffer, file.mimetype, originalName);
       if (converted) {
         buffer = converted.buffer;
         mimeType = converted.mimeType;

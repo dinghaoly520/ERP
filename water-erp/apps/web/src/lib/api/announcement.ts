@@ -165,6 +165,8 @@ export function fetchAllAnnouncementHistories(params?: { page?: number; pageSize
 export type AnnouncementPublishResult = AnnouncementListItem & {
   checklistWarnings?: Array<{ item: string; clause: string; message: string }>;
   projectSyncWarning?: string;
+  /** 被本次发布替换的待发定时公告（2026-11-24）：旧公告已移入回收站并拆定时 */
+  supersededPendingScheduledIds?: string[];
 };
 
 export function createAnnouncement(data: {
@@ -172,6 +174,9 @@ export function createAnnouncement(data: {
   summary?: string; publishDate?: string; isTop?: boolean; relatedProjectCode?: string; metadata?: Record<string, any>; status?: AnnouncementStatus;
   /** 公示截止直供（2026-11-06）：流标/中标公告起止选择的止点 → 后端 publicityEnd（公开端显示窗口） */
   publicityEnd?: string;
+  /** 经办人确认替换的待发定时公告（2026-11-24 用户裁定）：同项目同类型已有定时待发草稿时，
+   *  后端默认 409 拒绝本次发布；发布向导弹窗确认后携这些 id 放行——旧公告移入回收站并拆定时 */
+  supersedePendingScheduledIds?: string[];
 }) {
   return api.post<AnnouncementPublishResult>('/announcements', data);
 }
@@ -239,7 +244,8 @@ export function getProjectParticipants(projectCode: string) {
   );
 }
 
-/** 发布前查重：同标题或同项目同类型的已发布公告（命中由前端提示确认，不阻断） */
+/** 发布前查重：同标题或同项目同类型的已发布公告（命中由前端提示确认，不阻断）；
+ *  pending = 同项目同类型尚在等定时发布的草稿（2026-11-24：继续发布会替换它，须经办人确认） */
 export interface AnnouncementDuplicateMatch {
   id: string;
   title: string;
@@ -250,8 +256,18 @@ export interface AnnouncementDuplicateMatch {
   /** 2026-11-16：查重提示带公示起止——metadata.announcementStart/publicityEnd（或 publicityPeriod 文本） */
   metadata?: Record<string, unknown> | null;
 }
-export function checkAnnouncementDuplicate(payload: { title: string; relatedProjectCode?: string; type?: string }) {
-  return api.post<{ matches: AnnouncementDuplicateMatch[] }>('/announcements/check-duplicate', payload);
+/** 同键待发定时草稿（互斥键 = 项目编号 + 类型，变更/补遗再带轮次） */
+export interface AnnouncementPendingScheduledMatch {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  relatedProjectCode?: string | null;
+  scheduledPublishDate: string | null;
+}
+export function checkAnnouncementDuplicate(payload: { title: string; relatedProjectCode?: string; type?: string; changeRound?: string | number }) {
+  // pending 可缺省：后端未升级时不误报（后端互斥闸仍会兜底 409）
+  return api.post<{ matches: AnnouncementDuplicateMatch[]; pending?: AnnouncementPendingScheduledMatch[] }>('/announcements/check-duplicate', payload);
 }
 
 /* 普通附件 */

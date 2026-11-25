@@ -12,7 +12,7 @@ import type { AnnouncementListItem, AnnouncementType, AnnouncementStatus, Partic
 import { toast } from 'sonner';
 import { fetchCurrentUser } from '@/lib/api/auth';
 import { StatusBadge, TableSkeleton, Modal } from '@/components/workbench';
-import { isOverdueScheduledDraft, scheduledPublishErrorOf } from '@/lib/notice/schedule';
+import { isOverdueScheduledDraft, scheduledPublishErrorOf, scheduledDuplicatePendingErrorOf } from '@/lib/notice/schedule';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ANNOUNCEMENT_TYPE_ORDER, STAGE_LABEL } from '@water-erp/shared';
 import {
@@ -223,6 +223,8 @@ export default function NoticePage() {
                 ? methodOf.trim()
                 : tm.label;
               const sm = displayStatus(a);
+              // 定时待处理（2026-11-24）：同项目同类型有多条待发定时草稿，到点一条都不发——未到点就提前亮出
+              const dupPending = a.status === 'DRAFT' ? scheduledDuplicatePendingErrorOf(a) : null;
               const noBidDoc = a.type === 'BID_NOTICE' && a.status === 'PUBLISHED' && !a.bidDocument;
               const isSel = selectedIds.has(a.id);
               const hasAttachments = a.attachments && a.attachments.length > 0;
@@ -267,6 +269,13 @@ export default function NoticePage() {
                             ? <span className="max-w-[220px] truncate text-[10px] leading-tight text-[var(--danger)]" title={`${err.message}${err.at ? `（首次失败 ${new Date(err.at).toLocaleString('zh-CN', { hour12: false })}）` : ''}`}>{err.message}</span>
                             : <span className="text-[10px] leading-tight text-[var(--muted-foreground)]">发布被拒/滞留，请检查</span>;
                         })()}
+                      </div>
+                    ) : dupPending ? (
+                      /* 定时待处理（2026-11-24 用户裁定）：定时任务检出同项目同类型多条待发草稿，不替经办人选择、
+                         一条都不发——经办人保留正确的一条、隐藏其余后，保留的那条自动发出 */
+                      <div className="flex flex-col items-center gap-1">
+                        <StatusBadge tone="orange">定时待处理</StatusBadge>
+                        <span className="max-w-[220px] truncate text-[10px] leading-tight text-[var(--warning)]" title={dupPending.message}>{dupPending.message}</span>
                       </div>
                     ) : (
                       <StatusBadge tone={sm.tone}>{sm.label}</StatusBadge>
@@ -341,6 +350,11 @@ export default function NoticePage() {
     if (fail === 0) toast.success(`${label}成功 ${ok} 条`);
     else if (ok === 0) toast.error(`${label}失败 ${fail} 条`);
     else toast(`${label}完成：成功 ${ok} / 失败 ${fail}`);
+    // 失败原因不吞（2026-11-24 审查）：此前只报条数——如「同项目同类型已有定时待发公告」这类
+    // 需要经办人处理的拒绝，只报「失败 1 条」等于没说。多条失败只亮第一条，避免提示刷屏
+    const firstReason = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')?.reason;
+    const reasonText = firstReason instanceof Error ? firstReason.message : '';
+    if (reasonText) toast.error(`${label}未成功 ${fail} 条：${reasonText}`);
     // 联动失败不静默（2026-10-30）：批量发布中联动（建项/流标置 ABORTED）失败的服务端警示逐条亮出
     for (const r of results) {
       const w = r.status === 'fulfilled' ? (r.value as { projectSyncWarning?: string })?.projectSyncWarning : undefined;

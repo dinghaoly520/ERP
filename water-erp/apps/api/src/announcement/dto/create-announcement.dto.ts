@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsDateString, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsBoolean, IsDateString, IsObject, IsArray } from 'class-validator';
 import { EmptyAsUndefined } from '../../common/decorators/empty-as-undefined.decorator';
 import { Transform } from 'class-transformer';
 import { sanitizeHtmlContent, sanitizeAnnouncementMetadata } from '../../common/html-sanitize.util';
@@ -45,6 +45,12 @@ export class CreateAnnouncementDto {
 
   @IsString() @IsOptional()
   status?: string; // DRAFT | PUBLISHED | ARCHIVED，缺省按 DRAFT（起草后发布）
+
+  /** 经办人确认被本次发布替换的待发定时公告（2026-11-24 用户裁定）：同项目同类型已有定时待发
+   *  草稿时发布默认被拒；发布向导弹窗确认后携这些 id 放行——旧草稿移入回收站并拆定时。
+   *  须覆盖全部同键待发草稿，否则整体 409（不做部分替换）。 */
+  @IsArray() @IsString({ each: true }) @IsOptional()
+  supersedePendingScheduledIds?: string[];
 }
 
 export class UpdateAnnouncementDto {

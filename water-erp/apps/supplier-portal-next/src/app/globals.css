@@ -1921,6 +1921,40 @@ body {
 }
 textarea.neu-input { height: auto; min-height: 88px; padding: 10px 14px; resize: vertical; line-height: 1.6; }
 
+/* ── NeuSelect 瓷片下拉（components/neu-select.tsx，原生 select 的直接替换）──
+   2026-11-24 红牌整改：触发器 / 弹层 / 当前项的外观由内联样式收进本类层（cgzxui 单一 CSS 源）。
+   开合态走触发器自带的 aria-expanded，当前项走 option 的 aria-selected；
+   弹层只把定位几何（top / left / width）留在内联。数值与定版的内联值逐字一致。 ── */
+.neu-select-trigger {
+  background: var(--surface);
+  border: none;
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.12), inset -2px -2px 5px oklch(1 0 0 / 0.85);
+}
+.neu-select-trigger[aria-expanded="true"] {
+  background: oklch(0.985 0.01 252);
+  box-shadow: inset 2px 2px 5px oklch(0.55 0.03 258 / 0.1), inset -2px -2px 5px oklch(1 0 0 / 0.9);
+}
+.neu-select-popover {
+  position: fixed;
+  z-index: 700;
+  max-height: 260px;
+  overflow-y: auto;
+  border-radius: 16px;
+  padding: 6px;
+  background: linear-gradient(145deg, oklch(1 0 0) 0%, oklch(0.965 0.012 258) 100%);
+  box-shadow:
+    6px 6px 18px oklch(0.55 0.03 258 / 0.16),
+    -3px -3px 10px oklch(1 0 0 / 0.9),
+    inset 0 1px 0 oklch(1 0 0 / 0.9);
+}
+.neu-select-option[aria-selected="true"] {
+  background: oklch(1 0 0);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.95),
+    2px 2px 6px oklch(0.55 0.03 258 / 0.16),
+    -1px -1px 2px oklch(1 0 0 / 0.9);
+}
+
 /* ═══════════════════════════════════════════════════════════
    PAGE HERO (unified page title card)
    ═══════════════════════════════════════════════════════════ */
