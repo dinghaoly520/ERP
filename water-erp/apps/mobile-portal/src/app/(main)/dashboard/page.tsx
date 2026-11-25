@@ -2703,17 +2703,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
           {/* 总览卡重设计（2026-11-19 用户裁定「突兀」）：两排分区——项目盘点（存量）与
               金额（随区间）各带组标、排间 hairline；格内层级=值→标签→同比环比 */}
           {(() => {
-            const tile = (m: (typeof overviewTiles)[number]) => {
+            /* 金额组瓷片整体缩小一号（2026-11-25 用户裁定「缩小一号金额处数字和文字的字号」）：
+               数值 16→14px、标签 12→11px——千万级「2797.1万」窄屏完整可读；盘点组（计数）维持原号 */
+            const tile = (m: (typeof overviewTiles)[number], small = false) => {
               const inner = (
                 <>
-                  {/* 值自适应字号：≥7 字位（如「2797.1万」）降 14px——千万级在四列瓷片内完整可读，
-                      短值维持 16px 主视觉（2026-11-25 用户裁定「千万级也放不下」） */}
                   <div
-                    className={`max-w-full truncate text-center font-black leading-none tabular-nums ${m.value.length >= 7 ? "text-[14px] min-[480px]:text-[16px]" : "text-[16px]"} ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                    className={`max-w-full truncate text-center font-black leading-none tabular-nums ${small ? "text-[14px]" : "text-[16px]"} ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
                   >
                     {m.value}
                   </div>
-                  <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
+                  <div className={`mt-1 truncate text-center ${small ? "text-[11px]" : "text-[12px]"} text-[var(--muted-foreground)]`}>{m.label}</div>
                   {queryRange.startDate ? (
                     <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] font-bold leading-none tabular-nums">
                       <span className={ratioCls(m.yoy)}>同比 {ratioTxt(m.yoy)}</span>
@@ -2732,10 +2732,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 </div>
               );
             };
-            const group = (caption: string, list: typeof overviewTiles) => (
+            const group = (caption: string, list: typeof overviewTiles, small = false) => (
               <div>
                 <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">{caption}</div>
-                <div className="grid grid-cols-4 gap-2.5">{list.map(tile)}</div>
+                <div className="grid grid-cols-4 gap-2.5">{list.map((m) => tile(m, small))}</div>
               </div>
             );
             return (
@@ -2743,7 +2743,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-x-4 sm:space-y-0">
                 {group(`项目盘点 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(0, 4))}
                 <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)] sm:hidden" aria-hidden />
-                {group(`金额 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(4))}
+                {group(`金额 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(4), true)}
               </div>
             );
           })()}

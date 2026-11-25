@@ -485,11 +485,11 @@ export default function LedgerPage() {
             if (companyIds.length) parts.push(companyLabel);
             const scopeText = parts.join(" · ");
             const showRatio = Boolean(queryRange.startDate);
-            const tile = (value: string, label: string, opts?: { danger?: boolean; success?: boolean; yoy?: DeltaR; hb?: DeltaR }) => (
+            const tile = (value: string, label: string, opts?: { danger?: boolean; success?: boolean; yoy?: DeltaR; hb?: DeltaR; small?: boolean }) => (
               <div key={label} className="rounded-[12px] m-tile px-1 py-2.5 text-center">
-                {/* 值自适应字号（同首页总览）：≥7 字位降 14px，千万级完整可读 */}
-                <div className={`max-w-full truncate text-center font-black leading-none tabular-nums ${value.length >= 7 ? "text-[14px] min-[480px]:text-[16px]" : "text-[16px]"} ${opts?.danger ? "text-[var(--danger)]" : opts?.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>{value}</div>
-                <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{label}</div>
+                {/* 金额组缩小一号（2026-11-25 用户裁定，同首页总览）：数值 14px / 标签 11px */}
+                <div className={`max-w-full truncate text-center font-black leading-none tabular-nums ${opts?.small ? "text-[14px]" : "text-[16px]"} ${opts?.danger ? "text-[var(--danger)]" : opts?.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>{value}</div>
+                <div className={`mt-1 truncate text-center ${opts?.small ? "text-[11px]" : "text-[12px]"} text-[var(--muted-foreground)]`}>{label}</div>
                 {showRatio ? (
                   <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
                     <span className={ratioCls(opts?.yoy)}>同比 {ratioTxt(opts?.yoy)}</span>
@@ -518,10 +518,10 @@ export default function LedgerPage() {
                 ])}
                 <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)] sm:hidden" aria-hidden />
                 {group(`金额 · ${scopeText}`, [
-                  tile(compactWanLabel(stats.awardedBudgetLabel), "成交预算", { yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
-                  tile(compactWanLabel(stats.totalAwardLabel), "成交额", { yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
-                  tile(compactWanLabel(stats.totalSavingsLabel), "节资", { success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
-                  tile(rateNow != null ? `${(rateNow * 100).toFixed(1)}%` : "—", "节资率", { danger: true, yoy: deltaOf(rateNow, rateOf(statsYoy), true), hb: deltaOf(rateNow, rateOf(statsPrev), true) }),
+                  tile(compactWanLabel(stats.awardedBudgetLabel), "成交预算", { small: true, yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
+                  tile(compactWanLabel(stats.totalAwardLabel), "成交额", { small: true, yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
+                  tile(compactWanLabel(stats.totalSavingsLabel), "节资", { small: true, success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
+                  tile(rateNow != null ? `${(rateNow * 100).toFixed(1)}%` : "—", "节资率", { small: true, danger: true, yoy: deltaOf(rateNow, rateOf(statsYoy), true), hb: deltaOf(rateNow, rateOf(statsPrev), true) }),
                 ])}
               </div>
             );
