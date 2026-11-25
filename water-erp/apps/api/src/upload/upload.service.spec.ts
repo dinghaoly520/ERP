@@ -160,6 +160,26 @@ describe('UploadService — download permission', () => {
       .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
   });
 
+  describe('审查源文件（审计第 3 处）：只对上传者本人与 admin 开放', () => {
+    const reviewSource = { ...asset, id: 'fa-review', category: 'tender_review_source', uploaderId: 'u-owner', key: 'review/2026-11-25/abc.pdf' };
+
+    it('别的内部角色下不了——不落进内部角色的兜底放行', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(reviewSource);
+      for (const other of [{ sub: 'u-company-a', role: 'staff' }, { sub: 'u-leader', role: 'leader' }, { sub: 'u-host', role: 'bid_host' }]) {
+        await expect(service.streamFile('fa-review', other, res)).rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      }
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
+    it('上传者本人与 admin 能下', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(reviewSource);
+      (minioClient.getObject as jest.Mock).mockClear();
+      await service.streamFile('fa-review', { sub: 'u-owner', role: 'staff' }, res);
+      await service.streamFile('fa-review', { sub: 'u-admin', role: 'admin' }, res);
+      expect(minioClient.getObject).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('合同文档内部用户公司隔离', () => {
     const contractAsset = {
       ...asset,

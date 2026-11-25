@@ -53,6 +53,7 @@ import { createHash } from 'crypto';
 import {
   assertReviewObjectKey,
   buildReviewSourceKey,
+  isReviewObjectKey,
   resolveReviewSourceType,
   REVIEW_SOURCE_CATEGORY,
 } from './review-source-file.util';
@@ -525,6 +526,26 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /** 按上传记录 id 解析审查用的文件：只认本人上传（admin 例外）的审查源文件记录，键必须落在审查命名空间内 */
+  private async resolveReviewSourceFile(
+    fileId: string | undefined,
+    user: AuthenticatedUser | undefined,
+  ): Promise<string> {
+    if (!fileId) return '';
+    const asset = await this.prisma.fileAsset.findUnique({
+      where: { id: fileId },
+      select: { key: true, category: true, uploaderId: true },
+    });
+    // 不存在、类目不对、键越界三种情况同一口径——不泄露别的资产是否存在
+    if (!asset || asset.category !== REVIEW_SOURCE_CATEGORY || !isReviewObjectKey(asset.key)) {
+      throw new BadRequestException({ error: '上传记录无效，请重新上传文件', code: 'REVIEW_FILE_INVALID' });
+    }
+    if (asset.uploaderId !== user?.sub && user?.role !== 'admin') {
+      throw new ForbiddenException({ error: '无权使用该上传文件', code: 'REVIEW_FILE_FORBIDDEN' });
+    }
+    return asset.key;
+  }
+
   @Post('review/execute')
   @Roles('leader', 'admin', 'staff')
   @ApiOperation({ summary: 'Execute compliance review' })
@@ -532,7 +553,6 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @Body() dto: ExecuteReviewDto,
     @Body('documentContent') documentContent: string,
     @Body('documentName') documentName: string,
-    @Body('objectKey') objectKey: string,
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     // Validate knowledge base exists before creating the task
@@ -556,10 +576,13 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       if (!project) throw new NotFoundException('项目不存在');
     }
 
+    // 文件只经上传记录 id 引用（审计第 3 处）：不带即纯文本审查
+    const sourceKey = await this.resolveReviewSourceFile(dto.fileId, user);
+
     const task = await this.prisma.reviewTask.create({
       data: {
         documentName: documentName ?? 'unknown',
-        objectKey: objectKey ?? '',
+        objectKey: sourceKey,
         documentContent,
         knowledgeBaseId: dto.knowledgeBaseId,
         userId: user?.sub,

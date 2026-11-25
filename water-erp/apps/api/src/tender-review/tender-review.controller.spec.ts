@@ -36,8 +36,8 @@ describe('TenderReviewController.executeReview（项目扩展）', () => {
     const controller = buildController(prisma);
     await expect(
       controller.executeReview(
-        { knowledgeBaseId: 'kb-1', reviewMode: 'general', documentContent: 'c', documentName: 'n.docx', objectKey: 'k', projectId: 'p-nope', fingerprint: 'f' } as any,
-        'c', 'n.docx', 'k', USER,
+        { knowledgeBaseId: 'kb-1', reviewMode: 'general', documentContent: 'c', documentName: 'n.docx', projectId: 'p-nope', fingerprint: 'f' } as any,
+        'c', 'n.docx', USER,
       ),
     ).rejects.toThrow(NotFoundException);
   });
@@ -51,8 +51,8 @@ describe('TenderReviewController.executeReview（项目扩展）', () => {
     };
     const controller = buildController(prisma);
     const res = await controller.executeReview(
-      { knowledgeBaseId: 'kb-1', reviewMode: 'general', documentContent: 'c', documentName: 'n.docx', objectKey: 'k', projectId: 'p-1', fingerprint: 'fp-1' } as any,
-      'c', 'n.docx', 'k', USER,
+      { knowledgeBaseId: 'kb-1', reviewMode: 'general', documentContent: 'c', documentName: 'n.docx', projectId: 'p-1', fingerprint: 'fp-1' } as any,
+      'c', 'n.docx', USER,
     );
     expect(res).toEqual({ taskId: 't-1', status: 'running' });
     expect(prisma.reviewTask.create).toHaveBeenCalledWith({
@@ -72,8 +72,8 @@ describe('TenderReviewController.executeReview（项目扩展）', () => {
     };
     const controller = buildController(prisma);
     await controller.executeReview(
-      { knowledgeBaseId: 'kb-1', reviewMode: 'general', documentContent: 'c', documentName: 'n.docx', objectKey: 'k' } as any,
-      'c', 'n.docx', 'k', USER,
+      { knowledgeBaseId: 'kb-1', reviewMode: 'general', documentContent: 'c', documentName: 'n.docx' } as any,
+      'c', 'n.docx', USER,
     );
     expect(prisma.projectManagementItem.findUnique).not.toHaveBeenCalled();
     expect(prisma.userSettings.upsert).not.toHaveBeenCalled();
@@ -299,5 +299,61 @@ describe('TenderReviewController.uploadDocument — 上传即登记为文件记�
 
     expect(storage.delete).toHaveBeenCalledTimes(1);
     expect(storage.delete).toHaveBeenCalledWith(storage.upload.mock.calls[0][0]);
+  });
+});
+
+describe('TenderReviewController.executeReview — 只收上传记录 id（审计第 3 处）', () => {
+  const KB_MOCK = { id: 'kb-1', ownerId: 'u1', isShared: true };
+  const BASE = { knowledgeBaseId: 'kb-1', reviewMode: 'general' as const, documentContent: 'c', documentName: 'n.docx' };
+
+  const arrange = (asset: unknown) => ({
+    knowledgeBase: { findUnique: jest.fn().mockResolvedValue(KB_MOCK) },
+    fileAsset: { findUnique: jest.fn().mockResolvedValue(asset) },
+    reviewTask: { create: jest.fn().mockResolvedValue({ id: 't-1' }) },
+    userSettings: { upsert: jest.fn() },
+  });
+  const OWN_UPLOAD = { id: 'fa-1', key: 'review/2026-11-25/0123456789abcdef0123456789abcdef.docx', category: 'tender_review_source', uploaderId: 'u1' };
+
+  it('带 fileId：任务的 objectKey 取的是资产行里的键', async () => {
+    const prisma: any = arrange(OWN_UPLOAD);
+    const controller = buildControllerWith(prisma);
+    await controller.executeReview({ ...BASE, fileId: 'fa-1' } as any, 'c', 'n.docx', USER);
+    expect(prisma.reviewTask.create).toHaveBeenCalledWith({ data: expect.objectContaining({ objectKey: OWN_UPLOAD.key }) });
+    expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'fa-1' } }));
+  });
+
+  it('不带 fileId（纯文本审查）：任务的 objectKey 是空串，不查文件记录', async () => {
+    const prisma: any = arrange(null);
+    const controller = buildControllerWith(prisma);
+    await controller.executeReview({ ...BASE } as any, 'c', 'n.docx', USER);
+    expect(prisma.reviewTask.create).toHaveBeenCalledWith({ data: expect.objectContaining({ objectKey: '' }) });
+    expect(prisma.fileAsset.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('fileId 是别人的上传 → 403 REVIEW_FILE_FORBIDDEN，不建任务', async () => {
+    const prisma: any = arrange({ ...OWN_UPLOAD, uploaderId: 'u2' });
+    const controller = buildControllerWith(prisma);
+    await expect(controller.executeReview({ ...BASE, fileId: 'fa-1' } as any, 'c', 'n.docx', USER)).rejects.toMatchObject({ response: { code: 'REVIEW_FILE_FORBIDDEN' } });
+    expect(prisma.reviewTask.create).not.toHaveBeenCalled();
+  });
+
+  it('admin 可以用别人的上传；任务的属主是发起审查的 admin', async () => {
+    const prisma: any = arrange({ ...OWN_UPLOAD, uploaderId: 'u2' });
+    const controller = buildControllerWith(prisma);
+    const ADMIN = { sub: 'u-admin', role: 'admin' } as any;
+    await controller.executeReview({ ...BASE, fileId: 'fa-1' } as any, 'c', 'n.docx', ADMIN);
+    expect(prisma.reviewTask.create).toHaveBeenCalledWith({ data: expect.objectContaining({ objectKey: OWN_UPLOAD.key, userId: 'u-admin' }) });
+  });
+
+  it.each([
+    ['记录不存在', null],
+    ['类目不是审查源文件', { id: 'fa-9', key: 'uploads/2026-11-25/abc.docx', category: 'general', uploaderId: 'u1' }],
+    ['类目对但键不在审查命名空间', { id: 'fa-9', key: 'uploads/2026-11-25/abc.docx', category: 'tender_review_source', uploaderId: 'u1' }],
+    ['键越界', { id: 'fa-9', key: 'review/../sealed-backup/k', category: 'tender_review_source', uploaderId: 'u1' }],
+  ])('%s → 400 REVIEW_FILE_INVALID，不建任务', async (_label, asset) => {
+    const prisma: any = arrange(asset);
+    const controller = buildControllerWith(prisma);
+    await expect(controller.executeReview({ ...BASE, fileId: 'fa-9' } as any, 'c', 'n.docx', USER)).rejects.toMatchObject({ response: { code: 'REVIEW_FILE_INVALID' } });
+    expect(prisma.reviewTask.create).not.toHaveBeenCalled();
   });
 });

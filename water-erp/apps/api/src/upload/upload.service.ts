@@ -415,6 +415,10 @@ export class UploadService implements OnModuleInit {
 
     if (asset.uploaderId && asset.uploaderId === user.sub) return true;
 
+    // 审查用源文件（文档审查上传，2026-11-25 审计第 3 处）：只归上传者本人与 admin——
+    // 别让它落进下面内部角色的兜底放行
+    if (asset.category === 'tender_review_source') return user.role === 'admin';
+
     // A-143：澄清答复附件——上传人（供应商）之外，开评标现场/管理角色可见（答复本就在主持端展示）
     // A-153：监督推送信封/凭证——管理角色可见
     // 2026-09-18 身份核验设计 §4.5：签到留档照——:3007 核验矩阵展示给现场/管理角色（本人之外首次对管理端可见）
