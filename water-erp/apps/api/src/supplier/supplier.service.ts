@@ -290,11 +290,12 @@ export class SupplierService {
     const username = creditCode;
 
     // 信用代码命中：REJECTED 壳（驳回数据最小化留壳，2026-10-14）→ 走壳重开复用原行；
+    // WITHDRAWN 撤回壳（2026-11-25）同待遇——重开复用原行；
     // PENDING/RETURNED → 硬拦截（重复提交）；已入库（APPROVED/DISABLED/BLACKLIST）→ 多公司归属分流（2026-10-16）。
     const existingSupplier = await this.prisma.supplier.findUnique({
       where: { creditCode },
     });
-    if (existingSupplier && existingSupplier.status !== 'REJECTED') {
+    if (existingSupplier && existingSupplier.status !== 'REJECTED' && existingSupplier.status !== 'WITHDRAWN') {
       if (existingSupplier.status === 'PENDING' || existingSupplier.status === 'RETURNED') {
         throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
       }
@@ -529,7 +530,7 @@ export class SupplierService {
         // F4（2026-10-14）：乐观锁认领（对齐 submitCorrection 模式）——校验读与事务写之间壳可能被
         // 并发流转（如补正重提/他处重开），where 带 REJECTED 保证并发下仅一方成功，防 TOCTOU。
         const claimed = await tx.supplier.updateMany({
-          where: { id: existingSupplier.id, status: 'REJECTED' },
+          where: { id: existingSupplier.id, status: { in: ['REJECTED', 'WITHDRAWN'] } },
           data: { status: 'PENDING' },
         });
         if (claimed.count === 0) {
