@@ -267,7 +267,7 @@ export default function ProgressPage() {
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="搜索项目名称"
           aria-label="搜索项目名称"
-          className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+          className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
         />
         {searchInput ? (
           <button type="button" onClick={() => setSearchInput("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">

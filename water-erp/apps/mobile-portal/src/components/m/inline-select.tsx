@@ -47,7 +47,7 @@ export function InlineSelect({
   const [draftTo, setDraftTo] = useState("");
   const [keyword, setKeyword] = useState("");
   /** 触发器实测坐标（开菜单时测量；fixed 菜单锚定用） */
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; right: number } | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -80,7 +80,7 @@ export function InlineSelect({
     setDraftTo(customValue?.to ?? "");
     setKeyword("");
     const r = triggerRef.current?.getBoundingClientRect();
-    if (r) setPos({ top: r.bottom + 6, right: r.right });
+    if (r) setPos({ top: r.bottom + 6, left: r.left, right: r.right });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -99,8 +99,13 @@ export function InlineSelect({
     }
   }
 
-  /* 菜单视口内限高：顶部锚点之下留 12px，且不超过半屏 */
+  /* 菜单视口内限高：顶部锚点之下留 12px，且不超过半屏；近屏底时整体上移防下溢出
+     （2026-11-25 体检：max(160,…) 曾把菜单推出视口下缘） */
   const maxMenuH = pos ? Math.max(160, Math.min(window.innerHeight * 0.52, window.innerHeight - pos.top - 12)) : 0;
+  const menuTop = pos ? Math.min(pos.top, window.innerHeight - maxMenuH - 8) : 0;
+  /* 菜单最小 13rem（208px）——触发器右缘距屏左不足时右锚定会探出屏外（窄屏/多公司长标签
+     实录），改左缘锚定（2026-11-25 体检） */
+  const flipLeft = pos ? pos.right < 240 : false;
 
   /* 自定义日期区间块（customFirst=置顶+下分隔线；默认尾置+上分隔线） */
   const customBlock = onCustomApply ? (
@@ -131,7 +136,8 @@ export function InlineSelect({
               value={draftFrom}
               onChange={(e) => setDraftFrom(e.target.value)}
               aria-label="开始日期"
-              className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px]"
+              /* 16px 下限：iOS Safari 聚焦 <16px 输入会触发页面自动缩放 */
+              className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[16px]"
             />
             <span className="shrink-0 text-[12px] text-[var(--muted-foreground)]">至</span>
             <input
@@ -139,7 +145,7 @@ export function InlineSelect({
               value={draftTo}
               onChange={(e) => setDraftTo(e.target.value)}
               aria-label="结束日期"
-              className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px]"
+              className="m-input h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[16px]"
             />
           </div>
           <button
@@ -179,8 +185,13 @@ export function InlineSelect({
               role="listbox"
               aria-multiselectable={multiple || undefined}
               className="m-menu fixed z-[60] min-w-[13rem] p-1.5"
-              /* 动态锚定坐标必须内联（类名无法承载测量值）：右缘对齐触发器右缘 */
-              style={{ top: pos.top, left: pos.right, transform: "translateX(-100%)", maxHeight: maxMenuH }}
+              /* 动态锚定坐标必须内联（类名无法承载测量值）：默认右缘对齐触发器右缘；
+                 窄屏防左溢出时改对齐触发器左缘 */
+              style={
+                flipLeft
+                  ? { top: menuTop, left: Math.max(8, pos.left), maxHeight: maxMenuH }
+                  : { top: menuTop, left: pos.right, transform: "translateX(-100%)", maxHeight: maxMenuH }
+              }
             >
               {/* 选项>12 自动出菜单内搜索（2026-11-19：台账公司筛选 66 家长名单） */}
               {options.length > 12 ? (
@@ -192,7 +203,7 @@ export function InlineSelect({
                     placeholder="搜索选项"
                     aria-label="搜索选项"
                     autoFocus
-                    className="m-input h-9 w-full rounded-[10px] pl-8 pr-2 text-[13px]"
+                    className="m-input h-9 w-full rounded-[10px] pl-8 pr-2 text-[16px]"
                   />
                 </div>
               ) : null}

@@ -17,7 +17,8 @@ export function ChatCardView({ card }: { card: ChatCard }) {
         </button>
         {zoom ? (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[oklch(0.24_0.038_258/0.55)] px-4" role="dialog" aria-modal="true" aria-label={`${card.title} 放大查看`} onClick={() => setZoom(false)}>
-            <div className="w-full max-w-[26rem] rounded-[16px] p-3 m-tile active:scale-[0.99]" onClick={(e) => e.stopPropagation()}>
+            {/* 折叠屏展开态放宽放大窗（2026-11-25 自适应）：小屏 26rem 不变 */}
+            <div className="w-full max-w-[26rem] rounded-[16px] p-3 m-tile active:scale-[0.99] sm:max-w-[34rem]" onClick={(e) => e.stopPropagation()}>
               <div className="mb-1 flex items-center justify-between px-1">
                 <span className="text-[13px] font-bold text-[var(--foreground)]">{card.title}</span>
                 <button type="button" aria-label="关闭放大" onClick={() => setZoom(false)} className="neu-btn-soft h-8 w-8 rounded-[10px] p-0">

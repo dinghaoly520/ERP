@@ -1188,8 +1188,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                   <div className="space-y-1.5">
                     {shown.map((x, i) => (
                       <div key={x.companyId || x.company} className="flex items-center gap-2">
-                        {/* 单位名列 9rem / 数值列 4.5rem（2026-11-23 用户裁定加宽，长公司名与「15699.5万」不挤） */}
-                        <span className="w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.company}</span>
+                        {/* 单位名列 9rem / 数值列 4.5rem（2026-11-23 用户裁定加宽，长公司名与「15699.5万」不挤）；
+                            折叠态外屏等 ≤419px 窄屏收窄到 7.5rem 保比例条可用宽度 */}
+                        <span className="w-[7.5rem] min-[420px]:w-[9rem] shrink-0 truncate text-[13px] font-medium text-[var(--foreground)]">{x.company}</span>
                         <span className="h-3.5 min-w-0 flex-1 overflow-hidden rounded-[5px] bg-[color-mix(in_oklch,var(--muted-foreground)_10%,transparent)]">
                           <span className="block h-full rounded-[5px] m-bar" style={{ width: `${(x[key] / max) * 100}%`, background: barFill(rowColor(i)) }} />
                         </span>
@@ -1645,8 +1646,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               const deptRows = data?.departmentSavingsRanking ?? [];
               return (
                 <>
-            {/* 公司/部门双榜同形——折叠屏展开态并排瓷面（单公司仅部门榜时保持全宽） */}
-            <div className={singleCo ? undefined : "sm:grid sm:grid-cols-2 sm:gap-3"}>
+            {/* 公司/部门双榜同形——折叠屏展开态并排瓷面（单公司仅部门榜时保持全宽；
+                items-start 防短榜被拉伸出大块空瓷面） */}
+            <div className={singleCo ? undefined : "sm:grid sm:grid-cols-2 sm:items-start sm:gap-3"}>
             {/* ── 公司排行（按节资额降序；仅全部/多选公司时展示）── */}
             {!singleCo ? (
               <AnalysisZone icon={Scale} title="公司排行" count={`Top ${Math.min(companyRows.length, 10)}`} color="var(--accent)">
@@ -2602,7 +2604,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
   if (panel) {
     return (
       <div>
-        <div className="mb-3 flex items-center justify-end gap-2">
+        <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
           {scopeSelectors}
           {panel === "risk" ? (
             <InlineSelect
@@ -2623,7 +2625,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               onChange={(e) => setExpertSearch(e.target.value)}
               placeholder="搜索专家姓名/专业/单位"
               aria-label="搜索专家"
-              className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+              className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
             />
             {expertSearch ? (
               <button type="button" onClick={() => setExpertSearch("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">清除</button>
@@ -2638,7 +2640,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               onChange={(e) => setSupplierSearch(e.target.value)}
               placeholder="搜索供应商名称/信用代码"
               aria-label="搜索供应商名称"
-              className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
+              className="h-full min-w-0 flex-1 bg-transparent text-[16px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
             />
             {supplierSearch ? (
               <button type="button" onClick={() => setSupplierSearch("")} className="shrink-0 text-[13px] font-semibold text-[var(--accent)] active:scale-95">

@@ -627,6 +627,11 @@ select.m-input { appearance: auto; }
   .m-fab {
     right: max(1rem, env(safe-area-inset-right), calc(50% - 23rem + 1rem));
   }
+
+  /* 聊天壳与主壳同口径加宽（原 32rem 对齐旧 max-w-lg——2026-11-25 自适应体检对齐） */
+  .m-chat-shell {
+    max-width: 46rem;
+  }
 }
 
 /* ══ 体验打磨一轮（2026-10-14 spec）：入场/退场动效 + 减弱动效尊重 ══ */
