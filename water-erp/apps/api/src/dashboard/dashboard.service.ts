@@ -1493,7 +1493,7 @@ export class DashboardService {
     };
   }
 
-  /** 状态行解析（规则见 getBidStageProjects 注释）；openTime 显示 MM-DD HH:mm（本地时区） */
+  /** 状态行解析（规则见 getBidStageProjects 注释）；openTime 显示 MM-DD HH:mm（恒北京时间——服务器可能 UTC） */
   private bidStageRowStatus(
     p: {
       stage: string;
@@ -1519,7 +1519,9 @@ export class DashboardService {
       return `已投 ${submitted}/${p._count.suppliers} · 专家 ${experts}`;
     }
     // 标中（已点击确认开标）：未到时间=等待开标；已到未移交=开标中；已移交未归档=归档中
-    const t = `${String(p.openTime.getMonth() + 1).padStart(2, '0')}-${String(p.openTime.getDate()).padStart(2, '0')} ${String(p.openTime.getHours()).padStart(2, '0')}:${String(p.openTime.getMinutes()).padStart(2, '0')}`;
+    // 时刻恒按北京时间显示（服务器可能 UTC）：+8h 后用 UTC 取值，与 timeline.service / bid.service 的既有写法一致
+    const bj = new Date(p.openTime.getTime() + 8 * 3600_000);
+    const t = `${String(bj.getUTCMonth() + 1).padStart(2, '0')}-${String(bj.getUTCDate()).padStart(2, '0')} ${String(bj.getUTCHours()).padStart(2, '0')}:${String(bj.getUTCMinutes()).padStart(2, '0')}`;
     if (now < p.openTime) return `${t} · 等待开标`;
     return p.openingSession?.status === '开标完成' ? `${t} · 归档中` : `${t} · 开标中`;
   }
