@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { BadRequestException } from '@nestjs/common';
 
 /**
@@ -34,4 +35,33 @@ export function assertReviewObjectKey(key: unknown): string {
     throw new BadRequestException({ error: '非法的审查文件键', code: 'INVALID_REVIEW_OBJECT_KEY' });
   }
   return key;
+}
+
+/** 审查文档的四种类型：登记用的 MIME 与对象键扩展名 */
+const REVIEW_SOURCE_TYPES: ReadonlyArray<{ mime: string; ext: string }> = [
+  { mime: 'application/pdf', ext: 'pdf' },
+  { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
+  { mime: 'application/msword', ext: 'doc' },
+  { mime: 'text/plain', ext: 'txt' },
+];
+
+/**
+ * 审查文档的类型与对象键扩展名。
+ * 浏览器偶发把 Word 上报成通用类型或空串：声明 MIME 不在四种之内时，按文件名后缀推断。
+ * 两者都不是四种之一 → null（调用方拒绝）。
+ */
+export function resolveReviewSourceType(
+  mimeType: string,
+  fileName: string,
+): { mime: string; ext: string } | null {
+  const declared = REVIEW_SOURCE_TYPES.find((t) => t.mime === mimeType);
+  if (declared) return declared;
+  const dot = fileName.lastIndexOf('.');
+  const ext = dot < 0 ? '' : fileName.slice(dot + 1).toLowerCase();
+  return REVIEW_SOURCE_TYPES.find((t) => t.ext === ext) ?? null;
+}
+
+/** 新上传的对象键：review/<yyyy-MM-dd>/<32 位十六进制随机>.<扩展名>——不含任何用户提供的字符 */
+export function buildReviewSourceKey(ext: string): string {
+  return `review/${new Date().toISOString().slice(0, 10)}/${randomBytes(16).toString('hex')}.${ext}`;
 }

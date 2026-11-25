@@ -49,7 +49,13 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { canViewAllUserActivity } from '../auth/auth-scope';
 import { Roles } from '../common/decorators/roles.decorator';
-import { assertReviewObjectKey } from './review-source-file.util';
+import { createHash } from 'crypto';
+import {
+  assertReviewObjectKey,
+  buildReviewSourceKey,
+  resolveReviewSourceType,
+  REVIEW_SOURCE_CATEGORY,
+} from './review-source-file.util';
 
 @ApiTags('Tender Review')
 @Controller('tender-review')
@@ -464,7 +470,10 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       },
     }),
   )
-  async uploadDocument(@UploadedFile() file: Express.Multer.File) {
+  async uploadDocument(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
     if (!file) {
       throw new BadRequestException('请上传文件');
     }
@@ -472,17 +481,45 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     const fileName = file.originalname
       ? normalizeMultipartFilename(file.originalname)
       : 'unknown';
+    // 类型只认四种；声明 MIME 不在四种之内时按文件名后缀推断（审计第 3 处）
+    const type = resolveReviewSourceType(file.mimetype, fileName);
+    if (!type) {
+      throw new BadRequestException({
+        error: '仅支持 PDF、DOCX、DOC、TXT 格式文件',
+        code: 'REVIEW_FILE_TYPE_INVALID',
+      });
+    }
     const content = await this.parser.parse(
       file.buffer,
       file.mimetype,
       fileName,
     );
-    const objectKey = `review/${Date.now()}_${fileName}`;
-    await this.storage.upload(objectKey, file.buffer, file.mimetype);
+    // 键由服务端生成、不含任何用户提供的字符；上传即登记为登录人名下的文件记录（审计第 3 处）
+    const objectKey = assertReviewObjectKey(buildReviewSourceKey(type.ext));
+    await this.storage.upload(objectKey, file.buffer, type.mime);
+    let asset: { id: string };
+    try {
+      asset = await this.prisma.fileAsset.create({
+        data: {
+          key: objectKey,
+          originalName: fileName,
+          mimeType: type.mime,
+          size: file.buffer.length,
+          sha256: createHash('sha256').update(file.buffer).digest('hex'),
+          category: REVIEW_SOURCE_CATEGORY,
+          uploaderId: user?.sub,
+        },
+      });
+    } catch (err) {
+      // 登记失败就不留孤儿对象
+      await this.storage.delete(objectKey).catch(() => undefined);
+      throw err;
+    }
 
+    // 只把记录 id 交给客户端：对象键不再出现在任何响应里
     return {
+      fileId: asset.id,
       documentName: fileName,
-      objectKey,
       content,
       contentLength: content.length,
     };

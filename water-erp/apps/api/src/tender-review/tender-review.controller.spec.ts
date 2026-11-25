@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { NotFoundException } from '@nestjs/common';
 import { TenderReviewController } from './tender-review.controller';
 import { computeDraftFingerprint } from './services/draft-fingerprint.util';
@@ -228,5 +229,75 @@ describe('TenderReviewController — 审查任务的对象键守卫（审计第 
     expect(saved.criticalIssues[0].modificationApplied).toBe(false);
     expect(storage.download).not.toHaveBeenCalled();
     expect(storage.upload).not.toHaveBeenCalled();
+  });
+});
+
+describe('TenderReviewController.uploadDocument — 上传即登记为文件记录（审计第 3 处）', () => {
+  const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  it('登记一条审查源文件：键不含用户文件名、属主是登录人；响应给 fileId，不再给 objectKey', async () => {
+    const prisma: any = { fileAsset: { create: jest.fn().mockResolvedValue({ id: 'fa-1' }) } };
+    const storage = { upload: jest.fn().mockResolvedValue(undefined) };
+    const parser = { parse: jest.fn().mockResolvedValue('正文') };
+    const controller = buildControllerWith(prisma, storage, parser);
+    const buffer = Buffer.from('%PDF-1.4 x');
+    // 文件名带反引号与 shell 载荷：此前它被原样拼进对象键
+    const file = { buffer, mimetype: 'application/pdf', originalname: 'a.`>poc-marker`.pdf', size: buffer.length } as any;
+
+    const out = await controller.uploadDocument(file, USER);
+
+    expect(out).toEqual({ fileId: 'fa-1', documentName: 'a.`>poc-marker`.pdf', content: '正文', contentLength: 2 });
+    expect(out).not.toHaveProperty('objectKey');
+
+    expect(storage.upload).toHaveBeenCalledTimes(1);
+    const [storedKey] = storage.upload.mock.calls[0];
+    expect(storedKey).toMatch(/^review\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{32}\.pdf$/);
+    expect(prisma.fileAsset.create).toHaveBeenCalledWith({
+      data: {
+        key: storedKey,
+        originalName: 'a.`>poc-marker`.pdf',
+        mimeType: 'application/pdf',
+        size: buffer.length,
+        sha256: createHash('sha256').update(buffer).digest('hex'),
+        category: 'tender_review_source',
+        uploaderId: 'u1',
+      },
+    });
+  });
+
+  it('声明类型不是四种但后缀是 → 登记为后缀对应的类型', async () => {
+    const prisma: any = { fileAsset: { create: jest.fn().mockResolvedValue({ id: 'fa-2' }) } };
+    const storage = { upload: jest.fn().mockResolvedValue(undefined) };
+    const controller = buildControllerWith(prisma, storage, { parse: jest.fn().mockResolvedValue('') });
+    await controller.uploadDocument(
+      { buffer: Buffer.from('x'), mimetype: 'application/octet-stream', originalname: '采购文件.docx', size: 1 } as any,
+      USER,
+    );
+    expect(prisma.fileAsset.create.mock.calls[0][0].data.mimeType).toBe(DOCX);
+    expect(storage.upload.mock.calls[0][0]).toMatch(/\.docx$/);
+  });
+
+  it('类型与后缀都不是四种之一 → 400，不落存储也不建记录', async () => {
+    const prisma: any = { fileAsset: { create: jest.fn() } };
+    const storage = { upload: jest.fn() };
+    const controller = buildControllerWith(prisma, storage, { parse: jest.fn() });
+    await expect(
+      controller.uploadDocument({ buffer: Buffer.from('x'), mimetype: 'application/zip', originalname: 'a.zip', size: 1 } as any, USER),
+    ).rejects.toMatchObject({ response: { code: 'REVIEW_FILE_TYPE_INVALID' } });
+    expect(storage.upload).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.create).not.toHaveBeenCalled();
+  });
+
+  it('对象已落存储但登记记录失败 → 删掉刚上传的对象（不留孤儿），错误原样抛出', async () => {
+    const prisma: any = { fileAsset: { create: jest.fn().mockRejectedValue(new Error('db down')) } };
+    const storage = { upload: jest.fn().mockResolvedValue(undefined), delete: jest.fn().mockResolvedValue(undefined) };
+    const controller = buildControllerWith(prisma, storage, { parse: jest.fn().mockResolvedValue('') });
+
+    await expect(
+      controller.uploadDocument({ buffer: Buffer.from('%PDF-1.4'), mimetype: 'application/pdf', originalname: 'a.pdf', size: 8 } as any, USER),
+    ).rejects.toThrow('db down');
+
+    expect(storage.delete).toHaveBeenCalledTimes(1);
+    expect(storage.delete).toHaveBeenCalledWith(storage.upload.mock.calls[0][0]);
   });
 });

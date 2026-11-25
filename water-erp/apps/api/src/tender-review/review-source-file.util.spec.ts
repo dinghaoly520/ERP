@@ -1,6 +1,8 @@
 import {
   assertReviewObjectKey,
+  buildReviewSourceKey,
   isReviewObjectKey,
+  resolveReviewSourceType,
   REVIEW_SOURCE_CATEGORY,
 } from './review-source-file.util';
 
@@ -46,5 +48,37 @@ describe('isReviewObjectKey / assertReviewObjectKey（审计第 3 处）', () =>
 
   it('类目名是固定常量', () => {
     expect(REVIEW_SOURCE_CATEGORY).toBe('tender_review_source');
+  });
+});
+
+describe('resolveReviewSourceType / buildReviewSourceKey（审计第 3 处）', () => {
+  const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+  it.each([
+    ['application/pdf', '任意名字', 'application/pdf', 'pdf'],
+    [DOCX, '任意名字', DOCX, 'docx'],
+    ['application/msword', 'x.bin', 'application/msword', 'doc'],
+    ['text/plain', 'x', 'text/plain', 'txt'],
+    // 浏览器偶发把 Word 上报成通用类型或空串：按后缀推断
+    ['application/octet-stream', '采购文件.DOCX', DOCX, 'docx'],
+    ['', '旧件.doc', 'application/msword', 'doc'],
+  ])('%s + %s → %s / .%s', (mime, name, wantMime, wantExt) => {
+    expect(resolveReviewSourceType(mime, name)).toEqual({ mime: wantMime, ext: wantExt });
+  });
+
+  it.each([
+    ['application/zip', 'a.zip'],
+    ['application/octet-stream', 'a.exe'],
+    ['image/png', 'a.png'],
+    ['application/octet-stream', '没有后缀'],
+  ])('%s + %s → null（四种之外）', (mime, name) => {
+    expect(resolveReviewSourceType(mime, name)).toBeNull();
+  });
+
+  it('对象键：命名空间、日期、32 位随机、扩展名；连续两次不相等', () => {
+    const key = buildReviewSourceKey('docx');
+    expect(key).toMatch(/^review\/\d{4}-\d{2}-\d{2}\/[a-f0-9]{32}\.docx$/);
+    // 随机部分每次不同：FileAsset.key 的唯一约束不会被撞到
+    expect(buildReviewSourceKey('pdf')).not.toBe(key);
   });
 });
