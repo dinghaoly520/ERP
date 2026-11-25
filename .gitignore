@@ -56,4 +56,4 @@ emd_llm/
 emd_llm.tar
 
 # DevEco/hvigor 构建缓存（鸿蒙壳应用，2026-11-25）
-/.hvigor/
+.hvigor/
