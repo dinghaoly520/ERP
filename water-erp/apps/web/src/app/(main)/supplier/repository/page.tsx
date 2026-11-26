@@ -490,7 +490,7 @@ function SupplierRepositoryPageInner() {
             <CompanySelect value={companyId} onChange={(v) => { setCompanyId(v); setPage(1); }} countMode="suppliers" />
             <button onClick={() => router.push('/supplier/dashboard')} className="neu-btn-soft"><Activity size={15} />总览</button>
             <button onClick={() => window.dispatchEvent(new Event('open-review-center'))} className="neu-btn-soft" title={myPendingDetail ? `供应商审批中心待办：${describeMyPending(myPendingDetail)}` : "供应商审批中心：注册三级审核 · 信息更新审批"}><BadgeCheck size={15} />审批{myPending > 0 ? `（${myPending}）` : ''}</button>
-            <button onClick={() => router.push('/supplier/qualification-alerts')} className="neu-btn-soft"><AlertTriangle size={15} />资质预警</button>
+            {/* 资质预警按钮已删（2026-11-26 用户裁定）：总览（dashboard）资质预警卡已承载该入口 */}
             {/* 异议与投诉受理（2026-10-21 用户口径）：仅 leader——异议按归属公司过滤，只出现在
                 归属公司 leader 的受理板；staff/admin 不设此入口（API 层非 admin 仍限本公司只读） */}
             {currentUser?.role === 'leader' && <button onClick={() => setShowObjections(true)} className="neu-btn-soft"><MessageSquareWarning size={15} />异议与投诉</button>}
