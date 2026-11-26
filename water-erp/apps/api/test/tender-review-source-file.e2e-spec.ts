@@ -120,6 +120,27 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     expect(await prisma.reviewTask.count()).toBe(before);
   });
 
+  it('经通用上传口传成审查源文件类目的记录 → 键不在审查命名空间，拿去执行审查 400', async () => {
+    // 通用上传口对内部角色开放、类目名自报——所以执行审查不能只认类目，还要认键的命名空间
+    const res = await request(app.getHttpServer())
+      .post('/api/upload?category=tender_review_source')
+      .set('Cookie', staff)
+      .set('X-Portal', 'web')
+      .attach('file', Buffer.from('%PDF-1.4\n'), { filename: 'e2e-通用上传口.pdf', contentType: 'application/pdf' });
+    expect(res.status).toBe(201);
+    createdAssetIds.push(res.body.id);
+    const asset = await prisma.fileAsset.findUnique({ where: { id: res.body.id } });
+    expect(asset?.category).toBe('tender_review_source');
+    expect(asset?.key).toMatch(/^uploads\//);
+    if (asset?.key) plantedObjects.push(asset.key);
+
+    const before = await prisma.reviewTask.count();
+    const exec = await track(await execute(staff, { fileId: res.body.id }));
+    expect(exec.status).toBe(400);
+    expect(exec.body.code).toBe('REVIEW_FILE_INVALID');
+    expect(await prisma.reviewTask.count()).toBe(before);
+  });
+
   it('请求体继续带旧的 objectKey 字段 → 被忽略，任务 objectKey 为空串', async () => {
     const res = await track(await execute(staff, { objectKey: '../.env' }));
     expect(res.status).toBe(201);

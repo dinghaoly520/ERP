@@ -53,4 +53,18 @@ describe('StorageService — 键底线（审计第 3 处）', () => {
     await service.delete('review/2026-11-25/abc.pdf');
     expect(removeObject).toHaveBeenCalledWith('water-erp-test', 'review/2026-11-25/abc.pdf');
   });
+
+  it('存量审查键（时间戳_中文文件名，含空格、全角括号、#）四个方法都照常放行——底线只管结构，不管字符集', async () => {
+    // 修复前的键由「时间戳_原始文件名」拼成，中文、空格、全角符号都合法；底线若按字符集收紧会一刀切掉存量文件
+    const legacy = 'review/1732452000000_采购文件（终版） #2.docx';
+    const buf = Buffer.from('x');
+    await service.upload(legacy, buf, 'application/octet-stream');
+    expect(putObject).toHaveBeenCalledWith('water-erp-test', legacy, buf, buf.length, { 'Content-Type': 'application/octet-stream' });
+    await service.download(legacy);
+    expect(getObject).toHaveBeenCalledWith('water-erp-test', legacy);
+    await service.delete(legacy);
+    expect(removeObject).toHaveBeenCalledWith('water-erp-test', legacy);
+    await service.getPresignedUrl(legacy);
+    expect(presignedGetObject).toHaveBeenCalledWith('water-erp-test', legacy, expect.any(Number));
+  });
 });

@@ -178,6 +178,38 @@ describe('UploadService — download permission', () => {
       await service.streamFile('fa-review', { sub: 'u-admin', role: 'admin' }, res);
       expect(minioClient.getObject).toHaveBeenCalledTimes(2);
     });
+
+    // 下面两条钉的是「类目判断先于两条引用链放行」：把引用链放行的条件都摆足，只靠类目挡住
+    it('供应商下不了——即使本企业档案精确引用了这份文件、上传人是内部账号', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(reviewSource);
+      // logoUrl 精确引用 + 上传人 u-owner 是内部账号：走到供应商引用链分支就会被放行
+      prisma.supplier.findUnique.mockResolvedValue({ id: 'supplier-1', userId: 'u-supplier', logoUrl: '/api/upload/files/fa-review' });
+      prisma.user.findUnique.mockResolvedValue({ role: 'staff' });
+
+      await expect(service.streamFile('fa-review', { sub: 'u-supplier', role: 'supplier' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+      // 根本没走到供应商引用链：它的入口查询都没发出
+      expect(prisma.supplier.findUnique).not.toHaveBeenCalled();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('专家下不了——即使被分到引用这份文件的项目', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue(reviewSource);
+      // 文件挂在某投标上、专家被分到该项目、该项目已解密且评标已启动：走到专家分支就会被放行
+      prisma.supplierBidSubmission.findFirst.mockResolvedValue({ supplierId: 's1', projectId: 'p1' });
+      prisma.bidExpert.findFirst.mockResolvedValue({ projectId: 'p1' });
+      prisma.bidSupplier.findFirst.mockResolvedValue({ id: 'bs1', supplierName: '测试供应商' });
+
+      await expect(service.streamFile('fa-review', { sub: 'u-exp', role: 'bid_expert' }, res))
+        .rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+      expect(prisma.supplierBidSubmission.findFirst).not.toHaveBeenCalled();
+      expect(prisma.bidExpert.findFirst).not.toHaveBeenCalled();
+      expect(prisma.bidSupervisionLog.create).not.toHaveBeenCalled();
+    });
   });
 
   describe('合同文档内部用户公司隔离', () => {
