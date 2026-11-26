@@ -119,6 +119,7 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
     { key: 'openTime', label: '开标时间', date: true }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
     { key: 'remark', label: '备注' },
+    { key: 'publicityPeriod', label: '公示期限', date: true }, // 2026-11-26 三门户对齐；值为格式化文本直出（渲染特判）
   ],
   CHANGE_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '变更轮次' },

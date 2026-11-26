@@ -68,7 +68,23 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
     { key: 'openTime', label: '开标时间', date: true }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
     { key: 'remark', label: '备注' },
     // 2026-11-06：公示期限起止选择落地——详情页公示期芯片（期限内显示内容，期满转标题壳）
-    { key: 'publicityPeriod', label: '公示期' },
+    { key: 'publicityPeriod', label: '公示期限', date: true }, // 值为格式化文本，渲染直出（见 publicityPeriod 特判）
+  ],
+  // 2026-11-26 用户裁定：三门户关键信息对齐——合同/履约/变更/澄清四类补齐（与 :3005 同表）
+  CONTRACT_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'contractCode', label: '合同编号' }, { key: 'supplierName', label: '成交供应商' },
+    { key: 'amount', label: '合同价款' }, { key: 'signedAt', label: '签约时间', date: true },
+  ],
+  PERFORMANCE_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'supplierName', label: '成交供应商' }, { key: 'result', label: '履行结果' },
+  ],
+  CHANGE_NOTICE: [
+    { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '变更轮次' },
+    { key: 'sourceAnnouncement', label: '原采购公告' },
+    { key: 'changeReason', label: '变更理由', area: true },
+  ],
+  CLARIFY_NOTICE: [
+    { key: 'projectCode', label: '项目编号' },
   ],
   FAILED_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' },
