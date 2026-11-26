@@ -604,12 +604,8 @@ export default function SupplierDashboardPage() {
         title="停用/黑名单供应商"
         description="已停用或列入黑名单的供应商名单，随当前公司视野过滤"
         size="lg"
-        footer={
-          <div className="flex w-full items-center gap-2">
-            <span className="flex-1 text-xs text-[var(--muted-foreground)]">恢复供应商、移出黑名单等操作在供应商库进行</span>
-            <Link href="/supplier/repository?status=DISABLED" onClick={() => setFrozenOpen(false)} className="neu-btn-xs">在供应商库查看</Link>
-          </div>
-        }
+        /* 底部操作条已删（2026-11-26 用户裁定）——恢复/移出黑名单走供应商库常规入口 */
+
       >
         {frozenLoading ? (
           <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">正在加载名单…</p>
