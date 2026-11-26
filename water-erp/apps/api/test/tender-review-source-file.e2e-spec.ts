@@ -135,25 +135,47 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     expect(await prisma.reviewTask.count()).toBe(before);
   });
 
-  it('经通用上传口传成审查源文件类目的记录 → 键不在审查命名空间，拿去执行审查 400', async () => {
-    // 通用上传口对内部角色开放、类目名自报——所以执行审查不能只认类目，还要认键的命名空间
-    const res = await request(app.getHttpServer())
-      .post('/api/upload?category=tender_review_source')
-      .set('Cookie', staff)
-      .set('X-Portal', 'web')
-      .attach('file', Buffer.from('%PDF-1.4\n'), { filename: 'e2e-通用上传口.pdf', contentType: 'application/pdf' });
-    expect(res.status).toBe(201);
-    createdAssetIds.push(res.body.id);
-    const asset = await prisma.fileAsset.findUnique({ where: { id: res.body.id } });
-    expect(asset?.category).toBe('tender_review_source');
-    expect(asset?.key).toMatch(/^uploads\//);
-    if (asset?.key) plantedObjects.push(asset.key);
+  it('通用上传口不再收审查源文件类目 → 400 INVALID_CATEGORY，不登记；上传者角色与 admin 都一样', async () => {
+    // 登记成 FileAsset 之后，这条路对内部角色是开的：登出来的记录键在 uploads/ 下，执行审查不认（键不在命名空间），
+    // 清理也不认——是一条永远清不掉的孤儿。审查源文件只能经 POST /tender-review/review/upload 登记
+    for (const cookie of [staff, leader, admin]) {
+      const before = await prisma.fileAsset.count();
+      const res = await request(app.getHttpServer())
+        .post('/api/upload?category=tender_review_source')
+        .set('Cookie', cookie)
+        .set('X-Portal', 'web')
+        .attach('file', Buffer.from('%PDF-1.4\n'), { filename: 'e2e-通用上传口.pdf', contentType: 'application/pdf' });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('INVALID_CATEGORY');
+      expect(await prisma.fileAsset.count()).toBe(before);
+    }
+  });
+
+  it('存量脏记录（类目是审查源文件、键却不在命名空间）→ 执行审查 400；每日清理不列为候选、不碰它的对象', async () => {
+    // 通用上传口收口之前登出来的记录。执行审查不能只认类目，还要认键的命名空间；清理不能据它去删对象
+    const dirtyKey = 'uploads/e2e/dirty-review-source.pdf';
+    const storage = app.get(StorageService);
+    await storage.upload(dirtyKey, Buffer.from('脏记录的对象'), 'application/pdf');
+    plantedObjects.push(dirtyKey);
+    const dirty = await prisma.fileAsset.create({
+      data: {
+        key: dirtyKey, originalName: 'e2e-脏记录.pdf', mimeType: 'application/pdf', size: 1, sha256: 'e2e',
+        category: 'tender_review_source', uploaderId: staffUserId, createdAt: AGE_25H(),
+      },
+    });
+    createdAssetIds.push(dirty.id);
 
     const before = await prisma.reviewTask.count();
-    const exec = await track(await execute(staff, { fileId: res.body.id }));
+    const exec = await track(await execute(staff, { fileId: dirty.id }));
     expect(exec.status).toBe(400);
     expect(exec.body.code).toBe('REVIEW_FILE_INVALID');
     expect(await prisma.reviewTask.count()).toBe(before);
+
+    const janitor = app.get(ReviewSourceCleanupService);
+    await janitor.cleanupOnce(); // 先把库里别的遗留清掉，下面这一次的计数只反映本用例造的数据
+    expect(await janitor.cleanupOnce()).toEqual({ removed: 0, kept: 0 });
+    expect((await prisma.fileAsset.findUnique({ where: { id: dirty.id } }))?.category).toBe('tender_review_source');
+    expect((await storage.download(dirtyKey)).toString()).toBe('脏记录的对象');
   });
 
   it('请求体继续带旧的 objectKey 字段 → 被忽略，任务 objectKey 为空串', async () => {
@@ -182,6 +204,8 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
 
   const fileStatus = async (cookie: string[], fileId: string) =>
     (await request(app.getHttpServer()).get(`/api/upload/files/${fileId}`).set('Cookie', cookie).set('X-Portal', 'web')).status;
+  /** 上传时间拨到 25 小时前（超过每日清理的 24 小时保留期） */
+  const AGE_25H = () => new Date(Date.now() - 25 * 3600 * 1000);
 
   it('删除任务且这份上传没有别的任务在用 → 对象、备份与文件记录一并清掉', async () => {
     const up = await track(await upload(staff, 'e2e-删除清理.txt'));
@@ -197,6 +221,23 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     await expect(storage.download(key)).rejects.toBeDefined();
     await expect(storage.download(`${key}.original`)).rejects.toBeDefined();
     expect(await fileStatus(staff, up.body.fileId)).toBe(404);
+  });
+
+  it('通用删除口删不了审查源文件：上传者本人、admin 都是 409 FILE_PROTECTED，记录与对象都还在', async () => {
+    // 这条路不看有没有审查任务在用，也不删 .original 备份——删完任务会指向一个不存在的文件。清理只走审查模块
+    const up = await track(await upload(staff, 'e2e-通用删除口.txt'));
+    const key = (await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } }))!.key;
+    plantedObjects.push(key);
+    for (const cookie of [staff, admin]) {
+      const res = await request(app.getHttpServer())
+        .delete(`/api/upload/${encodeURIComponent(key)}`)
+        .set('Cookie', cookie)
+        .set('X-Portal', 'web');
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('FILE_PROTECTED');
+    }
+    expect((await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } }))?.category).toBe('tender_review_source');
+    expect((await app.get(StorageService).download(key)).toString()).toBe(BODY);
   });
 
   it('同一份上传还被另一个任务在用 → 只删任务、文件留着；最后一个任务删掉后才清', async () => {
@@ -375,7 +416,6 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
   // ── 每日清理（scheduler/review-source-cleanup.service.ts）：与删任务后的清理是同一份规则 ──
 
   const keyOf = async (fileId: string) => (await prisma.fileAsset.findUnique({ where: { id: fileId } }))!.key;
-  const AGE_25H = () => new Date(Date.now() - 25 * 3600 * 1000);
 
   it('每日清理：没建成任务的上传满 24 小时才清；没满的、还有任务在用的不动', async () => {
     const janitor = app.get(ReviewSourceCleanupService);

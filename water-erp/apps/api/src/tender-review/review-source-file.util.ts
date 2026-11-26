@@ -21,6 +21,9 @@ export const REVIEW_SOURCE_CATEGORY = 'tender_review_source';
  */
 export const REVIEW_SOURCE_PURGING_CATEGORY = 'tender_review_source_purging';
 
+/** 审查模块对象键的命名空间前缀（isReviewObjectKey / buildReviewSourceKey / 每日清理挑候选共用） */
+export const REVIEW_OBJECT_KEY_PREFIX = 'review/';
+
 /** 是否审查源文件（含清理进行中的） */
 export function isReviewSourceCategory(category: unknown): boolean {
   return category === REVIEW_SOURCE_CATEGORY || category === REVIEW_SOURCE_PURGING_CATEGORY;
@@ -34,9 +37,9 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
  * 不限制其余字符集——存量任务的键带用户原始文件名（中文、空格、括号、#）。
  */
 export function isReviewObjectKey(key: unknown): key is string {
-  if (typeof key !== 'string' || !key.startsWith('review/')) return false;
+  if (typeof key !== 'string' || !key.startsWith(REVIEW_OBJECT_KEY_PREFIX)) return false;
   if (key.includes('\\') || CONTROL_CHARS.test(key)) return false;
-  const rest = key.slice('review/'.length);
+  const rest = key.slice(REVIEW_OBJECT_KEY_PREFIX.length);
   if (!rest) return false;
   return rest.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..');
 }
@@ -75,5 +78,5 @@ export function resolveReviewSourceType(
 
 /** 新上传的对象键：review/<yyyy-MM-dd>/<32 位十六进制随机>.<扩展名>——不含任何用户提供的字符 */
 export function buildReviewSourceKey(ext: string): string {
-  return `review/${new Date().toISOString().slice(0, 10)}/${randomBytes(16).toString('hex')}.${ext}`;
+  return `${REVIEW_OBJECT_KEY_PREFIX}${new Date().toISOString().slice(0, 10)}/${randomBytes(16).toString('hex')}.${ext}`;
 }

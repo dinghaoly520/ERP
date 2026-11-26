@@ -195,6 +195,16 @@ describe('UploadService — download permission', () => {
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
     });
 
+    // 清理分两步：记录先标成待清（类目改成 *_purging）再删对象。待清状态的访问规则不能跟着类目名一起变
+    it('清理没做完的（待清状态）同样只对上传者本人与 admin 开放', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({ ...reviewSource, category: 'tender_review_source_purging' });
+      for (const other of [{ sub: 'u-company-a', role: 'staff' }, { sub: 'u-leader', role: 'leader' }, { sub: 'u-host', role: 'bid_host' }]) {
+        await expect(service.streamFile('fa-review', other, res)).rejects.toMatchObject({ response: { code: 'FILE_FORBIDDEN' } });
+      }
+      expect(prisma.supplierBidSubmission.findFirst).not.toHaveBeenCalled();
+      expect(minioClient.getObject).not.toHaveBeenCalled();
+    });
+
     it('专家下不了——即使被分到引用这份文件的项目', async () => {
       prisma.fileAsset.findUnique.mockResolvedValue(reviewSource);
       // 文件挂在某投标上、专家被分到该项目、该项目已解密且评标已启动：走到专家分支就会被放行
@@ -581,6 +591,36 @@ describe('UploadService — download permission', () => {
       await expect(service.delete('uploads/x.pdf', { sub: 'u-supplier', role: 'supplier' }))
         .rejects.toMatchObject({ response: { code: 'FILE_REFERENCED' } });
       expect(prisma.fileAsset.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('审查源文件不走通用删除口（审计第 3 处跟进）', () => {
+    // 登记成 FileAsset 之后，这条路原本对上传者与 admin/bid_host 是开的：删掉主对象与记录，不看有没有审查任务在用，
+    // 也不删 .original 备份——任务指向一个不存在的文件，备份成了没账的孤儿。清理只走审查模块（删任务 / 每日清理）。
+    beforeEach(() => {
+      jest.spyOn(minioClient, 'removeObject').mockClear().mockResolvedValue(undefined as any);
+    });
+
+    it.each(['tender_review_source', 'tender_review_source_purging'])('%s：上传者本人、admin、bid_host 都删不了 → 409 FILE_PROTECTED', async (category) => {
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        ...asset, id: 'fa-review', key: 'review/2026-11-26/abc.pdf', category, uploaderId: 'u-owner',
+      });
+
+      for (const user of [{ sub: 'u-owner', role: 'staff' }, { sub: 'u-admin', role: 'admin' }, { sub: 'u-host', role: 'bid_host' }]) {
+        await expect(service.delete('review/2026-11-26/abc.pdf', user))
+          .rejects.toMatchObject({ status: 409, response: { code: 'FILE_PROTECTED' } });
+      }
+      expect(minioClient.removeObject).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.delete).not.toHaveBeenCalled();
+    });
+
+    it('不是上传者本人也不是 admin/bid_host → 仍是 403（不泄露这份文件是不是审查源文件）', async () => {
+      prisma.fileAsset.findUnique.mockResolvedValue({
+        ...asset, id: 'fa-review', key: 'review/2026-11-26/abc.pdf', category: 'tender_review_source', uploaderId: 'u-owner',
+      });
+
+      await expect(service.delete('review/2026-11-26/abc.pdf', { sub: 'u-other', role: 'staff' }))
+        .rejects.toMatchObject({ status: 403 });
     });
   });
 

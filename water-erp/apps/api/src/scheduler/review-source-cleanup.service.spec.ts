@@ -29,9 +29,16 @@ const mkPrisma = (over: { assets?: Asset[]; referenced?: string[] } = {}) => {
       findMany: jest.fn().mockResolvedValue((over.referenced ?? []).map((objectKey) => ({ objectKey }))),
     },
     fileAsset: {
-      // 实现服务端 where 语义：按类目取，带 createdAt.lt 的再按时间筛
-      findMany: jest.fn().mockImplementation(async ({ where }: { where: { category: string; createdAt?: { lt: Date } } }) =>
-        assets.filter((a) => a.category === where.category && (!where.createdAt || a.createdAt < where.createdAt.lt))),
+      // 实现服务端 where 语义：按类目取，带 key.startsWith 的再按前缀筛，带 createdAt.lt 的再按时间筛
+      findMany: jest.fn().mockImplementation(
+        async ({ where }: { where: { category: string; key?: { startsWith: string }; createdAt?: { lt: Date } } }) =>
+          assets.filter(
+            (a) =>
+              a.category === where.category &&
+              (!where.key || a.key.startsWith(where.key.startsWith)) &&
+              (!where.createdAt || a.createdAt < where.createdAt.lt),
+          ),
+      ),
     },
   };
 };
@@ -60,9 +67,9 @@ describe('ReviewSourceCleanupService — 审查源文件每日清理', () => {
     expect(purge).toHaveBeenCalledTimes(1);
     expect(purge.mock.calls[0][0]).toBe(prisma);
     expect(purge.mock.calls[0][2]).toBe(KEY(1));
-    // 时间门槛是「严格早于 now − 24h」
+    // 时间门槛是「严格早于 now − 24h」；候选只取审查命名空间下的键
     expect(prisma.fileAsset.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { category: REVIEW_SOURCE_CATEGORY, createdAt: { lt: expect.any(Date) } },
+      where: { category: REVIEW_SOURCE_CATEGORY, key: { startsWith: 'review/' }, createdAt: { lt: expect.any(Date) } },
     }));
   });
 
@@ -84,6 +91,21 @@ describe('ReviewSourceCleanupService — 审查源文件每日清理', () => {
     const r = await mkService(prisma).cleanupOnce();
     expect(purge).not.toHaveBeenCalled();
     expect(r).toEqual({ removed: 0, kept: 0 });
+  });
+
+  test('只取审查命名空间下的键：类目是审查源文件、键却不在命名空间的脏数据不列为候选', async () => {
+    const prisma = mkPrisma({
+      assets: [
+        { id: 'fa-dirty', key: 'uploads/2026-11-25/x.pdf', category: REVIEW_SOURCE_CATEGORY, createdAt: OLD },
+        { id: 'fa-orphan', key: KEY(1), category: REVIEW_SOURCE_CATEGORY, createdAt: OLD },
+      ],
+    });
+    const service = mkService(prisma);
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    const r = await service.cleanupOnce();
+    expect(purge.mock.calls.map((c) => c[2])).toEqual([KEY(1)]);
+    expect(r).toEqual({ removed: 1, kept: 0 });
+    expect(warn).not.toHaveBeenCalled();
   });
 
   test('一条清不掉不影响其它条：计数里算「留」，不抛', async () => {

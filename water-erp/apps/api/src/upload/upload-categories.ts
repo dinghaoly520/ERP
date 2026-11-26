@@ -43,7 +43,9 @@ export const UPLOAD_CATEGORIES = new Set<string>([
   'supervision_push_packet',        // A-153：监督推送信封（系统生成）
   'supervision_push_voucher',       // A-153：监督推送离线凭证（系统生成）
   'ai_bid_report',                  // AI 投标分析报告（worker 生成，回流包引用件）
-  'tender_review_source',           // 审查用源文件（文档审查上传登记；下载只对上传者本人与 admin 开放）
+  // 审查源文件（tender_review_source / *_purging）不在这里：只能经 POST /tender-review/review/upload 登记——
+  // 键由服务端生成、落在 review/ 命名空间。经这个口登出来的记录键在 uploads/ 下，执行审查不认、
+  // 每日清理也不认，是一条永远清不掉的孤儿（审计第 3 处跟进，2026-11-26）
 ]);
 
 /**

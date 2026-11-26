@@ -17,6 +17,7 @@ import {
   type ReviewSourcePurgeOutcome,
 } from '../tender-review/review-source-cleanup';
 import {
+  REVIEW_OBJECT_KEY_PREFIX,
   REVIEW_SOURCE_CATEGORY,
   REVIEW_SOURCE_PURGING_CATEGORY,
   isReviewObjectKey,
@@ -50,8 +51,9 @@ export class ReviewSourceCleanupService {
       ),
     );
     const [stale, purging] = await Promise.all([
+      // 只取审查命名空间下的键：类目是审查源文件、键却不在命名空间的不是审查上传口登记的，不碰、也不必每天报一遍
       this.prisma.fileAsset.findMany({
-        where: { category: REVIEW_SOURCE_CATEGORY, createdAt: { lt: cutoff } },
+        where: { category: REVIEW_SOURCE_CATEGORY, key: { startsWith: REVIEW_OBJECT_KEY_PREFIX }, createdAt: { lt: cutoff } },
         select: { id: true, key: true },
         orderBy: { createdAt: 'asc' },
         take: BATCH,
