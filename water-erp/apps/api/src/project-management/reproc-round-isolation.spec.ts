@@ -260,8 +260,10 @@ describe('流标再采第二轮隔离', () => {
     await expect(
       svc.updateStage('pmi-1', 'SUPPLIER_INVITATION', { status: 'COMPLETED', round: 2, confirmedThreshold: 3 } as never),
     ).resolves.toMatchObject({ status: 'COMPLETED' });
+    // 2026-11-26 完成闸改并集形态（第 1 轮并入 PMI id 兜底存量行）：第 ≥2 轮仍只查本轮
+    // BP 名下——in 数组不得混入 PMI id（分轮隔离语义不变，仅形态从裸串改 in 列表）
     expect(prisma.invitationRsvp.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { projectId: 'bp-r2' } }),
+      expect.objectContaining({ where: { projectId: { in: ['bp-r2'] } } }),
     );
   });
 });
