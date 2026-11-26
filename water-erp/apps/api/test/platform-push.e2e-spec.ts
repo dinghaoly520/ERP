@@ -28,6 +28,19 @@ async function loginAs(
   return Array.isArray(cookie) ? cookie : cookie ? [cookie] : [];
 }
 
+/**
+ * 等审计行出现（最多 3 秒）。审计行是发后不等写入的（PlatformPushService.writeAudit 不 await），
+ * 响应回来时行可能还没落库——机器忙时只读一次会读到空（2026-11-25 全量 e2e 实录）。
+ */
+async function waitForAuditLog(prisma: PrismaService, where: { action: string; resourceId: string }) {
+  const deadline = Date.now() + 3000;
+  for (;;) {
+    const row = await prisma.auditLog.findFirst({ where });
+    if (row || Date.now() >= deadline) return row;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 const PREFIX = 'E2E-PP-'; // fixture 唯一前缀：beforeAll 预清扫崩溃残留 + afterAll 定向清理都锚它
 
 describe('对接专项 platform-push 人工确认制 (e2e)', () => {
@@ -253,7 +266,7 @@ describe('对接专项 platform-push 人工确认制 (e2e)', () => {
     expect(log!.payloadSha256).toBe(hash);
     const sup = await prisma.bidSupervisionLog.findFirst({ where: { projectId: projAId, action: '上级平台推送' } });
     expect(sup?.target).toBe(`${PREFIX}招标公告A1`);
-    const audit = await prisma.auditLog.findFirst({ where: { action: 'PLATFORM_PUSH', resourceId: projAId } });
+    const audit = await waitForAuditLog(prisma, { action: 'PLATFORM_PUSH', resourceId: projAId });
     expect(audit?.resourceType).toBe('PlatformPush:mock');
   });
 
