@@ -362,13 +362,17 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
   const KEY = 'review/2026-11-25/0123456789abcdef0123456789abcdef.docx';
   const taskWith = (objectKey: string) => ({ id: 't1', objectKey, userId: 'u1' });
 
+  const REGISTERED = { id: 'fa-1', category: 'tender_review_source' };
   const arrange = (objectKey: string, overrides: Record<string, any> = {}) => ({
     reviewTask: {
       findUnique: jest.fn().mockResolvedValue(taskWith(objectKey)),
       delete: jest.fn().mockResolvedValue({}),
       count: jest.fn().mockResolvedValue(0),
     },
-    fileAsset: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    fileAsset: {
+      findUnique: jest.fn().mockResolvedValue(REGISTERED),
+      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
     ...overrides,
   });
 
@@ -382,10 +386,11 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
     expect(prisma.reviewTask.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
     // 引用计数必须在任务行删掉之后做，否则会把自己数进去
     expect(prisma.reviewTask.delete.mock.invocationCallOrder[0]).toBeLessThan(prisma.reviewTask.count.mock.invocationCallOrder[0]);
+    expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { key: KEY } }));
     expect(prisma.reviewTask.count).toHaveBeenCalledWith({ where: { objectKey: KEY } });
     expect(storage.delete).toHaveBeenNthCalledWith(1, KEY);
     expect(storage.delete).toHaveBeenNthCalledWith(2, `${KEY}.original`);
-    expect(prisma.fileAsset.deleteMany).toHaveBeenCalledWith({ where: { key: KEY, category: 'tender_review_source' } });
+    expect(prisma.fileAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'fa-1', category: 'tender_review_source' } });
   });
 
   it('同一份文件还被别的任务引用 → 只删任务，不碰存储与文件记录', async () => {
@@ -431,7 +436,7 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
     expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('对象删除失败 → 请求照常成功，文件记录保留（上传者与 admin 可经通用删除接口重试）', async () => {
+  it('对象删除失败 → 请求照常成功，文件记录保留', async () => {
     const storage = { delete: jest.fn().mockRejectedValue(new Error('minio down')) };
     const prisma: any = arrange(KEY);
     const controller = buildControllerWith(prisma, storage);
@@ -451,5 +456,74 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
 
     expect(prisma.reviewTask.delete).not.toHaveBeenCalled();
     expect(storage.delete).not.toHaveBeenCalled();
+  });
+
+  // 终审 Important 1：存量任务的 objectKey 在修复前可由任意内部角色写入，命名空间守卫拦不住
+  // 指向「他人任务键.original」这类键——只清理有审查源文件记录的文件，存量对象一律不碰
+  it('存量任务：键在审查命名空间内但没有审查源文件记录 → 照常删任务，存储与文件记录都不碰', async () => {
+    const plantedKey = 'review/1732452000000_他人文档.docx.original';
+    const storage = { delete: jest.fn() };
+    const prisma: any = arrange(plantedKey, {
+      fileAsset: { findUnique: jest.fn().mockResolvedValue(null), deleteMany: jest.fn() },
+    });
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
+
+    expect(prisma.reviewTask.delete).toHaveBeenCalledTimes(1);
+    expect(prisma.reviewTask.count).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('同键的文件记录是别的类目 → 同样不清理', async () => {
+    const storage = { delete: jest.fn() };
+    const prisma: any = arrange(KEY, {
+      fileAsset: { findUnique: jest.fn().mockResolvedValue({ id: 'fa-9', category: 'bid_document' }), deleteMany: jest.fn() },
+    });
+    const controller = buildControllerWith(prisma, storage);
+
+    await controller.deleteTask('t1', USER);
+
+    expect(prisma.reviewTask.count).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('查文件记录或统计引用时数据库出错 → 请求照常成功（任务已删），不清理存储', async () => {
+    const brokenCases = [
+      arrange(KEY, { fileAsset: { findUnique: jest.fn().mockRejectedValue(new Error('db down')), deleteMany: jest.fn() } }),
+      arrange(KEY, {
+        reviewTask: {
+          findUnique: jest.fn().mockResolvedValue(taskWith(KEY)),
+          delete: jest.fn().mockResolvedValue({}),
+          count: jest.fn().mockRejectedValue(new Error('db down')),
+        },
+      }),
+    ];
+    for (const prisma of brokenCases) {
+      const storage = { delete: jest.fn() };
+      const controller = buildControllerWith(prisma, storage);
+
+      await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
+
+      expect(storage.delete).not.toHaveBeenCalled();
+      expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
+    }
+  });
+
+  it('主对象已删、备份对象删除出错（备份可能本就不存在）→ 照常删文件记录', async () => {
+    const storage = {
+      delete: jest.fn().mockImplementation((k: string) =>
+        k.endsWith('.original') ? Promise.reject(new Error('NoSuchKey')) : Promise.resolve(undefined),
+      ),
+    };
+    const prisma: any = arrange(KEY);
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
+
+    expect(storage.delete).toHaveBeenCalledWith(KEY);
+    expect(prisma.fileAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'fa-1', category: 'tender_review_source' } });
   });
 });

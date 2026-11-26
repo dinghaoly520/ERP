@@ -30,6 +30,7 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
   let kbId: string;
   const createdTaskIds: string[] = [];
   const createdAssetIds: string[] = [];
+  const plantedObjects: string[] = [];
 
   const BODY = '纯文本审查正文';
   const upload = (cookie: string[], filename: string) =>
@@ -71,6 +72,8 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
   afterAll(async () => {
     await prisma.reviewTask.deleteMany({ where: { id: { in: createdTaskIds } } });
     await prisma.fileAsset.deleteMany({ where: { id: { in: createdAssetIds } } });
+    const storage = app.get(StorageService);
+    for (const key of plantedObjects) await storage.delete(key).catch(() => undefined);
     await app.close();
   });
 
@@ -172,5 +175,21 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     expect((await removeTask(staff, second.body.taskId)).status).toBe(200);
     expect(await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } })).toBeNull();
     expect(await fileStatus(staff, up.body.fileId)).toBe(404);
+  });
+
+  it('存量任务的键在审查命名空间内但没有文件记录（例如指向别人的备份键）→ 只删任务，存储不碰', async () => {
+    // 修复前 objectKey 可由任意内部角色写入；这种存量键不可信，删除任务时不能据它去删对象
+    const storage = app.get(StorageService);
+    const othersBackup = 'review/1732452000000_他人文档.docx.original';
+    await storage.upload(othersBackup, Buffer.from('他人的原始备份'), 'application/octet-stream');
+    plantedObjects.push(othersBackup);
+    const legacy = await prisma.reviewTask.create({
+      data: { documentName: '他人文档.docx', objectKey: othersBackup, documentContent: 'x', knowledgeBaseId: kbId, userId: staffUserId, reviewMode: 'general' },
+    });
+    createdTaskIds.push(legacy.id);
+
+    expect((await removeTask(staff, legacy.id)).status).toBe(200);
+
+    expect((await storage.download(othersBackup)).toString()).toBe('他人的原始备份');
   });
 });

@@ -690,31 +690,53 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
 
   /**
    * 删除任务后清理它的源文件（2026-11-26）：同一份上传已没有任何任务在用，才删对象、备份与文件记录。
-   * - 键不在审查命名空间内（越界的存量数据）：存储一律不碰；
-   * - 对象没删掉：保留文件记录——上传者与 admin 还能经通用删除接口重试。
+   * - 只清理登记过的审查源文件。键不在审查命名空间内，或者这个键名下没有审查源文件记录：存储一律不碰——
+   *   存量任务的键是修复前写进去的，那时任何内部角色都能写，不能据它去删对象；
+   * - 对象没删掉：保留文件记录，事后还能按记录找到这个对象。
    * 清理的任何失败都不影响「任务已删除」。
    */
   private async removeReviewSourceFileIfUnreferenced(taskId: string, objectKey: string): Promise<void> {
+    const warn = (what: string, err?: unknown) =>
+      this.logger.warn(`删除任务 ${taskId}：${what}${err === undefined ? '' : `（${String(err).slice(0, 200)}）`}`);
     let key: string;
     try {
       key = this.reviewFileKey({ objectKey });
     } catch {
-      this.logger.warn(`任务 ${taskId} 的文件键不在审查命名空间内，删除任务时不清理存储`);
+      warn('文件键不在审查命名空间内，不清理存储');
+      return;
+    }
+    let assetId: string;
+    try {
+      const asset = await this.prisma.fileAsset.findUnique({ where: { key }, select: { id: true, category: true } });
+      if (asset?.category !== REVIEW_SOURCE_CATEGORY) {
+        warn(asset ? '同键的文件记录不是审查源文件，不清理存储' : '文件没有审查源文件记录（存量对象），不清理存储');
+        return;
+      }
+      assetId = asset.id;
+    } catch (err) {
+      warn('查不到文件记录，不清理存储', err);
       return;
     }
     // 必须在任务行删掉之后数：否则会把这个任务自己数进去
-    const stillUsed = await this.prisma.reviewTask.count({ where: { objectKey } });
-    if (stillUsed > 0) return;
+    let stillUsed: number;
     try {
-      await this.storage.delete(key);
-      await this.storage.delete(`${key}.original`);
+      stillUsed = await this.prisma.reviewTask.count({ where: { objectKey } });
     } catch (err) {
-      this.logger.warn(`清理任务 ${taskId} 的审查源文件失败，保留文件记录：${String(err).slice(0, 200)}`);
+      warn('统计引用失败，不清理存储', err);
       return;
     }
+    if (stillUsed > 0) return;
+
+    // 两个对象各删各的：备份删不掉（比如本就没有）不连累主对象与文件记录
+    const [main, backup] = await Promise.allSettled([this.storage.delete(key), this.storage.delete(`${key}.original`)]);
+    if (main.status === 'rejected') {
+      warn('审查源文件没删掉，保留文件记录', main.reason);
+      return;
+    }
+    if (backup.status === 'rejected') warn('原始备份没删掉', backup.reason);
     await this.prisma.fileAsset
-      .deleteMany({ where: { key, category: REVIEW_SOURCE_CATEGORY } })
-      .catch((err) => this.logger.warn(`删除任务 ${taskId} 的审查源文件记录失败：${String(err).slice(0, 200)}`));
+      .deleteMany({ where: { id: assetId, category: REVIEW_SOURCE_CATEGORY } })
+      .catch((err) => warn('审查源文件已删，但文件记录没删掉', err));
   }
 
   @Get('review/stats/today')
