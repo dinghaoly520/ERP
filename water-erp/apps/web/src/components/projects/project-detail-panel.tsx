@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3, Wand2 } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, CalendarClock, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -811,6 +811,11 @@ export function ProjectDetailPanel({
   const [directFilesNote, setDirectFilesNote] = useState('');
   const [directCompleting, setDirectCompleting] = useState(false);
   const [directPolishing, setDirectPolishing] = useState(false);
+  /** 开标时间选择器下限（弹窗打开时重算；render 期禁不纯调用） */
+  const directOpeningMin = useMemo(
+    () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+    [directConfirmStage],
+  );
 
   /** 项目概况 AI 优化：基于当前内容润色（polishInitiationField projectOverview 轨） */
   const polishDirectOverview = async () => {
@@ -2724,13 +2729,24 @@ export function ProjectDetailPanel({
                 />
               </div>
               <div>
-                <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">开标时间</div>
-                <input
-                  type="datetime-local"
-                  value={directOpeningTime}
-                  onChange={(e) => setDirectOpeningTime(e.target.value)}
-                  className="workbench-input w-full text-sm"
-                />
+                {/* 开标时间选择器（2026-11-26 用户裁定：与延时开标弹窗同设计）——
+                    bc-decision-box 单行：图标+标签+无边框透明选择器+右侧当前值参考 */}
+                <div className="bc-decision-box flex flex-nowrap items-center gap-2.5 rounded-[12px] px-3.5 py-2">
+                  <CalendarClock size={14} className="shrink-0 text-[var(--accent)]" />
+                  <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">开标时间</span>
+                  <input
+                    type="datetime-local"
+                    className="workbench-input workbench-input-sm !h-8 !w-auto !border-0 !shadow-none !bg-transparent !px-1.5"
+                    value={directOpeningTime}
+                    min={directOpeningMin}
+                    onChange={(e) => setDirectOpeningTime(e.target.value)}
+                  />
+                  {item.bidOpeningTime ? (
+                    <span className="ml-auto min-w-0 shrink-0 truncate text-[11px] tabular-nums text-[var(--muted-foreground)]">
+                      当前 <span className="font-semibold text-[var(--foreground)]">{item.bidOpeningTime}</span>
+                    </span>
+                  ) : null}
+                </div>
               </div>
               {/* 「采购文件获取时间」栏已删（2026-11-20 用户裁定）：字段整体退役 */}
             </div>
