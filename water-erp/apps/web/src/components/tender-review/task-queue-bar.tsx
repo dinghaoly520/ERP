@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTenderReview, useReviewOps } from './use-tender-review';
+import { useConfirm } from '@/components/workbench/use-confirm';
+import { deleteReviewConfirmMessage } from './delete-confirm';
 import {
   ChevronUp,
   ChevronDown,
@@ -15,6 +17,7 @@ import {
 export default function TaskQueueBar() {
   const { runningTasks } = useTenderReview();
   const { stopTask, deleteTask } = useReviewOps();
+  const { confirm, dialog } = useConfirm();
   const [expanded, setExpanded] = useState(true);
 
   if (runningTasks.length === 0) {
@@ -75,7 +78,11 @@ export default function TaskQueueBar() {
                       <CircleStop className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => deleteTask(task.id)}
+                      onClick={async () => {
+                        // 单击即删 → 先确认：这个按钮与「停止」并排，在跑的审查点错一下就没了
+                        if (!(await confirm({ title: '删除任务', message: deleteReviewConfirmMessage(task.status), danger: true }))) return;
+                        await deleteTask(task.id);
+                      }}
                       className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
                       title="删除任务"
                     >
@@ -88,6 +95,7 @@ export default function TaskQueueBar() {
           </motion.div>
         )}
       </AnimatePresence>
+      {dialog}
     </div>
   );
 }

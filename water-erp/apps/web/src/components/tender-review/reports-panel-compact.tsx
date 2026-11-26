@@ -18,6 +18,7 @@ import { STATUS_COLORS } from '@/lib/types/tender-review';
 import ReportViewCombined from './report-view-combined';
 import { useTenderReview } from './tender-review-context';
 import { useConfirm } from '@/components/workbench/use-confirm';
+import { deleteReviewConfirmMessage } from './delete-confirm';
 
 export default function ReportsPanelCompact() {
   // 2026-11-06 修复：改吃 context 真源 tasks（provider 2s 轮询驱动）——
@@ -41,7 +42,7 @@ export default function ReportsPanelCompact() {
   }
 
   async function handleDelete(task: ReviewTask) {
-    if (!(await confirm({ message: '确定删除该审查记录？', danger: true }))) return;
+    if (!(await confirm({ message: deleteReviewConfirmMessage(task.status), danger: true }))) return;
     try {
       await deleteReviewTask(task.id);
       await refreshTasks();
