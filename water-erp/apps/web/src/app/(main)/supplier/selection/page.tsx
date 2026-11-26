@@ -3089,11 +3089,12 @@ export function SupplierSelectionPage({
                     <button onClick={() => setStep(firstRerunPickStep)} className="neu-btn-soft gap-2">
                       下一步：补选候选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                     </button>
-                  ) : (
+                  ) : !(isDirect && [...shortlist.keys()].every((sid) => confirmations.get(sid) === 'confirmed')) ? (
+                    /* 直采单一供应商已确认 → 补选无意义，不再显示（2026-11-26 用户裁定） */
                     <button onClick={openRerun} className="neu-btn-soft gap-2">
                       <Plus size={14} />补选
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </>
