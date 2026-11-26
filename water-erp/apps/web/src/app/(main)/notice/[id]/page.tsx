@@ -111,7 +111,9 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   // 系统生成类：字段与发布向导写入的 canonical meta / 公告草稿键对齐
   FAILED_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
-    { key: 'openTime', label: '开标时间', date: true }, { key: 'resultInfo', label: '流标原因', area: true },
+    { key: 'openTime', label: '开标时间', date: true },
+    { key: 'publicityPeriod', label: '公示期限' }, // 2026-11-26 用户裁定：流标公告四要素齐备（值为向导格式化文本，直出）
+    { key: 'resultInfo', label: '流标原因', area: true },
   ],
   WIN_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },

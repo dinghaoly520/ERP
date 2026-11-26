@@ -71,7 +71,11 @@ export const ANNOUNCEMENT_TYPE_META: Record<string, MetaField[]> = {
     { key: 'publicityPeriod', label: '公示期' },
   ],
   FAILED_BID_NOTICE: [
-    { key: 'projectCode', label: '项目编号' }, { key: 'publicityPeriod', label: '公示期' },
+    { key: 'projectCode', label: '项目编号' },
+    // 2026-11-26 用户裁定：流标公告关键信息展示 采购方式/最高限价/开标时间/公示期限
+    { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
+    { key: 'openTime', label: '开标时间', date: true },
+    { key: 'publicityPeriod', label: '公示期限' },
   ],
   WIN_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'winner', label: '成交供应商' }, { key: 'amount', label: '成交金额' },
