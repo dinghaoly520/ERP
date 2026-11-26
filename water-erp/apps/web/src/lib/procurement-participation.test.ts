@@ -45,6 +45,12 @@ test("filterPublicEnrollRows：开标前只保留拟参与（下载/登记未响
   );
 });
 
+test("filterPublicEnrollRows：开标前无意向但已投递（定向/受限文档豁免意向闸）仍保留——投递是事实", () => {
+  assert.deepEqual(filterPublicEnrollRows([{ intentConfirmedAt: null, submitted: true }], false), [
+    { intentConfirmedAt: null, submitted: true },
+  ]);
+});
+
 test("filterPublicEnrollRows：开标后收窄为已投递标书（撤回/未投递剔除，与拟参与无关）", () => {
   assert.deepEqual(
     filterPublicEnrollRows(rows, true).map((r) => r.name),

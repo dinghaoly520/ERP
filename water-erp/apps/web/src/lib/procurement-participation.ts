@@ -26,13 +26,15 @@ export function isOpeningPassed(opts: { stage?: string | null; openTime?: string
 }
 
 /**
- * 公告型行筛选：开标前 = 已确认拟参与（含已投递）；开标后 = 已投递标书
+ * 公告型行筛选：开标前 = 已确认拟参与 ∪ 已投递；开标后 = 已投递标书
  * （撤回/未投递不算）。行结构对 workspace 供应商行与公告参与行双兼容
  * （两处字段同名：intentConfirmedAt / submitted）。
+ * 「∪ 已投递」兜底：意向闸按文档获取范围（accessScope=OPEN）豁免定向/受限项目——
+ * 其供应商无意向记录但投递是事实，开标前不得隐藏（后端 INTENT_REQUIRED 同口径豁免）。
  */
 export function filterPublicEnrollRows<T extends { intentConfirmedAt?: string | null; submitted: boolean }>(
   rows: T[],
   opened: boolean,
 ): T[] {
-  return rows.filter((r) => (opened ? r.submitted : !!r.intentConfirmedAt));
+  return rows.filter((r) => (opened ? r.submitted : !!r.intentConfirmedAt || r.submitted));
 }
