@@ -49,6 +49,17 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { canViewAllUserActivity } from '../auth/auth-scope';
 import { Roles } from '../common/decorators/roles.decorator';
+import { createHash } from 'crypto';
+import {
+  assertReviewObjectKey,
+  buildReviewSourceKey,
+  isReviewObjectKey,
+  resolveReviewSourceType,
+  REVIEW_SOURCE_CATEGORY,
+} from './review-source-file.util';
+import { lockReviewSourceRow, purgeUnreferencedReviewSourceFile } from './review-source-cleanup';
+
+const REVIEW_DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 @ApiTags('Tender Review')
 @Controller('tender-review')
@@ -463,7 +474,10 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       },
     }),
   )
-  async uploadDocument(@UploadedFile() file: Express.Multer.File) {
+  async uploadDocument(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser | undefined,
+  ) {
     if (!file) {
       throw new BadRequestException('请上传文件');
     }
@@ -471,20 +485,68 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     const fileName = file.originalname
       ? normalizeMultipartFilename(file.originalname)
       : 'unknown';
+    // 类型只认四种；声明 MIME 不在四种之内时按文件名后缀推断（审计第 3 处）
+    const type = resolveReviewSourceType(file.mimetype, fileName);
+    if (!type) {
+      throw new BadRequestException({
+        error: '仅支持 PDF、DOCX、DOC、TXT 格式文件',
+        code: 'REVIEW_FILE_TYPE_INVALID',
+      });
+    }
     const content = await this.parser.parse(
       file.buffer,
       file.mimetype,
       fileName,
     );
-    const objectKey = `review/${Date.now()}_${fileName}`;
-    await this.storage.upload(objectKey, file.buffer, file.mimetype);
+    // 键由服务端生成、不含任何用户提供的字符；上传即登记为登录人名下的文件记录（审计第 3 处）
+    const objectKey = assertReviewObjectKey(buildReviewSourceKey(type.ext));
+    await this.storage.upload(objectKey, file.buffer, type.mime);
+    let asset: { id: string };
+    try {
+      asset = await this.prisma.fileAsset.create({
+        data: {
+          key: objectKey,
+          originalName: fileName,
+          mimeType: type.mime,
+          size: file.buffer.length,
+          sha256: createHash('sha256').update(file.buffer).digest('hex'),
+          category: REVIEW_SOURCE_CATEGORY,
+          uploaderId: user?.sub,
+        },
+      });
+    } catch (err) {
+      // 登记失败就不留孤儿对象
+      await this.storage.delete(objectKey).catch(() => undefined);
+      throw err;
+    }
 
+    // 只把记录 id 交给客户端：对象键不再出现在任何响应里
     return {
+      fileId: asset.id,
       documentName: fileName,
-      objectKey,
       content,
       contentLength: content.length,
     };
+  }
+
+  /** 按上传记录 id 解析审查用的文件：只认本人上传（admin 例外）的审查源文件记录，键必须落在审查命名空间内 */
+  private async resolveReviewSourceFile(
+    fileId: string | undefined,
+    user: AuthenticatedUser | undefined,
+  ): Promise<string> {
+    if (!fileId) return '';
+    const asset = await this.prisma.fileAsset.findUnique({
+      where: { id: fileId },
+      select: { key: true, category: true, uploaderId: true },
+    });
+    // 不存在、类目不对、键越界三种情况同一口径——不泄露别的资产是否存在
+    if (!asset || asset.category !== REVIEW_SOURCE_CATEGORY || !isReviewObjectKey(asset.key)) {
+      throw new BadRequestException({ error: '上传记录无效，请重新上传文件', code: 'REVIEW_FILE_INVALID' });
+    }
+    if (asset.uploaderId !== user?.sub && user?.role !== 'admin') {
+      throw new ForbiddenException({ error: '无权使用该上传文件', code: 'REVIEW_FILE_FORBIDDEN' });
+    }
+    return asset.key;
   }
 
   @Post('review/execute')
@@ -494,7 +556,6 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     @Body() dto: ExecuteReviewDto,
     @Body('documentContent') documentContent: string,
     @Body('documentName') documentName: string,
-    @Body('objectKey') objectKey: string,
     @CurrentUser() user: AuthenticatedUser | undefined,
   ) {
     // Validate knowledge base exists before creating the task
@@ -518,19 +579,32 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       if (!project) throw new NotFoundException('项目不存在');
     }
 
-    const task = await this.prisma.reviewTask.create({
-      data: {
-        documentName: documentName ?? 'unknown',
-        objectKey: objectKey ?? '',
-        documentContent,
-        knowledgeBaseId: dto.knowledgeBaseId,
-        userId: user?.sub,
-        reviewMode: dto.reviewMode,
-        status: 'running',
-        projectId: dto.projectId ?? null,
-        draftFingerprint: dto.fingerprint ?? null,
-      },
-    });
+    // 文件只经上传记录 id 引用（审计第 3 处）：不带即纯文本审查
+    const sourceKey = await this.resolveReviewSourceFile(dto.fileId, user);
+
+    const taskData = {
+      documentName: documentName ?? 'unknown',
+      objectKey: sourceKey,
+      documentContent,
+      knowledgeBaseId: dto.knowledgeBaseId,
+      userId: user?.sub,
+      reviewMode: dto.reviewMode,
+      status: 'running',
+      projectId: dto.projectId ?? null,
+      draftFingerprint: dto.fingerprint ?? null,
+    };
+    // 带文件时，建任务与「清理这份文件」互斥（2026-11-26）：两边都先锁文件记录行。
+    // 等锁期间文件可能刚被清掉（最后一个用它的任务被删了）——锁内再复核一次，别建出一个指向已删对象的任务
+    const fileId = dto.fileId;
+    const task = fileId
+      ? await this.prisma.$transaction(async (tx) => {
+          const category = await lockReviewSourceRow(tx, fileId);
+          if (category !== REVIEW_SOURCE_CATEGORY) {
+            throw new BadRequestException({ error: '上传记录无效，请重新上传文件', code: 'REVIEW_FILE_INVALID' });
+          }
+          return tx.reviewTask.create({ data: taskData });
+        })
+      : await this.prisma.reviewTask.create({ data: taskData });
 
     // 自动记忆默认知识库（spec §2 裁定 3）——仅项目场景，失败不阻塞审查
     if (dto.projectId && user?.sub) {
@@ -553,19 +627,27 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       dto.reviewMode,
       ac.signal,
     )
-      .catch(async (err) => {
-        if (ac.signal.aborted) return;
-        await this.prisma.reviewTask.update({
-          where: { id: task.id },
-          data: {
-            status: 'failed',
-            results: { error: this.sanitizeError(err) } as any,
-          },
-        });
-      })
+      .catch((err) => this.markReviewInterrupted(task.id, ac, err))
       .finally(() => this.activeReviews.delete(task.id));
 
     return { taskId: task.id, status: 'running' };
+  }
+
+  /**
+   * 审查没跑完，把任务标成失败。审查是被终止的（停止任务、删除任务）就不写——调用方自己已经落了状态或删了任务。
+   * 任务行已经不在（删除时没来得及终止、或被直接删掉）也没什么可回写的：这条链路没人接，
+   * 抛出去就是一条未处理的拒绝（生产上只落一条错误日志，排查时还像真出了事）。
+   */
+  private async markReviewInterrupted(taskId: string, ac: AbortController, err: unknown): Promise<void> {
+    if (ac.signal.aborted) return;
+    await this.prisma.reviewTask
+      .update({
+        where: { id: taskId },
+        data: { status: 'failed', results: { error: this.sanitizeError(err) } as any },
+      })
+      .catch((updateErr: { code?: string }) => {
+        if (updateErr?.code !== 'P2025') throw updateErr;
+      });
   }
 
   @Post('review/project-status')
@@ -622,8 +704,21 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
       throw new ForbiddenException('无权删除此任务');
     }
+    // 正在跑的审查先停（与「停止任务」是同一个信号）：不停的话模型调用照跑，结果写回时任务已经不在了
+    if (task.status === 'running' || task.status === 'pending') this.activeReviews.get(id)?.abort();
     await this.prisma.reviewTask.delete({ where: { id } });
+    if (task.objectKey) await this.removeReviewSourceFileIfUnreferenced(task.id, task.objectKey);
     return { deleted: true };
+  }
+
+  /**
+   * 删除任务后清理它的源文件（2026-11-26）：规则与两阶段做法见 review-source-cleanup.ts。
+   * 清理的任何失败都不影响「任务已删除」——没清完的留在待清状态，每日清理会接着清。
+   */
+  private async removeReviewSourceFileIfUnreferenced(taskId: string, objectKey: string): Promise<void> {
+    await purgeUnreferencedReviewSourceFile(this.prisma, this.storage, objectKey, (what, err) =>
+      this.logger.warn(`删除任务 ${taskId}：${what}${err === undefined ? '' : `（${String(err).slice(0, 200)}）`}`),
+    );
   }
 
   @Get('review/stats/today')
@@ -821,19 +916,43 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     return this.prisma.reviewTask.findUnique({ where: { id } });
   }
 
-  private backupKey(task: any): string {
-    return `${task.objectKey}.original`;
+  /** 任务的文件键：取出来之前先过审查命名空间守卫——存量任务或旧入口写进来的越界键在这里被拒 */
+  private reviewFileKey(task: { objectKey: string }): string {
+    return assertReviewObjectKey(task.objectKey);
+  }
+
+  private backupKey(task: { objectKey: string }): string {
+    return `${this.reviewFileKey(task)}.original`;
+  }
+
+  /**
+   * 覆盖写任务的审查源文件，并同步文件记录的大小与校验值（2026-11-26）。
+   * 通用下载按文件记录里的 size 发 Content-Length——改写后不同步，下载到的就是被截断的文件。
+   * key 由调用方先过命名空间守卫再传入。记录同步失败只告警：对象已经写成功，不让请求失败。
+   * 凡是就地改写审查源文件的地方都必须走这里。
+   */
+  private async writeReviewSourceFile(task: { id: string }, key: string, data: Buffer): Promise<void> {
+    await this.storage.upload(key, data, REVIEW_DOCX_MIME);
+    await this.prisma.fileAsset
+      .updateMany({
+        where: { key, category: REVIEW_SOURCE_CATEGORY },
+        data: { size: data.length, sha256: createHash('sha256').update(data).digest('hex') },
+      })
+      .catch((err) =>
+        this.logger.warn(`任务 ${task.id} 的审查源文件已改写，但文件记录的大小与校验值没同步：${String(err).slice(0, 200)}`),
+      );
   }
 
   private async ensureOriginalBackup(task: any): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
     const bk = this.backupKey(task);
     try {
       await this.storage.download(bk);
       // backup already exists
     } catch {
       // backup doesn't exist yet — create it from current file
-      const current = await this.storage.download(task.objectKey);
+      const current = await this.storage.download(key);
       await this.storage.upload(
         bk,
         current,
@@ -847,19 +966,16 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     structured: any,
   ): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
     await this.ensureOriginalBackup(task);
-    const originalBuffer = await this.storage.download(task.objectKey);
+    const originalBuffer = await this.storage.download(key);
     const modified = await modifyDocxBuffer(
       originalBuffer,
       structured.originalText || '',
       structured.replacementText || '',
       structured.operation,
     );
-    await this.storage.upload(
-      task.objectKey,
-      modified,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    await this.writeReviewSourceFile(task, key, modified);
   }
 
   private async applyManualCommentToFile(
@@ -868,18 +984,15 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     commentText: string,
   ): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
     await this.ensureOriginalBackup(task);
-    const originalBuffer = await this.storage.download(task.objectKey);
+    const originalBuffer = await this.storage.download(key);
     const modified = await addDocxCommentBuffer(
       originalBuffer,
       commentText,
       anchorText,
     );
-    await this.storage.upload(
-      task.objectKey,
-      modified,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    await this.writeReviewSourceFile(task, key, modified);
   }
 
   private async rebuildDocxFromAccepted(
@@ -887,6 +1000,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     revertedIssueIndex: number,
   ): Promise<void> {
     if (!task.objectKey) return;
+    const key = this.reviewFileKey(task);
 
     const report = task.results;
     // Collect all accepted issues with modificationApplied, excluding the reverted one
@@ -956,12 +1070,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // Upload the rebuilt file
-    await this.storage.upload(
-      task.objectKey,
-      buffer,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    // Upload the rebuilt file（文件记录的大小与校验值一并同步）
+    await this.writeReviewSourceFile(task, key, buffer);
 
     // If no accepted modifications remain, clean up the backup
     if (acceptedIssues.length === 0) {
@@ -987,11 +1097,12 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       const task = await this.prisma.reviewTask.findUnique({ where: { id } });
       if (!task) throw new NotFoundException('任务不存在或已被删除');
       if (!task.objectKey) throw new BadRequestException('任务未关联文档文件');
+      const key = this.reviewFileKey(task);
       if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
         throw new ForbiddenException('无权下载此任务文档');
       }
 
-      const buffer = await this.storage.download(task.objectKey);
+      const buffer = await this.storage.download(key);
       const fileName = task.documentName || 'document.docx';
 
       res.setHeader(

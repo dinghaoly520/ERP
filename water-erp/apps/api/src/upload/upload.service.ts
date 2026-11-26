@@ -14,6 +14,7 @@ import { assertAttachmentRules } from './attachment-rules';
 import { CompanyScopeService } from '../company/company-scope';
 import { scopeCompanyIds } from '../company/company-scope';
 import { assertEvaluationStarted } from '../expert/expert-room.util';
+import { isReviewSourceCategory } from '../tender-review/review-source-file.util';
 
 /** Allowed MIME types for upload */
 const ALLOWED_MIME_TYPES = [
@@ -415,6 +416,10 @@ export class UploadService implements OnModuleInit {
 
     if (asset.uploaderId && asset.uploaderId === user.sub) return true;
 
+    // 审查用源文件（文档审查上传，2026-11-25 审计第 3 处）：只归上传者本人与 admin——
+    // 别让它落进下面内部角色的兜底放行。清理进行中的（*_purging）访问规则不变，所以用 isReviewSourceCategory
+    if (isReviewSourceCategory(asset.category)) return user.role === 'admin';
+
     // A-143：澄清答复附件——上传人（供应商）之外，开评标现场/管理角色可见（答复本就在主持端展示）
     // A-153：监督推送信封/凭证——管理角色可见
     // 2026-09-18 身份核验设计 §4.5：签到留档照——:3007 核验矩阵展示给现场/管理角色（本人之外首次对管理端可见）
@@ -772,6 +777,16 @@ export class UploadService implements OnModuleInit {
     const isAdmin = !!user && ['admin', 'bid_host'].includes(user.role);
     if (!isAdmin && asset.uploaderId !== user?.sub) {
       throw new ForbiddenException({ error: '无权删除该文件', code: 'FILE_FORBIDDEN' });
+    }
+
+    // 审查源文件（审计第 3 处跟进，2026-11-26）：清理只走审查模块——删任务时锁内数引用、连 .original 备份
+    // 一起清、没清完的次日重试。这条路不看引用、不删备份，删完任务会指向一个不存在的文件。
+    // 放在越权检查之后：不是上传者本人也不是 admin/bid_host 的照旧 403
+    if (isReviewSourceCategory(asset.category)) {
+      throw new ConflictException({
+        error: '该文件是文档审查的源文件，删除对应的审查记录即可一并清理',
+        code: 'FILE_PROTECTED',
+      });
     }
 
     // §5.5b（Task 18）解密链路资产删除保护——置于四列引用保护之前：

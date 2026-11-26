@@ -23,8 +23,9 @@ export async function uploadReviewDocument(
   file: File,
   opts?: { onProgress?: (loaded: number, total: number) => void; signal?: AbortSignal },
 ): Promise<{
+  /** 上传记录 id：审查时凭它引用文件，对象键不出服务端 */
+  fileId: string;
   documentName: string;
-  objectKey: string;
   content: string;
   contentLength: number;
 }> {
@@ -39,7 +40,8 @@ export async function executeReview(params: {
   reviewMode: 'strict' | 'general';
   documentContent: string;
   documentName: string;
-  objectKey: string;
+  /** 上传记录 id；不带即纯文本审查 */
+  fileId?: string;
   projectId?: string;
   fingerprint?: string;
 }): Promise<{ taskId: string; status: string }> {

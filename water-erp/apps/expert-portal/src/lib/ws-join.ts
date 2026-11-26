@@ -34,7 +34,17 @@ export interface JoinPolicyDeps {
 /** 连续这么多次连接都没能入会，就停止自动重连 */
 export const JOIN_MAX_CONSECUTIVE_FAILURES = 3;
 
+/** 客户端自己调用 disconnect() 时 socket.io 报的断开原因 */
+const CLIENT_DISCONNECT_REASON = 'io client disconnect';
+
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** 记一次连续入会失败；满额则要求停止自动重连 */
+function countJoinFailure(deps: JoinPolicyDeps): void {
+  const streak = deps.getFailStreak() + 1;
+  deps.setFailStreak(streak);
+  if (streak >= JOIN_MAX_CONSECUTIVE_FAILURES) deps.stopReconnect();
+}
 
 function emitOnce(socket: Socket, projectId: string, ackTimeoutMs: number): Promise<JoinAck> {
   return new Promise((resolve) => {
@@ -42,12 +52,19 @@ function emitOnce(socket: Socket, projectId: string, ackTimeoutMs: number): Prom
     const timer = setTimeout(() => {
       if (!settled) { settled = true; resolve({ error: 'JOIN_TIMEOUT' }); }
     }, ackTimeoutMs);
-    socket.emit('join:project', projectId, (ack: JoinAck | undefined) => {
+    const settle = (ack: JoinAck) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(ack ?? { error: 'JOIN_TIMEOUT' });
-    });
+      resolve(ack);
+    };
+    try {
+      socket.emit('join:project', projectId, (ack: JoinAck | undefined) => settle(ack ?? { error: 'JOIN_TIMEOUT' }));
+    } catch (err) {
+      // 发送本身出错（socket.io-client 4.x 正常不会走到）：与等不到应答同样处理，由调用方记一次失败并断开重连
+      console.warn('[ws] join:project 发送失败', err);
+      settle({ error: 'JOIN_TIMEOUT' });
+    }
   });
 }
 
@@ -70,17 +87,28 @@ export async function joinProjectWithRetry(socket: Socket, projectId: string, op
   return { error: 'JOIN_ABORTED' }; // 循环内必然已返回，这里只为类型完整
 }
 
-/** hook 在连接成功后调用：入会、必要时重试，并按结果决定是否断开重连 */
-export async function joinProjectOnConnect(socket: Socket, projectId: string, deps: JoinPolicyDeps, options: JoinProjectOptions = {}): Promise<void> {
+/** hook 在连接成功后调用：入会、必要时重试，并按结果决定是否断开重连。返回 true 仅当这条连接入会成功 */
+export async function joinProjectOnConnect(socket: Socket, projectId: string, deps: JoinPolicyDeps, options: JoinProjectOptions = {}): Promise<boolean> {
   const ack = await joinProjectWithRetry(socket, projectId, { ...options, isStale: () => !deps.isCurrent() });
-  if (!deps.isCurrent()) return; // 迟到的应答：连接已被替换，结果作废
-  if (ack.ok) { deps.setFailStreak(0); return; }
+  if (!deps.isCurrent()) return false; // 迟到的应答：连接已被替换，结果作废
+  if (ack.ok) { deps.setFailStreak(0); return true; }
   if (ack.error === 'UNAUTHORIZED' || ack.error === 'JOIN_TIMEOUT') {
-    const streak = deps.getFailStreak() + 1;
-    deps.setFailStreak(streak);
-    if (streak >= JOIN_MAX_CONSECUTIVE_FAILURES) deps.stopReconnect();
+    countJoinFailure(deps);
     socket.disconnect(); // 走 hook 既有的 disconnect → 重连路径
-    return;
+    return false;
   }
   console.warn('[ws] join:project 被拒', ack.error);
+  return false;
+}
+
+/**
+ * hook 在连接断开时调用：给「连上了、却没入会成功就被断开」的连接记一次入会失败，
+ * 满 JOIN_MAX_CONSECUTIVE_FAILURES 次要求停止自动重连。
+ * 会话真正失效（被顶、登出、冻结）时服务端在握手鉴权里直接断开、不给入会应答——
+ * 应答那条路（joinProjectOnConnect）看不到这种失败，只有这里看得到。
+ * 客户端自己断开的不计：入会未授权、超时已经在那里记过。
+ */
+export function onDisconnectedBeforeJoin(joined: boolean, reason: string, deps: JoinPolicyDeps): void {
+  if (joined || reason === CLIENT_DISCONNECT_REASON) return;
+  countJoinFailure(deps);
 }

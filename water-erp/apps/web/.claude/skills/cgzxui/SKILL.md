@@ -141,6 +141,7 @@ box-shadow:
 - 头部：`neu-icon-well mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] text-[var(--accent)]` + 图标 14px + 标题 `text-lg font-bold tracking-[-0.02em]`
 - 危险语义图标井染红（破坏性确认/错误弹窗）：`bg-[color-mix(in_oklch,var(--danger)_12%,oklch(0.99_0.004_258))] text-[color:var(--danger)]`
 - 壳 `max-w-[min(420px,92vw)]`、蒙层 `wb-overlay-backdrop`；需叠在已开 Modal 上层时 `z-[700]`（useConfirm 先例——规避共享 Modal 单实例约束）
+- 调用方处在带 transform 的容器里时（典型：`.tender-section-enter` 一族入场动画面板——动画停住后 transform 仍在，fixed 后代以它为参照）必须 `useConfirm({ mountToBody: true })`：确认框经 portal 挂 body 才盖得住整个视口（2026-11-26，文档审查「审查报告」「规则管理」先例，修复前遮罩只有面板那么大）；其余场合保持默认就地渲染
 - 类名以 web `globals.css` 为准；其他门户缺同名类时按同语义映射自家按钮体系
 
 **按钮配色按业务语义（确认/取消对，`danger` 标志即语义开关）**：

@@ -72,7 +72,7 @@ export default function ReviewWorkspaceContent() {
         reviewMode: mode,
         documentContent: uploadResult.content,
         documentName: uploadResult.documentName,
-        objectKey: uploadResult.objectKey,
+        fileId: uploadResult.fileId,
       });
       setFile(null);
     } catch (err) {
