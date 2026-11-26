@@ -602,7 +602,7 @@ export default function SupplierDashboardPage() {
         open={frozenOpen}
         onClose={() => setFrozenOpen(false)}
         title="停用/黑名单供应商"
-        description="已停用或列入黑名单的供应商名单，随当前公司视野过滤"
+        description="已停用或列入黑名单的供应商名单"
         size="lg"
         /* 底部操作条已删（2026-11-26 用户裁定）——恢复/移出黑名单走供应商库常规入口 */
 
@@ -661,7 +661,7 @@ export default function SupplierDashboardPage() {
         open={approvalOpen}
         onClose={() => setApprovalOpen(false)}
         title="待审核构成"
-        description="在途注册审批按当前审批级罗列，随公司视野过滤"
+        description="在途注册审批按当前审批级罗列"
         size="lg"
         footer={
           <div className="flex w-full items-center gap-2">
