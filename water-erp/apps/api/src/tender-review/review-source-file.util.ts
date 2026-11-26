@@ -14,6 +14,18 @@ import { BadRequestException } from '@nestjs/common';
 /** 审查源文件在 FileAsset.category 里的类目名 */
 export const REVIEW_SOURCE_CATEGORY = 'tender_review_source';
 
+/**
+ * 清理进行中的审查源文件（2026-11-26）：记录已定案要删、对象还没删完（见 review-source-cleanup.ts）。
+ * 到了这个状态的文件不能再被新任务引用——执行审查只认 REVIEW_SOURCE_CATEGORY，并在锁内复核。
+ * 访问与删除规则跟正常状态一样：判断「是不是审查源文件」用 isReviewSourceCategory，别只比 REVIEW_SOURCE_CATEGORY。
+ */
+export const REVIEW_SOURCE_PURGING_CATEGORY = 'tender_review_source_purging';
+
+/** 是否审查源文件（含清理进行中的） */
+export function isReviewSourceCategory(category: unknown): boolean {
+  return category === REVIEW_SOURCE_CATEGORY || category === REVIEW_SOURCE_PURGING_CATEGORY;
+}
+
 /** 控制字符：键里不允许出现（防日志注入与换行截断） */
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 

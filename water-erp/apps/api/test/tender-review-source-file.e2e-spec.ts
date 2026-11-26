@@ -4,6 +4,7 @@ import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { createHash } from 'crypto';
 import * as JSZip from 'jszip';
+import { PrismaClient } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { StorageService } from '../src/storage/storage.service';
@@ -277,5 +278,96 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     expect(dl.status).toBe(200);
     expect(Number(dl.headers['content-length'])).toBe(stored.length);
     expect(Buffer.compare(dl.body as Buffer, stored)).toBe(0);
+  });
+
+  // ── 2026-11-26 跟进：清理分两步，建任务与清理都先锁文件记录行 ──
+
+  /** 从测试进程里锁住这份上传的文件记录行，直到 release()——用来验证接口确实在等这把锁 */
+  async function holdSourceRowLock(fileId: string) {
+    const holder = new PrismaClient({ log: [] });
+    let release!: () => void;
+    let acquired!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const got = new Promise<void>((resolve) => { acquired = resolve; });
+    const tx = holder.$transaction(async (cx) => {
+      await cx.$queryRaw`SELECT "id" FROM "FileAsset" WHERE "id" = ${fileId} FOR UPDATE`;
+      acquired();
+      await gate;
+    }, { timeout: 15_000 });
+    await got;
+    return { release, done: tx.finally(() => holder.$disconnect()) };
+  }
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it('删掉最后一个用它的任务后，再用同一个上传记录执行审查 → 400 REVIEW_FILE_INVALID，不建任务', async () => {
+    const up = await track(await upload(staff, 'e2e-清理后复用.txt'));
+    const first = await track(await execute(staff, { fileId: up.body.fileId }));
+    expect((await removeTask(staff, first.body.taskId)).status).toBe(200);
+
+    const before = await prisma.reviewTask.count();
+    const again = await track(await execute(staff, { fileId: up.body.fileId }));
+    expect(again.status).toBe(400);
+    expect(again.body.code).toBe('REVIEW_FILE_INVALID');
+    expect(await prisma.reviewTask.count()).toBe(before);
+  });
+
+  it('执行审查要拿文件记录行的锁：行被别的事务锁着时它等着，锁放开后才建任务', async () => {
+    const up = await track(await upload(staff, 'e2e-行锁-执行.txt'));
+    const lock = await holdSourceRowLock(up.body.fileId);
+    let settled = false;
+    const pending = execute(staff, { fileId: up.body.fileId }).then((res) => {
+      settled = true;
+      return track(res);
+    });
+    try {
+      await sleep(700);
+      expect(settled).toBe(false);
+    } finally {
+      lock.release();
+    }
+    const res = await pending;
+    await lock.done;
+    expect(res.status).toBe(201);
+    expect(await prisma.reviewTask.findUnique({ where: { id: res.body.taskId } })).not.toBeNull();
+  });
+
+  it('删任务后的清理也要拿这把锁：等锁期间不动文件记录，锁放开后才清', async () => {
+    const up = await track(await upload(staff, 'e2e-行锁-清理.txt'));
+    const key = (await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } }))!.key;
+    plantedObjects.push(key);
+    const res = await track(await execute(staff, { fileId: up.body.fileId }));
+    const lock = await holdSourceRowLock(up.body.fileId);
+    let settled = false;
+    const pending = removeTask(staff, res.body.taskId).then((r) => {
+      settled = true;
+      return r;
+    });
+    try {
+      await sleep(700);
+      expect(settled).toBe(false);
+      const waiting = await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } });
+      expect(waiting?.category).toBe('tender_review_source');
+    } finally {
+      lock.release();
+    }
+    expect((await pending).status).toBe(200);
+    await lock.done;
+    expect(await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } })).toBeNull();
+  });
+
+  it('对象删不掉 → 请求照常成功，文件记录与对象都留着（记录标成待清，等下一次清理接着清）', async () => {
+    const storage = app.get(StorageService);
+    const up = await track(await upload(staff, 'e2e-清理没做完.txt'));
+    const key = (await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } }))!.key;
+    plantedObjects.push(key);
+    const res = await track(await execute(staff, { fileId: up.body.fileId }));
+    const spy = jest.spyOn(storage, 'delete').mockRejectedValueOnce(new Error('minio down'));
+
+    expect((await removeTask(staff, res.body.taskId)).status).toBe(200);
+    spy.mockRestore();
+
+    const asset = await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } });
+    expect(asset?.category).toBe('tender_review_source_purging');
+    expect((await storage.download(key)).toString()).toBe(BODY);
   });
 });

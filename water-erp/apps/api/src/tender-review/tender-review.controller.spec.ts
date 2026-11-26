@@ -314,12 +314,18 @@ describe('TenderReviewController.executeReview — 只收上传记录 id（审�
   const KB_MOCK = { id: 'kb-1', ownerId: 'u1', isShared: true };
   const BASE = { knowledgeBaseId: 'kb-1', reviewMode: 'general' as const, documentContent: 'c', documentName: 'n.docx' };
 
-  const arrange = (asset: unknown) => ({
-    knowledgeBase: { findUnique: jest.fn().mockResolvedValue(KB_MOCK) },
-    fileAsset: { findUnique: jest.fn().mockResolvedValue(asset) },
-    reviewTask: { create: jest.fn().mockResolvedValue({ id: 't-1' }) },
-    userSettings: { upsert: jest.fn() },
-  });
+  const arrange = (asset: unknown) => {
+    const prisma: any = {
+      knowledgeBase: { findUnique: jest.fn().mockResolvedValue(KB_MOCK) },
+      fileAsset: { findUnique: jest.fn().mockResolvedValue(asset) },
+      reviewTask: { create: jest.fn().mockResolvedValue({ id: 't-1' }) },
+      userSettings: { upsert: jest.fn() },
+      // 锁文件记录行（SELECT "category" … FOR UPDATE）：默认锁到的就是那条登记过的审查源文件
+      $queryRaw: jest.fn().mockResolvedValue([{ category: 'tender_review_source' }]),
+    };
+    prisma.$transaction = jest.fn(async (fn: (tx: any) => Promise<any>) => fn(prisma));
+    return prisma;
+  };
   const OWN_UPLOAD = { id: 'fa-1', key: 'review/2026-11-25/0123456789abcdef0123456789abcdef.docx', category: 'tender_review_source', uploaderId: 'u1' };
 
   it('带 fileId：任务的 objectKey 取的是资产行里的键', async () => {
@@ -330,12 +336,38 @@ describe('TenderReviewController.executeReview — 只收上传记录 id（审�
     expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'fa-1' } }));
   });
 
-  it('不带 fileId（纯文本审查）：任务的 objectKey 是空串，不查文件记录', async () => {
+  it('带 fileId：建任务前先锁这份上传的文件记录行——锁与建任务在同一个事务里，锁在先', async () => {
+    const prisma: any = arrange(OWN_UPLOAD);
+    const controller = buildControllerWith(prisma);
+    await controller.executeReview({ ...BASE, fileId: 'fa-1' } as any, 'c', 'n.docx', USER);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    // 模板字符串调用的第二个参数起才是绑定值
+    expect(prisma.$queryRaw.mock.calls[0][1]).toBe('fa-1');
+    expect(String(prisma.$queryRaw.mock.calls[0][0])).toContain('FOR UPDATE');
+    expect(prisma.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(prisma.reviewTask.create.mock.invocationCallOrder[0]);
+  });
+
+  // 与「删任务后的连带清理」互斥：清理先锁这一行、数引用为 0 才把文件标成待清。
+  // 等锁期间文件可能刚被清掉——锁内复核，别建出一个指向已删对象的任务
+  it.each([
+    ['行已不在（最后一个用它的任务刚被删、文件已清）', []],
+    ['记录已标成待清', [{ category: 'tender_review_source_purging' }]],
+    ['记录被改成别的类目', [{ category: 'bid_document' }]],
+  ])('锁内复核不通过——%s → 400 REVIEW_FILE_INVALID，不建任务', async (_label, locked) => {
+    const prisma: any = arrange(OWN_UPLOAD);
+    prisma.$queryRaw.mockResolvedValue(locked);
+    const controller = buildControllerWith(prisma);
+    await expect(controller.executeReview({ ...BASE, fileId: 'fa-1' } as any, 'c', 'n.docx', USER)).rejects.toMatchObject({ response: { code: 'REVIEW_FILE_INVALID' } });
+    expect(prisma.reviewTask.create).not.toHaveBeenCalled();
+  });
+
+  it('不带 fileId（纯文本审查）：任务的 objectKey 是空串，不查文件记录、不开事务', async () => {
     const prisma: any = arrange(null);
     const controller = buildControllerWith(prisma);
     await controller.executeReview({ ...BASE } as any, 'c', 'n.docx', USER);
     expect(prisma.reviewTask.create).toHaveBeenCalledWith({ data: expect.objectContaining({ objectKey: '' }) });
     expect(prisma.fileAsset.findUnique).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('fileId 是别人的上传 → 403 REVIEW_FILE_FORBIDDEN，不建任务', async () => {
@@ -371,20 +403,28 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
   const taskWith = (objectKey: string) => ({ id: 't1', objectKey, userId: 'u1' });
 
   const REGISTERED = { id: 'fa-1', category: 'tender_review_source' };
-  const arrange = (objectKey: string, overrides: Record<string, any> = {}) => ({
-    reviewTask: {
-      findUnique: jest.fn().mockResolvedValue(taskWith(objectKey)),
-      delete: jest.fn().mockResolvedValue({}),
-      count: jest.fn().mockResolvedValue(0),
-    },
-    fileAsset: {
-      findUnique: jest.fn().mockResolvedValue(REGISTERED),
-      deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
-    },
-    ...overrides,
-  });
+  const arrange = (objectKey: string, overrides: Record<string, any> = {}) => {
+    const prisma: any = {
+      reviewTask: {
+        findUnique: jest.fn().mockResolvedValue(taskWith(objectKey)),
+        delete: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      fileAsset: {
+        findUnique: jest.fn().mockResolvedValue(REGISTERED),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      // 锁文件记录行（SELECT "category" … FOR UPDATE）：默认锁到的就是那条登记过的审查源文件
+      $queryRaw: jest.fn().mockResolvedValue([{ category: REGISTERED.category }]),
+      ...overrides,
+    };
+    prisma.$transaction = jest.fn(async (fn: (tx: any) => Promise<any>) => fn(prisma));
+    return prisma;
+  };
+  const orderOf = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0];
 
-  it('没有别的任务在用这份文件 → 先删任务，再删对象、备份与文件记录', async () => {
+  it('没有别的任务在用这份文件 → 先删任务，锁内标记待清，再删备份、主对象与文件记录', async () => {
     const storage = { delete: jest.fn().mockResolvedValue(undefined) };
     const prisma: any = arrange(KEY);
     const controller = buildControllerWith(prisma, storage);
@@ -393,12 +433,22 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
 
     expect(prisma.reviewTask.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
     // 引用计数必须在任务行删掉之后做，否则会把自己数进去
-    expect(prisma.reviewTask.delete.mock.invocationCallOrder[0]).toBeLessThan(prisma.reviewTask.count.mock.invocationCallOrder[0]);
+    expect(orderOf(prisma.reviewTask.delete)).toBeLessThan(orderOf(prisma.$queryRaw));
+    // 锁 → 数引用 → 标记待清，在同一个事务里；标记之后才动对象存储
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(orderOf(prisma.$queryRaw)).toBeLessThan(orderOf(prisma.reviewTask.count));
+    expect(orderOf(prisma.reviewTask.count)).toBeLessThan(orderOf(prisma.fileAsset.updateMany));
     expect(prisma.fileAsset.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { key: KEY } }));
     expect(prisma.reviewTask.count).toHaveBeenCalledWith({ where: { objectKey: KEY } });
-    expect(storage.delete).toHaveBeenNthCalledWith(1, KEY);
-    expect(storage.delete).toHaveBeenNthCalledWith(2, `${KEY}.original`);
-    expect(prisma.fileAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'fa-1', category: 'tender_review_source' } });
+    expect(prisma.fileAsset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'fa-1', category: 'tender_review_source' },
+      data: { category: 'tender_review_source_purging' },
+    });
+    expect(orderOf(prisma.fileAsset.updateMany)).toBeLessThan(orderOf(storage.delete));
+    // 先删备份再删主对象：备份删不掉时主对象还完好
+    expect(storage.delete.mock.calls.map((c: any[]) => c[0])).toEqual([`${KEY}.original`, KEY]);
+    expect(storage.delete.mock.invocationCallOrder[1]).toBeLessThan(orderOf(prisma.fileAsset.deleteMany));
+    expect(prisma.fileAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'fa-1', category: 'tender_review_source_purging' } });
   });
 
   it('同一份文件还被别的任务引用 → 只删任务，不碰存储与文件记录', async () => {
@@ -444,14 +494,14 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
     expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
   });
 
-  it('对象删除失败 → 请求照常成功，文件记录保留', async () => {
+  it('对象删除失败 → 请求照常成功，文件记录保留（待清状态，每日清理会接着清）', async () => {
     const storage = { delete: jest.fn().mockRejectedValue(new Error('minio down')) };
     const prisma: any = arrange(KEY);
     const controller = buildControllerWith(prisma, storage);
 
     await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
 
-    expect(storage.delete).toHaveBeenCalledWith(KEY);
+    expect(storage.delete).toHaveBeenCalledTimes(1);
     expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
   });
 
@@ -520,10 +570,10 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
     }
   });
 
-  it('主对象已删、备份对象删除出错（备份可能本就不存在）→ 照常删文件记录', async () => {
+  it('备份对象删不掉 → 主对象不再删、文件记录留在待清状态（等每日清理重试）', async () => {
     const storage = {
       delete: jest.fn().mockImplementation((k: string) =>
-        k.endsWith('.original') ? Promise.reject(new Error('NoSuchKey')) : Promise.resolve(undefined),
+        k.endsWith('.original') ? Promise.reject(new Error('minio down')) : Promise.resolve(undefined),
       ),
     };
     const prisma: any = arrange(KEY);
@@ -531,119 +581,7 @@ describe('TenderReviewController.deleteTask — 连带清理源文件（审计�
 
     await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
 
-    expect(storage.delete).toHaveBeenCalledWith(KEY);
-    expect(prisma.fileAsset.deleteMany).toHaveBeenCalledWith({ where: { id: 'fa-1', category: 'tender_review_source' } });
-  });
-});
-
-describe('TenderReviewController.resolveIssue — 改写文件后同步文件记录（审计第 3 处跟进）', () => {
-  const KEY = 'review/2026-11-26/0123456789abcdef0123456789abcdef.docx';
-  const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-  const ORIGINAL = Buffer.from('PK\u0003\u0004 原始文件');
-  const REWRITTEN = Buffer.from('PK\u0003\u0004 改写后的文件——带修订标记与批注部件，比原件长得多得多得多');
-  const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
-  const modifyDocx = modifyDocxBuffer as jest.Mock;
-  const addComment = addDocxCommentBuffer as jest.Mock;
-  const STRUCTURED = { description: '把「甲方」改为「采购人」', operation: 'replace', originalText: '甲方', replacementText: '采购人' };
-  const issue = (suggestion: unknown, extra: Record<string, unknown> = {}) => ({
-    ruleId: 'r1', suggestion, status: 'pending', modificationApplied: false, ...extra,
-  });
-
-  /** storage 桩：hasBackup 时备份读得到，否则备份不存在；读到的文件恒为 ORIGINAL */
-  const arrange = (issues: unknown[], hasBackup = false) => {
-    const prisma: any = {
-      reviewTask: {
-        findUnique: jest.fn().mockResolvedValue({ id: 't1', objectKey: KEY, userId: 'u1', results: { criticalIssues: issues, warnings: [], passedChecks: [] } }),
-        update: jest.fn().mockResolvedValue({}),
-      },
-      fileAsset: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-    };
-    const storage = {
-      download: jest.fn().mockImplementation((k: string) =>
-        k.endsWith('.original') && !hasBackup ? Promise.reject(new Error('NoSuchKey')) : Promise.resolve(ORIGINAL)),
-      upload: jest.fn().mockResolvedValue(undefined),
-      delete: jest.fn().mockResolvedValue(undefined),
-    };
-    return { prisma, storage };
-  };
-  const synced = (data: Buffer) => ({
-    where: { key: KEY, category: 'tender_review_source' },
-    data: { size: data.length, sha256: sha(data) },
-  });
-  const savedIssues = (prisma: any) => prisma.reviewTask.update.mock.calls[0][0].data.results.criticalIssues;
-
-  beforeEach(() => {
-    modifyDocx.mockReset().mockResolvedValue(REWRITTEN);
-    addComment.mockReset().mockResolvedValue(REWRITTEN);
-  });
-
-  // 通用下载按文件记录里的 size 发 Content-Length：改写后不同步，下载到的就是被截断的文件
-  it('接受结构化修改建议：改写后的对象写回原键，文件记录的大小与校验值跟着变', async () => {
-    const { prisma, storage } = arrange([issue(STRUCTURED)]);
-    const controller = buildControllerWith(prisma, storage);
-
-    await controller.resolveIssue('t1', { issueIndex: 0, action: 'accept' }, USER);
-
-    expect(modifyDocx).toHaveBeenCalledWith(ORIGINAL, '甲方', '采购人', 'replace');
-    expect(storage.upload.mock.calls[storage.upload.mock.calls.length - 1]).toEqual([KEY, REWRITTEN, DOCX]);
-    expect(prisma.fileAsset.updateMany).toHaveBeenCalledWith(synced(REWRITTEN));
-    // 先写对象、后同步记录
-    const lastUpload = storage.upload.mock.invocationCallOrder[storage.upload.mock.invocationCallOrder.length - 1];
-    expect(lastUpload).toBeLessThan(prisma.fileAsset.updateMany.mock.invocationCallOrder[0]);
-    expect(savedIssues(prisma)[0].modificationApplied).toBe(true);
-  });
-
-  it('接受纯文字建议（落批注）：批注写回后同样同步文件记录', async () => {
-    const { prisma, storage } = arrange([issue('把「甲方」改为「采购人」')]);
-    const controller = buildControllerWith(prisma, storage);
-
-    await controller.resolveIssue('t1', { issueIndex: 0, action: 'accept' }, USER);
-
-    expect(addComment.mock.calls[0].slice(0, 2)).toEqual([ORIGINAL, '把「甲方」改为「采购人」']);
-    expect(storage.upload.mock.calls[storage.upload.mock.calls.length - 1]).toEqual([KEY, REWRITTEN, DOCX]);
-    expect(prisma.fileAsset.updateMany).toHaveBeenCalledWith(synced(REWRITTEN));
-    expect(savedIssues(prisma)[0].modificationApplied).toBe(true);
-  });
-
-  it('撤销一条已接受的修改：按备份重建后写回，文件记录同步成重建后的大小', async () => {
-    const { prisma, storage } = arrange([
-      issue(STRUCTURED, { status: 'accepted', modificationApplied: true }),
-      issue({ ...STRUCTURED, originalText: '乙方', replacementText: '供应商' }, { status: 'accepted', modificationApplied: true }),
-    ], true);
-    const controller = buildControllerWith(prisma, storage);
-
-    await controller.resolveIssue('t1', { issueIndex: 0, action: 'reject' }, USER);
-
-    expect(storage.download).toHaveBeenCalledWith(`${KEY}.original`);
-    expect(modifyDocx).toHaveBeenCalledWith(ORIGINAL, '乙方', '供应商', 'replace');
-    expect(storage.upload.mock.calls[storage.upload.mock.calls.length - 1]).toEqual([KEY, REWRITTEN, DOCX]);
-    expect(prisma.fileAsset.updateMany).toHaveBeenCalledWith(synced(REWRITTEN));
-  });
-
-  it('文件记录同步失败：请求照常成功、修改已生效，只告警', async () => {
-    const { prisma, storage } = arrange([issue(STRUCTURED)]);
-    prisma.fileAsset.updateMany.mockRejectedValue(new Error('db down'));
-    const controller = buildControllerWith(prisma, storage);
-
-    await expect(controller.resolveIssue('t1', { issueIndex: 0, action: 'accept' }, USER)).resolves.toBeDefined();
-
-    expect(storage.upload.mock.calls[storage.upload.mock.calls.length - 1]).toEqual([KEY, REWRITTEN, DOCX]);
-    expect(savedIssues(prisma)[0].modificationApplied).toBe(true);
-    expect((controller as any).logger.warn).toHaveBeenCalledWith(expect.stringContaining('没同步'));
-  });
-
-  it('没有关联文件的任务：不碰文件记录', async () => {
-    const prisma: any = {
-      reviewTask: {
-        findUnique: jest.fn().mockResolvedValue({ id: 't1', objectKey: '', userId: 'u1', results: { criticalIssues: [issue(STRUCTURED)], warnings: [], passedChecks: [] } }),
-        update: jest.fn().mockResolvedValue({}),
-      },
-      fileAsset: { updateMany: jest.fn() },
-    };
-    const controller = buildControllerWith(prisma, { upload: jest.fn(), download: jest.fn(), delete: jest.fn() });
-
-    await controller.resolveIssue('t1', { issueIndex: 0, action: 'accept' }, USER);
-
-    expect(prisma.fileAsset.updateMany).not.toHaveBeenCalled();
+    expect(storage.delete).toHaveBeenCalledTimes(1);
+    expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
   });
 });

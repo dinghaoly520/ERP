@@ -57,6 +57,7 @@ import {
   resolveReviewSourceType,
   REVIEW_SOURCE_CATEGORY,
 } from './review-source-file.util';
+import { lockReviewSourceRow, purgeUnreferencedReviewSourceFile } from './review-source-cleanup';
 
 const REVIEW_DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
@@ -581,19 +582,29 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     // 文件只经上传记录 id 引用（审计第 3 处）：不带即纯文本审查
     const sourceKey = await this.resolveReviewSourceFile(dto.fileId, user);
 
-    const task = await this.prisma.reviewTask.create({
-      data: {
-        documentName: documentName ?? 'unknown',
-        objectKey: sourceKey,
-        documentContent,
-        knowledgeBaseId: dto.knowledgeBaseId,
-        userId: user?.sub,
-        reviewMode: dto.reviewMode,
-        status: 'running',
-        projectId: dto.projectId ?? null,
-        draftFingerprint: dto.fingerprint ?? null,
-      },
-    });
+    const taskData = {
+      documentName: documentName ?? 'unknown',
+      objectKey: sourceKey,
+      documentContent,
+      knowledgeBaseId: dto.knowledgeBaseId,
+      userId: user?.sub,
+      reviewMode: dto.reviewMode,
+      status: 'running',
+      projectId: dto.projectId ?? null,
+      draftFingerprint: dto.fingerprint ?? null,
+    };
+    // 带文件时，建任务与「清理这份文件」互斥（2026-11-26）：两边都先锁文件记录行。
+    // 等锁期间文件可能刚被清掉（最后一个用它的任务被删了）——锁内再复核一次，别建出一个指向已删对象的任务
+    const fileId = dto.fileId;
+    const task = fileId
+      ? await this.prisma.$transaction(async (tx) => {
+          const category = await lockReviewSourceRow(tx, fileId);
+          if (category !== REVIEW_SOURCE_CATEGORY) {
+            throw new BadRequestException({ error: '上传记录无效，请重新上传文件', code: 'REVIEW_FILE_INVALID' });
+          }
+          return tx.reviewTask.create({ data: taskData });
+        })
+      : await this.prisma.reviewTask.create({ data: taskData });
 
     // 自动记忆默认知识库（spec §2 裁定 3）——仅项目场景，失败不阻塞审查
     if (dto.projectId && user?.sub) {
@@ -691,54 +702,13 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * 删除任务后清理它的源文件（2026-11-26）：同一份上传已没有任何任务在用，才删对象、备份与文件记录。
-   * - 只清理登记过的审查源文件。键不在审查命名空间内，或者这个键名下没有审查源文件记录：存储一律不碰——
-   *   存量任务的键是修复前写进去的，那时任何内部角色都能写，不能据它去删对象；
-   * - 对象没删掉：保留文件记录，事后还能按记录找到这个对象。
-   * 清理的任何失败都不影响「任务已删除」。
+   * 删除任务后清理它的源文件（2026-11-26）：规则与两阶段做法见 review-source-cleanup.ts。
+   * 清理的任何失败都不影响「任务已删除」——没清完的留在待清状态，每日清理会接着清。
    */
   private async removeReviewSourceFileIfUnreferenced(taskId: string, objectKey: string): Promise<void> {
-    const warn = (what: string, err?: unknown) =>
-      this.logger.warn(`删除任务 ${taskId}：${what}${err === undefined ? '' : `（${String(err).slice(0, 200)}）`}`);
-    let key: string;
-    try {
-      key = this.reviewFileKey({ objectKey });
-    } catch {
-      warn('文件键不在审查命名空间内，不清理存储');
-      return;
-    }
-    let assetId: string;
-    try {
-      const asset = await this.prisma.fileAsset.findUnique({ where: { key }, select: { id: true, category: true } });
-      if (asset?.category !== REVIEW_SOURCE_CATEGORY) {
-        warn(asset ? '同键的文件记录不是审查源文件，不清理存储' : '文件没有审查源文件记录（存量对象），不清理存储');
-        return;
-      }
-      assetId = asset.id;
-    } catch (err) {
-      warn('查不到文件记录，不清理存储', err);
-      return;
-    }
-    // 必须在任务行删掉之后数：否则会把这个任务自己数进去
-    let stillUsed: number;
-    try {
-      stillUsed = await this.prisma.reviewTask.count({ where: { objectKey } });
-    } catch (err) {
-      warn('统计引用失败，不清理存储', err);
-      return;
-    }
-    if (stillUsed > 0) return;
-
-    // 两个对象各删各的：备份删不掉（比如本就没有）不连累主对象与文件记录
-    const [main, backup] = await Promise.allSettled([this.storage.delete(key), this.storage.delete(`${key}.original`)]);
-    if (main.status === 'rejected') {
-      warn('审查源文件没删掉，保留文件记录', main.reason);
-      return;
-    }
-    if (backup.status === 'rejected') warn('原始备份没删掉', backup.reason);
-    await this.prisma.fileAsset
-      .deleteMany({ where: { id: assetId, category: REVIEW_SOURCE_CATEGORY } })
-      .catch((err) => warn('审查源文件已删，但文件记录没删掉', err));
+    await purgeUnreferencedReviewSourceFile(this.prisma, this.storage, objectKey, (what, err) =>
+      this.logger.warn(`删除任务 ${taskId}：${what}${err === undefined ? '' : `（${String(err).slice(0, 200)}）`}`),
+    );
   }
 
   @Get('review/stats/today')
