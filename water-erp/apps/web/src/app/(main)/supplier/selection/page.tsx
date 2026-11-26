@@ -45,13 +45,13 @@ const METHOD_LABELS: Record<string, string> = {
 // 2026-11-04 二次裁定：步骤 1 = 条件筛选（业务标签必选 + 行业/资质/业绩/评价结构化条件）+ 补充说明（业绩/其他文字仅入文书）；
 // 推荐语义素材=项目上下文通道+结构化条件，文字段不再进推荐 prompt
 const STEPS = [
-  { num: 1, label: '条件筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
+  { num: 1, label: '供应商选择', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 const NEGOTIATION_STEPS = [
-  { num: 1, label: '条件筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
+  { num: 1, label: '供应商选择', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
