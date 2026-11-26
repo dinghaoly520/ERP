@@ -2747,6 +2747,9 @@ model Attachment {
   /// 正式盖章版 OCR 重（200 页扫描件分钟级），重提取直读免重跑。saveAttachmentHtml 换文件时置空）
   extractedText            String?
   extractedTextAt          DateTime?
+  /// 内容指纹（2026-11-24 全项目同文件查重）：上传时落列；存量行由查重端点懒回填
+  /// （本地主轨→MinIO 副本读取计算），读不到文件的行跳过（无法核验不当重复）
+  sha256                    String?
   /// 反向：被哪些 03 阶段行标记为正式盖章版采购文件（一般 0..1）
   officialTenderStages     ProjectManagementStage[] @relation("OfficialTenderAttachment")
 

@@ -57,6 +57,8 @@ type StoredAttachment = {
   mimeType: string;
   fileSize: number;
   uploadedById?: string;
+  /** 内容指纹（2026-11-24 全项目同文件查重）：persist 时计算随建行落列 */
+  sha256?: string;
 };
 
 const PROJECT_MANAGEMENT_STATUS: Record<
@@ -2093,6 +2095,7 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
         mimeType: attachment.mimeType,
         fileSize: attachment.fileSize,
         uploadedById: attachment.uploadedById,
+        sha256: attachment.sha256,
       },
     });
 
@@ -7542,6 +7545,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       mimeType: file.mimetype,
       fileSize: file.size,
       uploadedById,
+      sha256: createHash('sha256').update(file.buffer).digest('hex'),
     } satisfies StoredAttachment;
 
     // 双轨制（2026-11-20）：本地主轨写成功后 best-effort 落 MinIO 副本，失败不阻断
@@ -7608,6 +7612,76 @@ ${JSON.stringify(algorithmResult, null, 2)}
       .sort((a, b) => b.usageCount - a.usageCount);
 
     return result;
+  }
+
+  /** 全项目同文件查重（2026-11-24 用户需求）：按内容 sha256 比对本项目已上传的全部附件
+   *  （跨步骤/轮次，非仅名称相同）。新上传行建行时已落指纹；存量行懒回填（本地主轨→
+   *  MinIO 副本物化后计算，回填失败/文件缺失跳过——无法核验不当重复）。只读，不动可变性。 */
+  async checkDuplicateAttachments(
+    projectId: string,
+    sha256s: string[],
+  ): Promise<
+    Array<{
+      sha256: string;
+      duplicates: Array<{
+        id: string;
+        fileName: string;
+        stageKey: string | null;
+        stageName: string | null;
+        round: number | null;
+        createdAt: Date;
+      }>;
+    }>
+  > {
+    const attachments = await this.prisma.attachment.findMany({
+      where: {
+        OR: [
+          { projectManagementItemId: projectId },
+          { projectManagementStage: { projectManagementItemId: projectId } },
+        ],
+      },
+      select: {
+        id: true,
+        fileName: true,
+        objectKey: true,
+        sha256: true,
+        createdAt: true,
+        projectManagementStage: { select: { stageKey: true, stageName: true, round: true } },
+      },
+    });
+    const wanted = new Set(sha256s);
+    const byHash = new Map<
+      string,
+      Array<{ id: string; fileName: string; stageKey: string | null; stageName: string | null; round: number | null; createdAt: Date }>
+    >();
+    for (const a of attachments) {
+      let hash = a.sha256;
+      if (!hash) {
+        // 懒回填：物化文件后计算指纹并落列；任一步失败跳过该行（不视为重复）
+        const local = await this.ensureAttachmentLocal(a.objectKey).catch(() => null);
+        if (!local) continue;
+        try {
+          hash = createHash('sha256').update(await readFile(local)).digest('hex');
+        } catch {
+          continue;
+        }
+        await this.prisma.attachment
+          .update({ where: { id: a.id }, data: { sha256: hash } })
+          .catch(() => undefined);
+      }
+      if (!hash || !wanted.has(hash)) continue;
+      const list = byHash.get(hash) ?? [];
+      list.push({
+        id: a.id,
+        fileName: a.fileName,
+        stageKey: a.projectManagementStage?.stageKey ?? null,
+        stageName: a.projectManagementStage?.stageName ?? null,
+        round: a.projectManagementStage?.round ?? null,
+        createdAt: a.createdAt,
+      });
+      byHash.set(hash, list);
+    }
+    return sha256s.map((s) => ({ sha256: s, duplicates: byHash.get(s) ?? [] }));
   }
 
   /** 获取 DOCX 附件中所有段落的文本结构（供编辑器分段落展示，含 HTML 保留格式）。 */
@@ -8000,6 +8074,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         mimeType: persistResult.attachment.mimeType,
         fileSize: persistResult.attachment.fileSize,
         uploadedById: persistResult.attachment.uploadedById,
+        sha256: persistResult.attachment.sha256,
       },
     });
 

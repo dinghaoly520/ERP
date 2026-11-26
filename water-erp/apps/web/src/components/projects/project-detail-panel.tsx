@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, CalendarClock, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3, Wand2 } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, CalendarClock, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, FileWarning, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -18,12 +18,15 @@ import {
   updateProjectStage,
   updateProjectExtractedInfo,
   uploadProjectStageAttachment,
+  checkAttachmentDuplicates,
+  type AttachmentDuplicateMatch,
   optimizeInitiationFields,
   polishInitiationField,
   fetchProjectManagementList,
   type ExtractedInfo,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
+import { sha256File } from '@/lib/sha256-file';
 import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
 import { isPassFailCategory } from '@water-erp/shared';
 import { getProjectParticipants } from '@/lib/api/announcement';
@@ -272,6 +275,13 @@ export function ProjectDetailPanel({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  // 同文件查重确认（2026-11-24 用户需求）：内容 sha256 命中已上传附件时先弹确认——
+  // 提示核对所属步骤；确认才继续上传。ctx 快照防确认期间切换步骤错挂
+  const [dupConfirm, setDupConfirm] = useState<{
+    files: File[];
+    ctx: { stageKey: ProjectWorkflowStageKey; round: number };
+    matches: Array<{ file: File; duplicates: AttachmentDuplicateMatch[] }>;
+  } | null>(null);
   const [analysis, setAnalysis] = useState<ProjectDetailAnalysis | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -941,6 +951,12 @@ export function ProjectDetailPanel({
     }
   };
 
+  const startUploadQueue = (files: File[], ctx: { stageKey: ProjectWorkflowStageKey; round: number }) => {
+    setErrorMessage(null);
+    uploadCtxRef.current = ctx;
+    stageUploads.start(files);
+  };
+
   const uploadStageFiles = () => {
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
@@ -955,11 +971,29 @@ export function ProjectDetailPanel({
       return;
     }
 
-    // 队列接管（2026-11-06）：字节进度/取消/逐文件重试在 stageUploads；
-    // 失败不中断队列，onEachDone 注入附件与提取信息，onAllSettled 收尾进分析
-    setErrorMessage(null);
-    uploadCtxRef.current = { stageKey: selectedStage.stageKey, round: selectedStage.round ?? 1 };
-    stageUploads.start(selectedFiles);
+    const ctx = { stageKey: selectedStage.stageKey, round: selectedStage.round ?? 1 };
+
+    // 同文件查重（2026-11-24 用户需求）：与本项目已上传的全部文件按内容 sha256 比对
+    // （非名称相同）——命中先弹确认框（提示核对所属步骤），确认后才入队；查重链路
+    // 失败降级为不查（不阻断上传）
+    void (async () => {
+      try {
+        const hashes = await Promise.all(selectedFiles.map((f) => sha256File(f)));
+        const results = await checkAttachmentDuplicates(item.id, hashes);
+        const matches = selectedFiles
+          .map((file, i) => ({ file, duplicates: results[i]?.duplicates ?? [] }))
+          .filter((m) => m.duplicates.length > 0);
+        if (matches.length > 0) {
+          setDupConfirm({ files: selectedFiles, ctx, matches });
+          return;
+        }
+      } catch {
+        // 降级：查重不可用时按原流程直传
+      }
+      // 队列接管（2026-11-06）：字节进度/取消/逐文件重试在 stageUploads；
+      // 失败不中断队列，onEachDone 注入附件与提取信息，onAllSettled 收尾进分析
+      startUploadQueue(selectedFiles, ctx);
+    })();
   };
 
   // 阶段/轮次/项目切换清理上传行（spec §5.3：行列表保留至用户切换步骤）；
@@ -2321,6 +2355,62 @@ export function ProjectDetailPanel({
 
       {/* 时间轴弹窗（2026-11-13）：按钮入口在标题栏项目终止左侧 */}
       <ProjectTimelineDialog open={timelineOpen} onClose={() => setTimelineOpen(false)} pmiId={item.id} refreshKey={timelineVersion} />
+
+      {/* 同文件查重确认（2026-11-24 用户需求）：内容 sha256 命中已上传附件——
+          提示核对所属步骤并上传至对应步骤，确认后才继续 */}
+      {dupConfirm && (
+        <Modal
+          open
+          onClose={() => setDupConfirm(null)}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><FileWarning size={14} strokeWidth={1.9} className="text-[var(--warning)]" /></span>
+              存在内容完全相同的文件
+            </span>
+          }
+          description={<span>按文件内容比对（并非仅名称相同），以下文件已在本项目中上传过</span>}
+          size="md"
+          footer={
+            <>
+              <button type="button" onClick={() => setDupConfirm(null)} className="neu-btn-soft !h-9 !text-xs">取消上传</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = dupConfirm;
+                  setDupConfirm(null);
+                  startUploadQueue(d.files, d.ctx);
+                }}
+                className="neu-btn-soft is-danger !h-9 !text-xs"
+              >
+                仍要上传
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3 text-xs leading-5 text-[var(--foreground)]">
+              建议先确认这些文件所属的步骤，并上传至对应步骤中；确认内容确属需要在本步骤再次上传时，再点击「仍要上传」。
+            </div>
+            <div className="space-y-2">
+              {dupConfirm.matches.map(({ file, duplicates }, i) => (
+                <div key={i} className="rounded-[10px] border border-[oklch(0.78_0.03_258/0.45)] px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--foreground)]">
+                    <Paperclip size={12} className="shrink-0 text-[var(--muted-foreground)]" />
+                    <span className="truncate">{file.name}</span>
+                  </div>
+                  <div className="mt-1 space-y-0.5">
+                    {duplicates.map((d) => (
+                      <div key={d.id} className="text-xs text-[var(--muted-foreground)]">
+                        与「{d.stageName ?? d.stageKey ?? '项目附件'}{d.round && d.round > 1 ? `（第 ${d.round} 轮）` : ''}」步骤的《{d.fileName}》内容完全相同
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* 项目终止对话框：填终止原因，快照当前步骤与已有资料 */}
       {terminateOpen && (

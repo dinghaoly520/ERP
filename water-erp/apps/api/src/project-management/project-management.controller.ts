@@ -449,6 +449,24 @@ export class ProjectManagementController {
     return this.projectManagementService.deleteAttachment(id, attachmentId);
   }
 
+  /** 全项目同文件查重（2026-11-24 用户需求）：内容 sha256 比对（跨步骤/轮次，非名称）——
+   *  前端选文件后先查，命中弹「文件相同」确认框（提示核对所属步骤）再继续上传 */
+  @Post(':id/attachments/check-duplicate')
+  checkDuplicateAttachments(
+    @Param('id') id: string,
+    @Body() body?: { sha256s?: unknown },
+  ) {
+    const sha256s = Array.isArray(body?.sha256s)
+      ? body.sha256s.filter(
+          (s): s is string => typeof s === 'string' && /^[0-9a-f]{64}$/.test(s),
+        )
+      : [];
+    if (sha256s.length === 0) {
+      throw new BadRequestException('请提供待查重文件的内容指纹。');
+    }
+    return this.projectManagementService.checkDuplicateAttachments(id, sha256s);
+  }
+
   @Patch(':id/extracted-info')
   updateExtractedInfo(
     @Param('id') id: string,

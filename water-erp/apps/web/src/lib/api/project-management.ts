@@ -350,6 +350,30 @@ export async function uploadProjectStageAttachment(
   );
 }
 
+/** 同文件查重命中项（2026-11-24）：与已上传附件内容完全相同（sha256 比对，非名称） */
+export type AttachmentDuplicateMatch = {
+  id: string;
+  fileName: string;
+  stageKey: string | null;
+  stageName: string | null;
+  round: number | null;
+  createdAt: string;
+};
+
+/** 全项目同文件查重（2026-11-24 用户需求）：上传前按内容指纹比对（跨步骤/轮次），
+ *  命中由前端弹「文件相同」确认框（提示核对所属步骤）再继续 */
+export async function checkAttachmentDuplicates(
+  projectId: string,
+  sha256s: string[],
+): Promise<Array<{ sha256: string; duplicates: AttachmentDuplicateMatch[] }>> {
+  const response = await apiFetch(`${API_BASE}/project-management/${projectId}/attachments/check-duplicate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sha256s }),
+  });
+  return parseJsonResponse<Array<{ sha256: string; duplicates: AttachmentDuplicateMatch[] }>>(response);
+}
+
 /** 标记正式盖章版采购文件（2026-09-26）：指针即真相（不限文件类型）——
  *  03 完成向导 Step1 选定即落指针（中途取消不丢，重进回显）；已完成阶段指针锁定不可改 */
 export async function selectOfficialTender(
