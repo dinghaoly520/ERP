@@ -63,7 +63,7 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
     // 2026-11-26 用户裁定：流标公告关键信息展示 采购方式/最高限价/开标时间/公示期限
     { key: "method", label: "采购方式" }, { key: "budget", label: "最高限价" },
     { key: "openTime", label: "开标时间", date: true },
-    { key: "publicityPeriod", label: "公示期限" },
+    { key: "publicityPeriod", label: "公示期限", date: true }, // 归时间节点组；值为格式化文本直出（见下渲染特判）
   ],
   WIN_NOTICE: [
     { key: "projectCode", label: "项目编号" }, { key: "winner", label: "中标供应商" }, { key: "amount", label: "中标金额" },
@@ -258,6 +258,10 @@ export default function AnnouncementDetailPage() {
                         // 直出原文——不走 fmtMeta 日期解析（date 标记会把它判 NaN 成「待定」）
                         const raw = metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline;
                         return raw == null ? "" : String(raw);
+                      }
+                      if (f.key === 'publicityPeriod') {
+                        // 归时间节点组（2026-11-26）但值为向导格式化文本——直出防「待定」
+                        return String(metaFields.meta.publicityPeriod ?? "");
                       }
                       if (f.key === 'downloadMode') {
                         const v = String(metaFields.meta.downloadMode ?? "");
