@@ -629,10 +629,17 @@ export function ProjectDetailPanel({
   // （确认参与→已投递标书）；确认开标或到开标时间后收窄为已投递——与开标确认面板同源
   // （读侧计算：PMI bidOpeningTime 唯一权威，30s 参与轮询重算；无本轮公告回落手动/同步值）
   const participantBidOpeningTime = extractedInfoOverride?.bidOpeningTime ?? item?.bidOpeningTime ?? null;
+  // 到点切换双驱动（C12 同款）：participantData 每 30s 轮询换新引用之外，再挂独立心跳——
+  // 参与轮询持续失败（API 故障）时，开标时点收窄仍按本地时钟准时切换
+  const [participantTick, setParticipantTick] = useState(0);
+  useEffect(() => {
+    if (!participantBidOpeningTime) return;
+    const t = setInterval(() => setParticipantTick((v) => v + 1), 30_000);
+    return () => clearInterval(t);
+  }, [participantBidOpeningTime]);
   const participantOpened = useMemo(
     () => isOpeningPassed({ openTime: participantBidOpeningTime, now: Date.now() }),
-    // participantData 每 30s 轮询换新引用 → 到点后 30s 内自动切换收窄口径
-    [participantBidOpeningTime, participantData],
+    [participantBidOpeningTime, participantData, participantTick],
   );
   const participantDisplayRows = useMemo(() => {
     if (!isPublicEnrollMethod(item?.procurementMethod)) return null;
