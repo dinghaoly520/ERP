@@ -671,8 +671,9 @@ export class ExpertExtractionService {
     });
 
     // 项目基本信息「专家信息」快照回写（此前从不写入 → 详情页专家评审恒"待补充"）：
-    // 从 User/ExpertProfile 补部门与职称，格式 `姓名|部门|专业|职称|角色` 每行一人（parseExperts 同格式）。
-    // 全量名册重建（2026-10-29 修复）：此前按「本次 dto」整体重写——候补/补选追加
+    // 从 User/ExpertProfile 补公司与职称，格式 `姓名|公司|专业|职称|角色` 每行一人（parseExperts 同格式）。
+    // 公司=2026-11-26 用户裁定（列头「公司」此前恒显示部门名，与列头错位）：取 User.company
+    // 展示快照，无公司归属回退部门名。全量名册重建（2026-10-29 修复）：此前按「本次 dto」整体重写——候补/补选追加
     // （experts:[]）会把既有正选从快照抹掉（SWHI-JJ-2026102101 实录：库有正选、
     // 基本信息只剩候补）。改为从 BidExpert 全量名册重建，追加/整体替换两种路径均与
     // 库内真实组成恒一致；需求方代表/组长标记从持久化列推导（不再依赖瞬时 dto 标志）。
@@ -683,7 +684,7 @@ export class ExpertExtractionService {
           where: { projectId },
           select: {
             expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
-            user: { select: { department: { select: { name: true } }, expertProfile: { select: { title: true } } } },
+            user: { select: { company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } } },
           },
         });
         if (roster.length > 0) {
@@ -692,7 +693,7 @@ export class ExpertExtractionService {
           const flat = (v: string | null | undefined) => (v ?? '').replace(/[\r\n]+/g, ' ').trim();
           const lines = roster.map(e => [
             flat(e.expertName),
-            flat(e.user?.department?.name),
+            flat(e.user?.company || e.user?.department?.name),
             flat(e.major),
             flat(e.user?.expertProfile?.title),
             e.isPurchaserRepresentative ? '需求方代表' : e.expertRole === '候补' ? '候补' : e.isLead ? '正选·组长' : '正选',

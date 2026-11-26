@@ -17,7 +17,7 @@ import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidPr
 import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, ChevronRight, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
-import { Modal, NeuSelect } from '@/components/workbench';
+import { Modal, NeuSelect, DatetimeInput } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
@@ -45,13 +45,13 @@ const METHOD_LABELS: Record<string, string> = {
 // 2026-11-04 二次裁定：步骤 1 = 条件筛选（业务标签必选 + 行业/资质/业绩/评价结构化条件）+ 补充说明（业绩/其他文字仅入文书）；
 // 推荐语义素材=项目上下文通道+结构化条件，文字段不再进推荐 prompt
 const STEPS = [
-  { num: 1, label: '条件筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
+  { num: 1, label: '供应商选择', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '供应商确认', desc: '跟踪候选供应商确认参与意向' },
 ] as const;
 const NEGOTIATION_STEPS = [
-  { num: 1, label: '条件筛选', desc: '选业务标签与资格条件，AI 智能推荐' },
+  { num: 1, label: '供应商选择', desc: '选业务标签与资格条件，AI 智能推荐' },
   { num: 2, label: '审核候选', desc: '查看 AI 推荐，构建候选名单' },
   { num: 3, label: '确认通知', desc: '发送通知给候选供应商' },
   { num: 4, label: '附件选择', desc: '上传谈判所需附件供供应商下载' },
@@ -575,6 +575,25 @@ export function SupplierSelectionPage({
   // 硬性条件词表（行业=库内公司视野聚合+家数、资质=后端字典）；失败给空词表（UI 显示空态，不阻塞向导）
   useEffect(() => { if (!sessionRestored || hardVocab) return; getHardConditionVocab().then(setHardVocab).catch(() => setHardVocab({ industries: [], qualifications: [] })); }, [sessionRestored, hardVocab]);
 
+  // 换项目重解析（2026-11-26 SWHI-ZJ-2026112602 实录）：弹窗复用同一组件实例切换项目时，
+  // 上一项目解析出的 BidProject id 会残留——代确认/代变更带着旧项目的 BP id 落库，
+  // 表现为「界面已确认、本项目回执 0/0、完成闸拒绝」。入口项目一变即清空待重解析。
+  const resolvedForPmiRef = useRef<string | null>(null);
+  // 切换窗口（2026-11-26 稳健轮）：真实切换项目的同批 effects 里，保存链须跳过
+  // （旧项目名单 + 新项目桶的混合态写入正是跨项目污染源头），稍后由整会话重置消费。
+  const sessionSwitchingRef = useRef(false);
+  const pendingSwitchResetRef = useRef(false);
+  useEffect(() => {
+    if (!project?.id) return;
+    if (resolvedForPmiRef.current !== project.id) {
+      if (resolvedForPmiRef.current !== null) {
+        sessionSwitchingRef.current = true;
+        pendingSwitchResetRef.current = true;
+      }
+      resolvedForPmiRef.current = project.id;
+      setProjectId('');
+    }
+  }, [project?.id]);
   // 从项目管理弹窗进入时自动将 projectId 解析为 BidProject id（规范 id 空间，rsvp 行创建/读取
   // 与开标确认面板一致）；严格匹配落空（新项目无开评标记录）走 ensureBidProject 创建本轮——留空会
   // 让第四步把 PMI id 当 BidProject id 用（update 静默失败）。
@@ -637,12 +656,12 @@ export function SupplierSelectionPage({
           }
         }
         // 2026-09-10 防御：持久化的 projectId 可能是旧会话误挂的同名旧轮——
-        // 有关联项目且列表已加载时校验归属，不符则丢弃（交由解析 effect 重新 ensure 本轮）；
-        // 列表未加载（首帧竞态）不过滤，避免误杀正确值
-        if (state.projectId) {
-          const canVerify = !!project?.id && projects.length > 0;
-          const belongs = !canVerify
-            || projects.some((p) => p.id === state.projectId && p.projectManagementItemId === project.id)
+        // 有关联项目且列表已加载时校验归属，不符则丢弃（交由解析 effect 重新 ensure 本轮）。
+        // 2026-11-26 收紧：列表未加载（首帧竞态）原样放行的口子封死——被污染的快照
+        // （2601 的 BP id 存进 2602 桶）恰从此过；不放行也无损，解析 effect 的
+        // getPmBidProject(ensure) 恒补出本项目本轮正确 BP
+        if (state.projectId && !!project?.id && projects.length > 0) {
+          const belongs = projects.some((p) => p.id === state.projectId && p.projectManagementItemId === project.id)
             || !projects.some((p) => p.id === state.projectId); // 恢复值不在列表（新轮未刷新）也放行
           if (belongs) setProjectId(state.projectId);
         }
@@ -801,6 +820,7 @@ export function SupplierSelectionPage({
   useEffect(() => { return () => { if (draftSyncRef.current) clearTimeout(draftSyncRef.current); }; }, []);
 
   useEffect(() => {
+    if (sessionSwitchingRef.current) return; // 切换窗口：混合态不落桶（见 pendingSwitchReset 消费）
     if (firstPersistSkip.current) { firstPersistSkip.current = false; return; }
     try {
       localStorage.setItem(sessionKey, JSON.stringify({
@@ -1305,7 +1325,9 @@ export function SupplierSelectionPage({
         forceNewRsvpToken: force || undefined,
         supplierNames: target.map(([, v]) => v.item.name),
         supplierIds: target.map(([sid]) => sid),
-        projectId: projectId || (project as any)?.id || null,
+        // 关联性铁律（2026-11-26 稳健轮）：落库载荷携带入口 PMI id（恒正确）——BP 解析态
+        // 曾跨项目泄漏把回执行/快照写进别的项目；后端自行 canonical 化到 BP。
+        projectId: (project as any)?.id || projectId || null,
         validityDays: 1,
       });
       if (res.rsvpTokens) setNotifyRsvpTokens(prev => ({ ...prev, ...res.rsvpTokens }));
@@ -1401,7 +1423,7 @@ export function SupplierSelectionPage({
       setNotifyNotFound(totalNotFound);
       // 发送打戳（2026-10-20 用户口径）：时间轴「供应商邀请」= 一键通知点击时刻——
       // 与 rsvp 行写入同 id 空间（projectId 兜底 PMI id）；失败不阻断流程
-      const stampProjectId = projectId || (project as any)?.id;
+      const stampProjectId = (project as any)?.id || projectId;
       if (stampProjectId && sentSupplierIds.size > 0) {
         markInvitedNotified(stampProjectId, [...sentSupplierIds]).catch(() => {});
       }
@@ -1527,7 +1549,7 @@ export function SupplierSelectionPage({
 
   // 确认配置：将谈判配置（时间/附件/下载方式）后台推送给供应商端
   const handleConfirmConfig = async () => {
-    const pid = projectId || (project as any)?.id;
+    const pid = (project as any)?.id || projectId;
     if (!pid) { toast.error('未关联项目'); return; }
     setConfigSending(true);
     try {
@@ -1551,6 +1573,16 @@ export function SupplierSelectionPage({
   };
 
   const reset = () => { setStepInner(1); setMaxStepReached(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setShowManualAdd(false); setShowRerunManualAdd(false); setAddMoreIds(new Set()); setNotifyKeywords({ company: '', projectName: '', projectCode: '', method: '' }); try { localStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} deleteDraft(`supplier-selection${project?.id ? `:${project.id}` : ''}`).catch(() => {}); };
+
+  // 切换入口项目的整会话重置（2026-11-26 稳健轮）：弹窗复用实例换绑项目时，上一项目的
+  // 名单/通知/确认/草稿不得带入新项目（今日 2601↔2602 系列事故的污染源头）——重置后
+  // 保存链以干净初值写入新项目桶。首挂不触发（保留会话恢复语义）；声明于 reset 之后。
+  useEffect(() => {
+    if (!pendingSwitchResetRef.current) return;
+    pendingSwitchResetRef.current = false;
+    sessionSwitchingRef.current = false;
+    reset();
+  });
 
   // 补选 handlers
   const openRerun = () => setShowRerunDialog(true);
@@ -1658,7 +1690,7 @@ export function SupplierSelectionPage({
       setRerunNotified(true);
       setRerunConfirmations(new Map([...rerunShortlist.keys()].map(sid => [sid, 'pending' as const])));
       // 补选轮发送打戳（同正选口径；后端仅补空，不覆盖首轮通知时刻）
-      const stampProjectId = projectId || (project as any)?.id;
+      const stampProjectId = (project as any)?.id || projectId;
       if (stampProjectId && sentSupplierIds.size > 0) {
         markInvitedNotified(stampProjectId, [...sentSupplierIds]).catch(() => {});
       }
@@ -1757,7 +1789,7 @@ export function SupplierSelectionPage({
   const submitProxyMark = async () => {
     if (!proxyMark) return;
     if (proxyReason.trim().length < 5) { toast.error('请填写理由（至少 5 个字），将展示在回执看板'); return; }
-    const pid = projectId || (project as any)?.id;
+    const pid = (project as any)?.id || projectId;
     if (!pid) { toast.error('缺少项目上下文，无法代回应'); return; }
     setProxySubmitting(true);
     try {
@@ -2028,9 +2060,13 @@ export function SupplierSelectionPage({
   // 同步 RSVP 回执到 confirmations/rerunConfirmations：
   // 缺失的条目补上，pending 的条目覆盖；已手动设为 confirmed/declined 的不覆盖。
   // 正选只写 confirmations，补选只写 rerunConfirmations——避免 allSupplierStatuses 合并时 stale 历史 Map 覆盖正确值。
+  // 对账（2026-11-26 跨项目代确认实录）：名单内供应商在服务端无回执行时，本地非 pending
+  // 状态必为脏值（自答/代确认都会落行；无行=没发生过——典型即代确认写到了别的项目名下，
+  // 本地乐观值残留）→ 归 pending。空列表同样对账（原空列表直接 return 放过脏值）。
   const rerunSids = useMemo(() => new Set([...rerunShortlist.keys(), ...previousRerunShortlist.keys()]), [rerunShortlist, previousRerunShortlist]);
   useEffect(() => {
-    if (!filteredRsvp?.items?.length) return;
+    if (!filteredRsvp) return; // null=未加载不碰；已加载（含空）即对账
+    const serverSids = new Set(filteredRsvp.items.map(it => it.supplierId));
     const syncFor = (prev: Map<string, 'pending' | 'confirmed' | 'declined'>, sidFilter: Set<string>) => {
       const n = new Map(prev);
       for (const item of filteredRsvp.items) {
@@ -2040,13 +2076,18 @@ export function SupplierSelectionPage({
           n.set(item.supplierId, rsvpStatus);
         }
       }
+      for (const sid of sidFilter) {
+        if (!serverSids.has(sid) && n.get(sid) !== 'pending' && n.get(sid) !== undefined) {
+          n.set(sid, 'pending');
+        }
+      }
       return n;
     };
     // 正选 confirmations：RSVP sync 只针对非补选供应商
-    setConfirmations(prev => syncFor(prev, new Set(filteredRsvp.items.map(it => it.supplierId).filter(id => !rerunSids.has(id)))));
+    setConfirmations(prev => syncFor(prev, new Set([...shortlist.keys()].filter(id => !rerunSids.has(id)))));
     // 补选 rerunConfirmations：RSVP sync 只针对补选供应商
     setRerunConfirmations(prev => syncFor(prev, rerunSids));
-  }, [filteredRsvp, rerunSids]);
+  }, [filteredRsvp, rerunSids, shortlist]);
 
   // 第 3 步：候选名单 sidebar
   const shortlistPanel = (
@@ -2798,10 +2839,14 @@ export function SupplierSelectionPage({
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <button onClick={() => setStep(isDirect ? 1 : 2)} className="neu-btn-soft gap-2">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>{isDirect ? '上一步：选取供应商' : '上一步：审核候选'}
+          <div className={`flex items-center ${isDirect ? 'justify-end' : 'justify-between'}`}>
+            {/* 直采删「上一步：选取供应商」（2026-11-26 用户裁定）——第一步不可回访是
+                既定口径，此按钮是唯一漏网回1入口；非直采保留回「审核候选」 */}
+            {!isDirect && (
+            <button onClick={() => setStep(2)} className="neu-btn-soft gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：审核候选
             </button>
+            )}
             <div className="flex items-center gap-2">
               <button onClick={handleNotify} disabled={notifySending || notified || notifyPerSupplier.size === 0}
                 className={`neu-btn-soft gap-2 ${notified ? 'is-success' : ''}`}>
@@ -2833,19 +2878,19 @@ export function SupplierSelectionPage({
               <div className="rounded-xl p-3.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">采购文件获取时间</div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input type="datetime-local" value={acquireFrom} onChange={e => setAcquireFrom(e.target.value)}
-                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
+                  <DatetimeInput value={acquireFrom} onChange={v => setAcquireFrom(v)}
+                    className="workbench-input !h-8 text-xs" />
                   <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">至</span>
-                  <input type="datetime-local" value={acquireTo} onChange={e => setAcquireTo(e.target.value)}
-                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
+                  <DatetimeInput value={acquireTo} onChange={v => setAcquireTo(v)}
+                    className="workbench-input !h-8 text-xs" />
                 </div>
               </div>
               {/* 开标时间 — 单点（日期+时刻合一） */}
               <div className="rounded-xl p-3.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)', maxWidth: 420 }}>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">开标时间</div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input type="datetime-local" value={bidAt} onChange={e => setBidAt(e.target.value)}
-                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
+                  <DatetimeInput value={bidAt} onChange={v => setBidAt(v)}
+                    className="workbench-input !h-8 text-xs" />
                 </div>
               </div>
             </div>
@@ -3085,11 +3130,12 @@ export function SupplierSelectionPage({
                     <button onClick={() => setStep(firstRerunPickStep)} className="neu-btn-soft gap-2">
                       下一步：补选候选<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
                     </button>
-                  ) : (
+                  ) : !(isDirect && [...shortlist.keys()].every((sid) => confirmations.get(sid) === 'confirmed')) ? (
+                    /* 直采单一供应商已确认 → 补选无意义，不再显示（2026-11-26 用户裁定） */
                     <button onClick={openRerun} className="neu-btn-soft gap-2">
                       <Plus size={14} />补选
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </>

@@ -6,3 +6,4 @@ export { Breadcrumb } from './breadcrumb';
 export { UnifiedHeader } from './unified-header';
 export { Modal } from './modal';
 export { NeuSelect } from './neu-select';
+export { DatetimeInput } from './datetime-input';

@@ -2143,6 +2143,26 @@ describe('ProjectManagementService', () => {
       await expect(service.updateStage('pm-01', 'SUPPLIER_INVITATION', completing)).rejects.toThrow('发送邀请通知');
     });
 
+    it('SUPPLIER_INVITATION 完成 + 本轮 BP 已建但回执行在 PMI id 空间 → 并集计数放行（2026-11-26 双空间对齐）', async () => {
+      const { service, prisma } = makeService();
+      prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'SUPPLIER_INVITATION' });
+      prisma.projectManagementItem.findUnique
+        .mockResolvedValueOnce({ status: 'ACTIVE' }) // PMI 可变闸读
+        .mockResolvedValueOnce({ status: 'ACTIVE', currentStage: 'SUPPLIER_INVITATION', procurementMethod: '直接采购' }) // updateStage 前置读
+        .mockResolvedValue({ id: 'pm-01', status: 'ACTIVE', currentStage: 'CONTRACT', stages: [{ stageKey: 'SUPPLIER_INVITATION', attachments: [] }] }); // refreshProjectAnalysis
+      // 本轮 BP 已懒建（bp-1），但存量回执行挂在 PMI id（pm-01）空间——原逻辑只数 BP 名下 → 误拦
+      prisma.bidProject = { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn().mockResolvedValue({ id: 'bp-1' }) };
+      prisma.invitationRsvp = { findMany: jest.fn().mockResolvedValue([{ supplierId: 'sup-1', status: 'ACCEPTED', respondedAt: new Date() }]) };
+      prisma.projectManagementStage.update.mockResolvedValue({});
+      prisma.projectManagementStage.findMany.mockResolvedValue([{ stageKey: 'SUPPLIER_INVITATION', stageOrder: 3, status: 'COMPLETED' }]);
+      prisma.projectManagementItem.update.mockResolvedValue({});
+      prisma.attachment = { count: jest.fn().mockResolvedValue(1) };
+      await expect(service.updateStage('pm-01', 'SUPPLIER_INVITATION', completing)).resolves.toBeDefined();
+      // 并集断言：回执查询必须同时覆盖 BP 与 PMI 两个 id 空间
+      const arg = prisma.invitationRsvp.findMany.mock.calls[0][0];
+      expect(arg.where.projectId.in).toEqual(expect.arrayContaining(['bp-1', 'pm-01']));
+    });
+
     it('EXPERT_SELECTION 完成 + BidProject 存在但 0 专家 → 400', async () => {
       const { service, prisma } = makeService();
       prisma.projectManagementStage.findFirst.mockResolvedValue({ id: 'st-1', stageKey: 'EXPERT_SELECTION' });

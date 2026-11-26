@@ -53,6 +53,7 @@ import { checkSupplierChange } from "@/lib/api/project-management";
 import { getSupplierList } from "@/lib/api/supplier";
 import { confirmDialog } from "@/components/catalog/confirm-dialog";
 import { tenderDraftStorageKey } from "@/lib/tender-write/storage";
+import { DatetimeInput } from "@/components/workbench/datetime-input";
 
 function downloadBlobFile(blob: Blob, fileName: string) {
   const url = URL.createObjectURL(blob);
@@ -504,12 +505,9 @@ function AnnouncementFieldEditor({
 
           {/* Conditional input based on selected type */}
           {compositeType === "datetime" ? (
-            <input
-              ref={dateInputRef}
-              type="datetime-local"
+            <DatetimeInput
               value={shownValue}
-              onChange={(e) => onChange(field.key, e.target.value)}
-              onFocus={() => onFieldFocus?.(field.key)}
+              onChange={(v) => onChange(field.key, v)}
               className={commonInputClass}
             />
           ) : (
@@ -560,18 +558,16 @@ function AnnouncementFieldEditor({
             时刻、止「+N天」下拉按起点推算——赋值落进 datetime 输入即具体时间点（非文字
             语义），赋值后仍可手改；起点为空时天数下拉禁用（无基线可推）。 */
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <input
-            type="datetime-local"
-            aria-label={`${field.label}（起）`}
+          <DatetimeInput
+            title={`${field.label}（起）`}
             value={shownValue}
-            onChange={(e) => {
-              onChange(field.key, e.target.value);
+            onChange={(v) => {
+              onChange(field.key, v);
               // 手填起点即退出「发布时」模式（自动改值不改模式语义，2026-11-13）
               if (draftRecord[PUBLISH_AT_START_KEY] === "1") {
                 onChange(PUBLISH_AT_START_KEY as AnnouncementFieldKey, "");
               }
             }}
-            onFocus={() => onFieldFocus?.(field.key)}
             className={`${commonInputClass} !w-auto min-w-0 flex-1`}
           />
           {field.key === "announcementStart" && category != null && PUBLICITY_QUICK_CATEGORIES.has(category) && (() => {
@@ -604,15 +600,13 @@ function AnnouncementFieldEditor({
             );
           })()}
           <span className="shrink-0 text-xs font-semibold text-[color:var(--muted-foreground)]">至</span>
-          <input
-            type="datetime-local"
-            aria-label={`${field.label}（止）`}
+          <DatetimeInput
+            title={`${field.label}（止）`}
             value={(() => {
               const endRaw = (field.rangeEndKey ? draftRecord[field.rangeEndKey] : '').trim();
               return /^\d{4}-\d{2}-\d{2}$/.test(endRaw) ? `${endRaw}T23:59` : endRaw;
             })()}
-            onChange={(e) => field.rangeEndKey && onChange(field.rangeEndKey, e.target.value)}
-            onFocus={() => field.rangeEndKey && onFieldFocus?.(field.rangeEndKey)}
+            onChange={(v) => field.rangeEndKey && onChange(field.rangeEndKey, v)}
             className={`${commonInputClass} !w-auto min-w-0 flex-1`}
           />
           {field.key === "announcementStart" && category != null && PUBLICITY_QUICK_CATEGORIES.has(category) && field.rangeEndKey && (() => {

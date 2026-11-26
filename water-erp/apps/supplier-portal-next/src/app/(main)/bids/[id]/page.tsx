@@ -216,7 +216,11 @@ function BidDetailInner() {
     // 项目编号已上移标题元信息行（2026-11-24 用户裁定，公告中心同款）——chips 不再重复
     if (m.method) fields.push({ label: "采购方式", value: m.method, kind: 'plain' });
     if (m.budget != null && m.budget !== "") fields.push({ label: "预算金额", value: fmtBudget(m.budget), kind: 'money' });
-    if (m.downloadDeadline) fields.push({ label: "采购文件下载截止", value: fmtMetaDate(m.downloadDeadline), kind: 'date' });
+    // 区间直出（2026-11-26 同步公告中心 2026-11-24 二次裁定）：新公告存区间（downloadPeriod）
+    // 优先、旧公告止点兜底；值是已格式化中文串，不走日期解析（防「待定」）
+    if (m.downloadDeadline || m.downloadPeriod) {
+      fields.push({ label: "采购文件下载截止", value: String(m.downloadPeriod ?? m.downloadDeadline), kind: 'date' });
+    }
     // 口径修正（2026-09-14）：投标截止以项目截标时间（BidProject.deadline）为准；
     // 公告 metadata.deadline 实为公示期止，仅项目无截标时间时兜底展示
     // 排序（2026-11-13 用户裁定）：投标截止紧挨开标时间之前；下载方式置末位

@@ -10,7 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Modal } from '@/components/workbench';
+import { Modal, DatetimeInput } from '@/components/workbench';
 import type {
   BidProjectRef,
   BidWorkspaceExpert,
@@ -256,12 +256,13 @@ export function OpeningDecisionModal({
             <div className="bc-decision-box flex flex-nowrap items-center gap-2.5 rounded-[12px] px-3.5 py-2">
               <CalendarClock size={14} className="shrink-0 text-[var(--accent)]" />
               <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">新的开标时间</span>
-              <input
-                type="datetime-local"
+              {/* 2026-11-26 Safari：原生控件选不了时/分——DatetimeInput 在 Safari 增强
+                  为日期+时/分下拉，Chrome/Edge 原生控件原样 */}
+              <DatetimeInput
                 className="workbench-input workbench-input-sm !h-8 !w-auto !border-0 !shadow-none !bg-transparent !px-1.5"
                 value={delayTime}
                 min={toLocalInput(new Date().toISOString())}
-                onChange={(e) => handleDelayTimeChange(e.target.value)}
+                onChange={handleDelayTimeChange}
               />
               <span className="ml-auto min-w-0 shrink-0 truncate text-[11px] tabular-nums text-[var(--muted-foreground)]">
                 原开标 <span className="font-semibold text-[var(--foreground)]">{fmtDateTime(bidProject.openTime)}</span>

@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Building2, TrendingUp, AlertTriangle, Activity, Star, Ban, Clock3,
-  Target, Layers, Lightbulb, ChevronDown, ChevronUp, RefreshCw,
-} from 'lucide-react';
-import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution, getSupplierList } from '@/lib/api/supplier';
+  Target, Layers, Lightbulb, ChevronDown, ChevronUp, RefreshCw, Send } from 'lucide-react';
+import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution, getSupplierList, notifyQualificationAlert } from '@/lib/api/supplier';
+import { toast } from 'sonner';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { supplierActionLabel } from '@/lib/supplier-action-labels';
 import type { SupplierStats, QualificationAlerts, ActivityItem, SupplierFavoriteRecord, DimensionStats } from '@/lib/api/supplier';
@@ -328,6 +328,22 @@ export default function SupplierDashboardPage() {
   const [approvalList, setApprovalList] = useState<{ pending: Supplier[]; returned: Supplier[] }>({ pending: [], returned: [] });
   // 资质预警明细窗口（同日裁定：窗口展示，不再跳资质预警页）
   const [alertsOpen, setAlertsOpen] = useState(false);
+  // 资质预警行内发送（2026-11-26 用户裁定：资质预警页删除，发送通知并入本窗口）：
+  // notifiedIds 为会话内防重复标记（供应商更新资质后预警自动解除）
+  const [alertSending, setAlertSending] = useState<string | null>(null);
+  const [alertNotifiedIds, setAlertNotifiedIds] = useState<Set<string>>(new Set());
+  const notifyAlertItem = async (id: string, name: string) => {
+    setAlertSending(id);
+    try {
+      await notifyQualificationAlert(id);
+      setAlertNotifiedIds(s => new Set(s).add(id));
+      toast.success(`已发送维护提醒「${name}」`);
+    } catch (e: any) {
+      toast.error(e?.message || '发送失败');
+    } finally {
+      setAlertSending(null);
+    }
+  };
   const [loadError, setLoadError] = useState(false); // B13：任一面板加载失败即提示，避免静默空面板
   // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
   const [companyId, setCompanyId] = useState('all');
@@ -602,14 +618,10 @@ export default function SupplierDashboardPage() {
         open={frozenOpen}
         onClose={() => setFrozenOpen(false)}
         title="停用/黑名单供应商"
-        description="已停用或列入黑名单的供应商名单，随当前公司视野过滤"
+        description="已停用或列入黑名单的供应商名单"
         size="lg"
-        footer={
-          <div className="flex w-full items-center gap-2">
-            <span className="flex-1 text-xs text-[var(--muted-foreground)]">恢复供应商、移出黑名单等操作在供应商库进行</span>
-            <Link href="/supplier/repository?status=DISABLED" onClick={() => setFrozenOpen(false)} className="neu-btn-xs">在供应商库查看</Link>
-          </div>
-        }
+        /* 底部操作条已删（2026-11-26 用户裁定）——恢复/移出黑名单走供应商库常规入口 */
+
       >
         {frozenLoading ? (
           <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">正在加载名单…</p>
@@ -620,10 +632,12 @@ export default function SupplierDashboardPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {([['已停用', frozenList.disabled], ['黑名单', frozenList.blacklist]] as [string, Supplier[]][]).map(([label, list]) => (
+            {/* 分色标记（2026-11-26 用户裁定）：停用=警示琥珀、黑名单=危险红；行内补法定代表人与处置原因 */}
+            {(([['已停用', frozenList.disabled, 'var(--warning)'], ['黑名单', frozenList.blacklist, 'var(--danger)']] as [string, Supplier[], string][]).map(([label, list, tone]) => (
               <section key={label} className="flex flex-col gap-2">
-                <h4 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                  {label} <span className="tabular-nums">（{list.length}）</span>
+                <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: tone }} aria-hidden />
+                  {label} <span className="tabular-nums" style={{ color: tone }}>（{list.length}）</span>
                 </h4>
                 {list.length === 0 ? (
                   <p className="text-xs text-[var(--muted-foreground)]/70 px-1">无</p>
@@ -631,19 +645,29 @@ export default function SupplierDashboardPage() {
                   <div className="flex flex-col gap-1.5">
                     {list.map(s => (
                       <Link key={s.id} href={`/supplier/${s.id}`} onClick={() => setFrozenOpen(false)} className="flex items-center gap-3 neu-card-static !rounded-xl !p-3 hover:ring-1 hover:ring-[var(--accent)]/20 transition">
-                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/30 text-[var(--muted-foreground)]">
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in oklch, ${tone} 14%, transparent)`, color: tone }}>
                           <Ban size={13} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold text-[var(--foreground)] truncate">{s.name}</div>
-                          <div className="mt-0.5 text-[10px] font-mono text-[var(--muted-foreground)]/70">{s.companyNo || s.supplierNo} · {normalizeEnterpriseType(s.enterpriseType)}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-[var(--foreground)] truncate">{s.name}</span>
+                            <span className="shrink-0 rounded-[5px] px-1.5 py-0.5 text-[9px] font-bold" style={{ backgroundColor: `color-mix(in oklch, ${tone} 12%, transparent)`, color: tone }}>{label}</span>
+                          </div>
+                          <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]/80">
+                            <span className="font-mono">{s.companyNo || s.supplierNo}</span> · {normalizeEnterpriseType(s.enterpriseType)} · 法定代表人 {s.legalPerson || '—'}
+                          </div>
+                          {s.disableReason?.trim() && (
+                            <div className="mt-1 text-[10px] leading-snug" style={{ color: tone }}>
+                              原因：{s.disableReason.trim()}
+                            </div>
+                          )}
                         </div>
                       </Link>
                     ))}
                   </div>
                 )}
               </section>
-            ))}
+            )))}
           </div>
         )}
       </Modal>
@@ -653,7 +677,7 @@ export default function SupplierDashboardPage() {
         open={approvalOpen}
         onClose={() => setApprovalOpen(false)}
         title="待审核构成"
-        description="在途注册审批按当前审批级罗列，随公司视野过滤"
+        description="在途注册审批按当前审批级罗列"
         size="lg"
         footer={
           <div className="flex w-full items-center gap-2">
@@ -728,12 +752,7 @@ export default function SupplierDashboardPage() {
         title="资质预警明细"
         description={alerts ? `已过期 ${alerts.expiredCount} 项 · 即将过期 ${alerts.expiringCount} 项 · 影响 ${alerts.affectedSupplierCount} 家供应商` : undefined}
         size="lg"
-        footer={
-          <div className="flex w-full items-center gap-2">
-            <span className="flex-1 text-xs text-[var(--muted-foreground)]">发送维护提醒等操作在资质预警页进行</span>
-            <Link href="/supplier/qualification-alerts" onClick={() => setAlertsOpen(false)} className="neu-btn-xs">前往资质预警页</Link>
-          </div>
-        }
+        /* 底部操作条已删（2026-11-26 用户裁定）：发送通知按钮已并入行内，资质预警页删除 */
       >
         {!alerts ? (
           <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">资质到期情况加载中…</p>
@@ -766,6 +785,14 @@ export default function SupplierDashboardPage() {
                               {q.name}（{q.type}）· 到期 {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '—'} · <span className="font-semibold tabular-nums" style={{ color: tone }}>{q.daysRemaining !== null ? `${q.daysRemaining} 天` : '—'}</span>
                             </div>
                           </div>
+                          <button
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); void notifyAlertItem(q.id, q.name); }}
+                            disabled={alertSending === q.id || alertNotifiedIds.has(q.id)}
+                            className="neu-btn-xs shrink-0"
+                            title={alertNotifiedIds.has(q.id) ? '已发送维护提醒，供应商更新资质后移出预警' : '发送维护提醒到供应商门户'}
+                          >
+                            <Send size={11} />{alertSending === q.id ? '发送中' : alertNotifiedIds.has(q.id) ? '已通知' : '发送通知'}
+                          </button>
                         </Link>
                       ))}
                     </div>

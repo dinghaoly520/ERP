@@ -2105,23 +2105,44 @@ function wrapCheckboxCharsInSymbolFont(xml: string): string {
 
     const origRPr = run.match(/<w:rPr[^>]*>[\s\S]*?<\/w:rPr>/)?.[0] ?? '';
 
-    const tMatch = run.match(/<w:t[^>]*>([\s\S]*?)<\/w:t>/);
-    if (!tMatch) continue;
-    const tOpen = tMatch[0].match(/<w:t[^>]*>/)?.[0] ?? '<w:t>';
-    const text = tMatch[1];
+    // 2026-11-26 生产实录修复（SWHI-GK-2026112002）：层级文本替换会把多段 <w:t>+<w:br/>
+    // 塞进同一 <w:r>（\n → </w:t><w:br/><w:t>），旧实现只取首个 <w:t> 重建整 run——
+    // 首个之后的全部行（含 <w:br/>）被静默丢弃（资格条件 609 字只余首行、发布正文
+    // 「三、资格条件」段空心）。改为逐 token（<w:t> 段与 <w:br/>）遍历重建：
+    // 普通文本保持原 rPr，☐/☑ 独立符号字体 run。
+    const inner = run.slice(rTag.length, run.length - '</w:r>'.length);
+    const rPrIdx = origRPr ? inner.indexOf(origRPr) : -1;
+    const body = rPrIdx >= 0 ? inner.slice(rPrIdx + origRPr.length) : inner;
 
-    // Split around checkbox chars (capturing parens keep them in the array)
-    const segments = text.split(/([☐☑])/);
+    const tokens = body.match(/<w:t[^>]*>[\s\S]*?<\/w:t>|<w:br\b[^<>]*\/?>|[\s\S]/g) ?? [];
 
     let rebuilt = '';
-    for (const seg of segments) {
-      if (!seg) continue;
-      if (CHECK.test(seg)) {
-        rebuilt += `<w:r>${SYMBOL_RPR}${tOpen}${seg}</w:t></w:r>`;
-      } else {
-        rebuilt += `${rTag}${origRPr}${tOpen}${seg}</w:t></w:r>`;
+    let normal = '';
+    const flushNormal = () => {
+      if (normal) {
+        rebuilt += `${rTag}${origRPr}${normal}</w:r>`;
+        normal = '';
+      }
+    };
+    for (const tok of tokens) {
+      const tm = tok.match(/^<w:t[^>]*>([\s\S]*)<\/w:t>$/);
+      if (!tm) {
+        normal += tok; // <w:br/> 与杂项保持在普通 run 内
+        continue;
+      }
+      const tOpen = tok.match(/^<w:t[^>]*>/)![0];
+      for (const seg of tm[1].split(/([☐☑])/)) {
+        if (!seg) continue;
+        if (CHECK.test(seg)) {
+          flushNormal();
+          rebuilt += `<w:r>${SYMBOL_RPR}<w:t xml:space="preserve">${seg}</w:t></w:r>`;
+        } else {
+          normal += `${tOpen}${seg}</w:t>`;
+        }
       }
     }
+    flushNormal();
+    if (!rebuilt) continue;
 
     reps.push({ start: m.index, end: m.index + run.length, rebuilt });
   }

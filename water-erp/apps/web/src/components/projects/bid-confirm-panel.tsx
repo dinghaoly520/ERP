@@ -246,13 +246,14 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           return rsvpOk && s.submitted;
         })
         .map(s => s.supplierName);
-      // 专家：正选已确认 + 候补（排除已拒绝）→ 每行 姓名|部门|专业|职称（匹配 ExpertInfoField pipe 格式）
+      // 专家：正选已确认 + 候补（排除已拒绝）→ 每行 姓名|公司|专业|职称（匹配 ExpertInfoField pipe 格式；
+      // 2026-11-26 用户裁定第二列=所属公司：User.company 展示快照优先，无则回退档案工作单位）
       const confirmedExperts = ws.experts
         .filter(e => e.expertRole !== '候补' && e.invitationStatus === 'confirmed')
-        .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|正选`);
+        .map(e => `${e.expertName}|${e.user?.company || e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|正选`);
       const alternateExperts = ws.experts
         .filter(e => e.expertRole === '候补' && e.invitationStatus !== 'declined')
-        .map(e => `${e.expertName}|${e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|候补`);
+        .map(e => `${e.expertName}|${e.user?.company || e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|候补`);
       sync({
         invitedSuppliers: confirmedSuppliers.join('\n'),
         expertInfo: [...confirmedExperts, ...alternateExperts].join('\n'),

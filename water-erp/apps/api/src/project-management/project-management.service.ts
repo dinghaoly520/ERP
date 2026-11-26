@@ -57,6 +57,8 @@ type StoredAttachment = {
   mimeType: string;
   fileSize: number;
   uploadedById?: string;
+  /** 内容指纹（2026-11-26 全项目同文件查重）：persist 时计算随建行落列 */
+  sha256?: string;
 };
 
 const PROJECT_MANAGEMENT_STATUS: Record<
@@ -2093,6 +2095,7 @@ paymentPerformance 要求：提炼 3-6 条要点，涵盖支付方式与比例�
         mimeType: attachment.mimeType,
         fileSize: attachment.fileSize,
         uploadedById: attachment.uploadedById,
+        sha256: attachment.sha256,
       },
     });
 
@@ -3883,7 +3886,15 @@ ${JSON.stringify(algorithmResult, null, 2)}
         const thresholdDefault = project.procurementMethod === '直接采购' ? 1 : 3;
         const threshold = Math.min(Math.max(dto.confirmedThreshold ?? thresholdDefault, 1), 50);
         const roundBpForGate = await this.resolveRoundBidProject(projectId, targetRound, { id: true });
-        const rsvpWhere = roundBpForGate ? { projectId: roundBpForGate.id } : { projectId };
+        // 双 id 空间（2026-11-26 稳健轮）：第 1 轮并集 PMI id——存量/懒建前通知轨的回执行
+        // 落 PMI 空间，原「有 BP 只数 BP」会让这些行在 BP 懒建后隐形、完成闸误拦真实邀请
+        // （读端 analyzeStep 等早已并集）。第 ≥2 轮不并：PMI 空间存量行属首轮纪元，并入会
+        // 破坏分轮隔离（既有 spec 锁定该语义）；无 BP 时仍按 PMI 兜底（原行为）。
+        const rsvpIds = [
+          ...(roundBpForGate ? [roundBpForGate.id] : []),
+          ...((targetRound ?? 1) === 1 || !roundBpForGate ? [projectId] : []),
+        ];
+        const rsvpWhere = { projectId: { in: Array.from(new Set(rsvpIds)) } };
         // 按供应商去重计数（2026-10-23 用户口径：与邀请页「已确认」同源）——同一供应商
         // 跨批次多行只数一次：已回执行优先于 PENDING，均非 PENDING 取 respondedAt 最新
         // （最新回执代表当前意愿）；此前裸 count 行数会把多批次重复数大、与页面显示打架
@@ -4386,7 +4397,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       });
 
       // 基本信息快照兜底回写（此前邀请/专家流程不回写 → 详情页恒"待补充"）：
-      // 专家评审 = BidExpert（正选+候补，User/ExpertProfile 补部门职称）；供应商参与 = 邀请回执名单
+      // 专家评审 = BidExpert（正选+候补，User/ExpertProfile 补公司职称——第二列=User.company
+      // 展示快照、无公司归属回退部门名（2026-11-26 用户裁定，与抽取确认回写同口径））；
+      // 供应商参与 = 邀请回执名单
       try {
         const bpIds = await tx.bidProject.findMany({ where: { projectManagementItemId: projectId }, select: { id: true } });
         const bpIdSet = bpIds.map(b => b.id);
@@ -4396,7 +4409,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (bidExperts.length > 0) {
           const profs = await tx.user.findMany({
             where: { id: { in: bidExperts.map(e => e.userId) } },
-            select: { id: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
+            select: { id: true, company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
           });
           const byId = new Map(profs.map(u => [u.id, u]));
           const expertInfo = bidExperts.map(e => {
@@ -4404,7 +4417,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
             // 字段内换行清杀（2026-10-27 实录）：e.major 多专业串可能带 \n——join('|') 后记录内藏换行，
             // 前端按行拆分即碎成假行；字段内一律折为顿号
             const cell = (v: unknown) => String(v ?? '').replace(/\r?\n+/g, '、').trim();
-            return [cell(e.expertName), cell(u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(e.expertRole)].join('|');
+            return [cell(e.expertName), cell(u?.company || u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(e.expertRole)].join('|');
           }).join('\n');
           await tx.projectManagementItem.update({ where: { id: projectId }, data: { expertInfo } });
         }
@@ -7542,6 +7555,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
       mimeType: file.mimetype,
       fileSize: file.size,
       uploadedById,
+      sha256: createHash('sha256').update(file.buffer).digest('hex'),
     } satisfies StoredAttachment;
 
     // 双轨制（2026-11-20）：本地主轨写成功后 best-effort 落 MinIO 副本，失败不阻断
@@ -7608,6 +7622,79 @@ ${JSON.stringify(algorithmResult, null, 2)}
       .sort((a, b) => b.usageCount - a.usageCount);
 
     return result;
+  }
+
+  /** 全项目同文件查重（2026-11-26 用户需求）：按内容 sha256 比对本项目已上传的全部附件
+   *  （跨步骤/轮次，非仅名称相同）。新上传行建行时已落指纹；存量行懒回填（本地主轨→
+   *  MinIO 副本物化后计算，回填失败/文件缺失跳过——无法核验不当重复）。只读，不动可变性。 */
+  async checkDuplicateAttachments(
+    projectId: string,
+    sha256s: string[],
+  ): Promise<
+    Array<{
+      sha256: string;
+      duplicates: Array<{
+        id: string;
+        fileName: string;
+        stageKey: string | null;
+        stageName: string | null;
+        round: number | null;
+        createdAt: Date;
+      }>;
+    }>
+  > {
+    const attachments = await this.prisma.attachment.findMany({
+      where: {
+        OR: [
+          { projectManagementItemId: projectId },
+          { projectManagementStage: { projectManagementItemId: projectId } },
+        ],
+      },
+      select: {
+        id: true,
+        fileName: true,
+        objectKey: true,
+        sha256: true,
+        createdAt: true,
+        projectManagementStage: { select: { stageKey: true, stageName: true, round: true } },
+      },
+    });
+    const wanted = new Set(sha256s);
+    const byHash = new Map<
+      string,
+      Array<{ id: string; fileName: string; stageKey: string | null; stageName: string | null; round: number | null; createdAt: Date }>
+    >();
+    for (const a of attachments) {
+      let hash = a.sha256;
+      if (!hash) {
+        // 懒回填：物化文件后流式计算指纹并落列（流式——500MB 上限件不整读进内存）；
+        // 任一步失败跳过该行（不视为重复）
+        const local = await this.ensureAttachmentLocal(a.objectKey).catch(() => null);
+        if (!local) continue;
+        try {
+          const digest = createHash('sha256');
+          for await (const chunk of createReadStream(local)) digest.update(chunk as Buffer);
+          hash = digest.digest('hex');
+        } catch {
+          continue;
+        }
+        await this.prisma.attachment
+          .update({ where: { id: a.id }, data: { sha256: hash } })
+          .catch(() => undefined);
+      }
+      if (!hash || !wanted.has(hash)) continue;
+      const list = byHash.get(hash) ?? [];
+      list.push({
+        id: a.id,
+        fileName: a.fileName,
+        stageKey: a.projectManagementStage?.stageKey ?? null,
+        stageName: a.projectManagementStage?.stageName ?? null,
+        round: a.projectManagementStage?.round ?? null,
+        createdAt: a.createdAt,
+      });
+      byHash.set(hash, list);
+    }
+    return sha256s.map((s) => ({ sha256: s, duplicates: byHash.get(s) ?? [] }));
   }
 
   /** 获取 DOCX 附件中所有段落的文本结构（供编辑器分段落展示，含 HTML 保留格式）。 */
@@ -8000,6 +8087,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         mimeType: persistResult.attachment.mimeType,
         fileSize: persistResult.attachment.fileSize,
         uploadedById: persistResult.attachment.uploadedById,
+        sha256: persistResult.attachment.sha256,
       },
     });
 

@@ -76,6 +76,10 @@ function getArchiveStepStatusLabel(state: ArchiveStepState) {
   }
 }
 
+/** 发采购/招标公告的采购方式——重开等回退动作的「公告一致性」警示仅对这些方式有意义；
+ *  谈判采购/直接采购不发公告（邀请书替代公告位，2026-11-26 用户实录收紧）。 */
+const ANNOUNCEMENT_METHODS = new Set(['公开招标', '邀请招标', '询比采购', '竞价采购']);
+
 // 阶段快捷操作标签
 const STAGE_ACTION_LABELS: Record<string, string> = {
   PROCUREMENT_DEMAND: '采购需求编制',
@@ -552,9 +556,13 @@ export function ProjectStageTimeline({
               style={{ background: 'color-mix(in oklch, var(--success) 7%, transparent)' }}>
               <span className="font-semibold text-[color:var(--success)]">保留内容：</span>已上传的文件、文件分析与步骤检查的结果均会保留，不会删除。
             </div>
-            {/* U2（2026-11-23）：重开联动提示——该轮已关联 BP（公告多半已公示）时，公告↔采购文件
-                一致性风险随重开产生，用户应在确认前看到而非事后补课。 */}
-            {roundHasBidProject?.(reopenTarget.round ?? 1) && (
+            {/* U2（2026-11-23）：重开联动提示——该轮已关联 BP 且采购方式发公告（公告多半已
+                公示）时，公告↔采购文件一致性风险随重开产生，用户应在确认前看到而非事后补课。
+                2026-11-26 收紧：谈判采购/直接采购不发采购公告（邀请书替代公告位），BP 由
+                ensure 懒建即关联——原按「有关联 BP」一刀切提示，对这两种方式是无中生有的
+                公告警示；仅对发公告的四方式提示。 */}
+            {roundHasBidProject?.(reopenTarget.round ?? 1)
+              && ANNOUNCEMENT_METHODS.has(roundMethods?.[reopenTarget.round ?? 1] ?? '') && (
               <div className="rounded-[10px] px-3.5 py-2.5 text-[12px] leading-relaxed text-[color:var(--danger)] mb-4"
                 style={{ background: 'color-mix(in oklch, var(--danger) 8%, transparent)' }}>
                 <span className="font-semibold">该轮已关联开评标项目（采购公告可能已公示）</span>——重开后请核查公告与采购文件的一致性，并同步相关方。

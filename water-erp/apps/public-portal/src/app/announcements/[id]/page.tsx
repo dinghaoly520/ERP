@@ -134,6 +134,9 @@ export default function AnnouncementDetailPage() {
                 // 区间/止点为已格式化中文串——直出原文，不走日期解析（date 标记会判 NaN 成「待定」）
                 const raw = meta.downloadPeriod ?? meta.downloadDeadline;
                 value = raw == null ? '' : String(raw);
+              } else if (f.key === 'publicityPeriod') {
+                // 归时间节点组（2026-11-26）但值为向导格式化文本——直出防「待定」
+                value = String(meta.publicityPeriod ?? '');
               } else if (f.key === 'downloadMode') {
                 const v = String(meta.downloadMode ?? '');
                 value = v === 'encrypted' ? '解密下载' : v === 'paid' ? '付费下载' : '免费下载';

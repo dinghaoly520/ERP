@@ -111,12 +111,15 @@ const TYPE_META: Record<AnnouncementType, MetaField[]> = {
   // 系统生成类：字段与发布向导写入的 canonical meta / 公告草稿键对齐
   FAILED_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
-    { key: 'openTime', label: '开标时间', date: true }, { key: 'resultInfo', label: '流标原因', area: true },
+    { key: 'openTime', label: '开标时间', date: true },
+    { key: 'publicityPeriod', label: '公示期限', date: true }, // 归时间节点组（2026-11-26 二次裁定）；值为向导格式化文本，渲染直出不走日期解析
+    { key: 'resultInfo', label: '流标原因', area: true },
   ],
   WIN_BID_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'method', label: '采购方式' }, { key: 'budget', label: '最高限价' },
     { key: 'openTime', label: '开标时间', date: true }, { key: 'bidder1Name', label: '中标供应商' }, { key: 'bidder1Price', label: '中标价格' },
     { key: 'remark', label: '备注' },
+    { key: 'publicityPeriod', label: '公示期限', date: true }, // 2026-11-26 三门户对齐；值为格式化文本直出（渲染特判）
   ],
   CHANGE_NOTICE: [
     { key: 'projectCode', label: '项目编号' }, { key: 'changeRound', label: '变更轮次' },
@@ -327,8 +330,8 @@ function renderMeta(ann: AnnouncementListItem) {
                   : (raw.supplierName ?? raw.name ?? JSON.stringify(raw));
               }
               let display = raw;
-              if (f.date && raw && f.key !== 'downloadDeadline') {
-                // downloadDeadline 的值是已格式化中文区间串——直出不走日期解析（防「待定」）
+              if (f.date && raw && f.key !== 'downloadDeadline' && f.key !== 'publicityPeriod') {
+                // downloadDeadline/publicityPeriod 的值是已格式化中文串——直出不走日期解析（防「待定」）
                 const parsed = new Date(raw);
                 display = Number.isNaN(parsed.getTime())
                   ? "待定"

@@ -36,7 +36,8 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
     // 采购内容/范围、投标人资格要求不在顶部平铺（正文已载同文，2026-11-23 用户裁定；与采购管理工作台一致）
   ],
   ADDENDUM: [
-    { key: "projectCode", label: "项目编号" }, { key: "changes", label: "澄清/修改内容", area: true },
+    { key: "projectCode", label: "项目编号" }, { key: "relatedAnnouncementTitle", label: "关联采购公告" },
+    { key: "changes", label: "澄清/修改内容", area: true },
     { key: "newOpenTime", label: "调整后开标时间", date: true },
     { key: "newDeadline", label: "调整后递交截止", date: true },
   ],
@@ -55,11 +56,36 @@ const ANNO_TYPE_META: Record<string, MetaField[]> = {
   ],
   // 2026-11-06：公示期限起止选择落地——中标/流标公告公示期芯片（期限内显示内容，期满转标题壳）
   WIN_BID_NOTICE: [
-    { key: "projectCode", label: "项目编号" }, { key: "bidder1Name", label: "中标供应商" }, { key: "bidder1Price", label: "中标价格" },
-    { key: "publicityPeriod", label: "公示期" },
+    { key: "projectCode", label: "项目编号" },
+    // 2026-11-26 用户裁定：三门户关键信息对齐——补 采购方式/最高限价/开标时间/备注
+    { key: "method", label: "采购方式" }, { key: "budget", label: "最高限价" },
+    { key: "openTime", label: "开标时间", date: true },
+    { key: "bidder1Name", label: "中标供应商" }, { key: "bidder1Price", label: "中标价格" },
+    { key: "remark", label: "备注" },
+    { key: "publicityPeriod", label: "公示期限", date: true }, // 值为格式化文本，渲染直出（见 publicityPeriod 特判）
+  ],
+  // 2026-11-26 用户裁定：三门户关键信息对齐——合同/履约/变更/澄清四类补齐（与 :3005 同表）
+  CONTRACT_NOTICE: [
+    { key: "projectCode", label: "项目编号" }, { key: "contractCode", label: "合同编号" }, { key: "supplierName", label: "成交供应商" },
+    { key: "amount", label: "合同价款" }, { key: "signedAt", label: "签约时间", date: true },
+  ],
+  PERFORMANCE_NOTICE: [
+    { key: "projectCode", label: "项目编号" }, { key: "supplierName", label: "成交供应商" }, { key: "result", label: "履行结果" },
+  ],
+  CHANGE_NOTICE: [
+    { key: "projectCode", label: "项目编号" }, { key: "changeRound", label: "变更轮次" },
+    { key: "sourceAnnouncement", label: "原采购公告" },
+    { key: "changeReason", label: "变更理由", area: true },
+  ],
+  CLARIFY_NOTICE: [
+    { key: "projectCode", label: "项目编号" },
   ],
   FAILED_BID_NOTICE: [
-    { key: "projectCode", label: "项目编号" }, { key: "publicityPeriod", label: "公示期" },
+    { key: "projectCode", label: "项目编号" },
+    // 2026-11-26 用户裁定：流标公告关键信息展示 采购方式/最高限价/开标时间/公示期限
+    { key: "method", label: "采购方式" }, { key: "budget", label: "最高限价" },
+    { key: "openTime", label: "开标时间", date: true },
+    { key: "publicityPeriod", label: "公示期限", date: true }, // 归时间节点组；值为格式化文本直出（见下渲染特判）
   ],
   WIN_NOTICE: [
     { key: "projectCode", label: "项目编号" }, { key: "winner", label: "中标供应商" }, { key: "amount", label: "中标金额" },
@@ -254,6 +280,10 @@ export default function AnnouncementDetailPage() {
                         // 直出原文——不走 fmtMeta 日期解析（date 标记会把它判 NaN 成「待定」）
                         const raw = metaFields.meta.downloadPeriod ?? metaFields.meta.downloadDeadline;
                         return raw == null ? "" : String(raw);
+                      }
+                      if (f.key === 'publicityPeriod') {
+                        // 归时间节点组（2026-11-26）但值为向导格式化文本——直出防「待定」
+                        return String(metaFields.meta.publicityPeriod ?? "");
                       }
                       if (f.key === 'downloadMode') {
                         const v = String(metaFields.meta.downloadMode ?? "");

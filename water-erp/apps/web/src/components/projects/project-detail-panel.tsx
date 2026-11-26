@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Archive, Award, Ban, Building2, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3, Wand2 } from 'lucide-react';
+import { AlertTriangle, Archive, Award, Ban, Building2, CalendarClock, Check, ChevronDown, Crown, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileCheck2, FileText, FileWarning, Gavel, ListChecks, Loader2, Megaphone, Paperclip, Pencil, RefreshCw, Save, ScrollText, Search, Shield, UploadCloud, UserPlus, X, Clock3, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -18,12 +18,15 @@ import {
   updateProjectStage,
   updateProjectExtractedInfo,
   uploadProjectStageAttachment,
+  checkAttachmentDuplicates,
+  type AttachmentDuplicateMatch,
   optimizeInitiationFields,
   polishInitiationField,
   fetchProjectManagementList,
   type ExtractedInfo,
   type UploadStageAttachmentResult,
 } from '@/lib/api/project-management';
+import { sha256File } from '@/lib/sha256-file';
 import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
 import { isPassFailCategory } from '@water-erp/shared';
 import { getProjectParticipants } from '@/lib/api/announcement';
@@ -53,10 +56,7 @@ import { TenderWriteModal } from './tender-write-modal';
 import { DirectFilingDialog } from './direct-filing-dialog';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { UploadProgressList } from '../upload/upload-progress-list';
-import { WaterBar } from '../upload/water-bar';
 import { useFileUploads } from '@/lib/upload/use-file-uploads';
-import { useCountUp } from '@/lib/upload/use-count-up';
-import { formatSpeed } from '@/lib/upload/format';
 import { ExpertExtractModal } from './expert-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
@@ -66,7 +66,7 @@ import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { ScoreStandardCard } from './score-standard-card';
 import { OfficialTenderWizard } from './official-tender-wizard';
-import { Modal, StatusBadge, NeuSelect } from '@/components/workbench';
+import { Modal, StatusBadge, NeuSelect , DatetimeInput } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { syncConfirmThresholdFromServer } from '@/lib/supplier-confirm-threshold';
@@ -271,12 +271,17 @@ export function ProjectDetailPanel({
     },
   });
   const uploading = stageUploads.running;
-  const uploadPctAnim = useCountUp(stageUploads.aggregate.pct);
-  const uploadSpeedText = formatSpeed(stageUploads.aggregate.speedBps);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  // 同文件查重确认（2026-11-26 用户需求）：内容 sha256 命中已上传附件时先弹确认——
+  // 提示核对所属步骤；确认才继续上传。ctx 快照防确认期间切换步骤错挂
+  const [dupConfirm, setDupConfirm] = useState<{
+    files: File[];
+    ctx: { stageKey: ProjectWorkflowStageKey; round: number };
+    matches: Array<{ file: File; duplicates: AttachmentDuplicateMatch[] }>;
+  } | null>(null);
   const [analysis, setAnalysis] = useState<ProjectDetailAnalysis | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(true);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -816,6 +821,11 @@ export function ProjectDetailPanel({
   const [directFilesNote, setDirectFilesNote] = useState('');
   const [directCompleting, setDirectCompleting] = useState(false);
   const [directPolishing, setDirectPolishing] = useState(false);
+  /** 开标时间选择器下限（弹窗打开时重算；render 期禁不纯调用） */
+  const directOpeningMin = useMemo(
+    () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16),
+    [directConfirmStage],
+  );
 
   /** 项目概况 AI 优化：基于当前内容润色（polishInitiationField projectOverview 轨） */
   const polishDirectOverview = async () => {
@@ -941,6 +951,12 @@ export function ProjectDetailPanel({
     }
   };
 
+  const startUploadQueue = (files: File[], ctx: { stageKey: ProjectWorkflowStageKey; round: number }) => {
+    setErrorMessage(null);
+    uploadCtxRef.current = ctx;
+    stageUploads.start(files);
+  };
+
   const uploadStageFiles = () => {
     if (actionsDisabled) return; // 只读（归档/终止/非创建人）
     if (isPastRound) { toast.warning('该步骤属已完成的历史轮次，仅供查看'); return; }
@@ -955,11 +971,29 @@ export function ProjectDetailPanel({
       return;
     }
 
-    // 队列接管（2026-11-06）：字节进度/取消/逐文件重试在 stageUploads；
-    // 失败不中断队列，onEachDone 注入附件与提取信息，onAllSettled 收尾进分析
-    setErrorMessage(null);
-    uploadCtxRef.current = { stageKey: selectedStage.stageKey, round: selectedStage.round ?? 1 };
-    stageUploads.start(selectedFiles);
+    const ctx = { stageKey: selectedStage.stageKey, round: selectedStage.round ?? 1 };
+
+    // 同文件查重（2026-11-26 用户需求）：与本项目已上传的全部文件按内容 sha256 比对
+    // （非名称相同）——命中先弹确认框（提示核对所属步骤），确认后才入队；查重链路
+    // 失败降级为不查（不阻断上传）
+    void (async () => {
+      try {
+        const hashes = await Promise.all(selectedFiles.map((f) => sha256File(f)));
+        const results = await checkAttachmentDuplicates(item.id, hashes);
+        const matches = selectedFiles
+          .map((file, i) => ({ file, duplicates: results[i]?.duplicates ?? [] }))
+          .filter((m) => m.duplicates.length > 0);
+        if (matches.length > 0) {
+          setDupConfirm({ files: selectedFiles, ctx, matches });
+          return;
+        }
+      } catch {
+        // 降级：查重不可用时按原流程直传
+      }
+      // 队列接管（2026-11-06）：字节进度/取消/逐文件重试在 stageUploads；
+      // 失败不中断队列，onEachDone 注入附件与提取信息，onAllSettled 收尾进分析
+      startUploadQueue(selectedFiles, ctx);
+    })();
   };
 
   // 阶段/轮次/项目切换清理上传行（spec §5.3：行列表保留至用户切换步骤）；
@@ -1837,7 +1871,7 @@ export function ProjectDetailPanel({
                     <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <input type="datetime-local" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
+                        <DatetimeInput value={editValues.bidOpeningTime} onChange={(v) => setEditValues((prev) => ({ ...prev, bidOpeningTime: v }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('bidOpeningTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : isPastRound ? (
@@ -2080,40 +2114,19 @@ export function ProjectDetailPanel({
                 {isPastRound ? '该步骤属已完成的历史轮次，仅供查看。' : stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
               </p>
 
-              {/* 上传/分析进度条 — sticky 固定，始终可见（2026-11-06：上传相位升级为
-                  水波流光聚合条——总百分比=Σ字节，速度滑动窗，可取消；分析相位不变） */}
-              {(uploading || analysisLoading) && (
+              {/* 分析相位提示条 — sticky 固定（2026-11-26 用户裁定：删除上传相位聚合条——
+                  与上传区内的每文件进度行重复；上传进度统一走 UploadProgressList 全局设计，
+                  取消按钮移至操作行。上传期间不显示分析提示，防误导） */}
+              {analysisLoading && !uploading && (
                 <div className="sticky top-0 z-10 -mx-5 px-5 py-2 mb-1"
                   style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.95), oklch(0.98 0.003 258 / 0.8))', borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
-                  {uploading ? (
-                    <div className="flex items-center gap-3">
-                      <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">
-                            正在上传 {stageUploads.aggregate.doneCount + stageUploads.aggregate.failedCount} / {stageUploads.items.length}
-                            {' · '}
-                            <span className="font-mono tabular-nums">{uploadPctAnim}%</span>
-                            {uploadSpeedText && (
-                              <span className="font-mono tabular-nums text-[color:var(--muted-foreground)]"> · {uploadSpeedText}</span>
-                            )}
-                          </span>
-                          <button type="button" className="neu-btn-soft ml-auto shrink-0 !px-3 !py-1 !text-[11px]" onClick={stageUploads.cancel}>
-                            <X size={11} /> 取消
-                          </button>
-                        </div>
-                        <WaterBar pct={stageUploads.aggregate.pct} state="uploading" />
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">正在智能分析文件内容…</span>
+                      <span className="text-[10px] text-[color:var(--muted-foreground)]">AI 正在识别文件类型与内容，分析完成后即可确认阶段完成</span>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">正在智能分析文件内容…</span>
-                        <span className="text-[10px] text-[color:var(--muted-foreground)]">AI 正在识别文件类型与内容，分析完成后即可确认阶段完成</span>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -2210,6 +2223,10 @@ export function ProjectDetailPanel({
                   <button type="button" onClick={() => void uploadStageFiles()} disabled={uploading || selectedFiles.length === 0 || stageLocked} className="neu-btn-primary">
                     {uploading ? (<><Loader2 size={15} className="animate-spin" />上传中…</>) : (<><UploadCloud size={15} />{selectedStage.status === 'COMPLETED' ? '补充材料' : '上传所选文件'}</>)}
                   </button>
+                  {uploading && (
+                    /* 取消上传（2026-11-26 随聚合条移入操作行）：中止队列，已传完成的文件保留 */
+                    <button type="button" onClick={stageUploads.cancel} className="neu-btn-soft !px-3 !py-1.5 !text-[11px]"><X size={12} />取消上传</button>
+                  )}
                   <button type="button" onClick={() => void markStageCompleted(selectedStage)} disabled={!canCompleteStage || submitting} className="neu-btn-primary is-success">
                     {submitting ? (<><Loader2 size={15} className="animate-spin" />提交中…</>) : selectedStage.status === 'COMPLETED' ? (<><CheckCircle2 size={15} />已完成</>) : stageProcessing ? (<><Loader2 size={15} className="animate-spin opacity-50" />等待分析完成…</>) : isSupplementStage ? (<><CheckCircle2 size={15} />补录完成</>) : (<><CheckCircle2 size={15} />标记本阶段完成</>)}
                   </button>
@@ -2338,6 +2355,62 @@ export function ProjectDetailPanel({
 
       {/* 时间轴弹窗（2026-11-13）：按钮入口在标题栏项目终止左侧 */}
       <ProjectTimelineDialog open={timelineOpen} onClose={() => setTimelineOpen(false)} pmiId={item.id} refreshKey={timelineVersion} />
+
+      {/* 同文件查重确认（2026-11-26 用户需求）：内容 sha256 命中已上传附件——
+          提示核对所属步骤并上传至对应步骤，确认后才继续 */}
+      {dupConfirm && (
+        <Modal
+          open
+          onClose={() => setDupConfirm(null)}
+          title={
+            <span className="flex items-center gap-2">
+              <span className="neu-icon-well inline-flex h-7 w-7 items-center justify-center rounded-[9px]"><FileWarning size={14} strokeWidth={1.9} className="text-[var(--warning)]" /></span>
+              存在内容完全相同的文件
+            </span>
+          }
+          description={<span>按文件内容比对（并非仅名称相同），以下文件已在本项目中上传过</span>}
+          size="md"
+          footer={
+            <>
+              <button type="button" onClick={() => setDupConfirm(null)} className="neu-btn-soft !h-9 !text-xs">取消上传</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const d = dupConfirm;
+                  setDupConfirm(null);
+                  startUploadQueue(d.files, d.ctx);
+                }}
+                className="neu-btn-soft is-danger !h-9 !text-xs"
+              >
+                仍要上传
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <div className="rounded-[12px] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3 text-xs leading-5 text-[var(--foreground)]">
+              建议先确认这些文件所属的步骤，并上传至对应步骤中；确认内容确属需要在本步骤再次上传时，再点击「仍要上传」。
+            </div>
+            <div className="space-y-2">
+              {dupConfirm.matches.map(({ file, duplicates }, i) => (
+                <div key={i} className="rounded-[10px] border border-[oklch(0.78_0.03_258/0.45)] px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[var(--foreground)]">
+                    <Paperclip size={12} className="shrink-0 text-[var(--muted-foreground)]" />
+                    <span className="truncate">{file.name}</span>
+                  </div>
+                  <div className="mt-1 space-y-0.5">
+                    {duplicates.map((d) => (
+                      <div key={d.id} className="text-xs text-[var(--muted-foreground)]">
+                        与「{d.stageName ?? d.stageKey ?? '项目附件'}{d.round && d.round > 1 ? `（第 ${d.round} 轮）` : ''}」步骤的《{d.fileName}》内容完全相同
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* 项目终止对话框：填终止原因，快照当前步骤与已有资料 */}
       {terminateOpen && (
@@ -2746,13 +2819,23 @@ export function ProjectDetailPanel({
                 />
               </div>
               <div>
-                <div className="mb-1.5 text-xs font-semibold text-[var(--muted-foreground)]">开标时间</div>
-                <input
-                  type="datetime-local"
-                  value={directOpeningTime}
-                  onChange={(e) => setDirectOpeningTime(e.target.value)}
-                  className="workbench-input w-full text-sm"
-                />
+                {/* 开标时间选择器（2026-11-26 用户裁定：与延时开标弹窗同设计）——
+                    bc-decision-box 单行：图标+标签+无边框透明选择器+右侧当前值参考 */}
+                <div className="bc-decision-box flex flex-nowrap items-center gap-2.5 rounded-[12px] px-3.5 py-2">
+                  <CalendarClock size={14} className="shrink-0 text-[var(--accent)]" />
+                  <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">开标时间</span>
+                  <DatetimeInput
+                    className="workbench-input workbench-input-sm !h-8 !w-auto !border-0 !shadow-none !bg-transparent !px-1.5"
+                    value={directOpeningTime}
+                    min={directOpeningMin}
+                    onChange={setDirectOpeningTime}
+                  />
+                  {item.bidOpeningTime ? (
+                    <span className="ml-auto min-w-0 shrink-0 truncate text-[11px] tabular-nums text-[var(--muted-foreground)]">
+                      当前 <span className="font-semibold text-[var(--foreground)]">{item.bidOpeningTime}</span>
+                    </span>
+                  ) : null}
+                </div>
               </div>
               {/* 「采购文件获取时间」栏已删（2026-11-20 用户裁定）：字段整体退役 */}
             </div>
