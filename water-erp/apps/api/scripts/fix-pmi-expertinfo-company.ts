@@ -23,7 +23,7 @@ async function rebuildExpertInfo(pmiId: string): Promise<string | null> {
   const bidExperts = bpIdSet.length > 0
     ? await prisma.bidExpert.findMany({
         where: { projectId: { in: bpIdSet } },
-        orderBy: [{ expertRole: 'asc' }, { createdAt: 'asc' }],
+        orderBy: [{ createdAt: 'asc' }],
         select: {
           expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
           user: { select: { company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } } },
@@ -31,7 +31,10 @@ async function rebuildExpertInfo(pmiId: string): Promise<string | null> {
       })
     : [];
   if (bidExperts.length === 0) return null;
-  return bidExperts
+  // 名单顺序（2026-11-26 用户裁定：组长第一、正选在前、候补在后）——与抽取确认回写同口径
+  const rank = (e: (typeof bidExperts)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
+  const ordered = [...bidExperts].sort((a, b) => rank(a) - rank(b));
+  return ordered
     .map((e) => [
       flat(e.expertName),
       flat(e.user?.company || e.user?.department?.name),
@@ -59,11 +62,13 @@ async function main() {
       const oldLines = String(item.expertInfo).split('\n');
       const newLines = rebuilt.split('\n');
       for (let i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
-        if (oldLines[i] !== newLines[i]) {
-          const o = String(oldLines[i] ?? '').split('|')[1] ?? '(无)';
-          const n = String(newLines[i] ?? '').split('|')[1] ?? '(无)';
-          console.log(`    ${String(oldLines[i] ?? '').split('|')[0]}: ${o} → ${n}`);
-        }
+        const o = String(oldLines[i] ?? '');
+        const n = String(newLines[i] ?? '');
+        if (o === n) continue;
+        const sameName = o.split('|')[0] === n.split('|')[0];
+        console.log(sameName
+          ? `    ${o.split('|')[0]}: ${o.split('|')[1] ?? '(无)'} → ${n.split('|')[1] ?? '(无)'}`
+          : `    第${i + 1}行 [旧] ${o}\n         [新] ${n}`);
       }
     } else {
       await prisma.projectManagementItem.update({ where: { id: item.id }, data: { expertInfo: rebuilt } });

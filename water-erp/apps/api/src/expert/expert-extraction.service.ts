@@ -682,12 +682,17 @@ export class ExpertExtractionService {
       if (pmiId) {
         const roster = await this.prisma.bidExpert.findMany({
           where: { projectId },
+          orderBy: [{ createdAt: 'asc' }],
           select: {
             expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
             user: { select: { company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } } },
           },
         });
         if (roster.length > 0) {
+          // 名单顺序（2026-11-26 用户裁定：组长第一、正选在前、候补在后）——DB 对中文
+          // expertRole 的 collation 排序不可控，取数后显式定序；稳定排序保留组内 createdAt 先后
+          const rank = (e: (typeof roster)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
+          roster.sort((a, b) => rank(a) - rank(b));
           // 字段内换行净化（2026-10-29 实录：库内 major 存在「水利电力工程\n(…)」多行值）——
           // pipe 格式以换行分人，字段内换行会把一行拆成两行、角色列错位成姓名
           const flat = (v: string | null | undefined) => (v ?? '').replace(/[\r\n]+/g, ' ').trim();

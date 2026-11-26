@@ -4404,20 +4404,25 @@ ${JSON.stringify(algorithmResult, null, 2)}
         const bpIds = await tx.bidProject.findMany({ where: { projectManagementItemId: projectId }, select: { id: true } });
         const bpIdSet = bpIds.map(b => b.id);
         const bidExperts = bpIdSet.length > 0
-          ? await tx.bidExpert.findMany({ where: { projectId: { in: bpIdSet } }, orderBy: [{ expertRole: 'asc' }, { createdAt: 'asc' }], select: { userId: true, expertName: true, major: true, expertRole: true } })
+          ? await tx.bidExpert.findMany({ where: { projectId: { in: bpIdSet } }, orderBy: [{ createdAt: 'asc' }], select: { userId: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true } })
           : [];
         if (bidExperts.length > 0) {
+          // 名单顺序与角色口径与抽取确认回写同款（2026-11-26 用户裁定：组长第一、正选在前、
+          // 候补在后；需求方代表/组长标记从持久化列推导——此前写 raw expertRole，与抽取端不一致）
+          const rank = (e: (typeof bidExperts)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
+          const orderedExperts = [...bidExperts].sort((a, b) => rank(a) - rank(b));
           const profs = await tx.user.findMany({
             where: { id: { in: bidExperts.map(e => e.userId) } },
             select: { id: true, company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
           });
           const byId = new Map(profs.map(u => [u.id, u]));
-          const expertInfo = bidExperts.map(e => {
+          const expertInfo = orderedExperts.map(e => {
             const u = byId.get(e.userId);
             // 字段内换行清杀（2026-10-27 实录）：e.major 多专业串可能带 \n——join('|') 后记录内藏换行，
             // 前端按行拆分即碎成假行；字段内一律折为顿号
             const cell = (v: unknown) => String(v ?? '').replace(/\r?\n+/g, '、').trim();
-            return [cell(e.expertName), cell(u?.company || u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(e.expertRole)].join('|');
+            const role = e.isPurchaserRepresentative ? '需求方代表' : e.expertRole === '候补' ? '候补' : e.isLead ? '正选·组长' : '正选';
+            return [cell(e.expertName), cell(u?.company || u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(role)].join('|');
           }).join('\n');
           await tx.projectManagementItem.update({ where: { id: projectId }, data: { expertInfo } });
         }
