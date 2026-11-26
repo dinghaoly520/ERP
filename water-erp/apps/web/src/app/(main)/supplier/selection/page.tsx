@@ -575,6 +575,17 @@ export function SupplierSelectionPage({
   // 硬性条件词表（行业=库内公司视野聚合+家数、资质=后端字典）；失败给空词表（UI 显示空态，不阻塞向导）
   useEffect(() => { if (!sessionRestored || hardVocab) return; getHardConditionVocab().then(setHardVocab).catch(() => setHardVocab({ industries: [], qualifications: [] })); }, [sessionRestored, hardVocab]);
 
+  // 换项目重解析（2026-11-26 SWHI-ZJ-2026112602 实录）：弹窗复用同一组件实例切换项目时，
+  // 上一项目解析出的 BidProject id 会残留——代确认/代变更带着旧项目的 BP id 落库，
+  // 表现为「界面已确认、本项目回执 0/0、完成闸拒绝」。入口项目一变即清空待重解析。
+  const resolvedForPmiRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!project?.id) return;
+    if (resolvedForPmiRef.current !== project.id) {
+      resolvedForPmiRef.current = project.id;
+      setProjectId('');
+    }
+  }, [project?.id]);
   // 从项目管理弹窗进入时自动将 projectId 解析为 BidProject id（规范 id 空间，rsvp 行创建/读取
   // 与开标确认面板一致）；严格匹配落空（新项目无开评标记录）走 ensureBidProject 创建本轮——留空会
   // 让第四步把 PMI id 当 BidProject id 用（update 静默失败）。
@@ -637,12 +648,12 @@ export function SupplierSelectionPage({
           }
         }
         // 2026-09-10 防御：持久化的 projectId 可能是旧会话误挂的同名旧轮——
-        // 有关联项目且列表已加载时校验归属，不符则丢弃（交由解析 effect 重新 ensure 本轮）；
-        // 列表未加载（首帧竞态）不过滤，避免误杀正确值
-        if (state.projectId) {
-          const canVerify = !!project?.id && projects.length > 0;
-          const belongs = !canVerify
-            || projects.some((p) => p.id === state.projectId && p.projectManagementItemId === project.id)
+        // 有关联项目且列表已加载时校验归属，不符则丢弃（交由解析 effect 重新 ensure 本轮）。
+        // 2026-11-26 收紧：列表未加载（首帧竞态）原样放行的口子封死——被污染的快照
+        // （2601 的 BP id 存进 2602 桶）恰从此过；不放行也无损，解析 effect 的
+        // getPmBidProject(ensure) 恒补出本项目本轮正确 BP
+        if (state.projectId && !!project?.id && projects.length > 0) {
+          const belongs = projects.some((p) => p.id === state.projectId && p.projectManagementItemId === project.id)
             || !projects.some((p) => p.id === state.projectId); // 恢复值不在列表（新轮未刷新）也放行
           if (belongs) setProjectId(state.projectId);
         }
