@@ -2039,9 +2039,13 @@ export function SupplierSelectionPage({
   // 同步 RSVP 回执到 confirmations/rerunConfirmations：
   // 缺失的条目补上，pending 的条目覆盖；已手动设为 confirmed/declined 的不覆盖。
   // 正选只写 confirmations，补选只写 rerunConfirmations——避免 allSupplierStatuses 合并时 stale 历史 Map 覆盖正确值。
+  // 对账（2026-11-26 跨项目代确认实录）：名单内供应商在服务端无回执行时，本地非 pending
+  // 状态必为脏值（自答/代确认都会落行；无行=没发生过——典型即代确认写到了别的项目名下，
+  // 本地乐观值残留）→ 归 pending。空列表同样对账（原空列表直接 return 放过脏值）。
   const rerunSids = useMemo(() => new Set([...rerunShortlist.keys(), ...previousRerunShortlist.keys()]), [rerunShortlist, previousRerunShortlist]);
   useEffect(() => {
-    if (!filteredRsvp?.items?.length) return;
+    if (!filteredRsvp) return; // null=未加载不碰；已加载（含空）即对账
+    const serverSids = new Set(filteredRsvp.items.map(it => it.supplierId));
     const syncFor = (prev: Map<string, 'pending' | 'confirmed' | 'declined'>, sidFilter: Set<string>) => {
       const n = new Map(prev);
       for (const item of filteredRsvp.items) {
@@ -2051,13 +2055,18 @@ export function SupplierSelectionPage({
           n.set(item.supplierId, rsvpStatus);
         }
       }
+      for (const sid of sidFilter) {
+        if (!serverSids.has(sid) && n.get(sid) !== 'pending' && n.get(sid) !== undefined) {
+          n.set(sid, 'pending');
+        }
+      }
       return n;
     };
     // 正选 confirmations：RSVP sync 只针对非补选供应商
-    setConfirmations(prev => syncFor(prev, new Set(filteredRsvp.items.map(it => it.supplierId).filter(id => !rerunSids.has(id)))));
+    setConfirmations(prev => syncFor(prev, new Set([...shortlist.keys()].filter(id => !rerunSids.has(id)))));
     // 补选 rerunConfirmations：RSVP sync 只针对补选供应商
     setRerunConfirmations(prev => syncFor(prev, rerunSids));
-  }, [filteredRsvp, rerunSids]);
+  }, [filteredRsvp, rerunSids, shortlist]);
 
   // 第 3 步：候选名单 sidebar
   const shortlistPanel = (
