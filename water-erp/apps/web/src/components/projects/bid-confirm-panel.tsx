@@ -563,10 +563,15 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
   const talkUnlocked = talkMsSinceOpen !== null && talkMsSinceOpen >= TALK_UNLOCK_MS;
   const talkMsRemaining = talkMsSinceOpen !== null ? Math.max(0, TALK_UNLOCK_MS - talkMsSinceOpen) : null;
   // 预填 props（弹窗 buildPrefill 消费）。商谈小组=正选（含需求方代表），不含候补——
-  // 候补是备席不参与商谈（2026-11-26 用户裁定）；婉拒不入名册（除名口径）
+  // 候补是备席不参与商谈（2026-11-26 用户裁定）；婉拒不入名册（除名口径）。
+  // 组长标注并置第一（2026-11-26 用户裁定）：「姓名（职称，组长）」，其余「姓名（职称）」
   const talkExpertMembers = (workspace?.experts ?? [])
     .filter(e => e.expertRole !== '候补' && e.invitationStatus !== 'declined')
-    .map(e => `${e.expertName}${e.user?.expertProfile?.title ? `（${e.user.expertProfile.title}）` : ''}`)
+    .sort((a, b) => (a.isLead ? 0 : 1) - (b.isLead ? 0 : 1))
+    .map(e => {
+      const parts = [e.user?.expertProfile?.title, e.isLead ? '组长' : null].filter(Boolean).join('，');
+      return parts ? `${e.expertName}（${parts}）` : e.expertName;
+    })
     .join('、');
   const talkAcceptedSupplier =
     rsvpItems.find(it => it.status === 'ACCEPTED')?.supplierName
