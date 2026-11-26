@@ -8,6 +8,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { StorageService } from '../src/storage/storage.service';
+import { ReviewSourceCleanupService } from '../src/scheduler/review-source-cleanup.service';
 
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
@@ -369,5 +370,55 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     const asset = await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } });
     expect(asset?.category).toBe('tender_review_source_purging');
     expect((await storage.download(key)).toString()).toBe(BODY);
+  });
+
+  // ── 每日清理（scheduler/review-source-cleanup.service.ts）：与删任务后的清理是同一份规则 ──
+
+  const keyOf = async (fileId: string) => (await prisma.fileAsset.findUnique({ where: { id: fileId } }))!.key;
+  const AGE_25H = () => new Date(Date.now() - 25 * 3600 * 1000);
+
+  it('每日清理：没建成任务的上传满 24 小时才清；没满的、还有任务在用的不动', async () => {
+    const janitor = app.get(ReviewSourceCleanupService);
+    const storage = app.get(StorageService);
+    const expired = await track(await upload(staff, 'e2e-孤儿-满24小时.txt'));
+    const fresh = await track(await upload(staff, 'e2e-孤儿-未满24小时.txt'));
+    const inUse = await track(await upload(staff, 'e2e-孤儿-仍有任务.txt'));
+    const used = await track(await execute(staff, { fileId: inUse.body.fileId }));
+    const expiredKey = await keyOf(expired.body.fileId);
+    const inUseKey = await keyOf(inUse.body.fileId);
+    for (const fileId of [expired.body.fileId, inUse.body.fileId]) {
+      await prisma.fileAsset.update({ where: { id: fileId }, data: { createdAt: AGE_25H() } });
+    }
+
+    const result = await janitor.cleanupOnce();
+
+    // 库里可能还有本轮其它用例留下的待清记录，所以只断言「至少」与具体行
+    expect(result.removed).toBeGreaterThanOrEqual(1);
+    expect(await prisma.fileAsset.findUnique({ where: { id: expired.body.fileId } })).toBeNull();
+    await expect(storage.download(expiredKey)).rejects.toBeDefined();
+    expect((await prisma.fileAsset.findUnique({ where: { id: fresh.body.fileId } }))?.category).toBe('tender_review_source');
+    expect((await prisma.fileAsset.findUnique({ where: { id: inUse.body.fileId } }))?.category).toBe('tender_review_source');
+    expect((await storage.download(inUseKey)).toString()).toBe(BODY);
+    expect(await prisma.reviewTask.findUnique({ where: { id: used.body.taskId } })).not.toBeNull();
+  });
+
+  it('每日清理接着清上次没做完的：待清状态的记录不看上传时间', async () => {
+    const janitor = app.get(ReviewSourceCleanupService);
+    const storage = app.get(StorageService);
+    const up = await track(await upload(staff, 'e2e-待清重试.txt'));
+    const key = await keyOf(up.body.fileId);
+    plantedObjects.push(key);
+    const res = await track(await execute(staff, { fileId: up.body.fileId }));
+    const spy = jest.spyOn(storage, 'delete').mockRejectedValueOnce(new Error('minio down'));
+    expect((await removeTask(staff, res.body.taskId)).status).toBe(200);
+    spy.mockRestore();
+    expect((await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } }))?.category).toBe('tender_review_source_purging');
+    expect((await storage.download(key)).toString()).toBe(BODY);
+
+    const result = await janitor.cleanupOnce();
+
+    expect(result.removed).toBeGreaterThanOrEqual(1);
+    expect(await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } })).toBeNull();
+    await expect(storage.download(key)).rejects.toBeDefined();
   });
 });

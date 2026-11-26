@@ -30,6 +30,9 @@ export type ReviewSourcePurgeOutcome =
   /** 出错了（数据库或对象存储）：没删完，等下次再清 */
   | 'kept';
 
+/** 上传后一直没有审查任务在用的源文件，保留这么久之后由每日清理删掉（与 v3-staging 暂存清理同口径） */
+export const REVIEW_SOURCE_TTL_MS = 24 * 3600 * 1000;
+
 /** 调用方负责在消息前面带上自己的上下文（比如任务 id），这里只接错误原文 */
 export type ReviewSourcePurgeWarn = (what: string, err?: unknown) => void;
 
