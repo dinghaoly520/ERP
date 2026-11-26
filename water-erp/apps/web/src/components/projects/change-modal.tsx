@@ -17,7 +17,7 @@ import { CHANGE_FIELD_GROUPS, stageReached } from '@/lib/change-fields';
 import { SearchSelect, type SearchSelectOption } from '@/components/workbench/search-select';
 import { fetchProjectAttributions, extractTenderFields, optimizeInitiationFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import { NeuSelect } from '@/components/workbench';
+import { NeuSelect , DatetimeInput } from '@/components/workbench';
 
 type Step = 'type' | 'form' | 'records';
 
@@ -506,9 +506,16 @@ export function ChangeModal({
                             placeholder="请选择采购类别"
                             disabled={!g.unlocked}
                           />
-                        ) : f.kind === 'datetime' || f.kind === 'date' ? (
+                        ) : f.kind === 'datetime' ? (
+                          <DatetimeInput
+                            className="workbench-input"
+                            disabled={!g.unlocked}
+                            value={values[f.field] ?? currentOf(f.field)}
+                            onChange={v => setValues(vs => ({ ...vs, [f.field]: v }))}
+                          />
+                        ) : f.kind === 'date' ? (
                           <input
-                            type={f.kind === 'date' ? 'date' : 'datetime-local'}
+                            type="date"
                             className="workbench-input"
                             disabled={!g.unlocked}
                             value={values[f.field] ?? currentOf(f.field)}

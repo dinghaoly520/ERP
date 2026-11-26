@@ -19,7 +19,7 @@ import { useCompanyInfo } from '@/lib/api/company-info';
 import { CloudUpload, X, FileText, Building2, ClipboardCheck, Trophy, Ban } from 'lucide-react';
 import type { AnnouncementCategory, AnnouncementDraft } from '@/lib/types/announcement';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
-import { NeuSelect } from '@/components/workbench';
+import { NeuSelect , DatetimeInput } from '@/components/workbench';
 
 /* ── 接口枚举映射（文档 byte 码值） ── */
 
@@ -575,8 +575,8 @@ export function SunshinePlatformDialog({
           {category === 'procurement_document' && (
             <SectionCard icon={ClipboardCheck} title="招标公告信息" tag="SCM0002">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="公告发布时间"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
-                <Field label="公告截止时间"><input type="datetime-local" className={inputCls} value={config.deadline} onChange={(e) => set('deadline', e.target.value)} /></Field>
+                <Field label="公告发布时间"><DatetimeInput className={inputCls} value={config.publishTime} onChange={(v) => set('publishTime', v)} /></Field>
+                <Field label="公告截止时间"><DatetimeInput className={inputCls} value={config.deadline} onChange={(v) => set('deadline', v)} /></Field>
                 <Field label="发售期满足川国资委〔2025〕51号文">
                   <NeuSelect className="w-full" value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
                     <option value={1}>1-是</option>
@@ -594,10 +594,10 @@ export function SunshinePlatformDialog({
           {category === 'winning_bid' && (
             <SectionCard icon={Trophy} title="中标公示信息" tag="SCM0004">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="公示发布时间"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
+                <Field label="公示发布时间"><DatetimeInput className={inputCls} value={config.publishTime} onChange={(v) => set('publishTime', v)} /></Field>
                 <Field label="发布人"><input className={inputCls} value={config.issueUserName} onChange={(e) => set('issueUserName', e.target.value)} /></Field>
-                <Field label="公示期起"><input type="datetime-local" className={inputCls} value={config.startTime} onChange={(e) => set('startTime', e.target.value)} /></Field>
-                <Field label="公示期止"><input type="datetime-local" className={inputCls} value={config.endTime} onChange={(e) => set('endTime', e.target.value)} /></Field>
+                <Field label="公示期起"><DatetimeInput className={inputCls} value={config.startTime} onChange={(v) => set('startTime', v)} /></Field>
+                <Field label="公示期止"><DatetimeInput className={inputCls} value={config.endTime} onChange={(v) => set('endTime', v)} /></Field>
                 <Field label="公示期满足51号文">
                   <NeuSelect className="w-full" value={config.annrequire} onChange={(e) => set('annrequire', Number(e.target.value) as 0 | 1)}>
                     <option value={1}>1-是</option>
@@ -636,10 +636,10 @@ export function SunshinePlatformDialog({
           {category === 'failed_bid' && (
             <SectionCard icon={Ban} title="终止招标信息" tag="SCM0006">
               <div className="grid grid-cols-2 gap-3">
-                <Field label="公示发布时间"><input type="datetime-local" className={inputCls} value={config.publishTime} onChange={(e) => set('publishTime', e.target.value)} /></Field>
+                <Field label="公示发布时间"><DatetimeInput className={inputCls} value={config.publishTime} onChange={(v) => set('publishTime', v)} /></Field>
                 <Field label="发布人"><input className={inputCls} value={config.issueUserName} onChange={(e) => set('issueUserName', e.target.value)} /></Field>
-                <Field label="公示期起"><input type="datetime-local" className={inputCls} value={config.startTime} onChange={(e) => set('startTime', e.target.value)} /></Field>
-                <Field label="公示期止"><input type="datetime-local" className={inputCls} value={config.endTime} onChange={(e) => set('endTime', e.target.value)} /></Field>
+                <Field label="公示期起"><DatetimeInput className={inputCls} value={config.startTime} onChange={(v) => set('startTime', v)} /></Field>
+                <Field label="公示期止"><DatetimeInput className={inputCls} value={config.endTime} onChange={(v) => set('endTime', v)} /></Field>
               </div>
               <Field label="公示内容">
                 <textarea maxLength={2000} className={`${inputCls} mt-1 min-h-[72px]`} value={config.content} onChange={(e) => set('content', e.target.value)} placeholder="留空则随公告正文自动生成（文档限长 2000 字）" />

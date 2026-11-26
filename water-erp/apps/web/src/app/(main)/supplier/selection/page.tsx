@@ -17,7 +17,7 @@ import { listBidProjects, getBidProjectDetail, type BidProjectOption, type BidPr
 import { analyzeProjectManagementItem, extractTenderFields } from '@/lib/api/project-management';
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { Wand2, Copy, X, Plus, FileSearch, ChevronDown, ChevronUp, ChevronRight, Award, Zap, Building2, RefreshCw, Sparkles, Clock3, Columns3, FileSpreadsheet, Send, ListPlus, Bell, MessageSquare, ShieldCheck, Check, Search, User, Upload, Loader2, FileText, Calendar, FileSignature } from 'lucide-react';
-import { Modal, NeuSelect } from '@/components/workbench';
+import { Modal, NeuSelect, DatetimeInput } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { RulesPopover } from '@/components/rules-popover';
 import { SelectionHistoryDialog } from '@/components/supplier/selection-history-dialog';
@@ -2833,19 +2833,19 @@ export function SupplierSelectionPage({
               <div className="rounded-xl p-3.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)' }}>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">采购文件获取时间</div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input type="datetime-local" value={acquireFrom} onChange={e => setAcquireFrom(e.target.value)}
-                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
+                  <DatetimeInput value={acquireFrom} onChange={v => setAcquireFrom(v)}
+                    className="workbench-input !h-8 text-xs" />
                   <span className="text-[11px] font-semibold text-[var(--muted-foreground)]">至</span>
-                  <input type="datetime-local" value={acquireTo} onChange={e => setAcquireTo(e.target.value)}
-                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
+                  <DatetimeInput value={acquireTo} onChange={v => setAcquireTo(v)}
+                    className="workbench-input !h-8 text-xs" />
                 </div>
               </div>
               {/* 开标时间 — 单点（日期+时刻合一） */}
               <div className="rounded-xl p-3.5" style={{ background: 'oklch(1 0 0 / 0.48)', boxShadow: 'inset 0 1px 0 oklch(1 0 0 / 0.6)', maxWidth: 420 }}>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[var(--muted-foreground)] mb-2">开标时间</div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <input type="datetime-local" value={bidAt} onChange={e => setBidAt(e.target.value)}
-                    className="workbench-input !h-8 text-xs" style={{ width: 215 }} />
+                  <DatetimeInput value={bidAt} onChange={v => setBidAt(v)}
+                    className="workbench-input !h-8 text-xs" />
                 </div>
               </div>
             </div>

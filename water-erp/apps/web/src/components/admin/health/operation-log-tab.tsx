@@ -4,7 +4,7 @@ import { Fragment, useEffect, useState, useRef } from 'react';
 import { AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, RefreshCw, RotateCcw, ScrollText, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchOperationLogs, type OperationLogRow } from '@/lib/api/operation-log';
-import { TableSkeleton, NeuSelect } from '@/components/workbench';
+import { TableSkeleton, NeuSelect, DatetimeInput } from '@/components/workbench';
 import { downloadOperationLogTxt } from '@/lib/history-export';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -214,16 +214,16 @@ export function OperationLogTab({ active }: { active: boolean }) {
           <option value="server">服务端错误 5xx</option>
         </NeuSelect>
         <span className="text-[11px] font-semibold text-[var(--muted-foreground)] flex items-center gap-1">时间</span>
-        <input
-          className="workbench-input workbench-input-sm !w-auto min-w-[168px]" type="datetime-local" title="开始时间"
+        <DatetimeInput
+          className="workbench-input workbench-input-sm !w-auto min-w-[168px]" title="开始时间"
           value={filters.startTime}
-          onChange={(e) => setFilters({ ...filters, startTime: e.target.value })}
+          onChange={(v) => setFilters({ ...filters, startTime: v })}
         />
         <span className="text-[11px] text-[var(--muted-foreground)]">至</span>
-        <input
-          className="workbench-input workbench-input-sm !w-auto min-w-[168px]" type="datetime-local" title="结束时间"
+        <DatetimeInput
+          className="workbench-input workbench-input-sm !w-auto min-w-[168px]" title="结束时间"
           value={filters.endTime}
-          onChange={(e) => setFilters({ ...filters, endTime: e.target.value })}
+          onChange={(v) => setFilters({ ...filters, endTime: v })}
         />
         <div className="flex-1" />
         {hasFilters && (

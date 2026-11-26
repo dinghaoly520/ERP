@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { DatetimeInput } from '@/components/workbench/datetime-input';
 import type {
   ReadyTenderDraft,
   ScoringItem,
@@ -1407,20 +1408,23 @@ export function TenderSectionEditor({
                     placeholder={field.placeholder}
                     className={commonClassName}
                   />
+                ) : field.type === 'datetime' ? (
+                  <DatetimeInput
+                    value={chineseDatetimeToISO(value)}
+                    onChange={(v) => handleDateChange(field.key, isoDatetimeToChinese(v))}
+                    className={commonClassName}
+                  />
                 ) : (
                   <input
                     ref={(el) => {
-                      if ((field.type === 'date' || field.type === 'month' || field.type === 'datetime') && el) {
+                      if ((field.type === 'date' || field.type === 'month') && el) {
                         dateInputRefs.current[field.key] = el;
                       }
                     }}
-                    type={field.type === 'datetime' ? 'datetime-local' : (field.type ?? 'text')}
-                    value={field.type === 'datetime' ? chineseDatetimeToISO(value) : value}
+                    type={(field.type ?? 'text')}
+                    value={value}
                     onChange={(event) => {
-                      if (field.type === 'datetime') {
-                        // datetime-local 选择值（ISO）转中文格式存储；清空则一并清除
-                        handleDateChange(field.key, isoDatetimeToChinese(event.target.value));
-                      } else if (field.type === 'date' || field.type === 'month') {
+                      if (field.type === 'date' || field.type === 'month') {
                         handleDateChange(field.key, event.target.value);
                       } else if (field.key === 'contactName') {
                         handleContactNameChange(event.target.value);
