@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException, NotFoundException, Inject, Logger } from '@nestjs/common';
 import { hashSync } from 'bcryptjs';
-import { Prisma, ExpertLevel } from '@prisma/client';
+import { Prisma, ExpertLevel, SupplierStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildSubjectCode, BID_DEADLINE_BEFORE_OPENING_MS } from '@water-erp/shared';
 import { encryptPasswordVault } from '../auth/password-vault.util';
@@ -10,6 +10,7 @@ import { VerificationService } from '../verification/verification.service';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
 import { CorrectionSubmitDto } from './dto/correction-request.dto';
 import { buildCorrectionDiff } from './correction-diff.util';
+import { SUPPLIER_WITHDRAW_LIMIT } from '@water-erp/shared';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
 import { AddSupplierRecordDto } from './dto/add-supplier-record.dto';
@@ -289,11 +290,12 @@ export class SupplierService {
     const username = creditCode;
 
     // 信用代码命中：REJECTED 壳（驳回数据最小化留壳，2026-10-14）→ 走壳重开复用原行；
+    // WITHDRAWN 撤回壳（2026-11-25）同待遇——重开复用原行；
     // PENDING/RETURNED → 硬拦截（重复提交）；已入库（APPROVED/DISABLED/BLACKLIST）→ 多公司归属分流（2026-10-16）。
     const existingSupplier = await this.prisma.supplier.findUnique({
       where: { creditCode },
     });
-    if (existingSupplier && existingSupplier.status !== 'REJECTED') {
+    if (existingSupplier && existingSupplier.status !== 'REJECTED' && existingSupplier.status !== 'WITHDRAWN') {
       if (existingSupplier.status === 'PENDING' || existingSupplier.status === 'RETURNED') {
         throw new BadRequestException({ error: '统一社会信用代码已存在', code: 'DUPLICATE_CREDIT_CODE' });
       }
@@ -528,7 +530,7 @@ export class SupplierService {
         // F4（2026-10-14）：乐观锁认领（对齐 submitCorrection 模式）——校验读与事务写之间壳可能被
         // 并发流转（如补正重提/他处重开），where 带 REJECTED 保证并发下仅一方成功，防 TOCTOU。
         const claimed = await tx.supplier.updateMany({
-          where: { id: existingSupplier.id, status: 'REJECTED' },
+          where: { id: existingSupplier.id, status: { in: ['REJECTED', 'WITHDRAWN'] } },
           data: { status: 'PENDING' },
         });
         if (claimed.count === 0) {
@@ -1508,7 +1510,7 @@ export class SupplierService {
   async getRegisterStatusByCreditCode(creditCode: string) {
     const supplier = await this.prisma.supplier.findFirst({
       where: { creditCode },
-      select: { id: true, name: true, status: true, rejectReason: true, returnReason: true, urgedAt: true, reviewStage: true },
+      select: { id: true, name: true, status: true, rejectReason: true, returnReason: true, urgedAt: true, reviewStage: true, withdrawCount: true },
     });
     if (!supplier) {
       // 不区分「不存在」与「无记录」，避免被用于枚举信用代码是否注册。
@@ -1525,7 +1527,7 @@ export class SupplierService {
     const suppliers = await this.prisma.supplier.findMany({
       where: { name },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, name: true, creditCode: true, status: true, returnReason: true, urgedAt: true, reviewStage: true },
+      select: { id: true, name: true, creditCode: true, status: true, returnReason: true, urgedAt: true, reviewStage: true, withdrawCount: true },
     });
     if (suppliers.length === 0) {
       return { found: false as const, name: null, status: null, reason: null, reviewedAt: null, urgedAt: null };
@@ -1547,7 +1549,7 @@ export class SupplierService {
 
   /** 公开进度查询的单供应商投影（信用代码/名称两条入口共用）。 */
   private async buildPublicRegisterStatus(supplier: {
-    id: string; name: string; status: string; returnReason: string | null; urgedAt: Date | null; reviewStage: string | null;
+    id: string; name: string; status: string; returnReason: string | null; urgedAt: Date | null; reviewStage: string | null; withdrawCount: number;
   }) {
     // 审核时间 = 最近一次审核动作（approve/reject/return）的留痕时间；无留痕则回退 updatedAt（如退回补正）。
     const latest = await this.prisma.supplierApprovalRecord.findFirst({
@@ -1603,6 +1605,7 @@ export class SupplierService {
       reviewedAt: reviewed?.at ?? null,
       reviewedAction: reviewed?.action ?? null,
       urgedAt: supplier.urgedAt ?? null,
+      withdrawCount: supplier.withdrawCount ?? 0,
     };
   }
 
@@ -1990,6 +1993,99 @@ export class SupplierService {
     if (stale.length) await this.prisma.fileAsset.deleteMany({ where: { id: { in: stale.map((a) => a.id) } } });
   }
 
+  // ── 供应商撤销申请（2026-11-25 spec）：审核中/补正中可自撤（限 3 次），撤回壳保留
+  //    完整业务数据供信用代码回填；仅清账号密码断登录。镜像补正流三段式。──
+
+  /** 撤回会话候选定位（名称+信用代码双因子；request/verify 对 PENDING/RETURNED/WITHDRAWN
+   *  均可用——撤回确认与前撤回壳回填共用同一短信会话链路；submit/draft 各自再收窄状态） */
+  private async findWithdrawSessionSupplier(name: string, creditCode: string) {
+    return this.prisma.supplier.findFirst({
+      where: { creditCode: creditCode.trim(), name: name.trim(), status: { in: ['PENDING', 'RETURNED', 'WITHDRAWN'] } },
+      include: { contacts: { where: { isPrimary: true }, take: 1 } },
+    });
+  }
+
+  async requestWithdraw(name: string, creditCode: string, clientIp: string) {
+    const supplier = await this.findWithdrawSessionSupplier(name, creditCode);
+    if (!supplier || supplier.contacts.length === 0) {
+      return { maskedPhone: null as string | null }; // 同形响应防枚举
+    }
+    const phone = openPii(supplier.contacts[0].phone) as string;
+    await this.verificationService.sendRegistrationCode(phone, clientIp, 'supplier_registration');
+    return { maskedPhone: maskPhone(phone) };
+  }
+
+  async verifyWithdraw(name: string, creditCode: string, code: string) {
+    const supplier = await this.findWithdrawSessionSupplier(name, creditCode);
+    if (!supplier || supplier.contacts.length === 0) {
+      throw new BadRequestException({ error: '未找到对应的注册申请', code: 'WITHDRAW_NOT_FOUND' });
+    }
+    const phone = openPii(supplier.contacts[0].phone) as string;
+    const { token, expiresIn } = await this.verificationService.verifyAndStartRegistrationSession(phone, code);
+    return { withdrawToken: token, expiresIn };
+  }
+
+  async withdrawSubmit(token: string, name: string, creditCode: string) {
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供撤回 token、公司名称与统一社会信用代码', code: 'MISSING_WITHDRAW_PARAMS' });
+    }
+    const { phone } = await this.verificationService.assertRegistrationSession(token);
+    const supplier = await this.findWithdrawSessionSupplier(name, creditCode);
+    if (!supplier || supplier.contacts.length === 0 || !['PENDING', 'RETURNED'].includes(supplier.status)) {
+      throw new BadRequestException({ error: '未找到可撤销的注册申请', code: 'WITHDRAW_NOT_FOUND' });
+    }
+    if (openPii(supplier.contacts[0].phone) !== phone) {
+      throw new BadRequestException({ error: '验证手机号与申请主联系人手机号不一致', code: 'WITHDRAW_PHONE_MISMATCH' });
+    }
+    if ((supplier.withdrawCount ?? 0) >= SUPPLIER_WITHDRAW_LIMIT) {
+      throw new BadRequestException({ error: '撤回次数已达上限，如有疑问请联系采购中心', code: 'WITHDRAW_LIMIT_REACHED' });
+    }
+    const stage = supplier.reviewStage ?? 'STAFF';
+    const claimed = await this.prisma.supplier.updateMany({
+      where: { id: supplier.id, status: { in: ['PENDING', 'RETURNED'] } },
+      data: { status: 'WITHDRAWN', returnReason: null, withdrawCount: { increment: 1 } },
+    });
+    if (claimed.count === 0) {
+      throw new BadRequestException({ error: '申请状态已变更，请刷新后重试', code: 'CONFLICT' });
+    }
+    await this.clearSupplierPendingTodos(supplier.id);
+    await this.notifyStageApprovers(stage, supplier.companyId, {
+      type: 'SUPPLIER_WITHDRAWN',
+      title: '供应商撤回注册申请',
+      content: `${supplier.name} 已主动撤回注册申请，本次审批终止；该企业重新注册时将从初审重新走审。`,
+      link: '/supplier/approval',
+    });
+    await this.audit(supplier.userId, 'SUPPLIER_WITHDRAWN', supplier.id, {
+      name: supplier.name, withdrawCount: (supplier.withdrawCount ?? 0) + 1,
+    });
+    await this.recordApproval(supplier.id, 'WITHDRAWN', supplier.userId, '供应商自行撤回申请', stage, []);
+    // 账号清理（轻量，非 purge）：业务数据与子表保留（撤回后可凭信用代码回填），仅断登录
+    await this.prisma.user.update({
+      where: { id: supplier.userId },
+      data: { passwordHash: null, passwordVault: null, isActive: false },
+    }).catch((err: any) => console.error(`[withdraw] 账号清理失败 supplier=${supplier.id}`, err?.message ?? err));
+    await this.verificationService.consumeRegistrationSession(token);
+    return { success: true };
+  }
+
+  async getWithdrawDraft(token: string, name: string, creditCode: string) {
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供撤回 token、公司名称与统一社会信用代码', code: 'MISSING_WITHDRAW_PARAMS' });
+    }
+    const { phone } = await this.verificationService.assertRegistrationSession(token);
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { creditCode: creditCode.trim(), name: name.trim(), status: 'WITHDRAWN' },
+      include: { contacts: { where: { isPrimary: true }, take: 1 } },
+    });
+    if (!supplier || supplier.contacts.length === 0) {
+      throw new BadRequestException({ error: '未找到已撤回的申请', code: 'WITHDRAW_NOT_FOUND' });
+    }
+    if (openPii(supplier.contacts[0].phone) !== phone) {
+      throw new BadRequestException({ error: '验证手机号与申请主联系人手机号不一致', code: 'WITHDRAW_PHONE_MISMATCH' });
+    }
+    return this.buildCorrectionDraft(supplier.id);
+  }
+
   /** 查询供应商审核历史（不可变留痕，按时间倒序）。 */
   async getApprovalHistory(supplierId: string) {
     const records = await this.prisma.supplierApprovalRecord.findMany({
@@ -2300,7 +2396,7 @@ export class SupplierService {
   }
 
   /** 写入不可变审核历史（approve/reject/return 调用）。失败不阻断审核流程但记录告警。 */
-  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED', reviewerUserId: string | undefined, reason?: string, stage?: string, rawAttachmentIds: string[] = []) {
+  private async recordApproval(supplierId: string, action: 'APPROVED' | 'REJECTED' | 'RETURNED' | 'WITHDRAWN', reviewerUserId: string | undefined, reason?: string, stage?: string, rawAttachmentIds: string[] = []) {
     const snapshot = await this.buildApprovalSnapshot(supplierId);
     if (!snapshot) return;
     // 附件加固（2026-09-30）：去重 + 上限 10 + 校验 FileAsset 真实存在（防伪造 id 入留痕）
@@ -3756,10 +3852,15 @@ export class SupplierService {
     for (const log of auditLogs) {
       const labelMap: Record<string, string> = {
         SUPPLIER_APPROVED: '审核通过',
+        // 分级通过（2026-11-25 补录：此前无标签被整条跳过——三级审批的初审/复审里程碑
+        // 在生命周期时间线上缺失，与「近期动态」英文泄漏同一批枚举）
+        SUPPLIER_REVIEW_PASSED_STAFF: '初审通过',
+        SUPPLIER_REVIEW_PASSED_LEADER: '复审通过',
         SUPPLIER_REJECTED: '审核不通过',
         SUPPLIER_RETURNED: '退回补正',
         SUPPLIER_DISABLED: '停用',
         SUPPLIER_BLACKLIST: '拉黑',
+        SUPPLIER_UNBLACKLIST: '解除拉黑',
         SUPPLIER_RESTORED: '恢复',
         SUPPLIER_RESUBMITTED: '重新提交',
         SUPPLIER_REACTIVATED: '重新激活',
@@ -3767,6 +3868,8 @@ export class SupplierService {
         SUPPLIER_CHANGE_REJECTED: '资料变更驳回',
         SUPPLIER_CONVERTED_REGULAR: '转为正式供应商',
         SUPPLIER_TAGS_UPDATED: '业务标签更新',
+        SUPPLIER_TAGS_BACKFILL: '业务标签回填',
+        SUPPLIER_EVALUATION_UPDATED: '履约评价更新',
         // SUPPLIER_EVALUATION_CREATED 不在此展示：与评价表同事件双写（两次独立写入毫秒级时差），
         // 归 #3 按 ±5s 时间窗配对去重，防止同一次评价出两条
       };
@@ -3871,17 +3974,25 @@ export class SupplierService {
     return { total, pending, approved, disabled, blacklist, returned, temporaryApproved };
   }
 
-  /** 按公司分组全量计数（admin 全部公司视图的分组标题全量口径，与列表同筛选；台账/专家库 company-counts 同款） */
+  /** 按公司分组的库内计数（admin 公司选择器副标口径，2026-11-25 修正对不上实录）：
+   *  ①归属 = APPROVED link → 公司（与库可见性 supplierCompanyWhere 同源）——原按
+   *    Supplier.companyName 文本快照分组，与页面 scoping 是两套归属，改名/手改即漂移；
+   *  ②状态默认 = 库内四态（在库含临时/停用/黑名单，同 stats.total 2026-10-16 裁定）——
+   *    原不过滤状态，把 PENDING/RETURNED/REJECTED 审批流转件也计入（选择器 510 vs
+   *    页面 KPI 498/列表 497 的差值正是这批）；显式 status 参数仍可覆盖。 */
   async companyCounts(params: { status?: string; search?: string; enterpriseTypes?: string[]; isTemporary?: boolean }, actor?: AuthenticatedUser) {
     const scope = await this.companyScope.resolveScope(actor);
-    const where: any = { ...supplierCompanyWhere(scope) };
+    const companyIds = scopeCompanyIds(scope);
+    const where: Prisma.SupplierWhereInput = {};
     if (params.status) {
       if (params.status.startsWith('exclude:')) {
-        const excl = params.status.slice('exclude:'.length).split(',').filter(Boolean);
+        const excl = params.status.slice('exclude:'.length).split(',').filter(Boolean) as Array<keyof typeof SupplierStatus>;
         where.status = excl.length === 1 ? { not: excl[0] } : { notIn: excl };
       } else {
-        where.status = params.status;
+        where.status = params.status as keyof typeof SupplierStatus;
       }
+    } else {
+      where.status = { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] };
     }
     if (params.enterpriseTypes?.length) where.enterpriseType = { in: params.enterpriseTypes };
     if (params.isTemporary === true) where.isTemporary = true;
@@ -3893,9 +4004,32 @@ export class SupplierService {
         { tags: { hasSome: [params.search] } },
       ];
     }
-    const groups = await this.prisma.supplier.groupBy({ by: ['companyName'], where, _count: { _all: true } });
-    return groups
-      .map(g => ({ name: g.companyName?.trim() || '未归属', count: g._count._all }))
+    // 按 APPROVED link 聚到公司行（多归属供应商在各自公司各计一次——与按公司筛选
+    // 列表时的可见性一致）；库内行数 ~500，内存 tally 开销可忽略（词表同款先例）。
+    // 只取 companyId、公司名另查——company 是必填关联，存量断链行（companyId 指向
+    // 已删公司行，2026-11-25 admin 全视野实录 3 行）select 关联会让 Prisma 抛
+    // Inconsistent query result 直接 500；断链行归「未归属」桶（无可选公司，不入下拉展示）
+    const links = await this.prisma.supplierCompanyLink.findMany({
+      where: {
+        status: 'APPROVED',
+        ...(companyIds !== null ? { companyId: { in: companyIds } } : {}),
+        supplier: where,
+      },
+      select: { companyId: true },
+    });
+    const nameById = new Map(
+      (await this.prisma.company.findMany({
+        where: { id: { in: [...new Set(links.map((l) => l.companyId))] } },
+        select: { id: true, name: true },
+      })).map((c) => [c.id, c.name.trim()]),
+    );
+    const tally = new Map<string, number>();
+    for (const l of links) {
+      const name = nameById.get(l.companyId) ?? '未归属';
+      tally.set(name, (tally.get(name) ?? 0) + 1);
+    }
+    return [...tally.entries()]
+      .map(([name, count]) => ({ name, count }))
       .sort((a, b) => (a.name === '未归属' ? 1 : b.name === '未归属' ? -1 : b.count - a.count || a.name.localeCompare(b.name, 'zh')));
   }
 

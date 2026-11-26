@@ -38,7 +38,13 @@ up() {
     return 0
   fi
   local log="/tmp/water-erp-service-${label}.log"
-  setsid nohup bash scripts/dev-supervise.sh "$label" "$port" "$delay" "$@" >> "$log" 2>&1 < /dev/null &
+  # setsid 是 Linux 独有（脱离控制组防 TERM 连坐）——macOS 无此命令，2026-11-25 实录
+  # 「setsid: command not found」致守护器零拉起；回退裸 nohup 后台（少一层会话隔离，守护语义不变）
+  if command -v setsid >/dev/null 2>&1; then
+    setsid nohup bash scripts/dev-supervise.sh "$label" "$port" "$delay" "$@" >> "$log" 2>&1 < /dev/null &
+  else
+    nohup bash scripts/dev-supervise.sh "$label" "$port" "$delay" "$@" >> "$log" 2>&1 < /dev/null &
+  fi
   echo "[services] ${label} 常驻守护已拉起（端口 :${port}，日志 ${log}）"
 }
 

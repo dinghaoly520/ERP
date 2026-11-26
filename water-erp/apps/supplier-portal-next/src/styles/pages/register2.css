@@ -83,6 +83,9 @@
 /* 资质行 select/date 固定宽（压过 .reg-form .reg-sel/.reg-date 的 width:100%，否则每项独占一行） */
 .reg-row-fields--qual .reg-sel { flex: 0 0 170px; width: 170px; }
 .reg-row-fields--qual .reg-date { flex: 0 0 152px; width: 152px; }
+/* 长期有效勾选（2026-11-26）：不参与伸缩，随行内流式排布 */
+.reg-row-fields--qual .reg-permanent-cell { flex: 0 0 auto; cursor: default; }
+.reg-row-fields--qual .reg-permanent-cell input[type="checkbox"] { accent-color: var(--accent, #064ea2); }
 
 /* 行内控件标红（行式布局不走 .reg-item.has-error，单独补危险色描边） */
 .reg .reg-inp.is-err, .reg .reg-sel.is-err, .reg .reg-date.is-err {

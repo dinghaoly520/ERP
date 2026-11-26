@@ -9,6 +9,7 @@ import { RANGES, priorWindowIso, shiftYearIso, todayIso, type PresetKey, type Ra
 import { deltaOf, ratioCls, ratioTxt, type DeltaR } from "@/lib/ratios";
 import { FolderKanban, Loader2, NotebookText, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
+import { compactWanLabel, compactYuan, formatYuanExact } from "@/lib/amount-format";
 import { fetchProcurements, fetchProcurementDimensions, fetchLedgerStats, fetchProcurementMethods, type ProcurementFilterDimensions } from "@/lib/api/procurements";
 import { RESULT_STATUS_CONFIG, type LedgerSummary, type ProcurementRoundItem, type ResultStatusKey } from "@/lib/types/procurement";
 import { useAuth } from "@/components/m/auth-context";
@@ -30,11 +31,12 @@ type LedgerSavedFilters = {
 };
 
 const RETENTION_LABELS: Record<string, string> = { PERMANENT: "永久", Y30: "30 年", Y10: "10 年" };
-/** 金额展示：数字=元（千分位），字符串原样，空=— */
+/** 金额展示（2026-11-25 用户裁定「预算/成交额等主金额保持原本数字——不四舍五入、不用
+ *  万/亿」）：数字/纯数字串走 formatYuanExact（千分位+小数位原样+「元」）；自由文本原样；
+ *  空=—。注意：节资卡不走本函数，单独走 compactYuan 首页紧凑口径 */
 function fmtAmount(v: number | string | null | undefined): string {
   if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "number") return `${v.toLocaleString("zh-CN")} 元`;
-  return v;
+  return formatYuanExact(v);
 }
 
 function DetailRow({ label, value, tone }: { label: string; value: string; tone?: "danger" | "accent" }) {
@@ -484,10 +486,11 @@ export default function LedgerPage() {
             if (companyIds.length) parts.push(companyLabel);
             const scopeText = parts.join(" · ");
             const showRatio = Boolean(queryRange.startDate);
-            const tile = (value: string, label: string, opts?: { danger?: boolean; success?: boolean; yoy?: DeltaR; hb?: DeltaR }) => (
+            const tile = (value: string, label: string, opts?: { danger?: boolean; success?: boolean; yoy?: DeltaR; hb?: DeltaR; small?: boolean }) => (
               <div key={label} className="rounded-[12px] m-tile px-1 py-2.5 text-center">
-                <div className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${opts?.danger ? "text-[var(--danger)]" : opts?.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>{value}</div>
-                <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{label}</div>
+                {/* 金额组缩小一号（2026-11-25 用户裁定，同首页总览）：数值 14px / 标签 11px */}
+                <div className={`max-w-full truncate text-center font-black leading-none tabular-nums ${opts?.small ? "text-[14px]" : "text-[16px]"} ${opts?.danger ? "text-[var(--danger)]" : opts?.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}>{value}</div>
+                <div className={`mt-1 truncate text-center ${opts?.small ? "text-[11px]" : "text-[12px]"} text-[var(--muted-foreground)]`}>{label}</div>
                 {showRatio ? (
                   <div className="mt-1 flex items-center justify-center gap-1.5 text-[10px] font-bold leading-none tabular-nums">
                     <span className={ratioCls(opts?.yoy)}>同比 {ratioTxt(opts?.yoy)}</span>
@@ -516,10 +519,10 @@ export default function LedgerPage() {
                 ])}
                 <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)] sm:hidden" aria-hidden />
                 {group(`金额 · ${scopeText}`, [
-                  tile(stats.awardedBudgetLabel, "成交预算", { yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
-                  tile(stats.totalAwardLabel, "成交额", { yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
-                  tile(stats.totalSavingsLabel, "节资", { success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
-                  tile(rateNow != null ? `${(rateNow * 100).toFixed(1)}%` : "—", "节资率", { danger: true, yoy: deltaOf(rateNow, rateOf(statsYoy), true), hb: deltaOf(rateNow, rateOf(statsPrev), true) }),
+                  tile(compactWanLabel(stats.awardedBudgetLabel), "成交预算", { small: true, yoy: deltaOf(stats.awardedBudget, statsYoy?.awardedBudget, true), hb: deltaOf(stats.awardedBudget, statsPrev?.awardedBudget, true) }),
+                  tile(compactWanLabel(stats.totalAwardLabel), "成交额", { small: true, yoy: deltaOf(stats.totalAward, statsYoy?.totalAward, true), hb: deltaOf(stats.totalAward, statsPrev?.totalAward, true) }),
+                  tile(compactWanLabel(stats.totalSavingsLabel), "节资", { small: true, success: true, yoy: deltaOf(stats.totalSavings, statsYoy?.totalSavings, true), hb: deltaOf(stats.totalSavings, statsPrev?.totalSavings, true) }),
+                  tile(rateNow != null ? `${(rateNow * 100).toFixed(1)}%` : "—", "节资率", { small: true, danger: true, yoy: deltaOf(rateNow, rateOf(statsYoy), true), hb: deltaOf(rateNow, rateOf(statsPrev), true) }),
                 ])}
               </div>
             );
@@ -691,8 +694,8 @@ export default function LedgerPage() {
             <div className="grid grid-cols-2 gap-2">
               <MetricCard label="中标单位" value={archiveDetail.extractedInfo["中标单位"] || activeItem.awardedSupplierName || "-"} />
               <MetricCard label="预算金额" value={fmtAmount(activeItem.budgetAmount)} />
-              <MetricCard label="合同金额" value={archiveDetail.extractedInfo["合同金额"] && archiveDetail.extractedInfo["合同金额"] !== "-" ? archiveDetail.extractedInfo["合同金额"] : fmtAmount(activeItem.contractAmount)} tone="accent" />
-              <MetricCard label="节资" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? fmtAmount(b - a) : "-"; })()} tone="success" />
+              <MetricCard label="合同金额" value={archiveDetail.extractedInfo["合同金额"] && archiveDetail.extractedInfo["合同金额"] !== "-" ? fmtAmount(archiveDetail.extractedInfo["合同金额"]) : fmtAmount(activeItem.contractAmount)} tone="accent" />
+              <MetricCard label="节资" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? compactYuan(b - a) : "-"; })()} tone="success" />
               <MetricCard label="节资率" value={(() => { const b = Number(activeItem.budgetAmount ?? 0); const a = Number(activeItem.awardAmount ?? 0); return b > 0 && a > 0 && b >= a ? `${(((b - a) / b) * 100).toFixed(1)}%` : "-"; })()} tone="success" />
             </div>
 

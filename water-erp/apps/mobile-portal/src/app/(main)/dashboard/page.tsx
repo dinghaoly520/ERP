@@ -17,6 +17,7 @@ import {
   type SupplierEvalStats,
 } from "@/lib/api/supplier";
 import { normalizeEnterpriseType } from "@/lib/enterprise-type";
+import { compactWanLabel, compactYuan } from "@/lib/amount-format";
 import { LEVEL_LABEL } from "@water-erp/shared";
 import {
   Award, Search, ClipboardList, Megaphone, ChartNoAxesCombined,
@@ -129,8 +130,9 @@ export const ANALYSIS_TILES: Array<{
   { key: "experts", label: "专家库", icon: BookUser, color: "oklch(0.55 0.13 25)" },
 ];
 
-/** 元数值格式化：过万转「N.N万」，不足万直出「N元」（龙虎榜成交额，后端口径=元） */
-const fmtWan = (v: number) => (v >= 10000 ? `${(v / 10000).toFixed(1)}万` : `${v.toFixed(0)}元`);
+/** 元数值格式化：过亿转「亿」、过万转「万」（削尾零）、不足万直出「N元」——
+ *  大数缩位防四列瓷片/排名行 truncate 成「···」（2026-11-25 用户裁定），实现收敛到 amount-format */
+const fmtWan = (v: number) => compactYuan(v);
 
 function statusColor(s: string): string {
   if (/未成交|异常|终止|撤|废/.test(s)) return "text-[var(--danger)]";
@@ -575,9 +577,9 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
     { label: "异常项目", value: projectStatus ? String(projectStatus.flow?.cur.terminated ?? projectStatus.terminated) : "—", danger: (projectStatus?.flow?.cur.terminated ?? projectStatus?.terminated ?? 0) > 0, onTap: () => askChat("有哪些采购项目被终止了？终止原因分别是什么？"), ...fstat("terminated", false) },
     /* 次排金额（2026-11-19 用户裁定）：同比=整窗前移一年（本月↔去年同月/本季↔去年
        同季/本年↔去年），环比=紧邻等长前窗；值下方子行「同比x 环比x」，无数据 - */
-    { label: "成交预算", value: summary.awardedBudgetLabel, onTap: () => askChat(`${kpiScope}，已成交项目的成交预算执行情况如何？成交额与节资各占多少？`), ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
-    { label: "成交额", value: summary.totalAwardLabel, onTap: () => askChat(`${kpiScope}，成交额表现如何？请分析趋势变化与主要构成。`), ...amtR(summary.totalAwardLabel, yoy?.totalAward, cmp?.totalAward) },
-    { label: "节资", value: summary.totalSavingsLabel, success: true, onTap: () => askChat(`${kpiScope}，节资情况如何？节资率最高的项目有哪些？`), ...amtR(summary.totalSavingsLabel, yoy?.totalSavings, cmp?.totalSavings) },
+    { label: "成交预算", value: compactWanLabel(summary.awardedBudgetLabel), onTap: () => askChat(`${kpiScope}，已成交项目的成交预算执行情况如何？成交额与节资各占多少？`), ...amtR(summary.awardedBudgetLabel, yoy?.awardedBudget, cmp?.awardedBudget) },
+    { label: "成交额", value: compactWanLabel(summary.totalAwardLabel), onTap: () => askChat(`${kpiScope}，成交额表现如何？请分析趋势变化与主要构成。`), ...amtR(summary.totalAwardLabel, yoy?.totalAward, cmp?.totalAward) },
+    { label: "节资", value: compactWanLabel(summary.totalSavingsLabel), success: true, onTap: () => askChat(`${kpiScope}，节资情况如何？节资率最高的项目有哪些？`), ...amtR(summary.totalSavingsLabel, yoy?.totalSavings, cmp?.totalSavings) },
     /* 节资率=节资/成交预算（红显）；率本身的同比/环比=率 vs 去年同窗率/邻窗率 */
     { label: "节资率", value: summary.awardedBudget > 0 ? `${((summary.totalSavings / summary.awardedBudget) * 100).toFixed(1)}%` : "—", danger: true, onTap: () => askChat(`${kpiScope}，节资率水平如何？哪些项目节资率最高？有什么值得关注的？`), yoy: deltaOf(rateNow, rateOf(yoy ?? undefined), true), hb: deltaOf(rateNow, rateOf(cmp ?? undefined), true) },
   ] : [];
@@ -2701,15 +2703,17 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
           {/* 总览卡重设计（2026-11-19 用户裁定「突兀」）：两排分区——项目盘点（存量）与
               金额（随区间）各带组标、排间 hairline；格内层级=值→标签→同比环比 */}
           {(() => {
-            const tile = (m: (typeof overviewTiles)[number]) => {
+            /* 金额组瓷片整体缩小一号（2026-11-25 用户裁定「缩小一号金额处数字和文字的字号」）：
+               数值 16→14px、标签 12→11px——千万级「2797.1万」窄屏完整可读；盘点组（计数）维持原号 */
+            const tile = (m: (typeof overviewTiles)[number], small = false) => {
               const inner = (
                 <>
                   <div
-                    className={`max-w-full truncate text-center text-[16px] font-black leading-none tabular-nums ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
+                    className={`max-w-full truncate text-center font-black leading-none tabular-nums ${small ? "text-[14px]" : "text-[16px]"} ${m.danger ? "text-[var(--danger)]" : m.success ? "text-[var(--success)]" : "text-[var(--foreground)]"}`}
                   >
                     {m.value}
                   </div>
-                  <div className="mt-1 truncate text-center text-[12px] text-[var(--muted-foreground)]">{m.label}</div>
+                  <div className={`mt-1 truncate text-center ${small ? "text-[11px]" : "text-[12px]"} text-[var(--muted-foreground)]`}>{m.label}</div>
                   {queryRange.startDate ? (
                     <div className="mt-1 flex items-center justify-center gap-1.5 text-[11px] font-bold leading-none tabular-nums">
                       <span className={ratioCls(m.yoy)}>同比 {ratioTxt(m.yoy)}</span>
@@ -2728,10 +2732,10 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
                 </div>
               );
             };
-            const group = (caption: string, list: typeof overviewTiles) => (
+            const group = (caption: string, list: typeof overviewTiles, small = false) => (
               <div>
                 <div className="mb-1.5 px-1 text-[11px] font-bold tracking-[0.08em] text-[var(--muted-foreground)]">{caption}</div>
-                <div className="grid grid-cols-4 gap-2.5">{list.map(tile)}</div>
+                <div className="grid grid-cols-4 gap-2.5">{list.map((m) => tile(m, small))}</div>
               </div>
             );
             return (
@@ -2739,7 +2743,7 @@ export function DashboardHome({ panel }: { panel?: AnalysisTileKey }) {
               <div className="space-y-3 sm:grid sm:grid-cols-2 sm:gap-x-4 sm:space-y-0">
                 {group(`项目盘点 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(0, 4))}
                 <div className="h-px bg-[color-mix(in_oklch,var(--border)_45%,transparent)] sm:hidden" aria-hidden />
-                {group(`金额 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(4))}
+                {group(`金额 · ${rangeKey === "custom" ? "所选区间" : RANGES[rangeKey as PresetKey].label}`, overviewTiles.slice(4), true)}
               </div>
             );
           })()}

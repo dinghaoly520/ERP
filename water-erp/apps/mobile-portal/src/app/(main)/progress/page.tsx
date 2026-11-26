@@ -1,15 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/m/page-header";
-import { Milestone, FolderKanban, Radio, Search } from "lucide-react";
+import { Milestone, Radio, Search } from "lucide-react";
 import { fetchCompanies, type CompanyOption } from "@/lib/api/auth";
 import { fetchProgressStats, type ProgressStats, type ProjectProgress } from "@/lib/api/progress";
 import { useAuth } from "@/components/m/auth-context";
 import { InlineSelect } from "@/components/m/inline-select";
 import { RANGES, type PresetKey, type RangeKey } from "@/lib/ranges";
 import { deltaOf, ratioCls, ratioTxt } from "@/lib/ratios";
+import { formatYuanExact } from "@/lib/amount-format";
 import {
   fetchBidStageStatus,
   BID_BUCKET_LABELS,
@@ -32,10 +33,10 @@ import { readSavedFilters, saveFilters } from "@/lib/filter-store";
 
 type StageMeta = { label: string; color: string; softColor: string };
 
+/** 预算精确显示（2026-11-25 用户裁定「预算保持原本数字——不四舍五入、不用万/亿」）：
+ *  千分位分组 + 小数位原样 + 「元」，与 :3005 formatYuanExact 同款 */
 function fmtBudget(v: number): string {
-  return v >= 10000
-    ? `${(v / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 1 })} 万`
-    : `${v.toLocaleString("zh-CN")} 元`;
+  return formatYuanExact(v);
 }
 
 const STAGE_META: Record<string, StageMeta> = {
@@ -141,8 +142,6 @@ export default function ProgressPage() {
   const [retryTick, setRetryTick] = useState(0);
 
   const [activeProject, setActiveProject] = useState<ProjectProgress | null>(null);
-  const router = useRouter();
-
   /* 开评标进行时已上移首页「实时运行态势」（2026-11-18 指挥台改版）——本页去重，
      30s 轮询随之移除（进展页聚焦项目阶段时间线与节点预告） */
 
@@ -533,22 +532,6 @@ export default function ProgressPage() {
                 </span>
               </div>
             </div>
-
-            {/* 台账↔进展互跳桥（2026-11-03）：两页各持同一项目半张信息，此处直达台账轮次明细；
-                携 q=项目名兜底——目标轮次不在台账第 1 页时至少列表已按项目过滤可见（2026-11-03 稳健性） */}
-            <button
-              type="button"
-              onClick={() =>
-                router.push(
-                  `/ledger?focusPmi=${activeProject.id}${
-                    activeProject.projectName ? `&q=${encodeURIComponent(activeProject.projectName)}` : ""
-                  }`,
-                )
-              }
-              className="neu-btn-soft h-9 w-full rounded-[10px] px-3 text-[14px] active:scale-95"
-            >
-              <FolderKanban size={13} /> 查看台账
-            </button>
 
             <div>
               <div className="mb-2 text-[14px] font-bold uppercase tracking-[0.1em] text-[var(--muted-foreground)]">

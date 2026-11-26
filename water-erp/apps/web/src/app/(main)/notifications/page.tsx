@@ -73,6 +73,7 @@ const ACTION_LABEL: Record<string, string> = {
   SUPPLIER_APPROVED: '供应商审批 · 通过',
   SUPPLIER_REJECTED: '供应商审批 · 拒绝',
   SUPPLIER_RETURNED: '供应商审批 · 退回补正',
+  SUPPLIER_WITHDRAWN: '供应商撤回申请',
   SUPPLIER_BLACKLIST: '供应商列入黑名单',
   SUPPLIER_DISABLE: '供应商停用',
   SUPPLIER_ENABLE: '供应商恢复',
@@ -171,6 +172,11 @@ const ACTION_LABEL: Record<string, string> = {
   SUPERVISION_PUSH: '监督数据推送',
   SUPPLIER_LINK_DISABLED: '停用公司归属',
   SUPPLIER_LINK_ENABLED: '启用公司归属',
+  // ── 三轮补录（2026-11-25：供应商三级审批分级动作系模板写入 `SUPPLIER_REVIEW_PASSED_${stage}`，
+  //    字面对照必漏——与总览近期动态/操作历史同一批漏网枚举）──
+  SUPPLIER_REVIEW_PASSED_STAFF: '供应商审批 · 初审通过',
+  SUPPLIER_REVIEW_PASSED_LEADER: '供应商审批 · 复审通过',
+  水叮当明文查看供应商联系人: '查看供应商联系方式',
   SUPPLIER_RESUBMITTED: '重新提交补正资料',
   SUPPLIER_CHANGE_APPROVED: '供应商资料变更 · 通过',
   SUPPLIER_CHANGE_REJECTED: '供应商资料变更 · 拒绝',

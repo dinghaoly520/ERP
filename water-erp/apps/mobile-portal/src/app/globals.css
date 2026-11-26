@@ -627,11 +627,6 @@ select.m-input { appearance: auto; }
   .m-fab {
     right: max(1rem, env(safe-area-inset-right), calc(50% - 23rem + 1rem));
   }
-
-  /* 聊天壳与主壳同口径加宽（原 32rem 对齐旧 max-w-lg——2026-11-25 自适应体检对齐） */
-  .m-chat-shell {
-    max-width: 46rem;
-  }
 }
 
 /* ══ 体验打磨一轮（2026-10-14 spec）：入场/退场动效 + 减弱动效尊重 ══ */
@@ -708,6 +703,14 @@ select.m-input { appearance: auto; }
   background: var(--background); /* 不透明底：遮住 (main) 内的欢迎卡等层叠内容 */
   padding-inline: max(0.875rem, env(safe-area-inset-left)) max(0.875rem, env(safe-area-inset-right));
   padding-top: 0.875rem; /* 对齐 main pt-3.5 */
+}
+/* 折叠屏展开态/平板（≥640px）：聊天壳随主壳加宽——必须写在上方基础规则之后
+ * （同权重源顺序后者胜；先前写在 m-sheet-panel 媒体块里被 32rem 基础规则压制=从未生效，
+ * 2026-11-25 用户实测实录修复），内容列在 chat 页内单独封顶居中 */
+@media (min-width: 640px) {
+  .m-chat-shell {
+    max-width: 46rem;
+  }
 }
 .m-chat-scroll {
   flex: 1;
@@ -1608,3 +1611,6 @@ body.m-kb-open .m-chat-shell {
 /* watcher nudge 2026-11-23 */
 
 /* watcher nudge 2026-11-23b */
+
+/* cache-bust 2026-11-25: 聊天页宽屏工具类重发 */
+/* cache-bust 2026-11-25b: 总览值自适应字号 min-480 重发 */

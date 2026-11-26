@@ -972,7 +972,7 @@ ${toolList}
       this.prisma.procurementProject.count({ where: { ...companyWhere, status: 'PENDING_REVIEW' } }),
       this.prisma.bidProject.count({ where: { ...companyWhere, isExtractionOnly: false } }),
       this.prisma.bidProject.count({ where: { ...companyWhere, stage: { in: ['OPENING', 'EVALUATING'] }, isExtractionOnly: false } }),
-      this.prisma.supplier.count({ where: { ...companyWhere } }),
+      this.prisma.supplier.count({ where: { ...companyWhere, status: { in: ['APPROVED', 'DISABLED', 'BLACKLIST'] } } }), // 总数=库内四态（2026-11-25 收敛：撤回/驳回壳不计入，与 getStats 口径一致）
       this.prisma.supplier.count({ where: { ...companyWhere, status: 'APPROVED' } }),
       this.prisma.supplier.count({ where: { ...companyWhere, status: 'PENDING' } }),
       this.prisma.supplier.count({ where: { ...companyWhere, status: { in: ['DISABLED', 'BLACKLIST'] } } }),

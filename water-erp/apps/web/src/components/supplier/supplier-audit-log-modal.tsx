@@ -3,29 +3,11 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Modal, NeuSelect } from '@/components/workbench';
 import { getSupplierAuditLogs, type SupplierAuditLogItem } from '@/lib/api/supplier';
-import { History, RefreshCw, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2, Search } from 'lucide-react';
+import { History, ChevronLeft, ChevronRight, Lock, CalendarDays, Download, Loader2, Search } from 'lucide-react';
 import { SUPPLIER_STATUS_LABEL, LEVEL_LABEL } from '@water-erp/shared';
 import { downloadHistoryTxt } from '@/lib/history-export';
 import { toast } from 'sonner';
-
-// 供应商操作类型 → 中文标签（对齐 dashboard 与 audit-log 既有映射，补齐全量）。
-const ACTION_LABELS: Record<string, string> = {
-  SUPPLIER_APPROVED: '审核通过（入库）',
-  SUPPLIER_REJECTED: '审核不通过',
-  SUPPLIER_RETURNED: '退回补正',
-  SUPPLIER_DISABLED: '停用',
-  SUPPLIER_BLACKLIST: '拉黑',
-  SUPPLIER_UNBLACKLIST: '解除拉黑',
-  SUPPLIER_RESTORED: '恢复正常',
-  SUPPLIER_RESUBMITTED: '重新提交',
-  SUPPLIER_REACTIVATED: '重新激活',
-  SUPPLIER_CHANGE_APPROVED: '变更审批通过',
-  SUPPLIER_CHANGE_REJECTED: '变更驳回',
-  SUPPLIER_CONVERTED_REGULAR: '转正式供应商',
-  SUPPLIER_EVALUATION_CREATED: '履约评价',
-  SUPPLIER_TAGS_UPDATED: '业务标签更新',
-  SUPPLIER_TAGS_BACKFILL: '业务标签回填',
-};
+import { SUPPLIER_ACTION_LABELS, supplierActionLabel, REVIEW_STAGE_LABELS } from '@/lib/supplier-action-labels';
 
 const ACTION_TONE: Record<string, string> = {
   SUPPLIER_APPROVED: 'var(--success)',
@@ -36,7 +18,8 @@ const ACTION_TONE: Record<string, string> = {
   SUPPLIER_CHANGE_REJECTED: 'var(--danger)',
 };
 
-/** 审计详情字段 → 中文标签（name 冗余——供应商列已展示，故不在此列示）。 */
+/** 审计详情字段 → 中文标签（2026-11-25 与后端 audit() 写入面穷举对齐；name/supplierName
+ *  冗余——供应商列已展示，不在此列示）。未收录键兜底「补充信息」——新字段漏配不裸出英文。 */
 const FIELD_LABELS: Record<string, string> = {
   reason: '原因',
   note: '备注',
@@ -51,15 +34,37 @@ const FIELD_LABELS: Record<string, string> = {
   skipped: '跳过数',
   belowMin: '低于最少标签数',
   force: '强制重算',
+  stage: '审批级',
+  nextStage: '流转至',
+  purged: '账号清理',
+  reviewReason: '评价说明',
+  via: '查看渠道',
+  fields: '查看字段',
 };
 
-/** 字段值中文化：状态/等级枚举转中文，数组逗号分隔，布尔转是/否。 */
+/** 水叮当明文查看渠道标识 → 中文 */
+const VIA_LABELS: Record<string, string> = {
+  'assistant-supplier-detail': '水叮当问答',
+};
+
+/** 明文查看的字段路径 → 中文 */
+const CONTACT_FIELD_LABELS: Record<string, string> = {
+  'contacts.phone': '联系电话',
+  'contacts.email': '电子邮箱',
+};
+
+/** 字段值中文化：枚举（状态/审批级/等级/渠道）转中文，数组顿号分隔，布尔转是/否。 */
 function formatValue(k: string, v: unknown): string {
   if (v == null || v === '') return '—';
-  if (Array.isArray(v)) return v.join('、') || '—';
+  if (typeof v === 'boolean') return v ? '是' : '否';
   if (k === 'from') return SUPPLIER_STATUS_LABEL[String(v)] ?? String(v);
   if (k === 'finalGrade') return LEVEL_LABEL[String(v)] ?? String(v);
-  if (k === 'force') return v ? '是' : '否';
+  if (k === 'stage' || k === 'nextStage') return REVIEW_STAGE_LABELS[String(v)] ?? String(v);
+  if (k === 'via') return VIA_LABELS[String(v)] ?? '其他渠道';
+  if (k === 'fields' && Array.isArray(v)) {
+    return v.map((x) => CONTACT_FIELD_LABELS[String(x)] ?? '其他字段').join('、') || '—';
+  }
+  if (Array.isArray(v)) return v.join('、') || '—';
   if (typeof v === 'object') return JSON.stringify(v);
   return String(v);
 }
@@ -67,8 +72,8 @@ function formatValue(k: string, v: unknown): string {
 /** 详情展示：优先展示原因/评价等级等关键字段，其余以只读键值列示（键值均中文）。 */
 function DetailLines({ item }: { item: SupplierAuditLogItem }) {
   const d = (item.details ?? {}) as Record<string, unknown>;
-  // name 是资源名，与「供应商」列重复，故剔除；仅展示有意义的补充字段。
-  const keys = Object.keys(d).filter(k => k !== 'name');
+  // name/supplierName 是资源名，与「供应商」列重复，故剔除；仅展示有意义的补充字段。
+  const keys = Object.keys(d).filter(k => k !== 'name' && k !== 'supplierName');
   if (keys.length === 0) return <span className="text-xs text-[var(--muted-foreground)]">—</span>;
 
   const prefer = ['reason', 'finalGrade', 'field', 'from', 'note'];
@@ -77,7 +82,7 @@ function DetailLines({ item }: { item: SupplierAuditLogItem }) {
     <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
       {ordered.map(k => (
         <span key={k} className="text-xs text-[var(--muted-foreground)]">
-          <span className="text-[var(--foreground)]/60">{FIELD_LABELS[k] ?? k}</span>：
+          <span className="text-[var(--foreground)]/60">{FIELD_LABELS[k] ?? '补充信息'}</span>：
           <span className="text-[var(--foreground)]">{formatValue(k, d[k])}</span>
         </span>
       ))}
@@ -103,14 +108,14 @@ function dayLabel(day: string): string {
   return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-/** txt 导出用明细串：与 DetailLines 同键序（剔除 name 冗余），「键：值 · …」单行 */
+/** txt 导出用明细串：与 DetailLines 同键序（剔除 name/supplierName 冗余），「键：值 · …」单行 */
 function detailText(item: SupplierAuditLogItem): string | undefined {
   const d = (item.details ?? {}) as Record<string, unknown>;
-  const keys = Object.keys(d).filter(k => k !== 'name');
+  const keys = Object.keys(d).filter(k => k !== 'name' && k !== 'supplierName');
   if (keys.length === 0) return undefined;
   const prefer = ['reason', 'finalGrade', 'field', 'from', 'note'];
   const ordered = [...prefer.filter(k => keys.includes(k)), ...keys.filter(k => !prefer.includes(k))];
-  return ordered.map(k => `${FIELD_LABELS[k] ?? k}：${formatValue(k, d[k])}`).join(' · ');
+  return ordered.map(k => `${FIELD_LABELS[k] ?? '补充信息'}：${formatValue(k, d[k])}`).join(' · ');
 }
 
 export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => void; companyId?: string }) {
@@ -175,7 +180,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
         if (all.length >= r.total || r.items.length === 0) break;
       }
       const filterBits = [
-        actionFilter ? ACTION_LABELS[actionFilter] ?? actionFilter : null,
+        actionFilter ? supplierActionLabel(actionFilter) : null,
         dateFrom ? `${dateFrom} 起` : null,
         dateTo ? `${dateTo} 止` : null,
         search ? `关键词：${search}` : null,
@@ -186,7 +191,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
         all.map(it => ({
           at: it.createdAt,
           operator: it.actorName,
-          action: ACTION_LABELS[it.action] || it.action,
+          action: supplierActionLabel(it.action),
           subject: it.resourceName || undefined,
           detail: detailText(it),
         })),
@@ -245,7 +250,7 @@ export function SupplierAuditLogModal({ onClose, companyId }: { onClose: () => v
             className="!h-7 !text-[11px] min-w-[130px]"
           >
             <option value="">全部</option>
-            {Object.entries(ACTION_LABELS).map(([key, label]) => (
+            {Object.entries(SUPPLIER_ACTION_LABELS).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
             ))}
           </NeuSelect>
@@ -337,7 +342,7 @@ function GroupRows({ day, list }: { day: string; list: SupplierAuditLogItem[] })
             <td className="text-center">
               <span className="rounded px-2 py-0.5 text-[10px] font-bold whitespace-nowrap"
                 style={{ color: tone, backgroundColor: `color-mix(in_oklch,${tone}_12%,transparent)` }}>
-                {ACTION_LABELS[it.action] || it.action}
+                {supplierActionLabel(it.action)}
               </span>
             </td>
             <td className="text-center text-sm">{it.resourceName || '—'}</td>

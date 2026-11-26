@@ -46,7 +46,11 @@ export const SUPPLIER_STATUS_LABEL: Record<string, string> = {
   REJECTED: '审核不通过',
   DISABLED: '已停用',
   BLACKLIST: '黑名单',
+  WITHDRAWN: '已撤回',
 };
+
+/** 供应商撤销申请次数上限（2026-11-25 用户裁定：最多 3 次，跨轮累计） */
+export const SUPPLIER_WITHDRAW_LIMIT = 3;
 
 /* ── 评分类别 ── */
 

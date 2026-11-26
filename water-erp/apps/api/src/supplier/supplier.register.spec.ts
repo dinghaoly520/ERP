@@ -229,6 +229,26 @@ describe('SupplierService.register — P1-13 注册手机验证前置', () => {
         .rejects.toMatchObject({ response: { code: 'DUPLICATE_CREDIT_CODE' } });
     });
 
+    it('信用代码命中 WITHDRAWN 撤回壳 → 复用原行重开（不抛 DUPLICATE_CREDIT_CODE），withdrawCount 保留', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'WITHDRAWN', supplierNo: 'SUP-000001', withdrawCount: 2 });
+      const txUpdate = jest.fn().mockResolvedValue({ id: 's1', userId: 'u1', contacts: [], qualifications: [], bankAccounts: [], performances: [] });
+      prisma.$transaction = shellReopenTx(txUpdate);
+      await expect(service.register({ ...validDto })).resolves.toBeTruthy();
+      expect(txUpdate).toHaveBeenCalledWith(expect.objectContaining({
+        where: { id: 's1' },
+        data: expect.objectContaining({ status: 'PENDING', reviewStage: 'STAFF', returnReason: null }),
+      }));
+      // 计数列不在重开覆写集里（跨轮累计保留）
+      expect(JSON.stringify(txUpdate.mock.calls[0][0].data)).not.toContain('withdrawCount');
+    });
+
+    it('壳重开认领 where 覆盖 WITHDRAWN：并发流转（count=0）→ 400 CONFLICT', async () => {
+      prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'WITHDRAWN', supplierNo: 'SUP-000001', withdrawCount: 0 });
+      const claim = jest.fn().mockResolvedValue({ count: 0 });
+      prisma.$transaction = shellReopenTx(jest.fn(), claim);
+      await expect(service.register({ ...validDto })).rejects.toMatchObject({ response: { code: 'CONFLICT' } });
+    });
+
     it('壳重开：壳自身残存 User 行持有同用户名 → 放行复用（不抛 DUPLICATE_USERNAME）', async () => {
       // 驳回清洗（purgeRejectedSupplier）保留 username/role，壳的 User 行仍持有同用户名 → username 查重命中壳自身须放行
       prisma.supplier.findUnique.mockResolvedValue({ id: 's1', userId: 'u1', status: 'REJECTED', supplierNo: 'SUP-000001' });

@@ -282,8 +282,9 @@ export default function ChatPage() {
     /* 有界 fixed 壳（.m-chat-shell，见 globals.css）：top=header 44px、bottom=tabbar——消息区
      * 成唯一滚动容器，输入条钉在 tabbar 上方；不再依赖 min-h+主容器滚动的魔法高差 */
     <div ref={shellRef} className="m-chat-shell">
-      {/* 顶部：返回 + 口径标签 + 历史/新对话（2026-11-19 用户裁定：补返回按钮） */}
-      <div className="mb-2 flex items-center justify-between gap-2">
+      {/* 顶部：返回 + 口径标签 + 历史/新对话（2026-11-19 用户裁定：补返回按钮）；
+          折叠屏展开态三段（顶栏/消息流/输入条）统一封顶 42rem 居中——读行长与信使形态，壳底色仍满宽 */}
+      <div className="mx-auto mb-2 flex w-full items-center justify-between gap-2 sm:max-w-[42rem]">
         <button
           type="button"
           onClick={() => router.push("/dashboard")}
@@ -309,7 +310,7 @@ export default function ChatPage() {
       </div>
 
       {/* 消息流（唯一滚动容器；底部垫 --kb-h 避让抬升后的输入条） */}
-      <div className="m-chat-scroll space-y-3">
+      <div className="m-chat-scroll mx-auto w-full space-y-3 sm:max-w-[42rem]">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-10">
             <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_10%,transparent)]">
@@ -331,7 +332,7 @@ export default function ChatPage() {
             const showActions = m.role === "assistant" && !m.failedQ;
             return (
               <div key={i} className={m.role === "user" ? "flex justify-end" : "flex justify-start"}>
-                <div className={m.role === "user" ? "max-w-[85%] rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)]" : "max-w-[92%]"}>
+                <div className={m.role === "user" ? "max-w-[85%] rounded-[14px] bg-[color-mix(in_oklch,var(--accent)_12%,transparent)] px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)] sm:max-w-[26rem]" : "max-w-[92%] sm:max-w-[38rem]"}>
                   {m.role === "assistant" ? (
                     <div className="rounded-[14px] neu-card-static px-3.5 py-2.5 text-[14px] leading-relaxed text-[var(--foreground)]">
                       {m.content}
@@ -411,7 +412,7 @@ export default function ChatPage() {
       {/* 输入条（键盘开启时 .m-chat-dock 抬至键盘上方，tabbar 不动） */}
       <form
         onSubmit={(e) => { e.preventDefault(); ask(input); }}
-        className="m-chat-dock flex items-center gap-2 pt-1"
+        className="m-chat-dock mx-auto flex w-full items-center gap-2 pt-1 sm:max-w-[42rem]"
       >
         {/* 自增高输入框（:3005 chat-input 借鉴）：单行 input 长问题可视截断；
             手机键盘 Enter=换行，发送只走按钮（桌面 Enter 直发不适用移动端） */}

@@ -1542,6 +1542,7 @@ enum SupplierStatus {
   REJECTED // 审核不通过
   DISABLED // 停用
   BLACKLIST // 黑名单
+  WITHDRAWN // 已撤回（供应商自行撤销申请，2026-11-25；壳保留完整数据供信用代码回填）
 }
 
 enum InvitationStatus {
@@ -1591,6 +1592,7 @@ model Supplier {
   classificationId     String?
   rejectReason         String?
   returnReason         String?
+  withdrawCount        Int            @default(0) // 撤回次数（跨轮累计不清零；≥3 不可再撤，2026-11-25）
   disableReason        String? // 停用/拉黑原因（B6：替代 returnReason 的语义错用）
   eliminatedAt         DateTime? // 淘汰确认时间（B12：非空=经淘汰流程，区分手动停用）
   sm2PublicKey         String? // @deprecated 2026-09-17（D5）：验签统一 ACTIVE SupplierCert；本列仅 bindCert 回填 + 旧轨验签/存量回执复验回退读

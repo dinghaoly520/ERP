@@ -174,6 +174,24 @@ export const authApi = {
     return api.post<any>(`/supplier/register/correction/submit`, data, { silent: true });
   },
 
+  /** 撤销申请：凭公司名+信用代码向主联系人手机发验证码（审核中/补正中/已撤回均可发起——
+   *  撤回确认与撤回壳数据回填共用同一验证链路）。 */
+  requestWithdraw(name: string, creditCode: string) {
+    return api.post<any>(`/supplier/register/withdraw/request`, { name, creditCode }, { silent: true });
+  },
+  /** 撤销申请：校验验证码换发一次性撤回 token。 */
+  verifyWithdraw(name: string, creditCode: string, code: string) {
+    return api.post<any>(`/supplier/register/withdraw/verify`, { name, creditCode, code }, { silent: true });
+  },
+  /** 撤销申请：确认撤回（审核中/补正中 → 已撤回壳，计数+1）。 */
+  submitWithdraw(token: string, name: string, creditCode: string) {
+    return api.post<any>(`/supplier/register/withdraw/submit`, { token, name, creditCode }, { silent: true });
+  },
+  /** 撤销申请：凭 token 拉取撤回前已填资料（解封回填）。 */
+  getWithdrawDraft(token: string, name: string, creditCode: string) {
+    return api.get<any>(`/supplier/register/withdraw/draft${qs({ token, name, creditCode })}`, { silent: true });
+  },
+
   /** 公开：校验邀请码（临时注册前）。返回 { valid, validityDays?, expiresAt?, reason? } */
   verifyInvitation(code: string) {
     return api.get<any>(`/supplier/invitations/verify${qs({ code })}`, { silent: true });

@@ -9,7 +9,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { AnyRole } from '../common/decorators/any-role.decorator';
 import { RegisterSupplierDto } from './dto/register-supplier.dto';
-import { CorrectionRequestDto, CorrectionVerifyDto, CorrectionSubmitDto } from './dto/correction-request.dto';
+import { CorrectionRequestDto, CorrectionVerifyDto, CorrectionSubmitDto, WithdrawSubmitDto } from './dto/correction-request.dto';
 import { RevealSupplierFieldDto } from './dto/reveal-supplier-field.dto';
 import { CreateInvitationDto } from './dto/create-invitation.dto';
 import { RegisterTemporarySupplierDto } from './dto/register-temporary-supplier.dto';
@@ -252,6 +252,43 @@ export class SupplierController {
   @ApiOperation({ summary: '退回补正：补正后重新提交（原位更新，creditCode 锁定）' })
   async submitCorrection(@Body() dto: CorrectionSubmitDto) {
     return this.supplierService.submitCorrection(dto);
+  }
+
+  // ── 供应商撤销申请（2026-11-25 spec）：审核中/补正中可自撤（限 3 次），撤回壳保留数据供信用代码回填 ──
+
+  @Post('register/withdraw/request')
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @ApiOperation({ summary: '撤销申请：凭公司名+信用代码向主联系人手机发验证码' })
+  async requestWithdraw(@Body() dto: CorrectionRequestDto, @Request() req: any) {
+    return this.supplierService.requestWithdraw(dto.name, dto.creditCode, req.ip ?? '');
+  }
+
+  @Post('register/withdraw/verify')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: '撤销申请：校验验证码换发一次性撤回 token' })
+  async verifyWithdraw(@Body() dto: CorrectionVerifyDto) {
+    return this.supplierService.verifyWithdraw(dto.name, dto.creditCode, dto.code);
+  }
+
+  @Post('register/withdraw/submit')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: '撤销申请：确认撤回（PENDING/RETURNED → WITHDRAWN，计数+1）' })
+  async submitWithdraw(@Body() dto: WithdrawSubmitDto) {
+    return this.supplierService.withdrawSubmit(dto.token, dto.name, dto.creditCode);
+  }
+
+  @Get('register/withdraw/draft')
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @ApiOperation({ summary: '撤销申请：凭 token 拉取撤回前已填资料（解封回填）' })
+  async getWithdrawDraft(@Query('token') token?: string, @Query('name') name?: string, @Query('creditCode') creditCode?: string) {
+    if (!token || !name || !creditCode) {
+      throw new BadRequestException({ error: '请提供撤回 token、公司名称与统一社会信用代码', code: 'MISSING_WITHDRAW_PARAMS' });
+    }
+    return this.supplierService.getWithdrawDraft(token, name, creditCode);
   }
 
   // 注册前查重（公开）：统一社会信用代码重复=硬拦截；法人/联系人身份证号、手机号重复=软提示。
