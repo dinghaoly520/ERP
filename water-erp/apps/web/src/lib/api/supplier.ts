@@ -572,10 +572,11 @@ export function getCorrectionDiff(id: string) {
   return api.get<CorrectionDiffResult>(`/supplier/${id}/correction-diff`);
 }
 
-/** 全量审批记录（admin only，2026-09-30）：跨供应商全流程（三级通过+驳回+退回补正） */
+/** 全量审批记录（admin only，2026-09-30）：跨供应商全流程（三级通过+驳回+退回补正+供应商撤回申请） */
 export interface AllApprovalRecord {
   id: string;
-  action: 'APPROVED' | 'REJECTED' | 'RETURNED';
+  // WITHDRAWN：供应商自行撤回入库申请（2026-11-25）——后端 recordApproval 落库的动作值，审批历史据此留痕
+  action: 'APPROVED' | 'REJECTED' | 'RETURNED' | 'WITHDRAWN';
   stage?: string | null;
   reason?: string | null;
   attachmentIds?: string[];
