@@ -357,3 +357,99 @@ describe('TenderReviewController.executeReview — 只收上传记录 id（审�
     expect(prisma.reviewTask.create).not.toHaveBeenCalled();
   });
 });
+
+describe('TenderReviewController.deleteTask — 连带清理源文件（审计第 3 处跟进）', () => {
+  const KEY = 'review/2026-11-25/0123456789abcdef0123456789abcdef.docx';
+  const taskWith = (objectKey: string) => ({ id: 't1', objectKey, userId: 'u1' });
+
+  const arrange = (objectKey: string, overrides: Record<string, any> = {}) => ({
+    reviewTask: {
+      findUnique: jest.fn().mockResolvedValue(taskWith(objectKey)),
+      delete: jest.fn().mockResolvedValue({}),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    fileAsset: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    ...overrides,
+  });
+
+  it('没有别的任务在用这份文件 → 先删任务，再删对象、备份与文件记录', async () => {
+    const storage = { delete: jest.fn().mockResolvedValue(undefined) };
+    const prisma: any = arrange(KEY);
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
+
+    expect(prisma.reviewTask.delete).toHaveBeenCalledWith({ where: { id: 't1' } });
+    // 引用计数必须在任务行删掉之后做，否则会把自己数进去
+    expect(prisma.reviewTask.delete.mock.invocationCallOrder[0]).toBeLessThan(prisma.reviewTask.count.mock.invocationCallOrder[0]);
+    expect(prisma.reviewTask.count).toHaveBeenCalledWith({ where: { objectKey: KEY } });
+    expect(storage.delete).toHaveBeenNthCalledWith(1, KEY);
+    expect(storage.delete).toHaveBeenNthCalledWith(2, `${KEY}.original`);
+    expect(prisma.fileAsset.deleteMany).toHaveBeenCalledWith({ where: { key: KEY, category: 'tender_review_source' } });
+  });
+
+  it('同一份文件还被别的任务引用 → 只删任务，不碰存储与文件记录', async () => {
+    const storage = { delete: jest.fn() };
+    const prisma: any = arrange(KEY, {
+      reviewTask: {
+        findUnique: jest.fn().mockResolvedValue(taskWith(KEY)),
+        delete: jest.fn().mockResolvedValue({}),
+        count: jest.fn().mockResolvedValue(2),
+      },
+    });
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
+
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('没有文件的任务 → 不查引用、不碰存储与文件记录', async () => {
+    const storage = { delete: jest.fn() };
+    const prisma: any = arrange('');
+    const controller = buildControllerWith(prisma, storage);
+
+    await controller.deleteTask('t1', USER);
+
+    expect(prisma.reviewTask.delete).toHaveBeenCalledTimes(1);
+    expect(prisma.reviewTask.count).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('任务键不在审查命名空间内 → 照常删任务，存储一律不碰', async () => {
+    const storage = { delete: jest.fn() };
+    const prisma: any = arrange('../.env');
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
+
+    expect(prisma.reviewTask.delete).toHaveBeenCalledTimes(1);
+    expect(prisma.reviewTask.count).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('对象删除失败 → 请求照常成功，文件记录保留（上传者与 admin 可经通用删除接口重试）', async () => {
+    const storage = { delete: jest.fn().mockRejectedValue(new Error('minio down')) };
+    const prisma: any = arrange(KEY);
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.deleteTask('t1', USER)).resolves.toEqual({ deleted: true });
+
+    expect(storage.delete).toHaveBeenCalledWith(KEY);
+    expect(prisma.fileAsset.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('非属主且非 admin → 403，任务不删、文件不碰', async () => {
+    const storage = { delete: jest.fn() };
+    const prisma: any = arrange(KEY);
+    const controller = buildControllerWith(prisma, storage);
+
+    await expect(controller.deleteTask('t1', { sub: 'u2', role: 'staff' } as any)).rejects.toMatchObject({ status: 403 });
+
+    expect(prisma.reviewTask.delete).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+  });
+});

@@ -4,6 +4,7 @@ import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { StorageService } from '../src/storage/storage.service';
 
 async function loginAs(app: INestApplication, username: string, password: string): Promise<string[]> {
   const res = await request(app.getHttpServer())
@@ -132,5 +133,44 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
       expect(ok.status).toBe(200);
       expect(ok.text).toBe(BODY);
     }
+  });
+
+  const removeTask = (cookie: string[], taskId: string) =>
+    request(app.getHttpServer())
+      .delete(`/api/tender-review/review/tasks/${taskId}`)
+      .set('Cookie', cookie)
+      .set('X-Portal', 'web');
+
+  const fileStatus = async (cookie: string[], fileId: string) =>
+    (await request(app.getHttpServer()).get(`/api/upload/files/${fileId}`).set('Cookie', cookie).set('X-Portal', 'web')).status;
+
+  it('删除任务且这份上传没有别的任务在用 → 对象、备份与文件记录一并清掉', async () => {
+    const up = await track(await upload(staff, 'e2e-删除清理.txt'));
+    const key = (await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } }))!.key;
+    // 模拟一次「接受修改」留下的备份对象
+    const storage = app.get(StorageService);
+    await storage.upload(`${key}.original`, Buffer.from(BODY), 'application/octet-stream');
+    const res = await track(await execute(staff, { fileId: up.body.fileId }));
+
+    expect((await removeTask(staff, res.body.taskId)).status).toBe(200);
+
+    expect(await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } })).toBeNull();
+    await expect(storage.download(key)).rejects.toBeDefined();
+    await expect(storage.download(`${key}.original`)).rejects.toBeDefined();
+    expect(await fileStatus(staff, up.body.fileId)).toBe(404);
+  });
+
+  it('同一份上传还被另一个任务在用 → 只删任务、文件留着；最后一个任务删掉后才清', async () => {
+    const up = await track(await upload(staff, 'e2e-共用清理.txt'));
+    const first = await track(await execute(staff, { fileId: up.body.fileId }));
+    const second = await track(await execute(staff, { fileId: up.body.fileId }));
+
+    expect((await removeTask(staff, first.body.taskId)).status).toBe(200);
+    expect(await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } })).not.toBeNull();
+    expect(await fileStatus(staff, up.body.fileId)).toBe(200);
+
+    expect((await removeTask(staff, second.body.taskId)).status).toBe(200);
+    expect(await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } })).toBeNull();
+    expect(await fileStatus(staff, up.body.fileId)).toBe(404);
   });
 });

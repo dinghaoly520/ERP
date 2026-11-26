@@ -684,7 +684,37 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('无权删除此任务');
     }
     await this.prisma.reviewTask.delete({ where: { id } });
+    if (task.objectKey) await this.removeReviewSourceFileIfUnreferenced(task.id, task.objectKey);
     return { deleted: true };
+  }
+
+  /**
+   * 删除任务后清理它的源文件（2026-11-26）：同一份上传已没有任何任务在用，才删对象、备份与文件记录。
+   * - 键不在审查命名空间内（越界的存量数据）：存储一律不碰；
+   * - 对象没删掉：保留文件记录——上传者与 admin 还能经通用删除接口重试。
+   * 清理的任何失败都不影响「任务已删除」。
+   */
+  private async removeReviewSourceFileIfUnreferenced(taskId: string, objectKey: string): Promise<void> {
+    let key: string;
+    try {
+      key = this.reviewFileKey({ objectKey });
+    } catch {
+      this.logger.warn(`任务 ${taskId} 的文件键不在审查命名空间内，删除任务时不清理存储`);
+      return;
+    }
+    // 必须在任务行删掉之后数：否则会把这个任务自己数进去
+    const stillUsed = await this.prisma.reviewTask.count({ where: { objectKey } });
+    if (stillUsed > 0) return;
+    try {
+      await this.storage.delete(key);
+      await this.storage.delete(`${key}.original`);
+    } catch (err) {
+      this.logger.warn(`清理任务 ${taskId} 的审查源文件失败，保留文件记录：${String(err).slice(0, 200)}`);
+      return;
+    }
+    await this.prisma.fileAsset
+      .deleteMany({ where: { key, category: REVIEW_SOURCE_CATEGORY } })
+      .catch((err) => this.logger.warn(`删除任务 ${taskId} 的审查源文件记录失败：${String(err).slice(0, 200)}`));
   }
 
   @Get('review/stats/today')
