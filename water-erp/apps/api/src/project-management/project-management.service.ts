@@ -3886,7 +3886,10 @@ ${JSON.stringify(algorithmResult, null, 2)}
         const thresholdDefault = project.procurementMethod === '直接采购' ? 1 : 3;
         const threshold = Math.min(Math.max(dto.confirmedThreshold ?? thresholdDefault, 1), 50);
         const roundBpForGate = await this.resolveRoundBidProject(projectId, targetRound, { id: true });
-        const rsvpWhere = roundBpForGate ? { projectId: roundBpForGate.id } : { projectId };
+        // 双 id 空间并集（2026-11-26 稳健轮）：回执行可能落 BP id（现行通知轨）也可能落
+        // PMI id（存量/懒建前通知轨）——原「有 BP 只数 BP」会让 PMI 空间存量行在 BP 懒建
+        // 之后隐形，完成闸误拦真实邀请（读端 analyzeStep 等早已并集，此处对齐）。
+        const rsvpWhere = { projectId: { in: Array.from(new Set([roundBpForGate?.id, projectId].filter(Boolean) as string[])) } };
         // 按供应商去重计数（2026-10-23 用户口径：与邀请页「已确认」同源）——同一供应商
         // 跨批次多行只数一次：已回执行优先于 PENDING，均非 PENDING 取 respondedAt 最新
         // （最新回执代表当前意愿）；此前裸 count 行数会把多批次重复数大、与页面显示打架

@@ -579,9 +579,17 @@ export function SupplierSelectionPage({
   // 上一项目解析出的 BidProject id 会残留——代确认/代变更带着旧项目的 BP id 落库，
   // 表现为「界面已确认、本项目回执 0/0、完成闸拒绝」。入口项目一变即清空待重解析。
   const resolvedForPmiRef = useRef<string | null>(null);
+  // 切换窗口（2026-11-26 稳健轮）：真实切换项目的同批 effects 里，保存链须跳过
+  // （旧项目名单 + 新项目桶的混合态写入正是跨项目污染源头），稍后由整会话重置消费。
+  const sessionSwitchingRef = useRef(false);
+  const pendingSwitchResetRef = useRef(false);
   useEffect(() => {
     if (!project?.id) return;
     if (resolvedForPmiRef.current !== project.id) {
+      if (resolvedForPmiRef.current !== null) {
+        sessionSwitchingRef.current = true;
+        pendingSwitchResetRef.current = true;
+      }
       resolvedForPmiRef.current = project.id;
       setProjectId('');
     }
@@ -812,6 +820,7 @@ export function SupplierSelectionPage({
   useEffect(() => { return () => { if (draftSyncRef.current) clearTimeout(draftSyncRef.current); }; }, []);
 
   useEffect(() => {
+    if (sessionSwitchingRef.current) return; // 切换窗口：混合态不落桶（见 pendingSwitchReset 消费）
     if (firstPersistSkip.current) { firstPersistSkip.current = false; return; }
     try {
       localStorage.setItem(sessionKey, JSON.stringify({
@@ -1316,7 +1325,9 @@ export function SupplierSelectionPage({
         forceNewRsvpToken: force || undefined,
         supplierNames: target.map(([, v]) => v.item.name),
         supplierIds: target.map(([sid]) => sid),
-        projectId: projectId || (project as any)?.id || null,
+        // 关联性铁律（2026-11-26 稳健轮）：落库载荷携带入口 PMI id（恒正确）——BP 解析态
+        // 曾跨项目泄漏把回执行/快照写进别的项目；后端自行 canonical 化到 BP。
+        projectId: (project as any)?.id || projectId || null,
         validityDays: 1,
       });
       if (res.rsvpTokens) setNotifyRsvpTokens(prev => ({ ...prev, ...res.rsvpTokens }));
@@ -1412,7 +1423,7 @@ export function SupplierSelectionPage({
       setNotifyNotFound(totalNotFound);
       // 发送打戳（2026-10-20 用户口径）：时间轴「供应商邀请」= 一键通知点击时刻——
       // 与 rsvp 行写入同 id 空间（projectId 兜底 PMI id）；失败不阻断流程
-      const stampProjectId = projectId || (project as any)?.id;
+      const stampProjectId = (project as any)?.id || projectId;
       if (stampProjectId && sentSupplierIds.size > 0) {
         markInvitedNotified(stampProjectId, [...sentSupplierIds]).catch(() => {});
       }
@@ -1538,7 +1549,7 @@ export function SupplierSelectionPage({
 
   // 确认配置：将谈判配置（时间/附件/下载方式）后台推送给供应商端
   const handleConfirmConfig = async () => {
-    const pid = projectId || (project as any)?.id;
+    const pid = (project as any)?.id || projectId;
     if (!pid) { toast.error('未关联项目'); return; }
     setConfigSending(true);
     try {
@@ -1562,6 +1573,16 @@ export function SupplierSelectionPage({
   };
 
   const reset = () => { setStepInner(1); setMaxStepReached(1); setResult(null); setShortlist(new Map()); setNotified(false); setConfirmations(new Map()); setNotifyNotFound(0); setCompleted(false); setError(''); setFileContextLoaded(false); setFileAnalysisContext(''); setManualSearch(''); setManualSuppliers([]); setManualTotal(0); setNotifyRsvpTokens({}); setIsRerun(false); setRerunShortlist(new Map()); setRerunResult(null); setRerunConfirmations(new Map()); setRerunNotified(false); setRerunNotifyPerSupplier(new Map()); setRerunHistory([]); setConfigSent(false); setTimeConfirmed(false); setAttachFiles([]); setRefFileKeys(new Set()); setDownloadMode('free'); setDownloadPassword(''); setShowManualAdd(false); setShowRerunManualAdd(false); setAddMoreIds(new Set()); setNotifyKeywords({ company: '', projectName: '', projectCode: '', method: '' }); try { localStorage.removeItem(`supplier-selection-state${project?.id ? `:${project.id}` : ''}`); } catch {} deleteDraft(`supplier-selection${project?.id ? `:${project.id}` : ''}`).catch(() => {}); };
+
+  // 切换入口项目的整会话重置（2026-11-26 稳健轮）：弹窗复用实例换绑项目时，上一项目的
+  // 名单/通知/确认/草稿不得带入新项目（今日 2601↔2602 系列事故的污染源头）——重置后
+  // 保存链以干净初值写入新项目桶。首挂不触发（保留会话恢复语义）；声明于 reset 之后。
+  useEffect(() => {
+    if (!pendingSwitchResetRef.current) return;
+    pendingSwitchResetRef.current = false;
+    sessionSwitchingRef.current = false;
+    reset();
+  });
 
   // 补选 handlers
   const openRerun = () => setShowRerunDialog(true);
@@ -1669,7 +1690,7 @@ export function SupplierSelectionPage({
       setRerunNotified(true);
       setRerunConfirmations(new Map([...rerunShortlist.keys()].map(sid => [sid, 'pending' as const])));
       // 补选轮发送打戳（同正选口径；后端仅补空，不覆盖首轮通知时刻）
-      const stampProjectId = projectId || (project as any)?.id;
+      const stampProjectId = (project as any)?.id || projectId;
       if (stampProjectId && sentSupplierIds.size > 0) {
         markInvitedNotified(stampProjectId, [...sentSupplierIds]).catch(() => {});
       }
@@ -1768,7 +1789,7 @@ export function SupplierSelectionPage({
   const submitProxyMark = async () => {
     if (!proxyMark) return;
     if (proxyReason.trim().length < 5) { toast.error('请填写理由（至少 5 个字），将展示在回执看板'); return; }
-    const pid = projectId || (project as any)?.id;
+    const pid = (project as any)?.id || projectId;
     if (!pid) { toast.error('缺少项目上下文，无法代回应'); return; }
     setProxySubmitting(true);
     try {
