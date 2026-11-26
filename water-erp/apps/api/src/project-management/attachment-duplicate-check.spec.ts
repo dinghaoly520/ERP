@@ -1,12 +1,19 @@
 import { createHash } from 'node:crypto';
 import { ProjectManagementService } from './project-management.service';
 
-/** 同文件查重（2026-11-24 用户需求）：内容 sha256 全项目比对——
- *  已有指纹行直比、无指纹行懒回填（读文件算指纹落列）、文件缺失跳过不误报、
+/** 同文件查重（2026-11-26 用户需求）：内容 sha256 全项目比对——
+ *  已有指纹行直比、无指纹行懒回填（流式读文件算指纹落列）、文件缺失跳过不误报、
  *  按入参指纹顺序返回。 */
-jest.mock('fs/promises', () => ({ readFile: jest.fn() }));
+jest.mock('node:fs', () => {
+  // 部分 mock：仅替换 createReadStream——全量替换会炸依赖图里 fs.existsSync 等用法
+  const actual = jest.requireActual('node:fs');
+  return { ...actual, createReadStream: jest.fn() };
+});
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const { readFile } = require('fs/promises') as { readFile: jest.Mock };
+const { createReadStream } = require('node:fs') as { createReadStream: jest.Mock };
+
+/** 假文件流：单 chunk 异步可迭代（服务端 for-await 流式哈希消费） */
+const fakeStream = (content: string) => (async function* () { yield Buffer.from(content); })();
 
 const H = (content: string) => createHash('sha256').update(content).digest('hex');
 
@@ -50,14 +57,14 @@ describe('ProjectManagementService.checkDuplicateAttachments', () => {
     expect(prisma.attachment.update).not.toHaveBeenCalled();
   });
 
-  it('无指纹行懒回填：物化文件计算指纹→命中→指纹落列（下次免算）', async () => {
+  it('无指纹行懒回填：物化文件流式计算指纹→命中→指纹落列（下次免算）', async () => {
     const hash = H('legacy-content');
     const { service, prisma } = mk([
       { id: 'old1', fileName: '立项申请表.docx', objectKey: 'legacy-key', sha256: null, createdAt: new Date(),
         projectManagementStage: { stageKey: 'INITIATION', stageName: '采购立项', round: 2 } },
     ]);
     service.ensureAttachmentLocal = jest.fn().mockResolvedValue('/uploads/legacy-key');
-    readFile.mockResolvedValue(Buffer.from('legacy-content'));
+    createReadStream.mockReturnValue(fakeStream('legacy-content'));
     const res = await service.checkDuplicateAttachments('p1', [hash]);
     expect(res[0].duplicates).toHaveLength(1);
     expect(res[0].duplicates[0]).toMatchObject({ id: 'old1', stageName: '采购立项', round: 2 });

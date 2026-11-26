@@ -350,7 +350,7 @@ export async function uploadProjectStageAttachment(
   );
 }
 
-/** 同文件查重命中项（2026-11-24）：与已上传附件内容完全相同（sha256 比对，非名称） */
+/** 同文件查重命中项（2026-11-26）：与已上传附件内容完全相同（sha256 比对，非名称） */
 export type AttachmentDuplicateMatch = {
   id: string;
   fileName: string;
@@ -360,7 +360,7 @@ export type AttachmentDuplicateMatch = {
   createdAt: string;
 };
 
-/** 全项目同文件查重（2026-11-24 用户需求）：上传前按内容指纹比对（跨步骤/轮次），
+/** 全项目同文件查重（2026-11-26 用户需求）：上传前按内容指纹比对（跨步骤/轮次），
  *  命中由前端弹「文件相同」确认框（提示核对所属步骤）再继续 */
 export async function checkAttachmentDuplicates(
   projectId: string,

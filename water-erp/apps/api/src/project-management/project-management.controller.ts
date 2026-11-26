@@ -449,8 +449,10 @@ export class ProjectManagementController {
     return this.projectManagementService.deleteAttachment(id, attachmentId);
   }
 
-  /** 全项目同文件查重（2026-11-24 用户需求）：内容 sha256 比对（跨步骤/轮次，非名称）——
-   *  前端选文件后先查，命中弹「文件相同」确认框（提示核对所属步骤）再继续上传 */
+  /** 全项目同文件查重（2026-11-26 用户需求）：内容 sha256 比对（跨步骤/轮次，非名称）——
+   *  前端选文件后先查，命中弹「文件相同」确认框（提示核对所属步骤）再继续上传。
+   *  POST 被类级 PmiOwnershipGuard 按写口径（仅创建人）拦截——查重只在创建人上传
+   *  流可达（前端 actionsDisabled 已挡），语义一致无越权面 */
   @Post(':id/attachments/check-duplicate')
   checkDuplicateAttachments(
     @Param('id') id: string,

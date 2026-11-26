@@ -57,7 +57,7 @@ type StoredAttachment = {
   mimeType: string;
   fileSize: number;
   uploadedById?: string;
-  /** 内容指纹（2026-11-24 全项目同文件查重）：persist 时计算随建行落列 */
+  /** 内容指纹（2026-11-26 全项目同文件查重）：persist 时计算随建行落列 */
   sha256?: string;
 };
 
@@ -7614,7 +7614,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
     return result;
   }
 
-  /** 全项目同文件查重（2026-11-24 用户需求）：按内容 sha256 比对本项目已上传的全部附件
+  /** 全项目同文件查重（2026-11-26 用户需求）：按内容 sha256 比对本项目已上传的全部附件
    *  （跨步骤/轮次，非仅名称相同）。新上传行建行时已落指纹；存量行懒回填（本地主轨→
    *  MinIO 副本物化后计算，回填失败/文件缺失跳过——无法核验不当重复）。只读，不动可变性。 */
   async checkDuplicateAttachments(
@@ -7657,11 +7657,14 @@ ${JSON.stringify(algorithmResult, null, 2)}
     for (const a of attachments) {
       let hash = a.sha256;
       if (!hash) {
-        // 懒回填：物化文件后计算指纹并落列；任一步失败跳过该行（不视为重复）
+        // 懒回填：物化文件后流式计算指纹并落列（流式——500MB 上限件不整读进内存）；
+        // 任一步失败跳过该行（不视为重复）
         const local = await this.ensureAttachmentLocal(a.objectKey).catch(() => null);
         if (!local) continue;
         try {
-          hash = createHash('sha256').update(await readFile(local)).digest('hex');
+          const digest = createHash('sha256');
+          for await (const chunk of createReadStream(local)) digest.update(chunk as Buffer);
+          hash = digest.digest('hex');
         } catch {
           continue;
         }

@@ -275,7 +275,7 @@ export function ProjectDetailPanel({
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  // 同文件查重确认（2026-11-24 用户需求）：内容 sha256 命中已上传附件时先弹确认——
+  // 同文件查重确认（2026-11-26 用户需求）：内容 sha256 命中已上传附件时先弹确认——
   // 提示核对所属步骤；确认才继续上传。ctx 快照防确认期间切换步骤错挂
   const [dupConfirm, setDupConfirm] = useState<{
     files: File[];
@@ -973,7 +973,7 @@ export function ProjectDetailPanel({
 
     const ctx = { stageKey: selectedStage.stageKey, round: selectedStage.round ?? 1 };
 
-    // 同文件查重（2026-11-24 用户需求）：与本项目已上传的全部文件按内容 sha256 比对
+    // 同文件查重（2026-11-26 用户需求）：与本项目已上传的全部文件按内容 sha256 比对
     // （非名称相同）——命中先弹确认框（提示核对所属步骤），确认后才入队；查重链路
     // 失败降级为不查（不阻断上传）
     void (async () => {
@@ -2356,7 +2356,7 @@ export function ProjectDetailPanel({
       {/* 时间轴弹窗（2026-11-13）：按钮入口在标题栏项目终止左侧 */}
       <ProjectTimelineDialog open={timelineOpen} onClose={() => setTimelineOpen(false)} pmiId={item.id} refreshKey={timelineVersion} />
 
-      {/* 同文件查重确认（2026-11-24 用户需求）：内容 sha256 命中已上传附件——
+      {/* 同文件查重确认（2026-11-26 用户需求）：内容 sha256 命中已上传附件——
           提示核对所属步骤并上传至对应步骤，确认后才继续 */}
       {dupConfirm && (
         <Modal
