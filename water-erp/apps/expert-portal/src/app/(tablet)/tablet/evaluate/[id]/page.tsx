@@ -186,7 +186,8 @@ export default function TabletEvaluatePage() {
   useEffect(() => { loadProject(); }, [loadProject]);
 
   // WS 实时同步：其他专家提交评分 / 对方设备保存草稿后自动刷新
-  useExpertWebSocket(projectId, {
+  // 连接状态与重试入口给提示条用（2026-11-26 审查 M-5）：连续入会失败停止自动重连后，平板此前没有任何提示——与桌面页同款
+  const { connection: wsConnection, reconnectNow: wsReconnect } = useExpertWebSocket(projectId, {
     // EXP-P3-06：WS 重连补拉——断连窗口错过的草稿/提交等事件经全量刷新补偿
     onReconnected: () => { loadProject(); },
     // P2-9/10/11（中断审查）：延期/口令轮换/重开确认广播——陈旧锁定态自动解锁，不再须 F5
@@ -836,6 +837,17 @@ export default function TabletEvaluatePage() {
 
   return (
     <div className="mx-auto flex h-full max-w-[1400px] flex-col gap-3 px-3 pt-2 pb-3">
+      {/* 实时连接提示（与桌面评标页同款）：重连中 / 已断开两态；已断开即自动重连已停，须手动重试 */}
+      {wsConnection !== 'connected' && (
+        <div role="status" className={`exp-alert flex shrink-0 items-center justify-between gap-3 !px-4 ${wsConnection === 'reconnecting' ? 'exp-alert--warn' : ''}`}>
+          <span className="inline-flex items-center gap-1.5">
+            <AlertTriangle size={13} strokeWidth={1.5} />
+            {wsConnection === 'reconnecting' ? '实时连接中断，正在重连…' : '实时连接已断开，数据可能不是最新'}
+          </span>
+          <button type="button" onClick={wsReconnect} className={`neu-btn-xs shrink-0 !h-9 !px-3 ${wsConnection === 'reconnecting' ? 'is-warning' : 'is-danger'}`}>重试</button>
+        </div>
+      )}
+
       {/* 顶部信息 */}
       <div className="flex flex-shrink-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
