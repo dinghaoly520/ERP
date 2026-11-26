@@ -52,12 +52,19 @@ function emitOnce(socket: Socket, projectId: string, ackTimeoutMs: number): Prom
     const timer = setTimeout(() => {
       if (!settled) { settled = true; resolve({ error: 'JOIN_TIMEOUT' }); }
     }, ackTimeoutMs);
-    socket.emit('join:project', projectId, (ack: JoinAck | undefined) => {
+    const settle = (ack: JoinAck) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      resolve(ack ?? { error: 'JOIN_TIMEOUT' });
-    });
+      resolve(ack);
+    };
+    try {
+      socket.emit('join:project', projectId, (ack: JoinAck | undefined) => settle(ack ?? { error: 'JOIN_TIMEOUT' }));
+    } catch (err) {
+      // 发送本身出错（socket.io-client 4.x 正常不会走到）：与等不到应答同样处理，由调用方记一次失败并断开重连
+      console.warn('[ws] join:project 发送失败', err);
+      settle({ error: 'JOIN_TIMEOUT' });
+    }
   });
 }
 

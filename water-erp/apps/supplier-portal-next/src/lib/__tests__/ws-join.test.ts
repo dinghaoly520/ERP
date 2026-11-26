@@ -194,3 +194,58 @@ test("中途入会成功一次：连续计数清零，之后的断开重新从 1
   onDisconnectedBeforeJoin(false, "io server disconnect", d);
   assert.deepEqual(state, { streak: 1, stopped: 0, gets: 3, sets: 4, current: true });
 });
+
+// ── 发送本身出错（2026-11-26 独立审查）：不得变成未处理的拒绝，按一次入会失败处理 ──
+
+test("发送入会申请时抛错：按一次入会失败处理并断开，不向外抛", async () => {
+  const calls: string[] = [];
+  const socket = {
+    emit: () => { throw new Error("emit boom"); },
+    disconnect: () => { calls.push("disconnect"); },
+  } as unknown as Socket;
+  const { d, state } = deps();
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.equal(await joinProjectOnConnect(socket, "p1", d, { sleep: noWait }), false);
+  } finally {
+    console.warn = warn;
+  }
+  assert.deepEqual(calls, ["disconnect"]);
+  assert.deepEqual(state, { streak: 1, stopped: 0, gets: 1, sets: 1, current: true });
+});
+
+// ── 钉住既有行为（2026-11-26 独立审查）：旧连接的迟到应答、停止与断开的先后 ──
+
+test("迟到的未授权应答（连接已被替换）：不记失败、不断开", async () => {
+  let sent = 0;
+  const emitted: string[] = [];
+  const { d, state } = deps();
+  const socket = {
+    emit: (event: string, _projectId: string, ack?: (a: unknown) => void) => {
+      emitted.push(event);
+      sent += 1;
+      setTimeout(() => { if (sent === 3) state.current = false; ack?.(U); }, 0); // 第三次重试的应答回来之前，连接已被替换
+    },
+    disconnect: () => { emitted.push("disconnect"); },
+  } as unknown as Socket;
+  await joinProjectOnConnect(socket, "p1", d, { sleep: noWait });
+  assert.deepEqual(emitted, ["join:project", "join:project", "join:project"]);
+  assert.deepEqual(state, { streak: 0, stopped: 0, gets: 0, sets: 0, current: false });
+});
+
+test("第三次失败：先要求停止重连、再断开（断开回调据此不再排重连）", async () => {
+  const calls: string[] = [];
+  let streak = 2; // 已连续失败两次
+  const socket = {
+    emit: (_event: string, _projectId: string, ack?: (a: unknown) => void) => { setTimeout(() => ack?.(U), 0); },
+    disconnect: () => { calls.push("disconnect"); },
+  } as unknown as Socket;
+  await joinProjectOnConnect(socket, "p1", {
+    isCurrent: () => true,
+    getFailStreak: () => streak,
+    setFailStreak: (n) => { streak = n; calls.push("setFailStreak"); },
+    stopReconnect: () => { calls.push("stopReconnect"); },
+  }, { sleep: noWait });
+  assert.deepEqual(calls, ["setFailStreak", "stopReconnect", "disconnect"]);
+});
