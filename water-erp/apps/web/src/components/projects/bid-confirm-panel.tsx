@@ -844,6 +844,11 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                     const activeExperts = workspace.experts.filter(
                       e => e.invitationStatus !== 'declined',
                     );
+                    // 组长第一、正选在前、候补在后（2026-11-26 用户裁定，与基本信息/商谈小组
+                    // 同口径）——workspace 原序按 DB collation 排中文 expertRole，组长位置随机；
+                    // 稳定排序保留组内先后
+                    const roleRank = (e: typeof activeExperts[0]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
+                    const orderedExperts = [...activeExperts].sort((a, b) => roleRank(a) - roleRank(b));
                     const hasAlts = availableAlts.length > 0;
                     if (activeExperts.length === 0) {
                       return <EmptyHint text="所有专家均已拒绝或超时，暂无确认的专家组成员。" />;
@@ -880,7 +885,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                             </tr>
                           </thead>
                           <tbody>
-                            {activeExperts.map((e, i) => {
+                            {orderedExperts.map((e, i) => {
                               const isAlt = e.expertRole === '候补';
                               return (
                                 <tr key={e.id} className="row-clickable">
