@@ -42,7 +42,6 @@ const routeToKey: Record<string, string> = {
   "/supplier/repository": "supplier-repo",
   "/supplier/dashboard": "supplier-repo",
   "/supplier/selection": "supplier-select",
-  "/supplier/qualification-alerts": "supplier-repo",
   "/supplier": "supplier-approval",
   // 专家管理
   "/expert/repository": "expert-repo",
@@ -86,7 +85,6 @@ const SUPPLIER_SUB_PATHS = new Set([
   "evaluation",
   "dashboard",
   "elimination",
-  "qualification-alerts",
 ]);
 const EXPERT_SUB_PATHS = new Set([
   "entry",

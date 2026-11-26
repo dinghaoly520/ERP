@@ -3,9 +3,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Building2, TrendingUp, AlertTriangle, Activity, Star, Ban, Clock3,
-  Target, Layers, Lightbulb, ChevronDown, ChevronUp, RefreshCw,
-} from 'lucide-react';
-import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution, getSupplierList } from '@/lib/api/supplier';
+  Target, Layers, Lightbulb, ChevronDown, ChevronUp, RefreshCw, Send } from 'lucide-react';
+import { getSupplierStats, getClassifications, getEvaluationStats, getQualificationAlerts, getRecentActivities, getFavorites, getEvaluationDimensionStats, getEnterpriseTypeDistribution, getSupplierList, notifyQualificationAlert } from '@/lib/api/supplier';
+import { toast } from 'sonner';
 import { normalizeEnterpriseType } from '@/lib/utils/enterprise-type';
 import { supplierActionLabel } from '@/lib/supplier-action-labels';
 import type { SupplierStats, QualificationAlerts, ActivityItem, SupplierFavoriteRecord, DimensionStats } from '@/lib/api/supplier';
@@ -328,6 +328,22 @@ export default function SupplierDashboardPage() {
   const [approvalList, setApprovalList] = useState<{ pending: Supplier[]; returned: Supplier[] }>({ pending: [], returned: [] });
   // 资质预警明细窗口（同日裁定：窗口展示，不再跳资质预警页）
   const [alertsOpen, setAlertsOpen] = useState(false);
+  // 资质预警行内发送（2026-11-26 用户裁定：资质预警页删除，发送通知并入本窗口）：
+  // notifiedIds 为会话内防重复标记（供应商更新资质后预警自动解除）
+  const [alertSending, setAlertSending] = useState<string | null>(null);
+  const [alertNotifiedIds, setAlertNotifiedIds] = useState<Set<string>>(new Set());
+  const notifyAlertItem = async (id: string, name: string) => {
+    setAlertSending(id);
+    try {
+      await notifyQualificationAlert(id);
+      setAlertNotifiedIds(s => new Set(s).add(id));
+      toast.success(`已发送维护提醒「${name}」`);
+    } catch (e: any) {
+      toast.error(e?.message || '发送失败');
+    } finally {
+      setAlertSending(null);
+    }
+  };
   const [loadError, setLoadError] = useState(false); // B13：任一面板加载失败即提示，避免静默空面板
   // 公司视野（admin 选择器，与供应商库共用 localStorage 记忆；非 admin 后端强制本公司）
   const [companyId, setCompanyId] = useState('all');
@@ -736,12 +752,7 @@ export default function SupplierDashboardPage() {
         title="资质预警明细"
         description={alerts ? `已过期 ${alerts.expiredCount} 项 · 即将过期 ${alerts.expiringCount} 项 · 影响 ${alerts.affectedSupplierCount} 家供应商` : undefined}
         size="lg"
-        footer={
-          <div className="flex w-full items-center gap-2">
-            <span className="flex-1 text-xs text-[var(--muted-foreground)]">发送维护提醒等操作在资质预警页进行</span>
-            <Link href="/supplier/qualification-alerts" onClick={() => setAlertsOpen(false)} className="neu-btn-xs">前往资质预警页</Link>
-          </div>
-        }
+        /* 底部操作条已删（2026-11-26 用户裁定）：发送通知按钮已并入行内，资质预警页删除 */
       >
         {!alerts ? (
           <p className="py-10 text-center text-sm text-[var(--muted-foreground)]">资质到期情况加载中…</p>
@@ -774,6 +785,14 @@ export default function SupplierDashboardPage() {
                               {q.name}（{q.type}）· 到期 {q.validTo ? new Date(q.validTo).toLocaleDateString('zh-CN') : '—'} · <span className="font-semibold tabular-nums" style={{ color: tone }}>{q.daysRemaining !== null ? `${q.daysRemaining} 天` : '—'}</span>
                             </div>
                           </div>
+                          <button
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); void notifyAlertItem(q.id, q.name); }}
+                            disabled={alertSending === q.id || alertNotifiedIds.has(q.id)}
+                            className="neu-btn-xs shrink-0"
+                            title={alertNotifiedIds.has(q.id) ? '已发送维护提醒，供应商更新资质后移出预警' : '发送维护提醒到供应商门户'}
+                          >
+                            <Send size={11} />{alertSending === q.id ? '发送中' : alertNotifiedIds.has(q.id) ? '已通知' : '发送通知'}
+                          </button>
                         </Link>
                       ))}
                     </div>

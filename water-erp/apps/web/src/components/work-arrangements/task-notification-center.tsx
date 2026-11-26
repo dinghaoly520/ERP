@@ -42,7 +42,7 @@ const SEGMENT: { key: NotificationTab; label: string; icon: any }[] = [
  *  澄清答疑/开标大厅归 :3007（分工 v3），:3005 无对应页面。 */
 const TYPE_LINKS: Record<string, string> = {
   SUPPLIER_PENDING: '/supplier/approval',
-  QUALIFICATION_EXPIRING: '/supplier/qualification-alerts',
+  QUALIFICATION_EXPIRING: '/supplier/dashboard',
   USER_REGISTRATION_PENDING: '/admin/accounts',
   ACCOUNT_SECURITY_FEEDBACK: '/admin/accounts',
 };
