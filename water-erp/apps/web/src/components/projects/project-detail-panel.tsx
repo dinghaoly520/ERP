@@ -53,10 +53,7 @@ import { TenderWriteModal } from './tender-write-modal';
 import { DirectFilingDialog } from './direct-filing-dialog';
 import { SupplierExtractModal } from './supplier-extract-modal';
 import { UploadProgressList } from '../upload/upload-progress-list';
-import { WaterBar } from '../upload/water-bar';
 import { useFileUploads } from '@/lib/upload/use-file-uploads';
-import { useCountUp } from '@/lib/upload/use-count-up';
-import { formatSpeed } from '@/lib/upload/format';
 import { ExpertExtractModal } from './expert-extract-modal';
 import { AnnouncementPublishWizard } from './announcement-publish-wizard';
 import { BidConfirmPanel } from './bid-confirm-panel';
@@ -271,8 +268,6 @@ export function ProjectDetailPanel({
     },
   });
   const uploading = stageUploads.running;
-  const uploadPctAnim = useCountUp(stageUploads.aggregate.pct);
-  const uploadSpeedText = formatSpeed(stageUploads.aggregate.speedBps);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -2080,40 +2075,19 @@ export function ProjectDetailPanel({
                 {isPastRound ? '该步骤属已完成的历史轮次，仅供查看。' : stageLocked ? '当前阶段尚未解锁。请先完成上一个阶段，再继续上传当前材料。' : selectedStage.status === 'COMPLETED' ? '当前阶段已完成。仍可继续补充材料，保持归档完整。' : '请上传当前阶段所需材料，确认无误后再推进到下一阶段。'}
               </p>
 
-              {/* 上传/分析进度条 — sticky 固定，始终可见（2026-11-06：上传相位升级为
-                  水波流光聚合条——总百分比=Σ字节，速度滑动窗，可取消；分析相位不变） */}
-              {(uploading || analysisLoading) && (
+              {/* 分析相位提示条 — sticky 固定（2026-11-26 用户裁定：删除上传相位聚合条——
+                  与上传区内的每文件进度行重复；上传进度统一走 UploadProgressList 全局设计，
+                  取消按钮移至操作行。上传期间不显示分析提示，防误导） */}
+              {analysisLoading && !uploading && (
                 <div className="sticky top-0 z-10 -mx-5 px-5 py-2 mb-1"
                   style={{ background: 'linear-gradient(105deg, oklch(1 0 0 / 0.95), oklch(0.98 0.003 258 / 0.8))', borderBottom: '1px solid oklch(0.6 0.04 258 / 0.12)' }}>
-                  {uploading ? (
-                    <div className="flex items-center gap-3">
-                      <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">
-                            正在上传 {stageUploads.aggregate.doneCount + stageUploads.aggregate.failedCount} / {stageUploads.items.length}
-                            {' · '}
-                            <span className="font-mono tabular-nums">{uploadPctAnim}%</span>
-                            {uploadSpeedText && (
-                              <span className="font-mono tabular-nums text-[color:var(--muted-foreground)]"> · {uploadSpeedText}</span>
-                            )}
-                          </span>
-                          <button type="button" className="neu-btn-soft ml-auto shrink-0 !px-3 !py-1 !text-[11px]" onClick={stageUploads.cancel}>
-                            <X size={11} /> 取消
-                          </button>
-                        </div>
-                        <WaterBar pct={stageUploads.aggregate.pct} state="uploading" />
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">正在智能分析文件内容…</span>
+                      <span className="text-[10px] text-[color:var(--muted-foreground)]">AI 正在识别文件类型与内容，分析完成后即可确认阶段完成</span>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <Loader2 size={15} className="animate-spin text-[color:var(--accent)] shrink-0" />
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-[0.8rem] font-semibold text-[color:var(--foreground)]">正在智能分析文件内容…</span>
-                        <span className="text-[10px] text-[color:var(--muted-foreground)]">AI 正在识别文件类型与内容，分析完成后即可确认阶段完成</span>
-                      </div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -2210,6 +2184,10 @@ export function ProjectDetailPanel({
                   <button type="button" onClick={() => void uploadStageFiles()} disabled={uploading || selectedFiles.length === 0 || stageLocked} className="neu-btn-primary">
                     {uploading ? (<><Loader2 size={15} className="animate-spin" />上传中…</>) : (<><UploadCloud size={15} />{selectedStage.status === 'COMPLETED' ? '补充材料' : '上传所选文件'}</>)}
                   </button>
+                  {uploading && (
+                    /* 取消上传（2026-11-26 随聚合条移入操作行）：中止队列，已传完成的文件保留 */
+                    <button type="button" onClick={stageUploads.cancel} className="neu-btn-soft !px-3 !py-1.5 !text-[11px]"><X size={12} />取消上传</button>
+                  )}
                   <button type="button" onClick={() => void markStageCompleted(selectedStage)} disabled={!canCompleteStage || submitting} className="neu-btn-primary is-success">
                     {submitting ? (<><Loader2 size={15} className="animate-spin" />提交中…</>) : selectedStage.status === 'COMPLETED' ? (<><CheckCircle2 size={15} />已完成</>) : stageProcessing ? (<><Loader2 size={15} className="animate-spin opacity-50" />等待分析完成…</>) : isSupplementStage ? (<><CheckCircle2 size={15} />补录完成</>) : (<><CheckCircle2 size={15} />标记本阶段完成</>)}
                   </button>
