@@ -2,9 +2,22 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import * as cookieParser from 'cookie-parser';
+import { createHash } from 'crypto';
+import * as JSZip from 'jszip';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { StorageService } from '../src/storage/storage.service';
+
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+/** 最小可用的 docx（只有正文）：够上传时解析、也够接受修改时就地改写 */
+async function buildDocx(paragraphs: string[]): Promise<Buffer> {
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+  zip.file('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+  zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphs.map((p) => `<w:p><w:r><w:t xml:space="preserve">${p}</w:t></w:r></w:p>`).join('')}<w:sectPr /></w:body></w:document>`);
+  return zip.generateAsync({ type: 'nodebuffer' });
+}
 
 async function loginAs(app: INestApplication, username: string, password: string): Promise<string[]> {
   const res = await request(app.getHttpServer())
@@ -212,5 +225,57 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     expect((await removeTask(staff, legacy.id)).status).toBe(200);
 
     expect((await storage.download(othersBackup)).toString()).toBe('他人的原始备份');
+  });
+
+  it('接受修改把文件改写后，文件记录的大小与校验值跟着变——通用下载不再被截断', async () => {
+    const original = await buildDocx(['第一条 甲方应按合同约定支付预付款。', '第二条 乙方应按期交付。']);
+    const up = await track(await request(app.getHttpServer())
+      .post('/api/tender-review/review/upload')
+      .set('Cookie', staff)
+      .set('X-Portal', 'web')
+      .attach('file', original, { filename: 'e2e-改写同步.docx', contentType: DOCX }));
+    expect(up.status).toBe(201);
+    const key = (await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } }))!.key;
+    plantedObjects.push(key, `${key}.original`);
+    // 不经大模型：直接给任务挂一条结构化修改建议
+    const task = await prisma.reviewTask.create({
+      data: {
+        documentName: 'e2e-改写同步.docx', objectKey: key, knowledgeBaseId: kbId, userId: staffUserId, reviewMode: 'general', status: 'completed',
+        results: {
+          criticalIssues: [{ ruleId: 'r1', status: 'pending', modificationApplied: false, suggestion: { description: '把「甲方」改为「采购人」', operation: 'replace', originalText: '甲方', replacementText: '采购人' } }],
+          warnings: [], passedChecks: [],
+        },
+      },
+    });
+    createdTaskIds.push(task.id);
+
+    const accepted = await request(app.getHttpServer())
+      .patch(`/api/tender-review/review/tasks/${task.id}/issues/resolve`)
+      .set('Cookie', staff)
+      .set('X-Portal', 'web')
+      .send({ issueIndex: 0, action: 'accept' });
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.results.criticalIssues[0].modificationApplied).toBe(true);
+
+    // 对象已改写（长度变了）；文件记录必须跟上，否则通用下载按旧长度发 Content-Length
+    const stored = await app.get(StorageService).download(key);
+    expect(stored.length).not.toBe(original.length);
+    const asset = await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } });
+    expect(asset?.size).toBe(stored.length);
+    expect(asset?.sha256).toBe(createHash('sha256').update(stored).digest('hex'));
+
+    const dl = await request(app.getHttpServer())
+      .get(`/api/upload/files/${up.body.fileId}`)
+      .set('Cookie', staff)
+      .set('X-Portal', 'web')
+      .buffer(true)
+      .parse((res, cb) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => cb(null, Buffer.concat(chunks)));
+      });
+    expect(dl.status).toBe(200);
+    expect(Number(dl.headers['content-length'])).toBe(stored.length);
+    expect(Buffer.compare(dl.body as Buffer, stored)).toBe(0);
   });
 });

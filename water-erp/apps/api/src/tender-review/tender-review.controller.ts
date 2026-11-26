@@ -58,6 +58,8 @@ import {
   REVIEW_SOURCE_CATEGORY,
 } from './review-source-file.util';
 
+const REVIEW_DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
 @ApiTags('Tender Review')
 @Controller('tender-review')
 export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
@@ -943,6 +945,24 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     return `${this.reviewFileKey(task)}.original`;
   }
 
+  /**
+   * 覆盖写任务的审查源文件，并同步文件记录的大小与校验值（2026-11-26）。
+   * 通用下载按文件记录里的 size 发 Content-Length——改写后不同步，下载到的就是被截断的文件。
+   * key 由调用方先过命名空间守卫再传入。记录同步失败只告警：对象已经写成功，不让请求失败。
+   * 凡是就地改写审查源文件的地方都必须走这里。
+   */
+  private async writeReviewSourceFile(task: { id: string }, key: string, data: Buffer): Promise<void> {
+    await this.storage.upload(key, data, REVIEW_DOCX_MIME);
+    await this.prisma.fileAsset
+      .updateMany({
+        where: { key, category: REVIEW_SOURCE_CATEGORY },
+        data: { size: data.length, sha256: createHash('sha256').update(data).digest('hex') },
+      })
+      .catch((err) =>
+        this.logger.warn(`任务 ${task.id} 的审查源文件已改写，但文件记录的大小与校验值没同步：${String(err).slice(0, 200)}`),
+      );
+  }
+
   private async ensureOriginalBackup(task: any): Promise<void> {
     if (!task.objectKey) return;
     const key = this.reviewFileKey(task);
@@ -975,11 +995,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       structured.replacementText || '',
       structured.operation,
     );
-    await this.storage.upload(
-      key,
-      modified,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    await this.writeReviewSourceFile(task, key, modified);
   }
 
   private async applyManualCommentToFile(
@@ -996,11 +1012,7 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       commentText,
       anchorText,
     );
-    await this.storage.upload(
-      key,
-      modified,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    await this.writeReviewSourceFile(task, key, modified);
   }
 
   private async rebuildDocxFromAccepted(
@@ -1078,12 +1090,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // Upload the rebuilt file
-    await this.storage.upload(
-      key,
-      buffer,
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    );
+    // Upload the rebuilt file（文件记录的大小与校验值一并同步）
+    await this.writeReviewSourceFile(task, key, buffer);
 
     // If no accepted modifications remain, clean up the backup
     if (acceptedIssues.length === 0) {
