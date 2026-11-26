@@ -620,10 +620,12 @@ export default function SupplierDashboardPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {([['已停用', frozenList.disabled], ['黑名单', frozenList.blacklist]] as [string, Supplier[]][]).map(([label, list]) => (
+            {/* 分色标记（2026-11-26 用户裁定）：停用=警示琥珀、黑名单=危险红；行内补法定代表人与处置原因 */}
+            {(([['已停用', frozenList.disabled, 'var(--warning)'], ['黑名单', frozenList.blacklist, 'var(--danger)']] as [string, Supplier[], string][]).map(([label, list, tone]) => (
               <section key={label} className="flex flex-col gap-2">
-                <h4 className="text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
-                  {label} <span className="tabular-nums">（{list.length}）</span>
+                <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.06em] text-[var(--muted-foreground)]">
+                  <span className="inline-block h-2 w-2 rounded-full" style={{ background: tone }} aria-hidden />
+                  {label} <span className="tabular-nums" style={{ color: tone }}>（{list.length}）</span>
                 </h4>
                 {list.length === 0 ? (
                   <p className="text-xs text-[var(--muted-foreground)]/70 px-1">无</p>
@@ -631,19 +633,29 @@ export default function SupplierDashboardPage() {
                   <div className="flex flex-col gap-1.5">
                     {list.map(s => (
                       <Link key={s.id} href={`/supplier/${s.id}`} onClick={() => setFrozenOpen(false)} className="flex items-center gap-3 neu-card-static !rounded-xl !p-3 hover:ring-1 hover:ring-[var(--accent)]/20 transition">
-                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--muted)]/30 text-[var(--muted-foreground)]">
+                        <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in oklch, ${tone} 14%, transparent)`, color: tone }}>
                           <Ban size={13} />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold text-[var(--foreground)] truncate">{s.name}</div>
-                          <div className="mt-0.5 text-[10px] font-mono text-[var(--muted-foreground)]/70">{s.companyNo || s.supplierNo} · {normalizeEnterpriseType(s.enterpriseType)}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-[var(--foreground)] truncate">{s.name}</span>
+                            <span className="shrink-0 rounded-[5px] px-1.5 py-0.5 text-[9px] font-bold" style={{ backgroundColor: `color-mix(in oklch, ${tone} 12%, transparent)`, color: tone }}>{label}</span>
+                          </div>
+                          <div className="mt-0.5 text-[10px] text-[var(--muted-foreground)]/80">
+                            <span className="font-mono">{s.companyNo || s.supplierNo}</span> · {normalizeEnterpriseType(s.enterpriseType)} · 法定代表人 {s.legalPerson || '—'}
+                          </div>
+                          {s.disableReason?.trim() && (
+                            <div className="mt-1 text-[10px] leading-snug" style={{ color: tone }}>
+                              原因：{s.disableReason.trim()}
+                            </div>
+                          )}
                         </div>
                       </Link>
                     ))}
                   </div>
                 )}
               </section>
-            ))}
+            )))}
           </div>
         )}
       </Modal>

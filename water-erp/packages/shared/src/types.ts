@@ -430,6 +430,8 @@ export interface Supplier {
   classificationId?: string;
   rejectReason?: string;
   returnReason?: string;
+  /** 停用/黑名单原因（B6：独立字段，恢复时清空）；在库供应商为 null */
+  disableReason?: string | null;
   /** 归属 ERP 公司名快照（2026-09-14 供应商按公司分组；admin 全部公司视图分组用） */
   companyName?: string | null;
   createdAt: string;
