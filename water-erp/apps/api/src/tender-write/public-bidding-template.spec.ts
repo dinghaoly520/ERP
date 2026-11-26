@@ -10,6 +10,7 @@ import {
   renderTemplateXml,
 } from './tender-write.template';
 import { buildTenantPlaceholderReplacements } from './tenant-tokens';
+import { extractAnnouncementContentHtml } from './announcement-content-html.util';
 import type { InternalBiddingAnswers } from './tender-write.types';
 
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -134,6 +135,43 @@ describe('公开招标模板（克隆邀请招标·招标人口吻）', () => {
       }),
     ]);
     expect(extractPlaceholders(rendered)).toEqual([]);
+  });
+
+  // 2026-11-26 生产实录（SWHI-GK-2026112002）：资格条件层级值 609 字（末行含 ☐接受/☑不接受）
+  // 发布正文只剩首行——wrapCheckboxCharsInSymbolFont 旧实现只取 run 首个 <w:t> 重建，
+  // 层级替换产生的 <w:t>…</w:t><w:br/><w:t>… 多段结构中首个之后的全部内容被丢弃。
+  it('层级文本含 ☐/☑：复选框字体包装不丢首个 <w:t> 之后内容（mammoth 全链断言）', async () => {
+    const draft = {
+      ...announcementFixture(),
+      qualificationConditions: [
+        '1.投标人基本资格要求：',
+        '1.1 提供有效营业执照或事业单位法人证书；',
+        '1.2 未被列入严重违法失信名单；',
+        '2.本项目特定资格要求：',
+        '2.1 投标人须是具有服装生产和供货能力的制造商；',
+        '3.其他：本项目☐接受/☑不接受联合体形式参加投标。',
+      ].join('\n'),
+    };
+    const xml = await loadTemplateXml(PUBLIC_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE);
+    const rendered = renderTemplateXml(xml, buildInvitedBiddingAnnouncementPlan(draft));
+
+    // XML 层：各层级行都在，☐/☑ 已套符号字体
+    const text = templateText(rendered);
+    expect(text).toContain('1.1 提供有效营业执照');
+    expect(text).toContain('1.2 未被列入严重违法失信名单');
+    expect(text).toContain('2.1 投标人须是具有服装生产');
+    expect(text).toContain('不接受联合体形式参加投标');
+    expect(rendered).toContain('Segoe UI Symbol');
+
+    // 提取层（发布正文同链路）：mammoth 提取 HTML 各行齐全
+    const srcBuf = readFileSync(path.resolve(PROJECT_ROOT, PUBLIC_BIDDING_ANNOUNCEMENT_TEMPLATE_FILE));
+    const zip = await JSZip.loadAsync(srcBuf);
+    zip.file('word/document.xml', rendered);
+    const buffer = await zip.generateAsync({ type: 'nodebuffer' });
+    const html = await extractAnnouncementContentHtml(buffer);
+    expect(html).toContain('1.1 提供有效营业执照或事业单位法人证书');
+    expect(html).toContain('2.1 投标人须是具有服装生产和供货能力的制造商');
+    expect(html).toContain('不接受联合体形式参加投标');
   });
 
   it('招标人口吻：公告模板已改写（招标公告/公开招标方式/招标人），无邀请招标与采购人残留', async () => {
