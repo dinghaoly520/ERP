@@ -35,7 +35,7 @@ import { NeuSelect } from '@/components/neu-select';
 
 interface ContactRow { name: string; gender: string; phone: string; idCard: string; email: string; position: string; isPrimary: boolean }
 interface BankRow { accountName: string; bankName: string; bankBranch: string; accountNo: string; isDefault: boolean }
-interface QualRow { type: string; name: string; fileUrl: string; attachments: { name: string; url: string }[]; validFrom: string; validTo: string }
+interface QualRow { type: string; name: string; fileUrl: string; attachments: { name: string; url: string }[]; validFrom: string; validTo: string; permanent?: boolean }
 interface PerfRow { projectName: string; clientName: string; contractAmount: string; signDate: string; description: string; proofFiles: { name: string; url: string }[]; paymentProofs: { name: string; url: string }[] }
 interface FileAsset { url: string; originalName: string }
 
@@ -217,7 +217,7 @@ export default function RegisterPage() {
   /* 第 2-5 部分 */
   const [contacts, setContacts] = useState<ContactRow[]>([{ name: "", gender: "", phone: "", idCard: "", email: "", position: "", isPrimary: true }]);
   const [banks, setBanks] = useState<BankRow[]>([]);
-  const [quals, setQuals] = useState<QualRow[]>([{ type: "营业执照", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "" }]);
+  const [quals, setQuals] = useState<QualRow[]>([{ type: "营业执照", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "", permanent: true }]);
   const [perfs, setPerfs] = useState<PerfRow[]>([]);
 
   const [agree, setAgree] = useState(false);
@@ -623,6 +623,7 @@ export default function RegisterPage() {
       type: q.type ?? "", name: q.name ?? "", fileUrl: q.fileUrl ?? "",
       attachments: Array.isArray(q.attachments) ? q.attachments : [],
       validFrom: q.validFrom ?? "", validTo: q.validTo ?? "",
+      permanent: !q.validTo, // 撤回/补正壳未填有效期止 = 长期有效（与既有口径一致）
     }));
     const legalQual = qualRows.find((q) => q.type === "法定代表人身份证");
     if (legalQual?.fileUrl) setLegalIdFront(legalQual.fileUrl);
@@ -1398,7 +1399,7 @@ export default function RegisterPage() {
                   <h2 className="reg-block-title">资质 / 代理证书等材料</h2>
                   <span className="reg-hint">营业执照必填；其余任意种类材料可自由添加，每项均须上传文件</span>
                   <button type="button" className="reg-btn reg-btn--ghost-sm"
-                    onClick={() => setQuals((qs) => [...qs, { type: "", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "" }])}>
+                    onClick={() => setQuals((qs) => [...qs, { type: "", name: "", fileUrl: "", attachments: [], validFrom: "", validTo: "", permanent: false }])}>
                     <Plus size={13} />添加材料
                   </button>
                 </div>
@@ -1421,7 +1422,12 @@ export default function RegisterPage() {
                       <input id={`qual-${i}-name`} className={`reg-inp reg-row-input${errCls(`qual-${i}-name`)}`} aria-label={`材料 ${i + 1} 名称`} aria-invalid={Boolean(errors[`qual-${i}-name`])} aria-describedby={errors[`qual-${i}-name`] || (i === 0 && errors.license) ? `qual-${i}-errors` : undefined} placeholder={i === 0 ? "营业执照名称（必填）" : "材料名称（如：XX品牌代理证书）"} value={q.name}
                         onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
                       <input type="date" className="reg-date reg-row-date" value={q.validFrom} aria-label="有效期起" onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validFrom: e.target.value } : x)))} />
-                      <input id={`qual-${i}-validTo`} type="date" className={`reg-date reg-row-date${errCls(`qual-${i}-validTo`)}`} value={q.validTo} aria-label="有效期止" aria-invalid={Boolean(errors[`qual-${i}-validTo`])} aria-describedby={errors[`qual-${i}-validTo`] ? `qual-${i}-errors` : undefined} onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validTo: e.target.value } : x)))} />
+                      <input id={`qual-${i}-validTo`} type="date" className={`reg-date reg-row-date${errCls(`qual-${i}-validTo`)}`} value={q.validTo} aria-label="有效期止" aria-invalid={Boolean(errors[`qual-${i}-validTo`])} aria-describedby={errors[`qual-${i}-validTo`] ? `qual-${i}-errors` : undefined} disabled={!!q.permanent} onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, validTo: e.target.value } : x)))} />
+                      <span className="reg-permanent-cell inline-flex items-center gap-1 whitespace-nowrap text-xs" title="若非永久填写为永久，则可能会被停用">
+                        <input id={`qual-${i}-permanent`} type="checkbox" checked={!!q.permanent} onChange={(e) => setQuals((qs) => qs.map((x, j) => (j === i ? { ...x, permanent: e.target.checked, validTo: e.target.checked ? "" : x.validTo } : x)))} />
+                        <label htmlFor={`qual-${i}-permanent`} className="cursor-pointer select-none">长期有效</label>
+                        <Info size={12} className="opacity-60" aria-label="提示：若非永久填写为永久，则可能会被停用" />
+                      </span>
                       <span className={errors[`qual-${i}-fileUrl`] || (i === 0 && errors.license) ? "reg-file-err" : undefined}>
                         <SingleFile
                           url={q.fileUrl}
