@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { StorageService } from '../src/storage/storage.service';
 import { ReviewSourceCleanupService } from '../src/scheduler/review-source-cleanup.service';
+import { TenderReviewController } from '../src/tender-review/tender-review.controller';
 
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
@@ -411,6 +412,33 @@ describe('文档审查上传记录（审计第 3 处）(e2e)', () => {
     const asset = await prisma.fileAsset.findUnique({ where: { id: up.body.fileId } });
     expect(asset?.category).toBe('tender_review_source_purging');
     expect((await storage.download(key)).toString()).toBe(BODY);
+  });
+
+  it('删除正在跑的任务 → 先终止它的审查，再删任务；在途登记随之清掉', async () => {
+    // 真审查要调模型，这里在控制器的在途登记里挂一个受信号控制的「审查」，看删除接口发不发终止信号
+    const registry = app.get(TenderReviewController) as unknown as { activeReviews: Map<string, AbortController> };
+    const task = await prisma.reviewTask.create({
+      data: { documentName: 'e2e-删除在跑任务.txt', objectKey: '', documentContent: 'x', knowledgeBaseId: kbId, userId: staffUserId, reviewMode: 'general', status: 'running' },
+    });
+    createdTaskIds.push(task.id);
+    const ac = new AbortController();
+    registry.activeReviews.set(task.id, ac);
+    let aborted = false;
+    const review = new Promise<void>((_, reject) => {
+      ac.signal.addEventListener('abort', () => {
+        aborted = true;
+        reject(new Error('审查被终止'));
+      });
+    })
+      .catch(() => undefined)
+      .finally(() => registry.activeReviews.delete(task.id));
+
+    expect((await removeTask(staff, task.id)).status).toBe(200);
+
+    expect(aborted).toBe(true);
+    await review;
+    expect(registry.activeReviews.has(task.id)).toBe(false);
+    expect(await prisma.reviewTask.findUnique({ where: { id: task.id } })).toBeNull();
   });
 
   // ── 每日清理（scheduler/review-source-cleanup.service.ts）：与删任务后的清理是同一份规则 ──

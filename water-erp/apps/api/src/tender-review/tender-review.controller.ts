@@ -627,19 +627,27 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
       dto.reviewMode,
       ac.signal,
     )
-      .catch(async (err) => {
-        if (ac.signal.aborted) return;
-        await this.prisma.reviewTask.update({
-          where: { id: task.id },
-          data: {
-            status: 'failed',
-            results: { error: this.sanitizeError(err) } as any,
-          },
-        });
-      })
+      .catch((err) => this.markReviewInterrupted(task.id, ac, err))
       .finally(() => this.activeReviews.delete(task.id));
 
     return { taskId: task.id, status: 'running' };
+  }
+
+  /**
+   * 审查没跑完，把任务标成失败。审查是被终止的（停止任务、删除任务）就不写——调用方自己已经落了状态或删了任务。
+   * 任务行已经不在（删除时没来得及终止、或被直接删掉）也没什么可回写的：这条链路没人接，
+   * 抛出去就是一条未处理的拒绝（生产上只落一条错误日志，排查时还像真出了事）。
+   */
+  private async markReviewInterrupted(taskId: string, ac: AbortController, err: unknown): Promise<void> {
+    if (ac.signal.aborted) return;
+    await this.prisma.reviewTask
+      .update({
+        where: { id: taskId },
+        data: { status: 'failed', results: { error: this.sanitizeError(err) } as any },
+      })
+      .catch((updateErr: { code?: string }) => {
+        if (updateErr?.code !== 'P2025') throw updateErr;
+      });
   }
 
   @Post('review/project-status')
@@ -696,6 +704,8 @@ export class TenderReviewController implements OnModuleInit, OnModuleDestroy {
     if (task.userId && task.userId !== user?.sub && user?.role !== 'admin') {
       throw new ForbiddenException('无权删除此任务');
     }
+    // 正在跑的审查先停（与「停止任务」是同一个信号）：不停的话模型调用照跑，结果写回时任务已经不在了
+    if (task.status === 'running' || task.status === 'pending') this.activeReviews.get(id)?.abort();
     await this.prisma.reviewTask.delete({ where: { id } });
     if (task.objectKey) await this.removeReviewSourceFileIfUnreferenced(task.id, task.objectKey);
     return { deleted: true };
