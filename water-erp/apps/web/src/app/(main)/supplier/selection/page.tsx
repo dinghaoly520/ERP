@@ -2798,10 +2798,14 @@ export function SupplierSelectionPage({
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <button onClick={() => setStep(isDirect ? 1 : 2)} className="neu-btn-soft gap-2">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>{isDirect ? '上一步：选取供应商' : '上一步：审核候选'}
+          <div className={`flex items-center ${isDirect ? 'justify-end' : 'justify-between'}`}>
+            {/* 直采删「上一步：选取供应商」（2026-11-26 用户裁定）——第一步不可回访是
+                既定口径，此按钮是唯一漏网回1入口；非直采保留回「审核候选」 */}
+            {!isDirect && (
+            <button onClick={() => setStep(2)} className="neu-btn-soft gap-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>上一步：审核候选
             </button>
+            )}
             <div className="flex items-center gap-2">
               <button onClick={handleNotify} disabled={notifySending || notified || notifyPerSupplier.size === 0}
                 className={`neu-btn-soft gap-2 ${notified ? 'is-success' : ''}`}>
