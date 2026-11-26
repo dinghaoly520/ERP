@@ -29,7 +29,8 @@ import {
 import { sha256File } from '@/lib/sha256-file';
 import { getBidProjectDetail, listScoreItems, type BidProjectDetail, type BidScoreItem } from '@/lib/api/bid';
 import { isPassFailCategory } from '@water-erp/shared';
-import { getProjectParticipants } from '@/lib/api/announcement';
+import { getProjectParticipants, type Participant } from '@/lib/api/announcement';
+import { isPublicEnrollMethod, isOpeningPassed, filterPublicEnrollRows } from '@/lib/procurement-participation';
 import { zhToDatetimeLocal, datetimeLocalToZh } from '@/lib/utils/format-acquire-time';
 import {
   PROCUREMENT_METHODS,
@@ -577,6 +578,8 @@ export function ProjectDetailPanel({
   const [filingWriteOpen, setFilingWriteOpen] = useState(false);
   // 供应商参与（非谈判）：公告自动收集的参与供应商名单，优先于手动维护的 invitedSuppliers
   const [participantNames, setParticipantNames] = useState<string | null>(null);
+  /** 参与供应商结构化行（公告型口径 2026-11-26）：null=未加载/无本轮公告（回落字符串路径） */
+  const [participantData, setParticipantData] = useState<{ announcementId: string | null; suppliers: Participant[] } | null>(null);
   const [editingFile, setEditingFile] = useState<{ attachmentId: string; fileName: string; stageKey: ProjectWorkflowStageKey } | null>(null);
 
   // 选中步骤的实时镜像：异步回调（如弹窗上传后的回填）需以"响应到达时"的选中态判定，
@@ -600,11 +603,15 @@ export function ProjectDetailPanel({
   // 30s 轮询 + 回前台即时刷新（2026-11-13，同公告投标情况口径）：供应商确认意向后此处自动跟进
   useEffect(() => {
     setParticipantNames(null);
+    setParticipantData(null);
     if (!item?.projectCode || ['邀请招标', '直接采购'].includes(item.procurementMethod)) return;
     let alive = true;
     const loadParticipants = () => getProjectParticipants(item.projectCode!)
       .then((r) => {
-        if (alive) setParticipantNames(r.suppliers.length > 0 ? r.suppliers.map((s) => s.supplierName).join('、') : null);
+        if (alive) {
+          setParticipantNames(r.suppliers.length > 0 ? r.suppliers.map((s) => s.supplierName).join('、') : null);
+          setParticipantData({ announcementId: r.announcementId, suppliers: r.suppliers });
+        }
       })
       .catch(() => undefined); // 拉取失败静默回落手动值，不阻塞详情
     loadParticipants();
@@ -617,6 +624,25 @@ export function ProjectDetailPanel({
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [item?.projectCode, item?.procurementMethod]);
+
+  // 公告型供应商参与口径（2026-11-26 用户裁定）：只计入「拟参与」供应商、右侧两态徽章
+  // （确认参与→已投递标书）；确认开标或到开标时间后收窄为已投递——与开标确认面板同源
+  // （读侧计算：PMI bidOpeningTime 唯一权威，30s 参与轮询重算；无本轮公告回落手动/同步值）
+  const participantBidOpeningTime = extractedInfoOverride?.bidOpeningTime ?? item?.bidOpeningTime ?? null;
+  const participantOpened = useMemo(
+    () => isOpeningPassed({ openTime: participantBidOpeningTime, now: Date.now() }),
+    // participantData 每 30s 轮询换新引用 → 到点后 30s 内自动切换收窄口径
+    [participantBidOpeningTime, participantData],
+  );
+  const participantDisplayRows = useMemo(() => {
+    if (!isPublicEnrollMethod(item?.procurementMethod)) return null;
+    if (!participantData || participantData.announcementId === null) return null;
+    return filterPublicEnrollRows(participantData.suppliers, participantOpened).map((s) => ({
+      name: s.supplierName,
+      status: s.submitted ? '已投递标书' : '确认参与',
+      tone: (s.submitted ? 'green' : 'blue') as 'blue' | 'green',
+    }));
+  }, [item?.procurementMethod, participantData, participantOpened]);
 
   const filteredAttributions = projectAttributions.filter((attr) =>
     attr.name.toLowerCase().includes(attrQuery.trim().toLowerCase()),
@@ -1899,6 +1925,8 @@ export function ProjectDetailPanel({
                 <BiddingUnitsField
                   label={['邀请招标', '直接采购'].includes(item.procurementMethod) ? '邀请的供应商' : '参与的供应商'}
                   value={participantNames ?? (extractedInfoOverride?.invitedSuppliers ?? item.invitedSuppliers ?? null)}
+                  rows={isPublicEnrollMethod(item.procurementMethod) ? participantDisplayRows : undefined}
+                  emptyText={participantOpened ? '暂无已投递标书的供应商' : '暂无供应商确认参与'}
                 />
               </div>
               )}

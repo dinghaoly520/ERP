@@ -94,20 +94,32 @@ export function ExpertInfoField({ value }: { value: string | null | undefined })
   );
 }
 
-export function BiddingUnitsField({ label, value }: { label: string; value: string | number | null | undefined }) {
+export function BiddingUnitsField({ label, value, rows, emptyText }: {
+  label: string;
+  value: string | number | null | undefined;
+  /** 结构化行（2026-11-26 公告型供应商参与）：提供时优先生效——供应商名 + 右侧状态徽章
+   *  （确认参与/已投递标书）；null=未加载回落 value 字符串路径，空数组=已加载无符合者 */
+  rows?: { name: string; status?: string; tone?: 'blue' | 'green' }[] | null;
+  /** rows 为空数组时的空态文案（默认「待补充」） */
+  emptyText?: string;
+}) {
   // 2026-11-12 用户裁定：项目基本信息·供应商参与/邀请不允许编辑——编辑弹窗与增删行机器
   // 整体移除，纯展示名单（参与名单=公告自动收集∪项目登记；邀请名单走供应商邀请流程卡）
   const hasValue = value !== null && value !== undefined && value !== '';
   const units = hasValue ? String(value).split(/[、,\n]/).filter(u => u.trim()) : [];
+  // 行数与序号以生效路径为准：rows 优先，否则按 value 拆分
+  const effective: { name: string; status?: string; tone?: 'blue' | 'green' }[] =
+    rows ?? units.map((unit) => ({ name: unit.trim() }));
+  const useRows = rows != null;
 
   return (
     <div>
       <div className="flex items-center gap-3 mb-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">{label}</span>
       </div>
-      {units.length > 0 ? (
+      {effective.length > 0 ? (
         <div className="space-y-1.5">
-          {units.map((unit, i) => (
+          {effective.map((unit, i) => (
             <div
               key={i}
               className="flex items-center gap-2 rounded-[10px] px-3 py-2 text-sm text-[color:var(--foreground)]"
@@ -121,12 +133,15 @@ export function BiddingUnitsField({ label, value }: { label: string; value: stri
                 {i + 1}
               </span>
               <Building2 size={13} className="shrink-0 text-[color:var(--accent)]" />
-              <span className="min-w-0 truncate">{unit.trim()}</span>
+              <span className="min-w-0 truncate">{unit.name}</span>
+              {useRows && unit.status && (
+                <span className="ml-auto shrink-0"><StatusBadge tone={unit.tone ?? 'blue'}>{unit.status}</StatusBadge></span>
+              )}
             </div>
           ))}
         </div>
       ) : (
-        <div className="text-sm text-[color:var(--muted-foreground)]/50">待补充</div>
+        <div className="text-sm text-[color:var(--muted-foreground)]/50">{useRows ? (emptyText ?? '待补充') : '待补充'}</div>
       )}
     </div>
   );

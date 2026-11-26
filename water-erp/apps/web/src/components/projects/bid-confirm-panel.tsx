@@ -29,6 +29,7 @@ import { BID_DEADLINE_BEFORE_OPENING_MS, BID_OPENING_IMMINENT_WARNING_MS, format
 const DEADLINE_GAP_LABEL = formatDurationCn(BID_DEADLINE_BEFORE_OPENING_MS);
 import type { ProjectManagementItem } from '@/lib/types/project-management';
 import { fetchPmBidProjectRefs, type PmBidProjectRefItem } from '@/lib/api/project-management';
+import { isPublicEnrollMethod, isOpeningPassed, filterPublicEnrollRows } from '@/lib/procurement-participation';
 import {
   awardLetterDeliveryUiState,
   BID_STAGE_LABELS,
@@ -238,8 +239,13 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
   ) => {
     if (!sync || !project) return;
     try {
-      // 供应商：回执确认参加 + 已投递 → 每行一个，换行分隔（匹配 BiddingUnitsField 格式）
-      const confirmedSuppliers = ws.suppliers
+      // 供应商（公告型口径 2026-11-26 用户裁定）：公开招标/询比/竞价=拟参与供应商（开标后
+      // 收窄为已投递）——与供应商投标状态视图/基本信息实时口径一致；其余方式维持
+      // 「回执确认参加 + 已投递」（匹配 BiddingUnitsField 格式，每行一个换行分隔）
+      const openedForSync = isOpeningPassed({ stage: ws.project.stage, openTime: ws.project.openTime });
+      const confirmedSuppliers = isPublicEnrollMethod(project.procurementMethod)
+        ? filterPublicEnrollRows(ws.suppliers, openedForSync).map(s => s.supplierName)
+        : ws.suppliers
         .filter(s => {
           const hasRsvp = rsvpMapLocal.size > 0;
           const rsvpOk = hasRsvp ? rsvpMapLocal.get(s.supplierId ?? '') === 'ACCEPTED' : true;
@@ -629,6 +635,14 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
         intentConfirmedAt: s.intentConfirmedAt ?? null,
       }));
 
+  // 公告型口径（2026-11-26 用户裁定）：公开招标/询比/竞价只计入「拟参与」供应商——
+  // 仅下载/登记未响应的行不显示；确认开标或到开标时间后收窄为「已投递标书」，与项目
+  // 基本信息·供应商参与恒一致。读侧计算（名册/意向原始行不改写，可溯），stage 优先、
+  // 开标时间兜底（imminentNow 30s 心跳 → 到点自动切换）
+  const publicEnroll = isPublicEnrollMethod(project?.procurementMethod);
+  const participationOpened = isOpeningPassed({ stage, openTime: bidProject?.openTime ?? null, now: imminentNow });
+  const displayRows = publicEnroll ? filterPublicEnrollRows(supplierRows, participationOpened) : supplierRows;
+
   return (
     <div className="fixed inset-0 z-[500] flex flex-col">
       <div className="absolute inset-0 wb-overlay-backdrop" onClick={onClose} />
@@ -736,10 +750,14 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                   </div>
                 }
               >
-                {supplierRows.length === 0 ? (
+                {displayRows.length === 0 ? (
                   <EmptyHint
                     text={
-                      isNegotiation
+                      publicEnroll
+                        ? (participationOpened
+                            ? '开标后仅保留已投递标书的供应商——暂无已投递记录。'
+                            : '暂无确认参与的供应商。供应商在投标门户点击「拟参与」后显示于此；仅下载采购文件不计入。')
+                        : isNegotiation
                         ? '暂无受邀供应商。请先在「供应商邀请」步骤完成邀请，受邀名单与回执将在此同步。'
                         : '暂无投标供应商。邀请招标/竞价等项目，供应商在投标门户响应后会出现。'
                     }
@@ -760,7 +778,7 @@ let bp: BidProjectRef | undefined = ref ? { ...ref, publishTime: null } : undefi
                         </tr>
                       </thead>
                       <tbody>
-                        {supplierRows.map((r) => {
+                        {displayRows.map((r) => {
                           const tone = r.submitted ? 'success' : r.withdrawn ? 'warning' : 'muted';
                           const label = r.submitted ? '已投递' : r.withdrawn ? '已撤回' : '未投递';
                           const rsvpLabel = r.rsvpStatus === 'ACCEPTED' ? '参加' : r.rsvpStatus === 'DECLINED' ? '无法参加' : '未回执';
