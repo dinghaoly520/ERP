@@ -340,7 +340,7 @@ export default function RulesPanelCompact({ knowledgeBaseId, knowledgeBaseName, 
   /** 轮询纪元（2026-11-19 审查 #9）：切库/接管/终态都会 ++——在飞 tick 与迟到
    *  响应对不上纪元即丢弃，防旧库轮询清掉新库轮询、旧数据回写新态 */
   const pollEpochRef = useRef(0);
-  const { confirm, dialog } = useConfirm();
+  const { confirm, dialog } = useConfirm({ mountToBody: true }); // 这两个面板渲染在带入场动画的内容面板里，就地渲染只盖得住面板
 
   useEffect(() => {
     let cancelled = false;

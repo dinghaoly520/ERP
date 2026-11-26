@@ -24,7 +24,7 @@ export default function ReportsPanelCompact() {
   // 2026-11-06 修复：改吃 context 真源 tasks（provider 2s 轮询驱动）——
   // 原实现本地自拉且仅挂载时加载一次，任务完成后列表永卡「执行中」需手动 F5
   const { tasks, loading: ctxLoading, selectedReportTask, setSelectedReportTask, refreshTasks } = useTenderReview();
-  const { confirm, dialog } = useConfirm();
+  const { confirm, dialog } = useConfirm({ mountToBody: true }); // 这两个面板渲染在带入场动画的内容面板里，就地渲染只盖得住面板
 
   // 2026-11-18：选中态统一走 context 真源 selectedReportTask（原 localSelectedTask 双轨已废）——
   // 详情头升格 hero 右上（report-context-bar），返程/导出/文件名均由 hero 消费同一状态

@@ -4,13 +4,24 @@
  * 用 wb-overlay-backdrop + wb-modal-shell 手写壳（非 workbench Modal）——可在已打开的 Modal 上层叠加，
  * 规避「同一时刻至多一个 Modal」约束。confirm() 返回 Promise<boolean>，调用点 await 后语义与原生
  * 确认框完全一致（true=确认）。z-[700] 盖过 workbench Modal 的 z-[600]。
+ *
+ * 挂载位置（2026-11-26）：默认就地渲染，调用方把 {dialog} 放在自己的 JSX 里。调用方若处在带 transform 的
+ * 容器里，要改用 useConfirm({ mountToBody: true }) 把确认框挂到 body 上——fixed 定位以最近的带 transform
+ * 的祖先为参照，就地渲染会只盖住那个容器、被它的 overflow 裁掉。文档审查的内容面板就是这种容器
+ * （入场动画 .tender-section-enter 停在 translateY(0)），「审查报告」「规则管理」里的确认框曾只盖住内容面板。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 
 type ConfirmOptions = { title?: string; message: string; danger?: boolean };
 
-export function useConfirm() {
+type UseConfirmOptions = {
+  /** 把确认框挂到 body 上（与共享 Modal 同做法）。调用方处在带 transform 的容器里时必须打开 */
+  mountToBody?: boolean;
+};
+
+export function useConfirm(options: UseConfirmOptions = {}) {
   const [state, setState] = useState<ConfirmOptions | null>(null);
   const resolverRef = useRef<((v: boolean) => void) | null>(null);
 
@@ -32,7 +43,7 @@ export function useConfirm() {
 
   // 弹窗规范 A 版·紧凑变体（2026-11-16 迁移，配色维持原样）：图标井头部 + hairline 隔离线 +
   // 内容区呼吸距 + 底栏分割线，布局/字阶与共享 Modal 完全同构；z-[700] 叠层能力保留（可盖在 Modal 上）
-  const dialog = state ? (
+  const dialogNode = state ? (
     <div className="fixed inset-0 z-[700] flex items-center justify-center p-4">
       <div className="wb-overlay-backdrop" onClick={() => close(false)} />
       <div
@@ -74,6 +85,11 @@ export function useConfirm() {
       </div>
     </div>
   ) : null;
+  // 服务端渲染时 state 恒为空，走不到 portal
+  const dialog =
+    dialogNode && options.mountToBody && typeof document !== 'undefined'
+      ? createPortal(dialogNode, document.body)
+      : dialogNode;
 
   return { confirm, dialog };
 }
