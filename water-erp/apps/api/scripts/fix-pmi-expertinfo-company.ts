@@ -5,9 +5,10 @@
  * ③ 写入闸=专家组确认完毕（无待回复正选）才允许名单存在——此前抽取确认/补选追加即全量
  *    落库，待回复/已婉拒专家带「正选」提前进基本信息（SWHI-TP-2026112601 实录：
  *    0/5 确认即 6 人全显示正选）。
- * 重建=BidExpert 名册按「成员=已确认参加 ∪ 需求方代表（婉拒不入·除名口径）」重算：
- * 组建未完毕 → 清空 expertInfo（重抽场景旧名单同样不该留）；无 BidExpert 行 → 不动。
- * 与抽取确认/归档兜底/面板同步三写端同口径。dry-run 只打印差异，--execute 实际回写。
+ * 重建=BidExpert 名册按「成员=需求方代表 ∪ 非婉拒全部（候补是角色非回执状态，待回复候补
+ * 照常入名单；婉拒不入·除名口径）」重算：组建未完毕 → 清空 expertInfo（重抽场景旧名单同样
+ * 不该留）；无 BidExpert 行 → 不动。与抽取确认/归档兜底/面板同步三写端同口径。
+ * dry-run 只打印差异，--execute 实际回写。
  *
  *   npx tsx scripts/fix-pmi-expertinfo-company.ts            # dry-run（含 expertInfo 为空的组建中项目）
  *   npx tsx scripts/fix-pmi-expertinfo-company.ts --execute  # 回写
@@ -37,7 +38,7 @@ async function rebuildExpertInfo(pmiId: string): Promise<string | null> {
     : [];
   if (bidExperts.length === 0) return null;
   const hasPendingRegular = bidExperts.some(e => e.expertRole === '正选' && !e.isPurchaserRepresentative && e.invitationStatus === 'pending');
-  const members = bidExperts.filter(e => e.isPurchaserRepresentative || e.invitationStatus === 'confirmed');
+  const members = bidExperts.filter(e => e.isPurchaserRepresentative || e.invitationStatus !== 'declined');
   if (hasPendingRegular || members.length === 0) return '';
   // 名单顺序（2026-11-26 用户裁定：组长第一、正选在前、候补在后）——与抽取确认回写同口径
   const rank = (e: (typeof members)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
@@ -69,7 +70,7 @@ async function main() {
     if (rebuilt === (item.expertInfo ?? '')) continue; // 幂等（'' 与 null 等价）
     if (!execute) {
       if (rebuilt === '') {
-        console.log(`[dry-run] ${item.id} 「${item.title}」 组建未完毕/无确认成员 → 清空现有名单（${String(item.expertInfo ?? '').split('\n').length} 行）`);
+        console.log(`[dry-run] ${item.id} 「${item.title}」 组建未完毕/成员为空 → 清空现有名单（${String(item.expertInfo ?? '').split('\n').length} 行）`);
       } else {
         console.log(`[dry-run] ${item.id} 「${item.title}」`);
         const oldLines = String(item.expertInfo ?? '').split('\n').filter(Boolean);
@@ -87,7 +88,7 @@ async function main() {
     } else {
       await prisma.projectManagementItem.update({ where: { id: item.id }, data: { expertInfo: rebuilt === '' ? null : rebuilt } });
       console.log(rebuilt === ''
-        ? `[cleared] ${item.id} 「${item.title}」（组建未完毕/无确认成员，已清空）`
+        ? `[cleared] ${item.id} 「${item.title}」（组建未完毕/成员为空，已清空）`
         : `[fixed] ${item.id} 「${item.title}」`);
     }
     fixed++;

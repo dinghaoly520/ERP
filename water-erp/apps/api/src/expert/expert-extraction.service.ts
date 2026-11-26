@@ -692,10 +692,11 @@ export class ExpertExtractionService {
           // 写入闸与成员口径（2026-11-26 用户裁定）：专家组确认完毕（无待回复正选）才写快照——
           // 此前抽取确认/补选追加即全量落库，待回复/已婉拒专家带「正选」角色提前进基本信息
           // （SWHI-TP-2026112601 实录：0/5 确认即 6 人全显示正选）。组建未完毕 → 清空残留
-          // （重抽场景旧名单同样不该留）；成员 = 已确认参加 ∪ 需求方代表（组建即认定），
-          // 婉拒不入名册（除名口径）。
+          // （重抽场景旧名单同样不该留）。成员 = 需求方代表（组建即认定）∪ 非婉拒全部——
+          // 候补是角色非回执状态，待回复候补照常入名单（SWHI-GK-2026112602 用户复核裁定），
+          // 婉拒不入名册（除名口径）；待回复正选被写入闸拦截不可能出现在成员里。
           const hasPendingRegular = roster.some(e => e.expertRole === '正选' && !e.isPurchaserRepresentative && e.invitationStatus === 'pending');
-          const members = roster.filter(e => e.isPurchaserRepresentative || e.invitationStatus === 'confirmed');
+          const members = roster.filter(e => e.isPurchaserRepresentative || e.invitationStatus !== 'declined');
           if (hasPendingRegular || members.length === 0) {
             await this.prisma.projectManagementItem.update({ where: { id: pmiId }, data: { expertInfo: null } });
           } else {
