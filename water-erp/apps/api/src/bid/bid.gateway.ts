@@ -341,7 +341,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** 0→1 翻转时向项目房广播 pairing:presence（桌面在房内按 expertId 过滤刷新徽章；
    *  同专家多连接不重复广播） */
   private trackPairingOnline(socket: Socket, projectId: string, expertId: string | undefined): void {
-    if (!expertId) return;
+    // 握手鉴权是异步的：等完连接可能已经断开，断开回调那时已跑过、清不到这次登记——不登记
+    if (!expertId || !socket.connected) return;
     let set = this.pairingOnline.get(expertId);
     const wasOnline = !!set && set.size > 0;
     if (!set) { set = new Set(); this.pairingOnline.set(expertId, set); }
@@ -394,6 +395,15 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   // ── Room management: role-segregated routing ──
 
+  /**
+   * 入会处理是异步的（等鉴权、查库）：等完客户端可能已经断开。断开回调（handleDisconnect）
+   * 那时已经跑过，之后再登记连接表、再进房，就成了永远没人清的「在线」残留——
+   * 每处 await 之后、登记或进房之前先判（2026-11-26 独立审查 M-1）。
+   */
+  private closedDuringJoin(socket: Socket): boolean {
+    return !socket.connected;
+  }
+
   @SubscribeMessage('join:project')
   async handleJoinProject(client: Socket, projectId: string) {
     // 握手鉴权是异步的（验签 + 带会话编号的令牌查库对账），入会申请可能先到：
@@ -401,9 +411,10 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
     await this.awaitHandshakeAuth(client);
     const role: string | undefined = (client.data as any).role;
     const userId: string | undefined = (client.data as any).userId;
-    // 认证兜底（C1）：handleConnection 保持软鉴权，但 join 层强制认证——
-    // 无 token / 校验失败的 socket（role 或 userId 缺失）一律拒绝，不得进任何项目房。
+    // 认证兜底（C1）：握手鉴权不过的连接在 handleConnection 里就被断开，这里是第二道——
+    // 身份缺失（role 或 userId）一律拒绝，不得进任何项目房。
     if (!userId || !role) return { error: 'UNAUTHORIZED' };
+    if (this.closedDuringJoin(client)) return { error: 'SOCKET_CLOSED' };
 
     if (role === 'supplier') {
       // 双层门控（设计 §4.2）：角色门（supplier 永不进 host 房）+ 成员门（须参投本项目）
@@ -415,6 +426,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
         where: { projectId, supplierId: supplier.id, submitStatus: '已提交' },
       });
       if (!member) return { error: 'NOT_PROJECT_MEMBER' };
+      if (this.closedDuringJoin(client)) return { error: 'SOCKET_CLOSED' };
 
       (client.data as any).supplierId = supplier.id;
       (client.data as any).supplierName = member.supplierName;
@@ -426,6 +438,8 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.socketProjects.set(client.id, projectId);
 
       await this.prisma.bidSupplier.update({ where: { id: member.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
+      // 登记已由断开回调清掉；已断开的连接不进房
+      if (this.closedDuringJoin(client)) return { error: 'SOCKET_CLOSED' };
       client.join(`project:${projectId}`);
       this.broadcastHallPresence(projectId).catch(() => {});
       return { ok: true, supplierId: supplier.id, supplierName: member.supplierName };
@@ -453,6 +467,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
         } catch { alive = false; }
         if (!alive) return { error: 'PAIRING_REVOKED' };
       }
+      if (this.closedDuringJoin(client)) return { error: 'SOCKET_CLOSED' };
       // B1（2026-11-12）：登记专家连接表——组长复议召集等定向投递按 expertId 寻址（镜像 supplier 分支）
       (client.data as any).expertId = assigned.id;
       let expertSet = this.expertSockets.get(assigned.id);
@@ -475,6 +490,7 @@ export class BidGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // :3007 现场执行权来自指派（含跨公司指派的运营决策）；其余按公司隔离。
       const scope = await this.assertHostProjectScope(client, projectId);
       if (!scope.ok) return { error: scope.error };
+      if (this.closedDuringJoin(client)) return { error: 'SOCKET_CLOSED' };
       client.join(`project:${projectId}`);
       client.join(`host:${projectId}`);
       return { ok: true };
