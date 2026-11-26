@@ -66,7 +66,7 @@ import { ContractStageModal } from '../contracts/contract-stage-modal';
 import { TenderFileEditorModal } from './tender-file-editor-modal';
 import { ScoreStandardCard } from './score-standard-card';
 import { OfficialTenderWizard } from './official-tender-wizard';
-import { Modal, StatusBadge, NeuSelect } from '@/components/workbench';
+import { Modal, StatusBadge, NeuSelect , DatetimeInput } from '@/components/workbench';
 import { useConfirm } from '@/components/workbench/use-confirm';
 import { ATTACHMENT_ACCEPT, ATTACHMENT_HINT, validateAttachmentFile } from '@/lib/upload-rules';
 import { syncConfirmThresholdFromServer } from '@/lib/supplier-confirm-threshold';
@@ -1871,7 +1871,7 @@ export function ProjectDetailPanel({
                     <div className="flex items-center justify-between"><span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[color:var(--muted-foreground)]">开标时间</span></div>
                     {editingField === 'bidOpeningTime' ? (
                       <div className="mt-1 flex items-center gap-1.5">
-                        <input type="datetime-local" value={editValues.bidOpeningTime} onChange={(e) => setEditValues((prev) => ({ ...prev, bidOpeningTime: e.target.value }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
+                        <DatetimeInput value={editValues.bidOpeningTime} onChange={(v) => setEditValues((prev) => ({ ...prev, bidOpeningTime: v }))} className="workbench-input !h-[28px] !text-xs flex-1" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveField('bidOpeningTime'); if (e.key === 'Escape') setEditingField(null); }} />
                         <button type="button" onClick={() => void handleSaveField('bidOpeningTime')} className="neu-btn-xs"><Save size={13} /></button>
                       </div>
                     ) : isPastRound ? (
@@ -2824,12 +2824,11 @@ export function ProjectDetailPanel({
                 <div className="bc-decision-box flex flex-nowrap items-center gap-2.5 rounded-[12px] px-3.5 py-2">
                   <CalendarClock size={14} className="shrink-0 text-[var(--accent)]" />
                   <span className="shrink-0 text-xs font-bold text-[var(--foreground)]">开标时间</span>
-                  <input
-                    type="datetime-local"
+                  <DatetimeInput
                     className="workbench-input workbench-input-sm !h-8 !w-auto !border-0 !shadow-none !bg-transparent !px-1.5"
                     value={directOpeningTime}
                     min={directOpeningMin}
-                    onChange={(e) => setDirectOpeningTime(e.target.value)}
+                    onChange={setDirectOpeningTime}
                   />
                   {item.bidOpeningTime ? (
                     <span className="ml-auto min-w-0 shrink-0 truncate text-[11px] tabular-nums text-[var(--muted-foreground)]">
