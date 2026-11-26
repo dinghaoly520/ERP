@@ -684,19 +684,29 @@ export class ExpertExtractionService {
           where: { projectId },
           orderBy: [{ createdAt: 'asc' }],
           select: {
-            expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true,
+            expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true, invitationStatus: true,
             user: { select: { company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } } },
           },
         });
         if (roster.length > 0) {
+          // 写入闸与成员口径（2026-11-26 用户裁定）：专家组确认完毕（无待回复正选）才写快照——
+          // 此前抽取确认/补选追加即全量落库，待回复/已婉拒专家带「正选」角色提前进基本信息
+          // （SWHI-TP-2026112601 实录：0/5 确认即 6 人全显示正选）。组建未完毕 → 清空残留
+          // （重抽场景旧名单同样不该留）；成员 = 已确认参加 ∪ 需求方代表（组建即认定），
+          // 婉拒不入名册（除名口径）。
+          const hasPendingRegular = roster.some(e => e.expertRole === '正选' && !e.isPurchaserRepresentative && e.invitationStatus === 'pending');
+          const members = roster.filter(e => e.isPurchaserRepresentative || e.invitationStatus === 'confirmed');
+          if (hasPendingRegular || members.length === 0) {
+            await this.prisma.projectManagementItem.update({ where: { id: pmiId }, data: { expertInfo: null } });
+          } else {
           // 名单顺序（2026-11-26 用户裁定：组长第一、正选在前、候补在后）——DB 对中文
           // expertRole 的 collation 排序不可控，取数后显式定序；稳定排序保留组内 createdAt 先后
-          const rank = (e: (typeof roster)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
-          roster.sort((a, b) => rank(a) - rank(b));
+          const rank = (e: (typeof members)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
+          members.sort((a, b) => rank(a) - rank(b));
           // 字段内换行净化（2026-10-29 实录：库内 major 存在「水利电力工程\n(…)」多行值）——
           // pipe 格式以换行分人，字段内换行会把一行拆成两行、角色列错位成姓名
           const flat = (v: string | null | undefined) => (v ?? '').replace(/[\r\n]+/g, ' ').trim();
-          const lines = roster.map(e => [
+          const lines = members.map(e => [
             flat(e.expertName),
             flat(e.user?.company || e.user?.department?.name),
             flat(e.major),
@@ -707,6 +717,7 @@ export class ExpertExtractionService {
             where: { id: pmiId },
             data: { expertInfo: lines.join('\n') },
           });
+          }
         }
       }
     } catch (err) {

@@ -4404,15 +4404,20 @@ ${JSON.stringify(algorithmResult, null, 2)}
         const bpIds = await tx.bidProject.findMany({ where: { projectManagementItemId: projectId }, select: { id: true } });
         const bpIdSet = bpIds.map(b => b.id);
         const bidExperts = bpIdSet.length > 0
-          ? await tx.bidExpert.findMany({ where: { projectId: { in: bpIdSet } }, orderBy: [{ createdAt: 'asc' }], select: { userId: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true } })
+          ? await tx.bidExpert.findMany({ where: { projectId: { in: bpIdSet } }, orderBy: [{ createdAt: 'asc' }], select: { userId: true, expertName: true, major: true, expertRole: true, isLead: true, isPurchaserRepresentative: true, invitationStatus: true } })
           : [];
         if (bidExperts.length > 0) {
-          // 名单顺序与角色口径与抽取确认回写同款（2026-11-26 用户裁定：组长第一、正选在前、
-          // 候补在后；需求方代表/组长标记从持久化列推导——此前写 raw expertRole，与抽取端不一致）
-          const rank = (e: (typeof bidExperts)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
-          const orderedExperts = [...bidExperts].sort((a, b) => rank(a) - rank(b));
+          // 成员与写入闸（2026-11-26 用户裁定，与抽取确认回写同口径）：仍有待回复正选 = 组建
+          // 未完毕，归档时属数据异常——保留原快照不清空（归档不损历史）；成员 = 已确认参加 ∪
+          // 需求方代表，婉拒不入名册（除名口径）。名单顺序与角色推导同抽取端（组长第一、
+          // 正选在前、候补在后；标记从持久化列推导——此前写 raw expertRole，与抽取端不一致）
+          const hasPendingRegular = bidExperts.some(e => e.expertRole === '正选' && !e.isPurchaserRepresentative && e.invitationStatus === 'pending');
+          const members = bidExperts.filter(e => e.isPurchaserRepresentative || e.invitationStatus === 'confirmed');
+          if (!hasPendingRegular && members.length > 0) {
+          const rank = (e: (typeof members)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
+          const orderedExperts = [...members].sort((a, b) => rank(a) - rank(b));
           const profs = await tx.user.findMany({
-            where: { id: { in: bidExperts.map(e => e.userId) } },
+            where: { id: { in: members.map(e => e.userId) } },
             select: { id: true, company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
           });
           const byId = new Map(profs.map(u => [u.id, u]));
@@ -4425,6 +4430,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
             return [cell(e.expertName), cell(u?.company || u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(role)].join('|');
           }).join('\n');
           await tx.projectManagementItem.update({ where: { id: projectId }, data: { expertInfo } });
+          }
         }
         const [rsvps, bidSuppliers] = await Promise.all([
           tx.invitationRsvp.findMany({

@@ -246,21 +246,25 @@ export function BidConfirmPanel({ isOpen, onClose, project, round, onAbort, onSy
           return rsvpOk && s.submitted;
         })
         .map(s => s.supplierName);
-      // 专家：正选已确认 + 候补（排除已拒绝）→ 每行 姓名|公司|专业|职称（匹配 ExpertInfoField pipe 格式；
-      // 2026-11-26 用户裁定第二列=所属公司：User.company 展示快照优先，无则回退档案工作单位；
-      // 顺序=组长第一、正选在前、候补在后——confirmed 内组长置顶，稳定排序保留组内原序）
+      // 专家：正选已确认 + 候补 → 每行 姓名|公司|专业|职称（匹配 ExpertInfoField pipe 格式；
+      // 2026-11-26 用户裁定：第二列=所属公司（User.company 优先，回退档案工作单位）；
+      // 写入闸=专家组确认完毕（无待回复正选）才同步——组建中面板打开不得把未确认名单写进基本信息；
+      // 成员=已确认参加 ∪ 需求方代表，婉拒不入名册（除名口径）；顺序=组长第一、正选在前、候补在后
+      const hasPendingRegular = ws.experts.some(e => e.expertRole === '正选' && !e.isPurchaserRepresentative && e.invitationStatus === 'pending');
+      if (!hasPendingRegular) {
       const rankOf = (e: (typeof ws.experts)[number]) => (e.isLead ? 0 : e.expertRole === '候补' ? 2 : 1);
       const confirmedExperts = ws.experts
-        .filter(e => e.expertRole !== '候补' && e.invitationStatus === 'confirmed')
+        .filter(e => e.expertRole !== '候补' && (e.invitationStatus === 'confirmed' || e.isPurchaserRepresentative))
         .sort((a, b) => rankOf(a) - rankOf(b))
         .map(e => `${e.expertName}|${e.user?.company || e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|正选`);
       const alternateExperts = ws.experts
-        .filter(e => e.expertRole === '候补' && e.invitationStatus !== 'declined')
+        .filter(e => e.expertRole === '候补' && e.invitationStatus === 'confirmed')
         .map(e => `${e.expertName}|${e.user?.company || e.user?.expertProfile?.employer || ''}|${e.major || ''}|${e.user?.expertProfile?.title || ''}|候补`);
       sync({
         invitedSuppliers: confirmedSuppliers.join('\n'),
         expertInfo: [...confirmedExperts, ...alternateExperts].join('\n'),
       });
+      }
     } catch { /* sync 失败不阻断 */ }
   }, [project]);
 
