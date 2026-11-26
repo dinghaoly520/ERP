@@ -231,6 +231,8 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     if (!projectId) return;
     // 切换项目时重置首连标记——新项目的第一次连接不算重连（与 web 版对齐）
     hasConnectedOnce.current = false;
+    // 重新订阅（换项目等）：入会失败计数从头记（2026-11-26 审查 M-4）——与 web 版对齐
+    joinFailStreak.current = 0;
     connect();
     return () => {
       manualClose.current = true;

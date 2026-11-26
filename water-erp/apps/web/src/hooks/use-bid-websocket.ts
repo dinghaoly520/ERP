@@ -226,6 +226,9 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
   useEffect(() => {
     if (!projectId) return;
     hasConnectedOnce.current = false;
+    // 换项目、面板关了再开（同一个 hook 实例重新订阅）：入会失败计数从头记（2026-11-26 审查 M-4）——
+    // 计数留在实例里，上一回攒下的失败会让这一回第一次失败就累计到 3 而停止重连
+    joinFailStreak.current = 0;
     connect();
     return () => {
       manualClose.current = true;

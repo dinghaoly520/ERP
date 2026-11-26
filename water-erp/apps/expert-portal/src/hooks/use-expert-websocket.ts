@@ -180,6 +180,8 @@ export function useExpertWebSocket(projectId: string | undefined, handlers: Hand
 
   useEffect(() => {
     if (!projectId) return;
+    // 重新订阅（换项目等）：入会失败计数从头记（2026-11-26 审查 M-4）——与 web / bid 版对齐
+    joinFailStreak.current = 0;
     connect();
     return () => {
       manualClose.current = true;
