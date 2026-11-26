@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { bidWsUrl } from "@water-erp/config";
-import { joinProjectOnConnect } from "../lib/ws-join";
+import { joinProjectOnConnect, onDisconnectedBeforeJoin, type JoinPolicyDeps } from "../lib/ws-join";
 import {
   BID_EVENT,
   type ConnectionState,
@@ -61,6 +61,7 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
     let disposed = false;
     let hasConnectedOnce = false; // X-P2-09：首次连接 vs 重连鉴别
     let joinFailStreak = 0; // 连续几次连接都没能入会（reconnectNow 重跑 effect，自然归零）
+    const joinedSockets = new WeakSet<Socket>(); // 入会成功过的连接——断开的是「连上却从未入会」的连接才记一次失败
 
     function clearTimers() {
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
@@ -91,19 +92,22 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
       const s = io(bidWsUrl(), { forceNew: true, withCredentials: true, query: { portal: "supplier" }, reconnection: false, timeout: 10000 });
       socket = s;
 
+      // 入会失败计数在两处结算（connect 里的应答、disconnect 里的断开），共用这一份依赖
+      const joinDeps: JoinPolicyDeps = {
+        isCurrent: () => socket === s && !manualClose && !disposed,
+        getFailStreak: () => joinFailStreak,
+        setFailStreak: (n) => { joinFailStreak = n; },
+        stopReconnect: () => { manualClose = true; },
+      };
+
       s.on("connect", () => {
         const isReconnect = hasConnectedOnce; // X-P2-09
         hasConnectedOnce = true;
         attempt = 0;
         setConnection("connected");
-        // 入会带应答：握手鉴权比入会申请先完成的偶发时序下服务端回 UNAUTHORIZED，稍后重发即可
-        // 成功（2026-11-25）；重试耗尽则断开走既有重连，连续 3 次入会失败停止自动重连。
-        void joinProjectOnConnect(s, projectId, {
-          isCurrent: () => socket === s && !manualClose && !disposed,
-          getFailStreak: () => joinFailStreak,
-          setFailStreak: (n) => { joinFailStreak = n; },
-          stopReconnect: () => { manualClose = true; },
-        });
+        // 入会带应答（2026-11-25）：握手鉴权是异步的，入会申请偶尔比它先到，服务端回 UNAUTHORIZED，稍后重发即可；
+        // 重试耗尽则断开走既有重连，连续 3 次入会失败停止自动重连（失败也在 disconnect 里结算，见下）。
+        void joinProjectOnConnect(s, projectId, joinDeps).then((joined) => { if (joined) joinedSockets.add(s); });
         if (isReconnect) {
           setLastEventAt(Date.now());
           handlersRef.current().onReconnected?.();
@@ -130,9 +134,12 @@ export function useBidWebSocket(projectId: string | undefined, getHandlers: () =
         }, delay);
       };
 
-      s.on("disconnect", () => {
+      s.on("disconnect", (reason: string) => {
         clearTimers();
         setConnection("disconnected");
+        // 会话真正失效（被顶、登出、冻结）时服务端在握手鉴权里直接断开、不给入会应答——应答那条路看不到这次失败，
+        // 在这里记一次，同样连续 3 次停止自动重连（2026-11-26 审查 I-1）
+        onDisconnectedBeforeJoin(joinedSockets.has(s), reason, joinDeps);
         socket = null;
         if (!manualClose) scheduleReconnect();
       });

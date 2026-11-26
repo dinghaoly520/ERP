@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { joinProjectOnConnect } from '../lib/ws-join';
+import { joinProjectOnConnect, onDisconnectedBeforeJoin, type JoinPolicyDeps } from '../lib/ws-join';
 import { bidWsUrl } from '@water-erp/config';
 import {
   BID_EVENT,
@@ -90,6 +90,7 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
   const attemptRef = useRef(0);
   const manualClose = useRef(false);
   const joinFailStreak = useRef(0); // 连续几次连接都没能入会（重连会重置 attempt，须单独计数）
+  const joinedSockets = useRef(new WeakSet<Socket>()); // 入会成功过的连接——断开的是「连上却从未入会」的连接才记一次失败
   // G1: 首次连接 vs 重连鉴别
   const hasConnectedOnce = useRef(false);
 
@@ -126,20 +127,23 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     });
     socketRef.current = socket;
 
+    // 入会失败计数在两处结算（connect 里的应答、disconnect 里的断开），共用这一份依赖
+    const joinDeps: JoinPolicyDeps = {
+      isCurrent: () => socketRef.current === socket && !manualClose.current,
+      getFailStreak: () => joinFailStreak.current,
+      setFailStreak: (n) => { joinFailStreak.current = n; },
+      stopReconnect: () => { manualClose.current = true; },
+    };
+
     socket.on('connect', () => {
       const isReconnect = hasConnectedOnce.current;
       hasConnectedOnce.current = true;
       attemptRef.current = 0;
       setConnection('connected');
-      // 入会带应答：握手鉴权比入会申请先完成的偶发时序下服务端回 UNAUTHORIZED，稍后重发即可
-      // 成功（2026-11-25）；重试耗尽则断开走既有重连，连续 3 次入会失败停止自动重连。
-      // 本门户令牌不带会话编号、握手不查库，本就不受该竞态影响——与 web 版双向同步。
-      void joinProjectOnConnect(socket, projectId, {
-        isCurrent: () => socketRef.current === socket && !manualClose.current,
-        getFailStreak: () => joinFailStreak.current,
-        setFailStreak: (n) => { joinFailStreak.current = n; },
-        stopReconnect: () => { manualClose.current = true; },
-      });
+      // 入会带应答（2026-11-25）：握手鉴权是异步的，入会申请偶尔比它先到，服务端回 UNAUTHORIZED，稍后重发即可；
+      // 重试耗尽则断开走既有重连，连续 3 次入会失败停止自动重连（失败也在 disconnect 里结算，见下）。
+      // 本门户令牌不带会话编号、握手不查库，本就不受该竞态影响——与 web 版双向同步（断开结算同理）。
+      void joinProjectOnConnect(socket, projectId, joinDeps).then((joined) => { if (joined) joinedSockets.current.add(socket); });
       // G1: 非首次连接 → 通知组件刷新数据
       if (isReconnect) handlersRef.current.onReconnected?.();
 
@@ -169,6 +173,9 @@ export function useBidWebSocket(projectId: string | undefined, handlers: BidWsHa
     socket.on('disconnect', (reason: string) => {
       clearTimers();
       setConnection('disconnected');
+      // 会话真正失效（被顶、登出、冻结）时服务端在握手鉴权里直接断开、不给入会应答——应答那条路看不到这次失败，
+      // 在这里记一次，同样连续 3 次停止自动重连（2026-11-26 审查 I-1）
+      onDisconnectedBeforeJoin(joinedSockets.current.has(socket), reason, joinDeps);
       if (socketRef.current === socket) socketRef.current = null; // O4：仅当仍是当前连接时清引用，防覆盖后来者
       if (manualClose.current) return;
       scheduleReconnect();
