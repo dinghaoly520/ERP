@@ -88,7 +88,7 @@ export interface BidWorkspaceExpert {
   signedIn: boolean;
   avoidanceConfirmed: boolean;
   progress: string;
-  user?: { expertProfile?: { title?: string | null; employer?: string | null } | null } | null;
+  user?: { company?: string | null; expertProfile?: { title?: string | null; employer?: string | null } | null; department?: { name?: string | null } | null } | null; // company=User.company 展示快照（2026-11-26 专家名单第二列改公司）；department 面板内展示用
 }
 
 export interface BidWorkspace {

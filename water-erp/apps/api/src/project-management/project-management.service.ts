@@ -4389,7 +4389,9 @@ ${JSON.stringify(algorithmResult, null, 2)}
       });
 
       // 基本信息快照兜底回写（此前邀请/专家流程不回写 → 详情页恒"待补充"）：
-      // 专家评审 = BidExpert（正选+候补，User/ExpertProfile 补部门职称）；供应商参与 = 邀请回执名单
+      // 专家评审 = BidExpert（正选+候补，User/ExpertProfile 补公司职称——第二列=User.company
+      // 展示快照、无公司归属回退部门名（2026-11-26 用户裁定，与抽取确认回写同口径））；
+      // 供应商参与 = 邀请回执名单
       try {
         const bpIds = await tx.bidProject.findMany({ where: { projectManagementItemId: projectId }, select: { id: true } });
         const bpIdSet = bpIds.map(b => b.id);
@@ -4399,7 +4401,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
         if (bidExperts.length > 0) {
           const profs = await tx.user.findMany({
             where: { id: { in: bidExperts.map(e => e.userId) } },
-            select: { id: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
+            select: { id: true, company: true, department: { select: { name: true } }, expertProfile: { select: { title: true } } },
           });
           const byId = new Map(profs.map(u => [u.id, u]));
           const expertInfo = bidExperts.map(e => {
@@ -4407,7 +4409,7 @@ ${JSON.stringify(algorithmResult, null, 2)}
             // 字段内换行清杀（2026-10-27 实录）：e.major 多专业串可能带 \n——join('|') 后记录内藏换行，
             // 前端按行拆分即碎成假行；字段内一律折为顿号
             const cell = (v: unknown) => String(v ?? '').replace(/\r?\n+/g, '、').trim();
-            return [cell(e.expertName), cell(u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(e.expertRole)].join('|');
+            return [cell(e.expertName), cell(u?.company || u?.department?.name), cell(e.major), cell(u?.expertProfile?.title), cell(e.expertRole)].join('|');
           }).join('\n');
           await tx.projectManagementItem.update({ where: { id: projectId }, data: { expertInfo } });
         }

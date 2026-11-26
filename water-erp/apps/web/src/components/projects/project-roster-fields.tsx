@@ -25,7 +25,8 @@ export function ExpertInfoField({ value }: { value: string | null | undefined })
   // 纯展示名单表（名单维护走专家抽取/替换流程，不走基本信息手编）
   const hasValue = value !== null && value !== undefined && value !== '';
 
-  // Parse experts from a pipe-delimited string: "姓名|部门|专业|职称|角色" per line. 续行合并
+  // Parse experts from a pipe-delimited string: "姓名|公司|专业|职称|角色" per line（第二列
+  // 2026-11-26 用户裁定=所属公司，写入端 User.company 快照优先/部门回退）。续行合并
   //（2026-10-27 实录：存量多值专业含换行拆出假行）——不足 4 竖线的行与下一行顿号续接凑齐 5
   // 字段才出记录；写入侧已清杀字段内换行，此为存量兜底。
   const parseExperts = (raw: string | null | undefined) => {
@@ -42,7 +43,7 @@ export function ExpertInfoField({ value }: { value: string | null | undefined })
       const parts = line.split('|');
       return {
         name: (parts[0] ?? '').trim(),
-        department: (parts[1] ?? '').trim(),
+        company: (parts[1] ?? '').trim(),
         specialty: (parts[2] ?? '').trim(),
         title: (parts[3] ?? '').trim(),
         role: (parts[4] ?? '').trim(),
@@ -77,7 +78,7 @@ export function ExpertInfoField({ value }: { value: string | null | undefined })
                   <td className="font-medium text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--foreground)', verticalAlign: 'top' }}>
                     <span className="inline-flex items-center gap-1">{expert.name}{(expert as any).role?.includes('组长') ? <span title="评审组长"><Crown size={12} className="text-[#7c3aed]" aria-label="评审组长" /></span> : null}</span>
                   </td>
-                  <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.department)}</td>
+                  <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.company)}</td>
                   <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.specialty)}</td>
                   <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, fontSize: 13, color: 'var(--muted-foreground)', verticalAlign: 'top' }}>{cleanMulti(expert.title)}</td>
                   <td className="text-center" style={{ paddingTop: 6, paddingBottom: 6, verticalAlign: 'top' }}>{((expert as any).role === '候补' || (expert as any).role === '补选') ? <StatusBadge tone="orange">候补</StatusBadge> : ((expert as any).role ? <StatusBadge tone="blue">正选</StatusBadge> : null)}</td>
