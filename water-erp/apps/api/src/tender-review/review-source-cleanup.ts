@@ -33,6 +33,11 @@ export type ReviewSourcePurgeOutcome =
 /** 上传后一直没有审查任务在用的源文件，保留这么久之后由每日清理删掉（与 v3-staging 暂存清理同口径） */
 export const REVIEW_SOURCE_TTL_MS = 24 * 3600 * 1000;
 
+/** 对象存储说「这个键不存在」：对象已经不在了，对清理而言等于删掉了 */
+function isMissingObjectError(err: unknown): boolean {
+  return (err as { code?: unknown } | null)?.code === 'NoSuchKey';
+}
+
 /** 调用方负责在消息前面带上自己的上下文（比如任务 id），这里只接错误原文 */
 export type ReviewSourcePurgeWarn = (what: string, err?: unknown) => void;
 
@@ -121,6 +126,8 @@ export async function purgeUnreferencedReviewSourceFile(
     try {
       await storage.delete(object);
     } catch (err) {
+      // 对象本来就不在：当作已删，接着清下一个（与 v3-staging 暂存清理同做法）
+      if (isMissingObjectError(err)) continue;
       warn('对象没删掉，文件记录留在待清状态，等每日清理重试', err);
       return 'kept';
     }

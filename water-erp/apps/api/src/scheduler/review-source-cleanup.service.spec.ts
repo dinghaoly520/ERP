@@ -13,6 +13,7 @@ import { ReviewSourceCleanupService } from './review-source-cleanup.service';
 
 const purge = purgeUnreferencedReviewSourceFile as jest.Mock;
 const KEY = (n: number) => `review/2026-11-25/${String(n).repeat(32)}.docx`;
+const KEY_I = (i: number) => `review/2026-11-24/${String(i).padStart(32, '0')}.docx`;
 const OLD = new Date(Date.now() - 25 * 3600 * 1000);
 const FRESH = new Date(Date.now() - 3600 * 1000);
 
@@ -29,15 +30,25 @@ const mkPrisma = (over: { assets?: Asset[]; referenced?: string[] } = {}) => {
       findMany: jest.fn().mockResolvedValue((over.referenced ?? []).map((objectKey) => ({ objectKey }))),
     },
     fileAsset: {
-      // 实现服务端 where 语义：按类目取，带 key.startsWith 的再按前缀筛，带 createdAt.lt 的再按时间筛
+      // 实现服务端语义：where（类目 / key.startsWith / createdAt.lt）、orderBy.createdAt、take 都照做——
+      // 「先限量后过滤」这类取数缺陷只有 take 说了算的假库才测得出来
       findMany: jest.fn().mockImplementation(
-        async ({ where }: { where: { category: string; key?: { startsWith: string }; createdAt?: { lt: Date } } }) =>
-          assets.filter(
+        async (args: {
+          where: { category: string; key?: { startsWith: string }; createdAt?: { lt: Date } };
+          orderBy?: { createdAt: 'asc' | 'desc' };
+          take?: number;
+        }) => {
+          const { where, orderBy, take } = args;
+          const rows = assets.filter(
             (a) =>
               a.category === where.category &&
               (!where.key || a.key.startsWith(where.key.startsWith)) &&
               (!where.createdAt || a.createdAt < where.createdAt.lt),
-          ),
+          );
+          if (orderBy?.createdAt === 'asc') rows.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+          if (orderBy?.createdAt === 'desc') rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          return take === undefined ? rows : rows.slice(0, take);
+        },
       ),
     },
   };
@@ -119,10 +130,42 @@ describe('ReviewSourceCleanupService — 审查源文件每日清理', () => {
     expect(error).toHaveBeenCalledTimes(1);
   });
 
-  test('一轮最多各取 500 条（满批的下一天接着清）', async () => {
-    const prisma = mkPrisma();
+  const MANY = (count: number, category: string, createdAt: Date) =>
+    Array.from({ length: count }, (_, i) => ({ id: `fa-${category}-${i}`, key: KEY_I(i), category, createdAt }));
+
+  test('被任务留住的源文件超过一批、且都比没人用的上传旧 → 没人用的上传照样清（不能先限量再过滤）', async () => {
+    // 每个带文件的审查都留下一条被任务引用的记录，任务列表只回最近 50 条、更早的在界面上删不掉——
+    // 留住的记录只增不减。若先取最老的 500 条再在应用层筛「没人用」，候选会恒为空，孤儿永远清不到
+    const retained = MANY(600, REVIEW_SOURCE_CATEGORY, OLD);
+    const orphan = { id: 'fa-orphan', key: KEY_I(999), category: REVIEW_SOURCE_CATEGORY, createdAt: new Date(OLD.getTime() + 60_000) };
+    const prisma = mkPrisma({ assets: [...retained, orphan], referenced: retained.map((a) => a.key) });
+
+    const r = await mkService(prisma).cleanupOnce();
+
+    expect(purge.mock.calls.map((c) => c[2])).toEqual([orphan.key]);
+    expect(r).toEqual({ removed: 1, kept: 0 });
+  });
+
+  test('没人用的上传一轮最多清 500 条：积压更多时留给下一天', async () => {
+    const prisma = mkPrisma({ assets: MANY(600, REVIEW_SOURCE_CATEGORY, OLD) });
+
+    const r = await mkService(prisma).cleanupOnce();
+
+    expect(purge).toHaveBeenCalledTimes(500);
+    expect(r).toEqual({ removed: 500, kept: 0 });
+  });
+
+  test('待清记录按上传时间从旧到新取，一轮最多 500 条', async () => {
+    const purging = MANY(600, REVIEW_SOURCE_PURGING_CATEGORY, OLD);
+    const prisma = mkPrisma({ assets: purging });
+
     await mkService(prisma).cleanupOnce();
-    for (const call of prisma.fileAsset.findMany.mock.calls) expect(call[0].take).toBe(500);
+
+    expect(purge).toHaveBeenCalledTimes(500);
+    expect(purge.mock.calls[0][2]).toBe(purging[0].key);
+    const purgingQuery = prisma.fileAsset.findMany.mock.calls.map((c) => c[0]).find((a) => a.where.category === REVIEW_SOURCE_PURGING_CATEGORY);
+    expect(purgingQuery.orderBy).toEqual({ createdAt: 'asc' });
+    expect(purgingQuery.take).toBe(500);
   });
 
   test('定时入口：清理出错只记错误日志，不抛', async () => {

@@ -51,20 +51,23 @@ export class ReviewSourceCleanupService {
       ),
     );
     const [stale, purging] = await Promise.all([
-      // 只取审查命名空间下的键：类目是审查源文件、键却不在命名空间的不是审查上传口登记的，不碰、也不必每天报一遍
+      // 只取审查命名空间下的键：类目是审查源文件、键却不在命名空间的不是审查上传口登记的，不碰、也不必每天报一遍。
+      // 这里不限量——「有没有任务在用」只能在应用层比（两张表之间没有外键）。被任务留住的记录只增不减
+      // （任务列表只回最近 50 条，更早的在界面上删不掉），先取最老的一批再筛的话，这一批全是有人用的，
+      // 没人用的永远轮不到。只取 id 与键，筛完再按一轮的上限截
       this.prisma.fileAsset.findMany({
         where: { category: REVIEW_SOURCE_CATEGORY, key: { startsWith: REVIEW_OBJECT_KEY_PREFIX }, createdAt: { lt: cutoff } },
         select: { id: true, key: true },
         orderBy: { createdAt: 'asc' },
-        take: BATCH,
       }),
       this.prisma.fileAsset.findMany({
         where: { category: REVIEW_SOURCE_PURGING_CATEGORY },
         select: { id: true, key: true },
+        orderBy: { createdAt: 'asc' },
         take: BATCH,
       }),
     ]);
-    const candidates = [...purging, ...stale.filter((a) => !referenced.has(a.key))];
+    const candidates = [...purging, ...stale.filter((a) => !referenced.has(a.key)).slice(0, BATCH)];
 
     let removed = 0;
     let kept = 0;

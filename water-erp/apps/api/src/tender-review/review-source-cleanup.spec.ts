@@ -77,6 +77,34 @@ describe('purgeUnreferencedReviewSourceFile — 审查源文件的清理（审�
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it.each(['.original', ''])('对象本来就不在（%s 删除报 NoSuchKey）→ 当作已删，接着清剩下的', async (suffix) => {
+    const { prisma, storage, db } = makeDeps();
+    const warn = jest.fn();
+    storage.delete.mockImplementation(async (key: string) => {
+      if (key === `${KEY}${suffix}`) throw Object.assign(new Error('The specified key does not exist.'), { code: 'NoSuchKey' });
+    });
+
+    await expect(purgeUnreferencedReviewSourceFile(prisma as any, storage as any, KEY, warn)).resolves.toBe('removed');
+
+    expect(storage.delete.mock.calls.map((c) => c[0])).toEqual([`${KEY}.original`, KEY]);
+    expect(db.rows).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('存储报的是别的错（比如没权限）→ 不算删掉：后面的对象不再删，文件记录留在待清状态', async () => {
+    const { prisma, storage, db } = makeDeps();
+    const warn = jest.fn();
+    storage.delete.mockImplementation(async (key: string) => {
+      if (key === `${KEY}.original`) throw Object.assign(new Error('Access Denied'), { code: 'AccessDenied' });
+    });
+
+    await expect(purgeUnreferencedReviewSourceFile(prisma as any, storage as any, KEY, warn)).resolves.toBe('kept');
+
+    expect(storage.delete.mock.calls.map((c) => c[0])).toEqual([`${KEY}.original`]);
+    expect(db.rows).toEqual([{ ...REGISTERED, category: REVIEW_SOURCE_PURGING_CATEGORY }]);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it('对象删除在事务提交之后才做——事务里不碰对象存储', async () => {
     const { prisma, storage } = makeDeps();
     let inside = 0;
