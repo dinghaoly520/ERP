@@ -409,7 +409,7 @@ OPERATION_LOG_RETENTION_DAYS=180    # 保留天数；@Cron 0 4 * * * 清理
 
 The API uses `@nestjs/websockets` + Socket.IO for real-time bid opening (开标大厅). The bid portal connects via `socket.io-client` to receive live decrypt status updates and countdown timer events.
 
-**握手鉴权与入会时序（2026-11-25）**：`bid.gateway.ts` 的 `handleConnection` 是异步鉴权（验签；带会话编号的令牌还要查库对账），而客户端一收到 connect 就会发 `join:project`。连接一开始（第一个 `await` 之前）把鉴权 promise 挂到 `socket.data.authReady`，`handleJoinProject` 先 `await this.awaitHandshakeAuth(client)` 再读身份——**新增「连接后立刻可能到达」的消息处理必须同样先等它**，否则会被判 UNAUTHORIZED，而且是静默的：连接不断、界面仍显示已连接、却收不到项目房事件。前端四门户 hook 的入会带应答并对 UNAUTHORIZED 重试（各门户 `src/lib/ws-join.ts`，四份逐字一致）。主持人 `token_bid` 不带会话编号、握手不查库，本就不受影响；通知与聊天网关不靠客户端入会，不在此约束内。
+**握手鉴权与入会时序（2026-11-25）**：`bid.gateway.ts` 的 `handleConnection` 是异步鉴权（验签；带会话编号的令牌还要查库对账），而客户端一收到 connect 就会发 `join:project`。连接一开始（第一个 `await` 之前）把鉴权 promise 挂到 `socket.data.authReady`，`handleJoinProject` 先 `await this.awaitHandshakeAuth(client)` 再读身份——**新增「连接后立刻可能到达」的消息处理必须同样先等它**，否则会被判 UNAUTHORIZED，而且是静默的：连接不断、界面仍显示已连接、却收不到项目房事件。前端四门户 hook 的入会带应答并对 UNAUTHORIZED 重试（各门户 `src/lib/ws-join.ts`，四份逐字一致）。**鉴权不过时服务端直接断开连接、不给入会应答**（Nest 适配器对已断开的连接丢弃应答）——hook 另在 disconnect 里给「连上却从未入会」的连接计一次失败（`onDisconnectedBeforeJoin`，客户端自己断开的不计），连续 3 次停止自动重连、状态停在已断开（2026-11-26 独立审查修复：此前会话被顶后 :3005/:3006 每秒重连不停；数据库/Redis 不可用约 3 秒同样会停，恢复后需切回标签页或手动重连——勿按断开原因的字样筛，轮询传输下原因不固定）。主持人 `token_bid` 不带会话编号、握手不查库，本就不受影响；通知与聊天网关不靠客户端入会，不在此约束内。
 
 ### Bid Stage State Machine
 
