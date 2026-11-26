@@ -20,8 +20,10 @@ export default function TaskQueueBar() {
   const { confirm, dialog } = useConfirm();
   const [expanded, setExpanded] = useState(true);
 
+  // 没有在跑的任务就不画任务栏。但确认框可能已经打开（最后一个任务在弹窗开着时跑完了）：
+  // 它要跟着画完，否则弹窗凭空消失，那次「确认」的请求永远不结算
   if (runningTasks.length === 0) {
-    return null;
+    return dialog;
   }
 
   return (
@@ -81,7 +83,8 @@ export default function TaskQueueBar() {
                       onClick={async () => {
                         // 单击即删 → 先确认：这个按钮与「停止」并排，在跑的审查点错一下就没了
                         if (!(await confirm({ title: '删除任务', message: deleteReviewConfirmMessage(task.status), danger: true }))) return;
-                        await deleteTask(task.id);
+                        // 失败的提示由 deleteTask 自己发；它抛出来的错在这里接住，不留没人接的拒绝
+                        await deleteTask(task.id).catch(() => undefined);
                       }}
                       className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--danger)] hover:bg-[color-mix(in_oklch,var(--danger)_12%,transparent)] transition-colors"
                       title="删除任务"
